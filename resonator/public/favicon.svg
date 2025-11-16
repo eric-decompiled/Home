@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" fill="#0a0e27" rx="4"/>
+  <!-- Fundamental (1x frequency) -->
+  <path d="M 2,16 C 6,8 10,8 14,16 C 18,24 22,24 26,16 L 30,16" stroke="#16c79a" stroke-width="2.5" fill="none"/>
+  <!-- 2nd harmonic (2x frequency, half amplitude) -->
+  <path d="M 2,16 C 4,12 6,12 8,16 C 10,20 12,20 14,16 C 16,12 18,12 20,16 C 22,20 24,20 26,16 C 28,12 30,12 30,16" stroke="#ff6b6b" stroke-width="1.5" fill="none" opacity="0.8"/>
+  <!-- 3rd harmonic (3x frequency, third amplitude) -->
+  <path d="M 2,16 C 3,14 4,14 5,16 C 6,18 7,18 8,16 C 9,14 10,14 11,16 C 12,18 13,18 14,16 C 15,14 16,14 17,16 C 18,18 19,18 20,16 C 21,14 22,14 23,16 C 24,18 25,18 26,16 C 27,14 28,14 29,16 L 30,16" stroke="#4ecdc4" stroke-width="1" fill="none" opacity="0.6"/>
+</svg>
