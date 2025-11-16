@@ -137,7 +137,6 @@ function playInterval() {
   const attackTime = 0.1
   const decayTime = 0.2
   const sustainLevel = 0.15
-  const releaseTime = 0.3
   const duration = 2.5
 
   // Set initial gain to 0
