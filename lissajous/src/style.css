@@ -20,6 +20,7 @@ body {
   gap: 40px;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 canvas {
@@ -32,6 +33,7 @@ canvas {
   flex-direction: column;
   gap: 25px;
   width: 320px;
+  max-width: 100%;
 }
 
 .sidebar.left {
@@ -227,4 +229,52 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 50%;
   border: none;
   box-shadow: 0 0 10px rgba(22, 199, 154, 0.5);
+}
+
+/* Responsive styles - Mobile layout */
+@media (max-width: 1024px) {
+  #app {
+    padding: 15px;
+  }
+
+  .container {
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .sidebar {
+    width: 100%;
+    max-width: 500px;
+  }
+
+  .sidebar.left,
+  .sidebar.right {
+    align-self: center;
+  }
+
+  canvas {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .preset-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .info h2 {
+    font-size: 18px;
+  }
+
+  .info p {
+    font-size: 12px;
+  }
+
+  .controls {
+    padding: 20px;
+  }
+
+  .play-btn {
+    padding: 12px;
+    font-size: 15px;
+  }
 }

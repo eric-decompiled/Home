@@ -70,9 +70,33 @@ app.innerHTML = `
 const canvas = document.querySelector<HTMLCanvasElement>('#canvas')!
 const ctx = canvas.getContext('2d')!
 
-// Set canvas size
-canvas.width = 800
-canvas.height = 600
+// Responsive canvas sizing
+function getCanvasSize() {
+  const maxWidth = Math.min(800, window.innerWidth - 40)
+  const aspectRatio = 4 / 3
+  const width = maxWidth
+  const height = width / aspectRatio
+  return { width, height }
+}
+
+function resizeCanvas() {
+  const { width, height } = getCanvasSize()
+  canvas.width = width
+  canvas.height = height
+  // Update center and amplitude based on new size
+  centerX = width / 2
+  centerY = height / 2
+  amplitude = Math.min(width, height) * 0.33
+}
+
+// Set initial canvas size
+let centerX = 400
+let centerY = 300
+let amplitude = 200
+resizeCanvas()
+
+// Handle window resize
+window.addEventListener('resize', resizeCanvas)
 
 // Get controls
 const freqXSlider = document.querySelector<HTMLInputElement>('#freqX')!
@@ -186,9 +210,6 @@ let sweepSpeed = 0.01
 let phaseSweepEnabled = false
 
 // Animation variables
-const centerX = 400
-const centerY = 300
-const amplitude = 200
 let t = 0
 
 // Preset configurations - All chromatic intervals (just intonation)
