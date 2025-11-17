@@ -64,6 +64,10 @@ async function build() {
     <p>
 	A collection of projects to help me internalize DSP concepts
     </p>
+
+    <p>
+	Note: The audio doesn't play on iPhone, so much of the interactivity is limited
+    </p>
     <ul>
       ${projects.map(p => `<li><a href="${p}/index.html">${p}</a></li>`).join('')}
     </ul>
