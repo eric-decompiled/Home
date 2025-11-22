@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Digital Signal Processing</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg-primary: #0a0e27;
+      --bg-secondary: #16213e;
+      --bg-tertiary: #1a2942;
+      --accent-primary: #16c79a;
+      --accent-secondary: #ff6b6b;
+      --text-primary: #e0e0e0;
+      --text-secondary: #8892b0;
+      --border-color: #0f3460;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    /* Header */
+    .app-header {
+      text-align: center;
+      margin-bottom: 3rem;
+      padding: 2.5rem;
+      background: var(--bg-secondary);
+      border-radius: 16px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--accent-primary);
+      margin-bottom: 0.75rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .subtitle {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      letter-spacing: 0.5px;
+    }
+
+    /* Project Links Section */
+    .projects-section {
+      background: linear-gradient(135deg, var(--bg-secondary) 0%, #0f1419 100%);
+      border-radius: 16px;
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--border-color);
+    }
+
+    .projects-section h2 {
+      color: var(--accent-primary);
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    #project-links {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 1rem;
+    }
+
+    .project-link {
+      display: block;
+      padding: 1.25rem;
+      background: var(--bg-tertiary);
+      border: 2px solid var(--accent-primary);
+      border-radius: 12px;
+      text-decoration: none;
+      color: var(--text-primary);
+      transition: all 0.3s;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .project-link:hover {
+      background: linear-gradient(135deg, var(--accent-primary) 0%, #1ee7ad 100%);
+      color: var(--bg-primary);
+      transform: translateY(-4px);
+      box-shadow: 0 8px 24px rgba(22, 199, 154, 0.4);
+      border-color: var(--accent-primary);
+    }
+
+    .project-link h3 {
+      font-size: 1.2rem;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+      color: var(--accent-primary);
+    }
+
+    .project-link:hover h3 {
+      color: var(--bg-primary);
+    }
+
+    .project-link p {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+    }
+
+    .project-link:hover p {
+      color: var(--bg-primary);
+    }
+
+    /* Resources Section */
+    .resources-section {
+      background: linear-gradient(135deg, var(--bg-secondary) 0%, #0f1419 100%);
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--border-color);
+    }
+
+    .resources-section h2 {
+      color: var(--accent-primary);
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .resources-section .intro {
+      color: var(--text-secondary);
+      margin-bottom: 1.5rem;
+      font-size: 1rem;
+    }
+
+    .resource-item {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+      transition: all 0.3s;
+    }
+
+    .resource-item:hover {
+      border-color: var(--accent-secondary);
+      box-shadow: 0 4px 16px rgba(255, 107, 107, 0.2);
+    }
+
+    .resource-item h3 {
+      color: var(--accent-secondary);
+      font-size: 1.1rem;
+      margin-bottom: 0.5rem;
+      font-weight: 600;
+    }
+
+    .resource-item p {
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 0.75rem;
+    }
+
+    .resource-item a {
+      display: inline-block;
+      color: var(--accent-primary);
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.2s;
+      border-bottom: 2px solid transparent;
+    }
+
+    .resource-item a:hover {
+      color: #1ee7ad;
+      border-bottom-color: #1ee7ad;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .container {
+        padding: 1rem;
+      }
+
+      h1 {
+        font-size: 2rem;
+      }
+
+      .app-header {
+        padding: 1.5rem;
+      }
+
+      #project-links {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="app-header">
+      <h1>Digital Signal Processing</h1>
+      <p class="subtitle">A collection of web apps to help internalize DSP concepts</p>
+    </div>
+
+    <div class="projects-section">
+      <h2>Projects</h2>
+      <div id="project-links">
+        <!-- Project links will be injected here by build.js -->
+      </div>
+    </div>
+
+    <div class="resources-section">
+      <h2>Resources</h2>
+      <p class="intro">Some favorite resources that inspired these projects</p>
+
+      <div class="resource-item">
+        <h3>Basic Electronics Curriculum</h3>
+        <p>A comprehensive collection of electronics articles covering fundamental concepts and practical applications.</p>
+        <a href="https://lcamtuf.substack.com/p/electronics-curriculum" target="_blank" rel="noopener noreferrer">Read lcamtuf's Electronics Articles →</a>
+      </div>
+
+      <div class="resource-item">
+        <h3>Human and Machine Hearing</h3>
+        <p>The textbook that got me really interested in the subject. Most of the projects here are attempts to build up an intuition for concepts from this book.</p>
+        <a href="https://dicklyon.com/hmh/Lyon_Hearing_book_01jan2018.pdf" target="_blank" rel="noopener noreferrer">Download PDF →</a>(from the author's own website!)
+      </div>
+    </div>
+  </div>
+</body>
+</html>

@@ -5,7 +5,12 @@ const { execSync } = require('child_process');
 const rootDir = __dirname;
 const distDir = path.join(rootDir, 'dist');
 
-const projects = ['lissajous', 'resonator', 'sound-synth'];
+const projects = {
+  'lissajous': 'Visualize Lissajous curves and their relationship to musical intervals',
+  'resonator': 'Real-time RLC resonator explorer for audio synthesis and visualization',
+  'sound-synth': 'Interactive harmonics explorer for understanding sound and timbre',
+  'karplus-strong': 'Explore the Karplus-Strong algorithm to synth plucked string sounds',
+};
 
 // Base path for GitHub Pages deployment (set via environment variable or default to root)
 const basePath = process.env.BASE_PATH || '';
@@ -18,14 +23,14 @@ async function build() {
   await fs.emptyDir(distDir);
 
   // 2. Install dependencies for all projects
-  for (const project of projects) {
+  for (const project of Object.keys(projects)) {
     const projectDir = path.join(rootDir, project);
     console.log(`Installing dependencies for project: ${project}...`);
     execSync('npm install', { cwd: projectDir, stdio: 'inherit' });
   }
 
   // 3. Build each project
-  for (const project of projects) {
+  for (const project of Object.keys(projects)) {
     const projectDir = path.join(rootDir, project);
     console.log(`Building project: ${project}...`);
 
@@ -41,40 +46,32 @@ async function build() {
 
   // 5. Create root index.html
   console.log('Creating root index.html...');
-  const indexHtml = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Digital Signal Processing</title>
-  <style>
-    body { font-family: sans-serif; background-color: #f0f0f0; color: #333; }
-    .container { max-width: 800px; margin: 0 auto; padding: 2rem; }
-    h1 { text-align: center; }
-    ul { list-style: none; padding: 0; }
-    li { margin: 1rem 0; }
-    a { text-decoration: none; color: #007bff; font-size: 1.2rem; }
-    a:hover { text-decoration: underline; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>Digital Signal Processing</h1>
-    <p>
-	A collection of projects to help me internalize DSP concepts
-    </p>
 
-    <p>
-	Note: The audio doesn't play on iPhone, so much of the interactivity is limited
-    </p>
-    <ul>
-      ${projects.map(p => `<li><a href="${p}/index.html">${p}</a></li>`).join('')}
-    </ul>
-  </div>
-</body>
-</html>
-  `;
+  // Read the template HTML file
+  const templatePath = path.join(rootDir, 'index.html');
+  let indexHtml = await fs.readFile(templatePath, 'utf-8');
+
+  // Generate project links
+  const projectLinks = Object.entries(projects)
+    .map(([name, description]) => `
+        <a href="${name}/index.html" class="project-link">
+          <h3>${name.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</h3>
+          <p>${description}</p>
+        </a>`)
+    .join('\n');
+
+  // Inject the links into the special div using regex
+  const targetRegex = /<div id="project-links">[\s\S]*?<\/div>/;
+
+  if (!targetRegex.test(indexHtml)) {
+    throw new Error('Could not find <div id="project-links"> in index.html template');
+  }
+
+  indexHtml = indexHtml.replace(
+    targetRegex,
+    `<div id="project-links">${projectLinks}\n    </div>`
+  );
+
   await fs.writeFile(path.join(distDir, 'index.html'), indexHtml);
 
   // 6. Copy documentation files (if they exist)
