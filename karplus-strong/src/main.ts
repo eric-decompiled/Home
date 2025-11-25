@@ -12,14 +12,14 @@ let animationFrameId: number | null = null
 const SAMPLE_RATE = 48000  // Assume 48kHz
 const MAX_DELAY_SAMPLES = 1000  // 0-1000 sample range
 
-// Calculate delay for 220Hz (A3): 48000 / 220 = 218 samples
-// This is a good low string pitch for realistic sound
-const DEFAULT_DELAY_SAMPLES = Math.round(SAMPLE_RATE / 220)  // 218 samples for 220Hz
+// Default to 441 samples (48000 / 441 ≈ 108.8Hz, close to A2)
+const DEFAULT_DELAY_SAMPLES = 441
 
 let delaySamples = DEFAULT_DELAY_SAMPLES
-let feedback = 0.995  // High feedback for long sustain
+let feedback = 0.985  // High feedback for long sustain
 let hasLowpass = true  // Enable lowpass for realistic string timbre
 let lowpassCutoff = 5000  // 5kHz cutoff for natural brightness
+let feedbackNoise = 0.0  // Dither/noise injected into feedback path (very small values)
 
 // Input source configuration
 type InputSource = 'noise' | 'sine' | 'square'
@@ -152,6 +152,14 @@ function processAudio(event: AudioProcessingEvent) {
         const smoothedAlpha = Math.min(alpha, 1)
         delayedSample = smoothedAlpha * delayedSample + (1 - smoothedAlpha) * prevSample
         prevSample = delayedSample
+      }
+
+      // Add noise/dither to feedback path proportional to signal energy
+      if (feedbackNoise > 0) {
+        // Scale noise by the absolute amplitude of the delayed signal
+        // This makes the noise decay naturally as the string energy decays
+        const signalAmplitude = Math.abs(delayedSample)
+        delayedSample += (Math.random() * 2 - 1) * feedbackNoise * signalAmplitude
       }
 
       // Comb filter: y[n] = x[n] + feedback·y[n-M]
@@ -311,6 +319,12 @@ function updateLowpassCutoff(value: number) {
   drawCircuitDiagram()
 }
 
+// Update feedback noise
+function updateFeedbackNoise(value: number) {
+  feedbackNoise = value
+  drawCircuitDiagram()
+}
+
 // Update delay display
 function updateDelayDisplay() {
   const display = document.getElementById('delayDisplay')
@@ -362,12 +376,22 @@ function drawCircuitDiagram() {
   ctx.fillText('Feedback Comb Filter', width / 2, 30)
 
   // Calculate positions for centered layout
-  const numBlocks = hasLowpass ? 3 : 2  // Delay, Lowpass?, Gain
+  let numBlocks = 2  // Delay, Gain (minimum)
+  if (hasLowpass) numBlocks++
+  if (feedbackNoise > 0) numBlocks++
   const blockSpacing = 120  // Reduced spacing between blocks
-  const feedbackPathWidth = numBlocks * boxWidth + (numBlocks - 1) * (blockSpacing - boxWidth)
+  const feedbackPathWidth = numBlocks * blockSpacing
 
-  // Calculate center positions - more compact
-  const summerX = width / 2 - 50
+  // Calculate total width needed
+  // Input (30) + arrow (70) + summer (30) + arrow (65) + split (5) + arrow (70) + output (30) = 300
+  const topPathWidth = 300
+  // Feedback return path extends left: 30 + some margin
+  const returnPathWidth = 60
+  const totalWidth = Math.max(topPathWidth, feedbackPathWidth + returnPathWidth)
+
+  // Center everything with rightward shift
+  const diagramCenterX = width / 2 + 150
+  const summerX = diagramCenterX - feedbackPathWidth / 2 + returnPathWidth / 2 - 50
   const splitX = summerX + 80
   const inputX = summerX - 100
   const outputX = splitX + 100
@@ -518,6 +542,36 @@ function drawCircuitDiagram() {
     feedbackX -= blockSpacing
   }
 
+  // Noise block (if enabled)
+  if (feedbackNoise > 0) {
+    ctx.fillStyle = '#1a2942'
+    ctx.fillRect(feedbackX - boxWidth/2, feedbackY - boxHeight/2, boxWidth, boxHeight)
+    ctx.strokeStyle = '#ffd93d'
+    ctx.lineWidth = 2
+    ctx.strokeRect(feedbackX - boxWidth/2, feedbackY - boxHeight/2, boxWidth, boxHeight)
+    ctx.fillStyle = '#e0e0e0'
+    ctx.font = '13px -apple-system, sans-serif'
+    ctx.fillText('Noise', feedbackX, feedbackY - 5)
+    ctx.fillText(`${feedbackNoise.toFixed(2)}`, feedbackX, feedbackY + 10)
+
+    // Arrow to next block
+    ctx.strokeStyle = '#16c79a'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.moveTo(feedbackX - boxWidth/2, feedbackY)
+    ctx.lineTo(feedbackX - boxWidth/2 - (blockSpacing - boxWidth), feedbackY)
+    ctx.stroke()
+    ctx.beginPath()
+    const arrowX3 = feedbackX - boxWidth/2 - (blockSpacing - boxWidth)
+    ctx.moveTo(arrowX3, feedbackY)
+    ctx.lineTo(arrowX3 + 5, feedbackY - 5)
+    ctx.moveTo(arrowX3, feedbackY)
+    ctx.lineTo(arrowX3 + 5, feedbackY + 5)
+    ctx.stroke()
+
+    feedbackX -= blockSpacing
+  }
+
   // Feedback gain block
   ctx.fillStyle = '#1a2942'
   ctx.fillRect(feedbackX - boxWidth/2, feedbackY - boxHeight/2, boxWidth, boxHeight)
@@ -597,15 +651,15 @@ function buildUI() {
         <h2>Filter Parameters</h2>
 
         <div class="control-group">
-          <label>Delay: <span id="delayDisplay" class="value-display">${DEFAULT_DELAY_SAMPLES} samples</span></label>
+          <label>Delay: <span id="delayDisplay" class="value-display">441 samples</span></label>
           <input type="range" id="delaySamplesSlider"
-                 min="0" max="${MAX_DELAY_SAMPLES}" value="${DEFAULT_DELAY_SAMPLES}" step="1">
+                 min="0" max="${MAX_DELAY_SAMPLES}" value="441" step="1">
         </div>
 
         <div class="control-group">
-          <label>Feedback: <span id="feedbackDisplay" class="value-display">0.995</span></label>
+          <label>Feedback: <span id="feedbackDisplay" class="value-display">0.985</span></label>
           <input type="range" id="feedbackSlider"
-                 min="0" max="0.999" value="0.995" step="0.001">
+                 min="0" max="0.999" value="0.985" step="0.001">
         </div>
 
         <div class="control-group checkbox-group">
@@ -621,6 +675,12 @@ function buildUI() {
             <input type="range" id="cutoffSlider"
                    min="500" max="10000" value="5000" step="100">
           </div>
+        </div>
+
+        <div class="control-group">
+          <label>Dither: <span id="noiseDisplay" class="value-display">0.000</span></label>
+          <input type="range" id="noiseSlider"
+                 min="0" max="0.1" value="0" step="0.001">
         </div>
 
         <h2 style="margin-top: 2rem;">Input Source</h2>
@@ -682,6 +742,14 @@ function buildUI() {
     updateLowpassCutoff(value)
     const display = document.getElementById('cutoffDisplay')
     if (display) display.textContent = `${(value/1000).toFixed(1)} kHz`
+  })
+
+  const noiseSlider = document.getElementById('noiseSlider') as HTMLInputElement
+  noiseSlider?.addEventListener('input', (e) => {
+    const value = parseFloat((e.target as HTMLInputElement).value)
+    updateFeedbackNoise(value)
+    const display = document.getElementById('noiseDisplay')
+    if (display) display.textContent = value.toFixed(3)
   })
 
   const inputSourceSelect = document.getElementById('inputSourceSelect') as HTMLSelectElement
