@@ -10,6 +10,7 @@ const projects = {
   'resonator': 'Real-time RLC resonator explorer for audio synthesis and visualization',
   'sound-synth': 'Interactive harmonics explorer for understanding sound and timbre',
   'karplus-strong': 'Explore the Karplus-Strong algorithm to synth plucked string sounds',
+  'fractals': 'Explore fractals. Some have animations',
 };
 
 // Base path for GitHub Pages deployment (set via environment variable or default to root)
