@@ -11,5 +11,9 @@
   "devDependencies": {
     "typescript": "^5.0.2",
     "vite": "^4.3.2"
+  },
+  "dependencies": {
+    "@tonejs/midi": "^2.0.28",
+    "spessasynth_lib": "^4.1.1"
   }
 }
