@@ -1,4 +1,4 @@
-import type { ChordEvent, NoteEvent } from './midi-analyzer.ts';
+import type { ChordEvent, DrumHit, NoteEvent } from './midi-analyzer.ts';
 
 // --- Julia set anchors by harmonic degree ---
 
@@ -12,51 +12,32 @@ interface CValue {
 }
 
 // type: 0=Julia z²+c, 1=Cubic z³+c, 2=Quartic z⁴+c, 3=BurningShip,
-//       4=Tricorn, 5=Phoenix, 6=Celtic, 7=Lambda
-// Buffalo anchors (kept for future use as selectable option)
-// const buffaloAnchors: Record<number, CValue> = {
-//   1: { real: 0.0,   imag: -0.8,  type: 9, sweepTo: { real: 0.01, imag: -0.78 } },
-//   2: { real: 0.0,   imag: -0.65, type: 9, sweepTo: { real: 0.04, imag: -0.58 } },
-//   3: { real: 0.285, imag: 0.01,  type: 9, sweepTo: { real: 0.3, imag: 0.06 } },
-//   4: { real: -0.12, imag: 0.74,  type: 9, sweepTo: { real: -0.05, imag: 0.68 } },
-//   5: { real: 0.0,   imag: 0.8,   type: 9, sweepTo: { real: 0.06, imag: 0.7 } },
-//   6: { real: 0.0,   imag: 0.65,  type: 9, sweepTo: { real: 0.03, imag: 0.6 } },
-//   7: { real: -0.5,  imag: -0.5,  type: 9, sweepTo: { real: -0.4, imag: -0.4 } },
-//   0: { real: 0.0,   imag: -0.8,  type: 9, sweepTo: { real: 0.01, imag: -0.78 } },
-// };
+//       4=Tricorn, 5=Phoenix, 6=Celtic, 7=Lambda, 8=PerpBurn, 9=Buffalo
 
-const degreeAnchors: Record<number, CValue> = {
-  // Auto-tuned weight-matched anchors in the Burning Ship hull region.
-  // These were visually verified to produce distinct, detailed shapes.
-  // I  - Tonic: southeast detail
-  1: { real: -0.31,    imag: -1.15,   type: 3,
-       sweepTo: { real: -0.3004, imag: -1.1385 } },
-  // ii - Supertonic: hull region
-  2: { real: -1.1347,  imag: -0.6387, type: 3,
-       sweepTo: { real: -1.1309, imag: -0.6355 } },
-  // iii - Mediant: deep hull
-  3: { real: -1.0635,  imag: -0.8576, type: 3,
-       sweepTo: { real: -1.0558, imag: -0.8512 } },
-  // IV - Subdominant: hull #4
-  4: { real: -0.8479,  imag: -1.053,  type: 3,
-       sweepTo: { real: -0.8444, imag: -1.0495 } },
-  // V  - Dominant: deep hull variant
-  5: { real: -1.02,    imag: -0.75,   type: 3,
-       sweepTo: { real: -1.015,  imag: -0.745 } },
-  // vi - Submediant: near deep hull
-  6: { real: -1.02,    imag: -0.9,    type: 3,
-       sweepTo: { real: -1.0162, imag: -0.8968 } },
-  // vii° - Leading tone: low right
-  7: { real: -0.5113,  imag: -1.1077, type: 3,
-       sweepTo: { real: -0.5017, imag: -1.0962 } },
-  // 0 = chromatic/unknown (same as I)
-  0: { real: -0.31,    imag: -1.15,   type: 3,
-       sweepTo: { real: -0.3004, imag: -1.1385 } },
+// --- Mixed anchors: cross-family degree assignments ---
+
+const anchors: Record<number, CValue> = {
+  0: { real: -0.7527, imag: -1.1378, type: 3,
+       sweepTo: { real: -0.6201, imag: -1.1378 } },  // Burning Ship, radius=0.1326
+  1: { real: -0.7527, imag: -1.1378, type: 3,
+       sweepTo: { real: -0.6201, imag: -1.1378 } },  // Burning Ship, radius=0.1326
+  2: { real: -1.6544, imag: -0.0925, type: 3,
+       sweepTo: { real: -1.5279, imag: -0.0925 } },  // Burning Ship, radius=0.1265
+  3: { real: -0.9500, imag: 0.2503, type: 6,
+       sweepTo: { real: -0.8061, imag: 0.2503 } },  // Celtic, radius=0.1439
+  4: { real: -1.0375, imag: -0.3443, type: 6,
+       sweepTo: { real: -0.9260, imag: -0.3443 } },  // Celtic, radius=0.1115
+  5: { real: 0.5740, imag: -0.5472, type: 9,
+       sweepTo: { real: 0.6758, imag: -0.5472 } },  // Buffalo, radius=0.1019
+  6: { real: 1.2885, imag: -1.0817, type: 9,
+       sweepTo: { real: 1.3735, imag: -1.0817 } },  // Buffalo, radius=0.0850
+  7: { real: 0.8324, imag: -1.3553, type: 3,
+       sweepTo: { real: 1.0106, imag: -1.3553 } },  // Burning Ship, radius=0.1781
 };
 
 // Root pitch class applies a tiny rotation around the degree anchor
 function centerForChord(degree: number, root: number): CValue {
-  const anchor = degreeAnchors[degree] ?? degreeAnchors[0];
+  const anchor = anchors[degree] ?? anchors[0];
   const angle = (root / 12) * Math.PI * 2;
   // Very small radius — these c-values are precisely tuned for visual weight
   const radius = 0.005;
@@ -69,6 +50,10 @@ function centerForChord(degree: number, root: number): CValue {
   };
 }
 
+function getDefaultAnchor(): CValue {
+  return anchors[1];
+}
+
 // --- Fractal parameter state ---
 
 export interface FractalParams {
@@ -78,6 +63,7 @@ export interface FractalParams {
   phoenixP: number;
   paletteIndex: number;
   baseIter: number;
+  rotation: number;         // radians
   melodyPitchClass: number; // -1 if none
   melodyVelocity: number;   // 0-1
   bassPitchClass: number;   // -1 if none
@@ -85,19 +71,14 @@ export interface FractalParams {
 }
 
 // Interpolation state
-const defaultAnchor = degreeAnchors[1];
-let currentCenter: CValue = { ...defaultAnchor };
-let targetCenter: CValue = { ...defaultAnchor };
-// Spring velocity — drives both transition momentum and note kicks
-let velocityR = 0;
-let velocityI = 0;
+let currentCenter: CValue = { ...getDefaultAnchor() };
+let targetCenter: CValue = { ...getDefaultAnchor() };
 
 let currentTension = 0;
 let targetTension = 0;
 let currentPalette = 4;
-let currentFractalType = defaultAnchor.type;
+let currentFractalType = getDefaultAnchor().type;
 let currentPhoenixP = -0.5;
-let currentSweep: { real: number; imag: number } | undefined;
 
 let lastNoteIndex = -1;
 
@@ -106,38 +87,59 @@ let noteCount = 0;
 const coldStartNotes = 12;  // first N notes get boosted
 const coldStartMultiplier = 3.0; // extra kick factor
 
-// Breathing: three phases for organic motion
-let phase = 0;
-let phase2 = 0;   // golden ratio offset — never repeats
-let phase3 = 0;   // beat-synced groove phase
+// Underdamped spring — two independent 1D oscillators
+let springRealPos = 0;   // displacement from equilibrium
+let springRealVel = 0;   // velocity (units: c-space / second)
+let springImagPos = 0;
+let springImagVel = 0;
+
+// Spring parameters (adapted by tempo in setTempo)
+let omega0 = 4.5;        // natural frequency rad/s (~0.7 Hz)
+const zeta = 0.35;       // damping ratio — ~3 visible bounces
+
+// Beat-driven rotation
+let rotationAngle = 0;
+let rotationVelocity = 0;
+let rotationFriction = 1.2;
+
+// Beat tracking (set in setTempo)
 let beatDuration = 0.5;
-let beatPhase = 0; // tracks position within the beat (0-1)
+let beatsPerBar = 4;
 
-// Note-driven sweep energy: decays over time, boosts breathing amplitude
-let sweepEnergy = 0;
+// Drum processing
+let lastDrumIndex = -1;
 
-// Bass heaviness: low notes add slow-decaying weight
-let bassWeight = 0;
+let intensityEnergy = 0; // total energy, expands radius, decays fast ~0.4s
+
+// Exploration radius derived from |anchor - sweepTo|
+let baseRadius = 0.03;
 
 // Exponential snap — fast, direct transition to new chord target
 const snapRate = 8.0;  // ~0.12s to 90% — responsive chord changes
-// Note-kick soft limit
-const kickSoftMax = 0.06;
 
 let smoothingRate = 6.0;
 let lastChordIndex = -1;
 
 export const musicMapper = {
-  setTempo(bpm: number, _timeSig?: [number, number]) {
+  setTempo(bpm: number, timeSig?: [number, number]) {
     beatDuration = 60 / bpm;
+    beatsPerBar = timeSig ? timeSig[0] : 4;
+    // Adapt spring: faster songs → stiffer spring
+    omega0 = Math.max(3.0, Math.min(6.0, 3.5 + (bpm - 60) / 60));
     smoothingRate = 4.0 + (bpm / 120) * 2.0;
+    // Faster tempo → more friction so rotation doesn't accumulate
+    rotationFriction = 1.2 + Math.max(0, (bpm - 100) / 60) * 1.5;
+  },
+
+  getIdleAnchor(): CValue {
+    return getDefaultAnchor();
   },
 
   update(
     dt: number,
     currentTime: number,
     chords: ChordEvent[],
-    _drums: unknown[],
+    drums: DrumHit[],
     notes: NoteEvent[]
   ): FractalParams {
     // --- Find current chord ---
@@ -159,17 +161,23 @@ export const musicMapper = {
       currentPalette = chord.root;
       currentFractalType = center.type;
       currentPhoenixP = center.phoenix ?? -0.5;
-      currentSweep = center.sweepTo;
+
+      // Compute exploration radius from |anchor - sweepTo|
+      if (center.sweepTo) {
+        const dx = center.sweepTo.real - center.real;
+        const dy = center.sweepTo.imag - center.imag;
+        baseRadius = Math.sqrt(dx * dx + dy * dy);
+      } else {
+        baseRadius = 0.03;
+      }
     }
 
-    // --- Decay sweep energy and bass weight ---
-    sweepEnergy *= Math.exp(-0.7 * dt);   // ~1s half-life — pools slowly, rises like a tide
-    if (sweepEnergy > 5.0) sweepEnergy = 5.0; // soft ceiling
-    bassWeight *= Math.exp(-0.8 * dt);    // ~0.87s half-life
+    // --- Decay intensity energy ---
+    intensityEnergy *= Math.exp(-1.7 * dt);  // ~0.4s half-life
+    if (intensityEnergy > 4.0) intensityEnergy = 4.0;
 
     // --- Exponential snap toward target ---
-    const effectiveSnap = snapRate / (1.0 + bassWeight * 0.3);
-    const snapDecay = 1 - Math.exp(-effectiveSnap * dt);
+    const snapDecay = 1 - Math.exp(-snapRate * dt);
     currentCenter.real += (targetCenter.real - currentCenter.real) * snapDecay;
     currentCenter.imag += (targetCenter.imag - currentCenter.imag) * snapDecay;
 
@@ -177,41 +185,9 @@ export const musicMapper = {
     const decay = 1 - Math.exp(-smoothingRate * dt);
     currentTension += (targetTension - currentTension) * decay;
 
-    // --- Breathing: triple-phase for groove ---
-    // Phase 1 & 2: incommensurate Lissajous (organic drift)
-    const baseSpeed = Math.PI * 1.0 / beatDuration;
-    phase += baseSpeed * dt;
-    phase2 += baseSpeed * 0.618 * dt;  // golden ratio — never repeats
-
-    // Phase 3: beat-locked groove (syncs to the rhythm)
-    beatPhase += dt / beatDuration;
-    beatPhase %= 1.0;
-    phase3 = beatPhase * Math.PI * 2;
-    // Groove curve: pure sine on the beat — smooth, no sharp harmonics
-    const groove = Math.sin(phase3);
-
-    let breathR: number, breathI: number;
-
-    // Sweep energy modulates breathing
-    const energyBoost = 1.0 + 3.0 * Math.tanh(sweepEnergy * 0.5);
-
-    if (currentSweep) {
-      // Sweep along axis between anchor and sweepTo
-      const dx = currentSweep.real - targetCenter.real;
-      const dy = currentSweep.imag - targetCenter.imag;
-      // Groove along sweep axis + organic drift
-      breathR = dx * 1.2 * groove * energyBoost
-              + dx * 0.5 * Math.sin(phase2);
-      breathI = dy * 1.2 * groove * energyBoost
-              + dy * 0.5 * Math.cos(phase2);
-    } else {
-      const breathAmp = (0.025 + currentTension * 0.04) * energyBoost;
-      breathR = breathAmp * (0.6 * groove + 0.4 * Math.sin(phase));
-      breathI = breathAmp * Math.cos(phase2);
-    }
-
-    // --- Note-attack momentum + sweep energy + bass weight ---
+    // --- Process new notes → spring impulses ---
     const noteLookback = 0.05;
+    const impulseScale = baseRadius * 3.0;
     for (let i = lastNoteIndex + 1; i < notes.length; i++) {
       const n = notes[i];
       if (n.time > currentTime) break;
@@ -221,27 +197,91 @@ export const musicMapper = {
       lastNoteIndex = i;
       noteCount++;
 
-      // Cold start: first notes get extra momentum to kick off the visualization
+      // Cold start: first notes get extra momentum
       const coldBoost = noteCount <= coldStartNotes
         ? 1.0 + (coldStartMultiplier - 1.0) * (1.0 - noteCount / coldStartNotes)
         : 1.0;
 
-      const interval = ((n.midi % 12) - currentPalette + 12) % 12;
-      const angle = (interval / 12) * Math.PI * 2;
-      const octaveBoost = Math.max(0.6, Math.min(1.3, (n.midi - 48) / 36));
-      // No direct velocity kicks — all note energy flows into sweep energy
-      // which modulates breathing amplitude smoothly via decay envelope
-      sweepEnergy += 0.3 * n.velocity * octaveBoost * coldBoost;
+      const v = n.velocity * coldBoost;
+      if (n.midi < 60) {
+        // Bass → real axis, direction alternates by pitch parity
+        const dir = (n.midi % 2 === 0) ? 1.0 : -1.0;
+        springRealVel += dir * v * 0.7 * impulseScale;
+      } else {
+        // Melody → imag axis, direction alternates by pitch parity
+        const dir = (n.midi % 2 === 0) ? 1.0 : -1.0;
+        springImagVel += dir * v * 0.8 * impulseScale;
+      }
+      intensityEnergy += v * 0.25;
+    }
 
-      // Bass notes (below C3 = midi 48) add heaviness
-      if (n.midi < 48) {
-        const bassDepth = (48 - n.midi) / 24; // 0-1 for C1-C3 range
-        bassWeight += 0.5 * n.velocity * (0.5 + bassDepth);
+    // --- Process drum hits → rotation + spring kicks ---
+    for (let i = lastDrumIndex + 1; i < drums.length; i++) {
+      const d = drums[i];
+      if (d.time > currentTime) break;
+      if (d.time < currentTime - noteLookback) { lastDrumIndex = i; continue; }
+
+      lastDrumIndex = i;
+
+      // Compute beat position within bar for hi-hat alternation
+      const beatInBar = Math.floor((d.time % (beatDuration * beatsPerBar)) / beatDuration);
+
+      if (d.type === 'kick') {
+        rotationVelocity += 0.5;
+        springRealVel += baseRadius * 1.5;
+      } else if (d.type === 'snare') {
+        rotationVelocity -= 0.6;
+      } else if (d.type === 'hihat') {
+        rotationVelocity += (beatInBar % 2 === 0 ? 1 : -1) * 0.12;
       }
     }
 
-    // Bass weight adds iterations (denser, more detailed when heavy)
-    const iterBase = Math.round(120 + currentTension * 60 + bassWeight * 20);
+    // --- Beat-grid rotation impulses ---
+    if (beatDuration > 0) {
+      const barDuration = beatDuration * beatsPerBar;
+      const posInBar = currentTime % barDuration;
+      const prevPosInBar = (currentTime - dt) % barDuration;
+
+      // Check beat boundary crossings
+      for (let beat = 0; beat < beatsPerBar; beat++) {
+        const beatTime = beat * beatDuration;
+        if (prevPosInBar <= beatTime && posInBar > beatTime && dt > 0) {
+          // Beats 0,2 → CCW (+), beats 1,3 → CW (-)
+          const cw = (beat % 2 === 0) ? 1 : -1;
+          const strength = (beat === 1) ? 1.0 : 0.7;
+          rotationVelocity += cw * 0.7 * strength;
+        }
+
+        // Eighth-note subdivision (halfway between beats)
+        const eighthTime = beatTime + beatDuration * 0.5;
+        if (prevPosInBar <= eighthTime && posInBar > eighthTime && dt > 0) {
+          const cw8 = (beat % 2 === 0) ? 1 : -1;
+          rotationVelocity += cw8 * 0.20;
+        }
+      }
+    }
+
+    // --- Rotation friction + integration ---
+    const safeDt = Math.min(dt, 0.1);  // prevent explosion on tab switch
+    rotationVelocity *= Math.exp(-rotationFriction * safeDt);
+    rotationAngle += rotationVelocity * safeDt;
+
+    // --- Spring integration (semi-implicit Euler) ---
+    const omega0sq = omega0 * omega0;
+    const damping = 2 * zeta * omega0;
+
+    // Real axis
+    const accelR = -damping * springRealVel - omega0sq * springRealPos;
+    springRealVel += accelR * safeDt;
+    springRealPos += springRealVel * safeDt;
+
+    // Imag axis
+    const accelI = -damping * springImagVel - omega0sq * springImagPos;
+    springImagVel += accelI * safeDt;
+    springImagPos += springImagVel * safeDt;
+
+    // Iterations: tension + intensity
+    const iterBase = Math.round(120 + currentTension * 60 + intensityEnergy * 15);
 
     // --- Find highest and lowest sounding notes for tint ---
     let highestMidi = -1, highestVel = 0;
@@ -258,12 +298,13 @@ export const musicMapper = {
     }
 
     return {
-      cReal: currentCenter.real + breathR,
-      cImag: currentCenter.imag + breathI,
+      cReal: currentCenter.real + springRealPos,
+      cImag: currentCenter.imag + springImagPos,
       fractalType: currentFractalType,
       phoenixP: currentPhoenixP,
       paletteIndex: currentPalette,
       baseIter: iterBase,
+      rotation: rotationAngle,
       melodyPitchClass: highestMidi >= 0 ? highestMidi % 12 : -1,
       melodyVelocity: highestVel,
       bassPitchClass: lowestMidi < 999 ? lowestMidi % 12 : -1,
@@ -272,24 +313,25 @@ export const musicMapper = {
   },
 
   reset() {
-    currentCenter = { ...defaultAnchor };
-    targetCenter = { ...defaultAnchor };
-    velocityR = 0;
-    velocityI = 0;
+    const def = getDefaultAnchor();
+    currentCenter = { ...def };
+    targetCenter = { ...def };
     currentTension = 0;
     targetTension = 0;
     currentPalette = 4;
-    currentFractalType = defaultAnchor.type;
+    currentFractalType = def.type;
     currentPhoenixP = -0.5;
-    currentSweep = undefined;
     lastNoteIndex = -1;
     noteCount = 0;
-    phase = 0;
-    phase2 = 0;
-    phase3 = 0;
-    beatPhase = 0;
+    springRealPos = 0;
+    springRealVel = 0;
+    springImagPos = 0;
+    springImagVel = 0;
+    intensityEnergy = 0;
+    baseRadius = 0.03;
     lastChordIndex = -1;
-    sweepEnergy = 0;
-    bassWeight = 0;
+    rotationAngle = 0;
+    rotationVelocity = 0;
+    lastDrumIndex = -1;
   },
 };

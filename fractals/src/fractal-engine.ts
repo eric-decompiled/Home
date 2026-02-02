@@ -13,142 +13,137 @@ export const palettes: PaletteDef[] = [
   { // 0 - C - Magenta
     name: 'C',
     stops: [
-      { pos: 0.0, color: [10, 0, 8] },
-      { pos: 0.2, color: [70, 0, 55] },
-      { pos: 0.5, color: [200, 30, 160] },
-      { pos: 0.8, color: [240, 140, 220] },
-      { pos: 1.0, color: [255, 240, 252] },
+      { pos: 0.0,  color: [4, 0, 3] },
+      { pos: 0.15, color: [55, 0, 42] },
+      { pos: 0.4,  color: [170, 20, 130] },
+      { pos: 0.65, color: [220, 60, 175] },
+      { pos: 0.85, color: [240, 120, 200] },
+      { pos: 1.0,  color: [200, 80, 165] },
     ],
   },
   { // 1 - C# - Purple
     name: 'C\u266F',
     stops: [
-      { pos: 0.0, color: [5, 0, 12] },
-      { pos: 0.2, color: [45, 0, 70] },
-      { pos: 0.5, color: [130, 30, 200] },
-      { pos: 0.8, color: [190, 130, 240] },
-      { pos: 1.0, color: [245, 235, 255] },
+      { pos: 0.0,  color: [3, 0, 8] },
+      { pos: 0.15, color: [35, 0, 55] },
+      { pos: 0.4,  color: [110, 20, 175] },
+      { pos: 0.65, color: [160, 60, 220] },
+      { pos: 0.85, color: [185, 110, 235] },
+      { pos: 1.0,  color: [145, 70, 195] },
     ],
   },
   { // 2 - D - Indigo
     name: 'D',
     stops: [
-      { pos: 0.0, color: [2, 0, 15] },
-      { pos: 0.2, color: [25, 5, 80] },
-      { pos: 0.5, color: [80, 40, 200] },
-      { pos: 0.8, color: [160, 140, 245] },
-      { pos: 1.0, color: [235, 235, 255] },
+      { pos: 0.0,  color: [1, 0, 10] },
+      { pos: 0.15, color: [18, 4, 65] },
+      { pos: 0.4,  color: [65, 30, 175] },
+      { pos: 0.65, color: [110, 70, 220] },
+      { pos: 0.85, color: [150, 120, 240] },
+      { pos: 1.0,  color: [110, 80, 200] },
     ],
   },
   { // 3 - D# - Blue-Violet
     name: 'D\u266F',
     stops: [
-      { pos: 0.0, color: [0, 0, 15] },
-      { pos: 0.2, color: [15, 10, 85] },
-      { pos: 0.5, color: [55, 50, 205] },
-      { pos: 0.8, color: [140, 155, 245] },
-      { pos: 1.0, color: [230, 238, 255] },
+      { pos: 0.0,  color: [0, 0, 10] },
+      { pos: 0.15, color: [10, 8, 65] },
+      { pos: 0.4,  color: [40, 40, 180] },
+      { pos: 0.65, color: [80, 90, 220] },
+      { pos: 0.85, color: [120, 140, 240] },
+      { pos: 1.0,  color: [80, 100, 200] },
     ],
   },
   { // 4 - E - Blue (Ocean)
     name: 'E',
     stops: [
-      { pos: 0.0, color: [0, 7, 30] },
-      { pos: 0.2, color: [0, 40, 100] },
-      { pos: 0.5, color: [0, 120, 190] },
-      { pos: 0.75, color: [80, 200, 255] },
-      { pos: 1.0, color: [240, 250, 255] },
+      { pos: 0.0,  color: [0, 4, 20] },
+      { pos: 0.15, color: [0, 28, 80] },
+      { pos: 0.4,  color: [0, 95, 170] },
+      { pos: 0.65, color: [30, 155, 230] },
+      { pos: 0.85, color: [70, 190, 245] },
+      { pos: 1.0,  color: [30, 140, 200] },
     ],
   },
   { // 5 - F - Teal
     name: 'F',
     stops: [
-      { pos: 0.0, color: [0, 5, 12] },
-      { pos: 0.2, color: [0, 40, 70] },
-      { pos: 0.5, color: [0, 150, 180] },
-      { pos: 0.8, color: [100, 225, 240] },
-      { pos: 1.0, color: [230, 252, 255] },
+      { pos: 0.0,  color: [0, 3, 8] },
+      { pos: 0.15, color: [0, 30, 55] },
+      { pos: 0.4,  color: [0, 120, 150] },
+      { pos: 0.65, color: [30, 180, 200] },
+      { pos: 0.85, color: [80, 210, 225] },
+      { pos: 1.0,  color: [40, 170, 185] },
     ],
   },
   { // 6 - F# - Cyan-Green
     name: 'F\u266F',
     stops: [
-      { pos: 0.0, color: [0, 6, 5] },
-      { pos: 0.2, color: [0, 50, 40] },
-      { pos: 0.5, color: [20, 185, 140] },
-      { pos: 0.8, color: [120, 245, 200] },
-      { pos: 1.0, color: [235, 255, 248] },
+      { pos: 0.0,  color: [0, 4, 3] },
+      { pos: 0.15, color: [0, 38, 30] },
+      { pos: 0.4,  color: [10, 150, 115] },
+      { pos: 0.65, color: [40, 200, 155] },
+      { pos: 0.85, color: [90, 230, 185] },
+      { pos: 1.0,  color: [50, 185, 145] },
     ],
   },
   { // 7 - G - Green (Emerald)
     name: 'G',
     stops: [
-      { pos: 0.0, color: [0, 0, 0] },
-      { pos: 0.25, color: [0, 30, 20] },
-      { pos: 0.5, color: [22, 199, 154] },
-      { pos: 0.8, color: [120, 255, 220] },
-      { pos: 1.0, color: [255, 255, 255] },
+      { pos: 0.0,  color: [0, 0, 0] },
+      { pos: 0.15, color: [0, 24, 16] },
+      { pos: 0.4,  color: [15, 160, 120] },
+      { pos: 0.65, color: [50, 210, 165] },
+      { pos: 0.85, color: [95, 240, 195] },
+      { pos: 1.0,  color: [55, 195, 155] },
     ],
   },
   { // 8 - G# - Gold
     name: 'G\u266F',
     stops: [
-      { pos: 0.0, color: [5, 4, 0] },
-      { pos: 0.2, color: [65, 45, 0] },
-      { pos: 0.5, color: [200, 160, 0] },
-      { pos: 0.8, color: [255, 225, 60] },
-      { pos: 1.0, color: [255, 252, 210] },
+      { pos: 0.0,  color: [3, 2, 0] },
+      { pos: 0.15, color: [50, 35, 0] },
+      { pos: 0.4,  color: [175, 135, 0] },
+      { pos: 0.65, color: [230, 190, 20] },
+      { pos: 0.85, color: [250, 215, 50] },
+      { pos: 1.0,  color: [210, 170, 15] },
     ],
   },
   { // 9 - A - Red (Fire)
     name: 'A',
     stops: [
-      { pos: 0.0, color: [0, 0, 0] },
-      { pos: 0.2, color: [100, 0, 0] },
-      { pos: 0.45, color: [220, 50, 0] },
-      { pos: 0.7, color: [255, 180, 30] },
-      { pos: 0.9, color: [255, 240, 120] },
-      { pos: 1.0, color: [255, 255, 255] },
+      { pos: 0.0,  color: [0, 0, 0] },
+      { pos: 0.15, color: [75, 0, 0] },
+      { pos: 0.35, color: [190, 35, 0] },
+      { pos: 0.55, color: [240, 120, 10] },
+      { pos: 0.75, color: [255, 190, 40] },
+      { pos: 0.9,  color: [245, 160, 25] },
+      { pos: 1.0,  color: [200, 100, 5] },
     ],
   },
   { // 10 - A# - Rose
     name: 'A\u266F',
     stops: [
-      { pos: 0.0, color: [8, 0, 2] },
-      { pos: 0.2, color: [75, 0, 30] },
-      { pos: 0.5, color: [220, 40, 100] },
-      { pos: 0.8, color: [255, 150, 185] },
-      { pos: 1.0, color: [255, 238, 242] },
+      { pos: 0.0,  color: [5, 0, 1] },
+      { pos: 0.15, color: [58, 0, 22] },
+      { pos: 0.4,  color: [190, 30, 80] },
+      { pos: 0.65, color: [235, 70, 130] },
+      { pos: 0.85, color: [245, 130, 175] },
+      { pos: 1.0,  color: [205, 80, 135] },
     ],
   },
   { // 11 - B - Fuchsia
     name: 'B',
     stops: [
-      { pos: 0.0, color: [8, 0, 5] },
-      { pos: 0.2, color: [65, 0, 45] },
-      { pos: 0.5, color: [200, 20, 130] },
-      { pos: 0.8, color: [240, 135, 205] },
-      { pos: 1.0, color: [255, 238, 248] },
+      { pos: 0.0,  color: [5, 0, 3] },
+      { pos: 0.15, color: [50, 0, 35] },
+      { pos: 0.4,  color: [170, 15, 110] },
+      { pos: 0.65, color: [215, 55, 160] },
+      { pos: 0.85, color: [235, 110, 195] },
+      { pos: 1.0,  color: [195, 65, 155] },
     ],
   },
 ];
-
-function samplePalette(palette: PaletteDef, pos: number): RGB {
-  const stops = palette.stops;
-  let s0 = stops[0], s1 = stops[stops.length - 1];
-  for (let j = 0; j < stops.length - 1; j++) {
-    if (pos >= stops[j].pos && pos <= stops[j + 1].pos) {
-      s0 = stops[j]; s1 = stops[j + 1]; break;
-    }
-  }
-  const range = s1.pos - s0.pos;
-  const f = range === 0 ? 0 : (pos - s0.pos) / range;
-  return [
-    Math.round(s0.color[0] + (s1.color[0] - s0.color[0]) * f),
-    Math.round(s0.color[1] + (s1.color[1] - s0.color[1]) * f),
-    Math.round(s0.color[2] + (s1.color[2] - s0.color[2]) * f),
-  ];
-}
 
 const LUT_SIZE = 2048;
 const colorLUT = new Uint8Array(LUT_SIZE * 3);
@@ -193,7 +188,6 @@ function blendLUTs(): void {
 
 // --- Fractal Engine ---
 
-const BASE_RANGE = 4.0;
 const offscreen = document.createElement('canvas');
 const offCtx = offscreen.getContext('2d')!;
 
@@ -207,28 +201,101 @@ let fidelity = 0.6;
 let currentPaletteIndex = 4;
 
 // Fractal type
-let fractalType = 0;  // 0=Julia, 1=Cubic, 2=Quartic, 3=BurningShip, 4=Tricorn, 5=Phoenix, 6=Celtic, 7=Lambda, 8=PerpBurn, 9=Buffalo
+let fractalType = 0;
 let phoenixP = -0.5;
+let rotation = 0;
 
-// Melody/bass palette LUTs — blended into fractal by vertical position
-const melodyLUT = new Uint8Array(LUT_SIZE * 3);
-const bassLUT = new Uint8Array(LUT_SIZE * 3);
-let melodyStrength = 0;
-let bassStrength = 0;
-let currentMelodyPc = -1;
-let currentBassPc = -1;
+// Key color for vignette (sampled from key palette mid-tone)
+let keyR = 0, keyG = 0, keyB = 0;
 
-// Melody/bass light colors — for background glow projection
-let melodyLight: RGB = [0, 0, 0];
-let bassLight: RGB = [0, 0, 0];
+// Melody arm tint
+let melodyArmR = 0, melodyArmG = 0, melodyArmB = 0;
+let melodyArmStrength = 0;
 
 buildColorLUT(palettes[currentPaletteIndex]);
 lutA.set(colorLUT);
 lutB.set(colorLUT);
-melodyLUT.set(colorLUT);
-bassLUT.set(colorLUT);
+
+// --- Multi-worker band-split rendering ---
+
+const NUM_WORKERS = Math.min(navigator.hardwareConcurrency || 4, 8);
+const workers: Worker[] = [];
+for (let i = 0; i < NUM_WORKERS; i++) {
+  workers.push(new Worker(new URL('./fractal-worker.ts', import.meta.url), { type: 'module' }));
+}
+
+let rendering = false;
+let frameId = 0;
+let bandsReceived = 0;
+let currentFrameId = -1;
+let frameStartTime = 0;
+let pendingCanvas: HTMLCanvasElement | null = null;
+let pendingDisplayW = 0;
+let pendingDisplayH = 0;
+// Assembled pixel buffer for the current frame
+let frameBuffer: Uint8ClampedArray | null = null;
+let frameW = 0;
+let frameH = 0;
+
+function handleBand(e: MessageEvent) {
+  const { buffer, width: w, yStart, frameId: fid } = e.data;
+  // Ignore stale frames
+  if (fid !== currentFrameId) return;
+
+  // Copy band into the assembled frame buffer
+  if (frameBuffer) {
+    const src = new Uint8Array(buffer);
+    const dstOffset = yStart * w * 4;
+    frameBuffer.set(src, dstOffset);
+  }
+
+  bandsReceived++;
+  if (bandsReceived >= NUM_WORKERS) {
+    // All bands arrived — draw the complete frame
+    if (pendingCanvas && frameBuffer) {
+      offscreen.width = frameW;
+      offscreen.height = frameH;
+      const imageData = new ImageData(frameBuffer as unknown as Uint8ClampedArray<ArrayBuffer>, frameW, frameH);
+      offCtx.putImageData(imageData, 0, 0);
+
+      const ctx = pendingCanvas.getContext('2d')!;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'low';
+      ctx.drawImage(offscreen, 0, 0, pendingDisplayW, pendingDisplayH);
+
+      // Subtle song-key vignette on outer edge
+      if (keyR + keyG + keyB > 0) {
+        const cx = pendingDisplayW / 2, cy = pendingDisplayH / 2;
+        const maxR = Math.sqrt(cx * cx + cy * cy);
+        const grad = ctx.createRadialGradient(cx, cy, maxR * 0.55, cx, cy, maxR);
+        grad.addColorStop(0, `rgba(${keyR},${keyG},${keyB},0)`);
+        grad.addColorStop(0.6, `rgba(${keyR},${keyG},${keyB},0.08)`);
+        grad.addColorStop(1, `rgba(${keyR},${keyG},${keyB},0.25)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, pendingDisplayW, pendingDisplayH);
+      }
+    }
+
+    const renderMs = performance.now() - frameStartTime;
+    rendering = false;
+
+    if (fractalEngine.onFrameReady) {
+      fractalEngine.onFrameReady(renderMs);
+    }
+  }
+}
+
+for (const w of workers) {
+  w.onmessage = handleBand;
+  w.onerror = (e) => {
+    console.error('Fractal worker error:', e);
+    rendering = false;
+  };
+}
 
 export const fractalEngine = {
+  onFrameReady: null as ((renderMs: number) => void) | null,
+
   setParams(cr: number, ci: number, z: number, maxIter: number, fid: number) {
     cReal = cr;
     cImag = ci;
@@ -242,6 +309,10 @@ export const fractalEngine = {
     centerY = cy;
   },
 
+  setRotation(r: number) {
+    rotation = r;
+  },
+
   setPalette(index: number) {
     if (index !== currentPaletteIndex && index >= 0 && index < palettes.length) {
       lutA.set(colorLUT);
@@ -249,6 +320,17 @@ export const fractalEngine = {
       lutBlend = 0;
       currentPaletteIndex = index;
     }
+  },
+
+  setMelodyTint(pitchClass: number, velocity: number) {
+    if (pitchClass < 0 || velocity <= 0) return;
+    const p = palettes[pitchClass % palettes.length];
+    // Sample a bright stop from the melody palette
+    const tmpLut = new Uint8Array(LUT_SIZE * 3);
+    buildLUTInto(tmpLut, p);
+    const li = Math.round(0.65 * (LUT_SIZE - 1)) * 3;
+    melodyArmR = tmpLut[li]; melodyArmG = tmpLut[li + 1]; melodyArmB = tmpLut[li + 2];
+    melodyArmStrength = Math.min(1.0, melodyArmStrength + velocity * 0.6);
   },
 
   update(dt: number) {
@@ -259,31 +341,18 @@ export const fractalEngine = {
         colorLUT.set(lutB);
       }
     }
+    // Decay melody arm tint
+    melodyArmStrength *= Math.exp(-2.5 * dt);
+    if (melodyArmStrength < 0.01) melodyArmStrength = 0;
   },
 
-  setNoteTints(melodyPitchClass: number, melodyVel: number, bassPitchClass: number, bassVel: number) {
-    if (melodyPitchClass >= 0) {
-      if (melodyPitchClass !== currentMelodyPc) {
-        currentMelodyPc = melodyPitchClass;
-        buildLUTInto(melodyLUT, palettes[melodyPitchClass % 12]);
-        melodyLight = samplePalette(palettes[melodyPitchClass % 12], 0.6);
-      }
-      melodyStrength = melodyVel;
-    }
-    if (bassPitchClass >= 0) {
-      if (bassPitchClass !== currentBassPc) {
-        currentBassPc = bassPitchClass;
-        buildLUTInto(bassLUT, palettes[bassPitchClass % 12]);
-        bassLight = samplePalette(palettes[bassPitchClass % 12], 0.5);
-      }
-      bassStrength = bassVel;
-    }
-  },
-
-  decayTints(dt: number) {
-    const rate = Math.exp(-dt / 0.9);
-    melodyStrength *= rate;
-    bassStrength *= rate;
+  setKeyPalette(pitchClass: number) {
+    // Sample mid-tone from the key's palette for the edge vignette
+    const p = palettes[pitchClass % palettes.length];
+    const tmpLut = new Uint8Array(LUT_SIZE * 3);
+    buildLUTInto(tmpLut, p);
+    const li = Math.round(0.5 * (LUT_SIZE - 1)) * 3;
+    keyR = tmpLut[li]; keyG = tmpLut[li + 1]; keyB = tmpLut[li + 2];
   },
 
   setFractalType(type: number, p?: number) {
@@ -291,8 +360,9 @@ export const fractalEngine = {
     if (p !== undefined) phoenixP = p;
   },
 
-  getFractalType() { return fractalType; },
+  isRendering() { return rendering; },
 
+  getFractalType() { return fractalType; },
   getCReal() { return cReal; },
   getCImag() { return cImag; },
   getZoom() { return zoom; },
@@ -300,169 +370,56 @@ export const fractalEngine = {
   getFidelity() { return fidelity; },
   getPaletteIndex() { return currentPaletteIndex; },
 
-  render(canvas: HTMLCanvasElement, displayWidth: number, displayHeight: number) {
-    const ctx = canvas.getContext('2d')!;
+  requestRender(canvas: HTMLCanvasElement, displayWidth: number, displayHeight: number) {
+    if (rendering) return;
+
+    rendering = true;
+    frameId++;
+    currentFrameId = frameId;
+    bandsReceived = 0;
+    frameStartTime = performance.now();
+    pendingCanvas = canvas;
+    pendingDisplayW = displayWidth;
+    pendingDisplayH = displayHeight;
+
     const w = Math.max(1, Math.floor(displayWidth * fidelity));
     const h = Math.max(1, Math.floor(displayHeight * fidelity));
-    offscreen.width = w;
-    offscreen.height = h;
+    frameW = w;
+    frameH = h;
+    frameBuffer = new Uint8ClampedArray(w * h * 4);
 
-    const imageData = offCtx.createImageData(w, h);
-    const data32 = new Uint32Array(imageData.data.buffer);
+    // Snapshot LUT once for all workers
+    const lutSnapshot = new Uint8Array(colorLUT);
 
-    const rangeW = BASE_RANGE / zoom;
-    const rangeH = rangeW * (h / w);
-    const xMin = centerX - rangeW / 2;
-    const yMin = centerY - rangeH / 2;
-    const stepX = rangeW / w;
-    const stepY = rangeH / h;
-
-    const jR = cReal;
-    const jI = cImag;
-    const maxIter = maxIterations;
-    const invMaxIter = 1 / maxIter;
-    const logD = fractalType === 1 ? Math.log(3) : fractalType === 2 ? Math.log(4) : Math.log(2);
-    const fType = fractalType;
-    const pP = phoenixP;
-    const lutMax = LUT_SIZE - 1;
-
-    // Precompute per-row weights
-    const invH = 1 / (h - 1);
-    const mStr = melodyStrength;
-    const bStr = bassStrength;
-    const mlR = melodyLight[0], mlG = melodyLight[1], mlB = melodyLight[2];
-    const blR = bassLight[0], blG = bassLight[1], blB = bassLight[2];
-
-    for (let py = 0; py < h; py++) {
-      const fy = yMin + py * stepY;
-      const ny = py * invH; // 0=top, 1=bottom
-
-      // Fractal palette blend: melody strongest at top, bass at bottom
-      const mw = mStr * Math.max(0, 1 - ny * 1.3) * 0.85;
-      const bw = bStr * Math.max(0, 1 - (1 - ny) * 1.7) * 0.7;
-      const cw = Math.max(0, 1 - mw - bw);
-
-      // Background light projection: soft glow on dark/empty areas
-      // Broader and gentler than the fractal blend
-      const mGlow = mStr * Math.max(0, 1 - ny * 1.2) * 0.18;
-      const bGlow = bStr * Math.max(0, 1 - (1 - ny) * 1.4) * 0.12;
-
-      for (let px = 0; px < w; px++) {
-        const fx = xMin + px * stepX;
-
-        let x = fx, y = fy;
-        let x2 = x * x, y2 = y * y;
-        let iteration = 0;
-        let prevX = 0, prevY = 0;
-
-        const bailout = fType === 7 ? 100.0 : 4.0;
-        while (x2 + y2 <= bailout && iteration < maxIter) {
-          let nx: number, ny: number;
-          switch (fType) {
-            case 1: // z³ + c
-              nx = x * x2 - 3 * x * y2 + jR;
-              ny = 3 * x2 * y - y * y2 + jI;
-              break;
-            case 2: // z⁴ + c
-              nx = x2 * x2 - 6 * x2 * y2 + y2 * y2 + jR;
-              ny = 4 * x * y * (x2 - y2) + jI;
-              break;
-            case 3: { // Burning Ship
-              const ax = Math.abs(x), ay = Math.abs(y);
-              nx = ax * ax - ay * ay + jR;
-              ny = 2 * ax * ay + jI;
-              break;
-            }
-            case 4: // Tricorn
-              nx = x2 - y2 + jR;
-              ny = -2 * x * y + jI;
-              break;
-            case 5: // Phoenix
-              nx = x2 - y2 + jR + pP * prevX;
-              ny = 2 * x * y + jI + pP * prevY;
-              prevX = x; prevY = y;
-              break;
-            case 6: // Celtic: |Re(z²)| + i·Im(z²) + c
-              nx = Math.abs(x2 - y2) + jR;
-              ny = 2 * x * y + jI;
-              break;
-            case 8: { // PerpBurn: x² - |y|² + cR, 2x|y| + cI
-              const ay = Math.abs(y);
-              nx = x2 - ay * ay + jR;
-              ny = 2 * x * ay + jI;
-              break;
-            }
-            case 9: { // Buffalo: (|Re|+i|Im|)² - (|Re|+i|Im|) + c
-              const ax = Math.abs(x), ay = Math.abs(y);
-              const zr = ax * ax - ay * ay, zi = 2 * ax * ay;
-              nx = zr - ax + jR;
-              ny = zi - ay + jI;
-              break;
-            }
-            case 7: { // Lambda: c·z·(1-z)
-              const omx = 1 - x, omy = -y;
-              const pr = x * omx - y * omy;
-              const pi = x * omy + y * omx;
-              nx = jR * pr - jI * pi;
-              ny = jR * pi + jI * pr;
-              break;
-            }
-            default: // z² + c
-              nx = x2 - y2 + jR;
-              ny = 2 * x * y + jI;
-              break;
-          }
-          x = nx; y = ny;
-          x2 = x * x; y2 = y * y;
-          iteration++;
-        }
-
-        let r: number, g: number, b: number;
-        if (iteration === maxIter) {
-          // Interior: dark tint from blended palettes
-          const mag2 = x2 + y2;
-          const t = mag2 < 4 ? mag2 * 0.25 : 1;
-          let li = ((0.7 - t * 0.3) * lutMax) | 0;
-          if (li < 0) li = 0;
-          const lutIdx = li * 3;
-          r = (colorLUT[lutIdx] * cw + melodyLUT[lutIdx] * mw + bassLUT[lutIdx] * bw) * 0.35;
-          g = (colorLUT[lutIdx + 1] * cw + melodyLUT[lutIdx + 1] * mw + bassLUT[lutIdx + 1] * bw) * 0.35;
-          b = (colorLUT[lutIdx + 2] * cw + melodyLUT[lutIdx + 2] * mw + bassLUT[lutIdx + 2] * bw) * 0.35;
-
-          // Light projection fills interior more — additive glow
-          r += mlR * mGlow * 2.5 + blR * bGlow * 2.5;
-          g += mlG * mGlow * 2.5 + blG * bGlow * 2.5;
-          b += mlB * mGlow * 2.5 + blB * bGlow * 2.5;
-        } else {
-          const logMag = Math.log(x2 + y2);
-          const smoothed = logMag > 0
-            ? iteration + 1 - Math.log(0.5 * logMag) / logD
-            : iteration;
-          let li = smoothed > 0 ? ((smoothed * invMaxIter * lutMax) | 0) : 0;
-          if (li > lutMax) li = lutMax;
-          const lutIdx = li * 3;
-          r = colorLUT[lutIdx] * cw + melodyLUT[lutIdx] * mw + bassLUT[lutIdx] * bw;
-          g = colorLUT[lutIdx + 1] * cw + melodyLUT[lutIdx + 1] * mw + bassLUT[lutIdx + 1] * bw;
-          b = colorLUT[lutIdx + 2] * cw + melodyLUT[lutIdx + 2] * mw + bassLUT[lutIdx + 2] * bw;
-
-          // Subtle light wash on exterior — fades with iteration (bright near edge)
-          const edgeFade = Math.max(0, 1 - smoothed * invMaxIter * 3);
-          r += mlR * mGlow * edgeFade + blR * bGlow * edgeFade;
-          g += mlG * mGlow * edgeFade + blG * bGlow * edgeFade;
-          b += mlB * mGlow * edgeFade + blB * bGlow * edgeFade;
-        }
-
-        const oR = r > 0 ? (r < 255 ? r | 0 : 255) : 0;
-        const oG = g > 0 ? (g < 255 ? g | 0 : 255) : 0;
-        const oB = b > 0 ? (b < 255 ? b | 0 : 255) : 0;
-        data32[py * w + px] = 0xFF000000 | (oB << 16) | (oG << 8) | oR;
+    // Split height into bands and dispatch to workers
+    const bandHeight = Math.ceil(h / NUM_WORKERS);
+    for (let i = 0; i < NUM_WORKERS; i++) {
+      const yStart = i * bandHeight;
+      const thisH = Math.min(bandHeight, h - yStart);
+      if (thisH <= 0) {
+        // Fewer rows than workers — count this band as received
+        bandsReceived++;
+        continue;
       }
+      workers[i].postMessage({
+        width: w,
+        height: h,
+        yStart,
+        bandHeight: thisH,
+        bandIndex: i,
+        frameId: currentFrameId,
+        cReal,
+        cImag,
+        zoom,
+        centerX,
+        centerY,
+        rotation,
+        maxIterations,
+        fractalType,
+        phoenixP,
+        colorLUT: lutSnapshot,
+        melodyArmR, melodyArmG, melodyArmB, melodyArmStrength,
+      });
     }
-
-    offCtx.putImageData(imageData, 0, 0);
-
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'low';
-    ctx.drawImage(offscreen, 0, 0, displayWidth, displayHeight);
   },
 };

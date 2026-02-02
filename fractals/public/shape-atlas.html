@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Shape Atlas</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a0a; color:#ccc; font-family:monospace; padding:16px; }
+h1 { font-size:18px; color:#16c79a; margin-bottom:4px; }
+.sub { font-size:11px; color:#555; margin-bottom:12px; }
+.controls { display:flex; gap:12px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }
+.controls label { font-size:12px; color:#888; }
+.controls select, .controls input { background:#1a1a2e; border:1px solid #0f3460; color:#fff;
+  padding:4px 8px; border-radius:3px; font-family:monospace; font-size:12px; }
+.controls button { padding:5px 14px; background:#16c79a; border:none; border-radius:4px;
+  color:#000; cursor:pointer; font-weight:600; font-size:12px; }
+.controls button:hover { background:#1de9b6; }
+#status { font-size:12px; color:#16c79a; margin-bottom:8px; }
+.atlas-wrap { position:relative; display:inline-block; }
+#locus-canvas { position:absolute; top:0; left:0; opacity:0.3; }
+#atlas-canvas { position:relative; z-index:1; }
+.hover-info { font-size:11px; color:#888; margin-top:6px; }
+#preview-wrap { display:inline-block; vertical-align:top; margin-left:16px; }
+#preview-canvas { border:1px solid #0f3460; border-radius:4px; display:block; }
+#preview-info { font-size:12px; color:#16c79a; margin-top:4px; }
+</style>
+</head>
+<body>
+<h1>Shape Atlas</h1>
+<p class="sub">Tiles small Julia set previews across the parameter space. Shows where distinct shapes live.</p>
+
+<div class="controls">
+  <label>Type:
+    <select id="type-sel">
+      <option value="burning-ship">Burning Ship</option>
+      <option value="buffalo">Buffalo</option>
+      <option value="celtic" selected>Celtic</option>
+    </select>
+  </label>
+  <label>Grid:
+    <select id="grid-sel">
+      <option value="16">16×16</option>
+      <option value="20" selected>20×20</option>
+      <option value="28">28×28</option>
+      <option value="36">36×36</option>
+    </select>
+  </label>
+  <label>Thumb size:
+    <select id="thumb-sel">
+      <option value="28">28px</option>
+      <option value="36" selected>36px</option>
+      <option value="48">48px</option>
+    </select>
+  </label>
+  <label>Boundary band:
+    <input id="band-input" type="range" min="0.005" max="0.15" step="0.005" value="0.06">
+    <span id="band-val">0.060</span>
+  </label>
+  <button id="render-btn">Render Atlas</button>
+</div>
+<div id="status">Ready</div>
+
+<div style="display:flex; align-items:flex-start;">
+  <div class="atlas-wrap">
+    <canvas id="locus-canvas"></canvas>
+    <canvas id="atlas-canvas" style="cursor:crosshair;"></canvas>
+  </div>
+  <div id="preview-wrap">
+    <canvas id="preview-canvas" width="300" height="300"></canvas>
+    <div id="preview-info">Click a tile to enlarge</div>
+  </div>
+</div>
+<div class="hover-info" id="hover-info"></div>
+
+<script>
+// --- Fractal formulas ---
+const formulas = {
+  'burning-ship': {
+    label: 'Burning Ship', typeNum: 3,
+    bounds: { rMin:-2.2, rMax:1.2, iMin:-2.0, iMax:0.8 },
+    locus(cr, ci, maxIter) {
+      let x=0, y=0;
+      for (let i=0; i<maxIter; i++) {
+        const ax=Math.abs(x), ay=Math.abs(y);
+        x=ax*ax-ay*ay+cr; y=2*ax*ay+ci;
+        if (x*x+y*y>100) return i+1;
+      }
+      return 0;
+    },
+    julia(fx, fy, jR, jI, maxIter) {
+      let x=fx, y=fy;
+      for (let i=0; i<maxIter; i++) {
+        const ax=Math.abs(x), ay=Math.abs(y);
+        x=ax*ax-ay*ay+jR; y=2*ax*ay+jI;
+        if (x*x+y*y>4) return i+1;
+      }
+      return 0;
+    },
+  },
+  'buffalo': {
+    label: 'Buffalo', typeNum: 9,
+    bounds: { rMin:-1.6, rMax:1.4, iMin:-1.4, iMax:1.4 },
+    locus(cr, ci, maxIter) {
+      let x=0, y=0;
+      for (let i=0; i<maxIter; i++) {
+        const ax=Math.abs(x), ay=Math.abs(y);
+        x=ax*ax-ay*ay-ax+cr; y=2*ax*ay-ay+ci;
+        if (x*x+y*y>100) return i+1;
+      }
+      return 0;
+    },
+    julia(fx, fy, jR, jI, maxIter) {
+      let x=fx, y=fy;
+      for (let i=0; i<maxIter; i++) {
+        const ax=Math.abs(x), ay=Math.abs(y);
+        x=ax*ax-ay*ay-ax+jR; y=2*ax*ay-ay+jI;
+        if (x*x+y*y>4) return i+1;
+      }
+      return 0;
+    },
+  },
+  'celtic': {
+    label: 'Celtic', typeNum: 6,
+    bounds: { rMin:-2.2, rMax:1.5, iMin:-1.6, iMax:1.6 },
+    locus(cr, ci, maxIter) {
+      let x=0, y=0;
+      for (let i=0; i<maxIter; i++) {
+        const x2=x*x, y2=y*y;
+        x=Math.abs(x2-y2)+cr; y=2*x*y+ci;
+        // note: this uses old x for y calc — need to fix
+        if (x*x+y*y>100) return i+1;
+      }
+      return 0;
+    },
+    julia(fx, fy, jR, jI, maxIter) {
+      let x=fx, y=fy;
+      for (let i=0; i<maxIter; i++) {
+        const x2=x*x, y2=y*y;
+        const nx=Math.abs(x2-y2)+jR;
+        const ny=2*x*y+jI;
+        x=nx; y=ny;
+        if (x*x+y*y>4) return i+1;
+      }
+      return 0;
+    },
+  },
+};
+
+// Fix celtic locus to use correct variable ordering
+formulas['celtic'].locus = function(cr, ci, maxIter) {
+  let x=0, y=0;
+  for (let i=0; i<maxIter; i++) {
+    const x2=x*x, y2=y*y;
+    const nx=Math.abs(x2-y2)+cr;
+    const ny=2*x*y+ci;
+    x=nx; y=ny;
+    if (x*x+y*y>100) return i+1;
+  }
+  return 0;
+};
+
+// --- Chamfer boundary distance ---
+function computeBoundaryDist(formula, bounds, res, maxIter) {
+  const { rMin, rMax, iMin, iMax } = bounds;
+  const rStep = (rMax-rMin)/res, iStep = (iMax-iMin)/res;
+
+  // Escape grid
+  const interior = new Uint8Array(res * res);
+  for (let py=0; py<res; py++) {
+    const ci = iMin + py * iStep;
+    for (let px=0; px<res; px++) {
+      const cr = rMin + px * rStep;
+      interior[py*res+px] = formula.locus(cr, ci, maxIter) === 0 ? 1 : 0;
+    }
+  }
+
+  // Chamfer distance transform
+  const dist = new Float32Array(res * res);
+  const INF = 1e6;
+  // Init: boundary pixels = 0, others = INF
+  for (let py=0; py<res; py++) {
+    for (let px=0; px<res; px++) {
+      const idx = py*res+px;
+      const v = interior[idx];
+      // Is this pixel adjacent to a different type?
+      let isBoundary = false;
+      for (let dy=-1; dy<=1 && !isBoundary; dy++) {
+        for (let dx=-1; dx<=1 && !isBoundary; dx++) {
+          if (dx===0 && dy===0) continue;
+          const nx=px+dx, ny=py+dy;
+          if (nx>=0 && nx<res && ny>=0 && ny<res) {
+            if (interior[ny*res+nx] !== v) isBoundary = true;
+          }
+        }
+      }
+      dist[idx] = isBoundary ? 0 : INF;
+    }
+  }
+  // Forward pass
+  for (let py=1; py<res; py++) {
+    for (let px=1; px<res-1; px++) {
+      const idx = py*res+px;
+      dist[idx] = Math.min(dist[idx],
+        dist[(py-1)*res+px-1]+1.414,
+        dist[(py-1)*res+px]+1,
+        dist[(py-1)*res+px+1]+1.414,
+        dist[py*res+px-1]+1);
+    }
+  }
+  // Backward pass
+  for (let py=res-2; py>=0; py--) {
+    for (let px=res-2; px>=1; px--) {
+      const idx = py*res+px;
+      dist[idx] = Math.min(dist[idx],
+        dist[(py+1)*res+px+1]+1.414,
+        dist[(py+1)*res+px]+1,
+        dist[(py+1)*res+px-1]+1.414,
+        dist[py*res+px+1]+1);
+    }
+  }
+
+  // Convert pixel distance to c-space distance
+  const pixScale = rStep; // approx
+  for (let i=0; i<dist.length; i++) dist[i] *= pixScale;
+
+  return { dist, interior, res };
+}
+
+// --- Render a tiny Julia thumbnail onto an ImageData ---
+function renderTinyJulia(formula, jR, jI, size, maxIter) {
+  const data = new Uint8Array(size * size * 4);
+  const range = 3.6, half = range/2;
+  const step = range / size;
+
+  for (let py=0; py<size; py++) {
+    for (let px=0; px<size; px++) {
+      const fx = -half + px * step;
+      const fy = -half + py * step;
+      const esc = formula.julia(fx, fy, jR, jI, maxIter);
+      const idx = (py*size+px)*4;
+      if (esc === 0) {
+        data[idx]=data[idx+1]=data[idx+2]=0;
+      } else {
+        const t = Math.sqrt(esc / maxIter);
+        // Simple grayscale with slight blue tint
+        data[idx]   = Math.min(255, t * 200);
+        data[idx+1] = Math.min(255, t * 220);
+        data[idx+2] = Math.min(255, t * 255);
+      }
+      data[idx+3] = 255;
+    }
+  }
+  return data;
+}
+
+// --- Main render ---
+function renderAtlas() {
+  const typeKey = document.getElementById('type-sel').value;
+  const gridN = parseInt(document.getElementById('grid-sel').value);
+  const thumbSize = parseInt(document.getElementById('thumb-sel').value);
+  const bandMax = parseFloat(document.getElementById('band-input').value);
+  const formula = formulas[typeKey];
+  const bounds = formula.bounds;
+
+  const canvasSize = gridN * thumbSize;
+  const locusCanvas = document.getElementById('locus-canvas');
+  const atlasCanvas = document.getElementById('atlas-canvas');
+  locusCanvas.width = canvasSize; locusCanvas.height = canvasSize;
+  atlasCanvas.width = canvasSize; atlasCanvas.height = canvasSize;
+
+  const status = document.getElementById('status');
+  status.textContent = 'Computing boundary distance...';
+
+  setTimeout(() => {
+    // 1. Compute boundary distance at moderate resolution
+    const distRes = 500;
+    const { dist, interior, res: dRes } = computeBoundaryDist(formula, bounds, distRes, 200);
+
+    // 2. Render locus background
+    const lCtx = locusCanvas.getContext('2d');
+    const lImg = lCtx.createImageData(canvasSize, canvasSize);
+    const ld = lImg.data;
+    const rRange = bounds.rMax - bounds.rMin;
+    const iRange = bounds.iMax - bounds.iMin;
+
+    for (let py=0; py<canvasSize; py++) {
+      const ci = bounds.iMin + (py/canvasSize) * iRange;
+      for (let px=0; px<canvasSize; px++) {
+        const cr = bounds.rMin + (px/canvasSize) * rRange;
+        const esc = formula.locus(cr, ci, 100);
+        const idx = (py*canvasSize+px)*4;
+        if (esc === 0) {
+          ld[idx]=10; ld[idx+1]=10; ld[idx+2]=18;
+        } else {
+          const v = 20 + Math.sqrt(esc/100)*60;
+          ld[idx]=v*0.5; ld[idx+1]=v*0.6; ld[idx+2]=v*0.7;
+        }
+        ld[idx+3] = 255;
+      }
+    }
+    lCtx.putImageData(lImg, 0, 0);
+
+    // 3. For each grid cell, check if it's near the boundary. If so, render Julia thumbnail.
+    const aCtx = atlasCanvas.getContext('2d');
+    aCtx.clearRect(0, 0, canvasSize, canvasSize);
+
+    const cellW = rRange / gridN;
+    const cellH = iRange / gridN;
+    let rendered = 0;
+    const totalCells = gridN * gridN;
+    const tileData = []; // store for click lookup
+
+    status.textContent = 'Rendering Julia thumbnails...';
+
+    // Process in chunks to keep UI responsive
+    let cellIdx = 0;
+    function processChunk() {
+      const chunkSize = 8;
+      const end = Math.min(cellIdx + chunkSize, totalCells);
+
+      for (; cellIdx < end; cellIdx++) {
+        const gx = cellIdx % gridN;
+        const gy = Math.floor(cellIdx / gridN);
+
+        const cr = bounds.rMin + (gx + 0.5) * cellW;
+        const ci = bounds.iMin + (gy + 0.5) * cellH;
+
+        // Check boundary distance at this point
+        const dpx = Math.floor((cr - bounds.rMin) / rRange * dRes);
+        const dpy = Math.floor((ci - bounds.iMin) / iRange * dRes);
+        if (dpx < 0 || dpx >= dRes || dpy < 0 || dpy >= dRes) continue;
+        const dIdx = dpy * dRes + dpx;
+        const bDist = dist[dIdx];
+        const isInt = interior[dIdx];
+
+        // Only render near boundary — exterior side, within band
+        if (isInt || bDist > bandMax || bDist < 0.001) continue;
+
+        // Render tiny Julia
+        const juliaIter = 120;
+        const pixels = renderTinyJulia(formula, cr, ci, thumbSize, juliaIter);
+        const imgData = new ImageData(new Uint8ClampedArray(pixels.buffer), thumbSize, thumbSize);
+
+        const screenX = gx * thumbSize;
+        const screenY = gy * thumbSize;
+        aCtx.putImageData(imgData, screenX, screenY);
+
+        // Border
+        aCtx.strokeStyle = 'rgba(22,199,154,0.25)';
+        aCtx.lineWidth = 0.5;
+        aCtx.strokeRect(screenX, screenY, thumbSize, thumbSize);
+
+        tileData.push({ gx, gy, cr, ci, screenX, screenY });
+        rendered++;
+      }
+
+      if (cellIdx < totalCells) {
+        status.textContent = `Rendering... ${rendered} tiles (${Math.round(cellIdx/totalCells*100)}%)`;
+        requestAnimationFrame(processChunk);
+      } else {
+        status.textContent = `Done — ${rendered} tiles rendered in boundary band ≤${bandMax.toFixed(3)}`;
+      }
+    }
+    processChunk();
+
+    // Click to enlarge
+    atlasCanvas.onclick = (e) => {
+      const rect = atlasCanvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) * canvasSize / rect.width;
+      const my = (e.clientY - rect.top) * canvasSize / rect.height;
+
+      // Find which tile was clicked
+      const gx = Math.floor(mx / thumbSize);
+      const gy = Math.floor(my / thumbSize);
+      const tile = tileData.find(t => t.gx === gx && t.gy === gy);
+      if (!tile) return;
+
+      const prevCanvas = document.getElementById('preview-canvas');
+      const pSize = 300;
+      prevCanvas.width = pSize; prevCanvas.height = pSize;
+      const pixels = renderTinyJulia(formula, tile.cr, tile.ci, pSize, 200);
+      const pCtx = prevCanvas.getContext('2d');
+      pCtx.putImageData(new ImageData(new Uint8ClampedArray(pixels.buffer), pSize, pSize), 0, 0);
+      document.getElementById('preview-info').textContent =
+        `c = ${tile.cr.toFixed(4)} + ${tile.ci.toFixed(4)}i`;
+    };
+
+    // Hover
+    atlasCanvas.onmousemove = (e) => {
+      const rect = atlasCanvas.getBoundingClientRect();
+      const mx = (e.clientX - rect.left) * canvasSize / rect.width;
+      const my = (e.clientY - rect.top) * canvasSize / rect.height;
+      const cr = bounds.rMin + (mx / canvasSize) * rRange;
+      const ci = bounds.iMin + (my / canvasSize) * iRange;
+      document.getElementById('hover-info').textContent =
+        `c = ${cr.toFixed(4)} + ${ci.toFixed(4)}i`;
+    };
+  }, 30);
+}
+
+document.getElementById('band-input').oninput = function() {
+  document.getElementById('band-val').textContent = parseFloat(this.value).toFixed(3);
+};
+
+document.getElementById('render-btn').onclick = renderAtlas;
+
+// Initial render
+renderAtlas();
+</script>
+</body>
+</html>

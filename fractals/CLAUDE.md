@@ -1,6 +1,6 @@
 # Fractal Jukebox
 
-Music-reactive Burning Ship fractal visualizer. Plays MIDI files through a SoundFont synthesizer and maps harmonic analysis to fractal parameters in real time.
+Music-reactive fractal visualizer with mixed cross-family anchors (Burning Ship, Buffalo, Celtic in one scale). Plays MIDI files through a SoundFont synthesizer and maps harmonic analysis to fractal parameters in real time.
 
 ## Architecture
 
@@ -10,8 +10,9 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 |------|------|
 | `src/main.ts` | App shell: HTML, event listeners, render loop, UI |
 | `src/midi-analyzer.ts` | MIDI parsing (@tonejs/midi), key detection, bar-level chord detection |
-| `src/music-mapper.ts` | Maps musical analysis → fractal parameters with exponential snap + triple-phase breathing |
-| `src/fractal-engine.ts` | Multi-type fractal renderer with radial echo accumulation and precomputed color LUT |
+| `src/music-mapper.ts` | Maps musical analysis → fractal parameters via underdamped spring + beat-driven rotation |
+| `src/fractal-engine.ts` | Multi-type fractal renderer with precomputed color LUT and post-composite overlays |
+| `src/fractal-worker.ts` | Per-pixel fractal computation in Web Workers |
 | `src/audio-player.ts` | MIDI playback via spessasynth_lib (SoundFont-based AudioWorklet synthesizer) |
 
 ## Audio Playback
@@ -36,50 +37,66 @@ Tension is computed from harmonic function: `degreeTension[degree] + qualityTens
 
 ## Music → Fractal Mapping
 
-`music-mapper.ts` maps musical properties to visual parameters. All degrees currently use the Burning Ship fractal (type 3) with auto-tuned weight-matched c-values in the hull/southeast region.
+`music-mapper.ts` maps musical properties to visual parameters. A single set of 8 mixed cross-family anchors maps harmonic degrees (I-vii + chromatic fallback 0) to curated c-values. Each anchor carries its own fractal `type` field, so different degrees can use different fractal formulas (Burning Ship, Buffalo, Celtic) within one scale.
 
-### Harmonic degree → Burning Ship region
+### Mixed anchors
 
-Each degree maps to a curated c-value in the Burning Ship hull region:
+Anchors are placed across all three fractal families using `public/config.html` (the mix config tool). Each anchor specifies `{ real, imag, type, sweepTo }`. The `type` field determines which fractal formula is used when that degree plays. This allows picking the most visually interesting shapes from each family for each harmonic function.
 
-| Degree | Role | c-value | Region |
-|--------|------|---------|--------|
-| I | Tonic | -0.31 - 1.15i | Southeast detail |
-| ii | Supertonic | -1.1347 - 0.6387i | Hull |
-| iii | Mediant | -1.0635 - 0.8576i | Deep hull |
-| IV | Subdominant | -0.8479 - 1.053i | Hull #4 |
-| V | Dominant | -1.02 - 0.75i | Deep hull variant |
-| vi | Submediant | -1.02 - 0.9i | Near deep hull |
-| vii° | Leading tone | -0.5113 - 1.1077i | Low right |
+Each anchor has a `sweepTo` endpoint that defines the exploration radius for spring motion. The distance `|anchor - sweepTo|` becomes the base radius. Root pitch class rotates very slightly around the anchor (radius 0.005).
 
-Each anchor has a `sweepTo` endpoint defining the breathing axis. Root pitch class rotates very slightly around the anchor (radius 0.005).
+### Anchor placement principle
 
-Buffalo (type 9) anchors are preserved as a commented block for future use.
-
-### Root pitch class → color palette
-12 chromatic palettes indexed by chord root pitch class.
+Anchors that sit too close to the connectedness locus interior produce heavy, mostly-black Julia sets with low detail. The fix is to push anchors **outward** into the **filament zone** — just outside the boundary where there's rich structure and visual variety. Typical radii: 0.08–0.18.
 
 ### Tension → iteration count
-Base iterations: `120 + tension * 60 + bassWeight * 20`. Keep moderate for frame rate.
+Base iterations: `120 + tension * 60 + intensityEnergy * 15`.
 
-### Movement system
+### Movement system: underdamped spring
 
-**Exponential snap** for chord transitions: `snapRate = 8.0` (~0.12s to 90%). Fast and direct — the shape should change quickly on chord changes. Bass weight slows the snap slightly.
+Each degree defines a **center** and **radius** in c-space. Two independent 1D underdamped spring oscillators (real axis, imag axis) produce physically-modeled motion around the center.
 
-**Triple-phase breathing** for continuous motion:
-- Phase 1: base speed (`π / beatDuration`)
-- Phase 2: golden ratio offset (`0.618 × baseSpeed`) — never repeats
-- Phase 3: beat-locked groove (`sin(beatPhase * 2π)`) — syncs to rhythm
+**Spring physics**: Semi-implicit Euler integration per axis. `accel = -2·ζ·ω₀·vel - ω₀²·pos`. Parameters:
+- `ω₀` (natural frequency): tempo-adaptive, `clamp(3.5 + (bpm-60)/60, 3.0, 6.0)` — faster songs get stiffer springs
+- `ζ` (damping ratio): 0.35 — underdamped, ~3 visible bounces before settling
+- `safeDt`: clamped to 0.1s max to prevent explosion on tab-switch
 
-The groove phase provides musical feel; the other two provide organic drift. Breathing sweeps along the anchor↔sweepTo axis with the groove, plus perpendicular drift from phase 2.
+**Note impulses drive springs directly**:
+- Bass (midi < 60) → real-axis velocity kick, direction alternates by pitch parity (`midi % 2`), scaled by `velocity * 0.7 * baseRadius * 3`
+- Melody (midi >= 60) → imag-axis velocity kick, direction alternates by pitch parity, scaled by `velocity * 0.8 * baseRadius * 3`
+- All notes → `intensityEnergy` pool (decays ~0.4s) for iteration count modulation
 
-**Sweep energy**: Notes feed into a pooling energy system (`0.3 * velocity`) that decays with ~1s half-life and caps at 5.0. Boosts breathing amplitude via `1 + 3 * tanh(energy * 0.5)`. No direct velocity kicks — all motion comes through this smooth envelope. This avoids twitchiness from individual note impulses.
+**Exponential snap** for chord transitions: `snapRate = 8.0` (~0.12s to 90%). When chords change, the center snaps to the new degree's anchor. Spring momentum carries through transitions.
 
-**Bass weight**: Notes below C3 add heaviness (slow ~0.87s decay). Slows snap transitions, increases iterations.
+**Cold start**: First 12 notes get 3x→1x fading boost to impulse strength.
 
-**Cold start**: First 12 notes get 3x→1x fading boost to sweep energy.
+### Rotation system: beat-grid + drums
 
-**Melody/bass tint**: Highest and lowest sounding notes drive color tinting in the fractal engine.
+Rotation is purely beat-driven — no tension/energy wobble. A `rotationVelocity` accumulator receives impulses and decays via exponential friction.
+
+**Beat-grid impulses** — detected by beat boundary crossings within the bar:
+- Beats 0, 2 (downbeat, 3rd) → CCW impulse (`+0.7 * strength`)
+- Beats 1, 3 (backbeat) → CW impulse (`-0.7 * strength`), beat 1 gets strength 1.0, others 0.7
+- Eighth-note subdivisions: `±0.20` in same direction as parent beat
+
+**Drum impulses**:
+- Kick → CCW rotation (`+0.5`) + real-axis spring kick (`baseRadius * 1.5`)
+- Snare → CW rotation (`-0.6`)
+- Hi-hat → subtle alternating rotation (`±0.12`), direction flips by beat position in bar
+
+**Friction**: `rotationVelocity *= exp(-1.2 * dt)` — half-life ~0.58s. Slow enough that rotation carries across beats for visible sway, fast enough to not accumulate into spin.
+
+### Color system
+
+**Traditional fractal coloring**: Smooth escape time normalized via `sqrt(smoothed / maxIter)`, mapped through a 2048-entry palette LUT. Interior pixels are black. No cyclic banding.
+
+**Chord root → palette**: 12 chromatic palettes indexed by chord root pitch class. Each palette has 6 stops, peak brightness at position 0.85, looping back to a saturated mid-tone at 1.0 (avoids white washout). Palette transitions use LUT crossfade.
+
+**Song key vignette**: A subtle radial gradient overlay on the outer edge of the canvas using the song's detected key color. Fades from transparent at 55% of corner distance to 25% opacity at the edge. This anchors the overall color atmosphere to the song's key regardless of chord changes.
+
+**Melody arm tint**: The highest sounding note's pitch class color is blended directly into the fractal pixels in a ~60° wedge pointing "up" in fractal space. Because the fractal rotates, this wedge visually tracks one arm of the fractal. The blend uses `cos³(angle)` for angular falloff, radial fade (stronger away from center), and only affects exterior pixels. Strength decays at ~0.28s half-life, pulsing with each melody note.
+
+**Idle animation**: Gentle Lissajous orbit around the tonic anchor using dual golden-ratio-offset sine phases (no springs — no music to drive them).
 
 ## Fractal Engine
 
@@ -98,50 +115,102 @@ The groove phase provides musical feel; the other two provide organic drift. Bre
 | 8 | PerpBurn | `x²-|y|²+c` (perpendicular Burning Ship) |
 | 9 | Buffalo | `(|Re|+i|Im|)²-(|Re|+i|Im|)+c` |
 
-Currently all music mapping uses Burning Ship (type 3). The engine supports all types for future exploration.
+Music mapping uses three fractal types (Burning Ship 3, Buffalo 9, Celtic 6) mixed freely across degrees.
 
 Rendering details:
+- Multi-worker band-split rendering: image split into horizontal bands, dispatched to N workers
 - Offscreen canvas at `displaySize * fidelity` (default 0.6x), upscaled with bilinear filtering
+- View range: `BASE_RANGE = 4.8` units in fractal space (zoomed out enough to keep shapes on screen during spring motion)
 - 2048-entry precomputed color LUT with crossfade on palette change
-- Smooth coloring: `iteration + 1 - log(log(|z|)) / log(N)` where N = 2, 3, or 4
-- Interior coloring: reversed mid-range palette at 40% brightness, mapped by final orbit magnitude
-- Radial echo accumulation: `0.42 * exp(-6.5 * dist²)` blend rate
-- Melody/bass tint: color projection that decays over ~0.9s
-- Idle animation: Burning Ship at tonic anchor with gentle circular breathing
+- Traditional smooth coloring: `sqrt(smoothed / maxIter)` → LUT lookup, black interior
+- Song key vignette: radial gradient overlay using key palette mid-tone color
+- Melody arm tint: per-pixel in worker, blended into fractal color in a directional wedge
+- Beat-driven rotation: drum hits + beat-grid impulses with friction decay
 
 ## Song Library
 
-Default: Schala's Theme (Chrono Trigger). 11 Final Fantasy songs (FFI through FFIX + two FFVII tracks).
+Default: Schala's Theme (Chrono Trigger). Songs include Final Fantasy titles (FFI through FFIX), Frog's Theme (Chrono Trigger), and others.
 
-## Exploration Tools (scratchpad)
+## Exploration Tools
 
-Several HTML tools were built for parameter exploration:
-- **`boundary-tracer.html`** — Traces iso-weight contours of the Burning Ship boundary, parameterizes them by arc length, lets you place degrees along the curve with live previews
-- **`iso-weight-mapper.html`** — Maps visual weight around each anchor, finds iso-weight contour points, picks sweep endpoints
-- **`scale-explorer.html`** — Type-tabbed explorer showing 7 curated c-values per fractal family (Burning Ship, Buffalo, Celtic, PerpBurn, z²+c, Tricorn, Phoenix)
-- **`auto-tuner.html`** — Measures visual weight, searches nearby c-values to match a target weight, has copy button
-- **`optimize-placement.mjs`** — Node script that traces the boundary contour, optimizes degree placement using visual dissimilarity metric (iteration histogram Earth mover's distance)
+**Config tool**: `public/config.html` — Three-panel cross-family anchor picker. Features:
+- Side-by-side connectedness locus panels for Burning Ship, Buffalo, and Celtic
+- Select a degree (I-vii), click any panel to place its anchor
+- Drag anchors to reposition, drag ring edge to resize radius
+- Zoom/pan per panel (scroll to zoom, drag to pan, double-click to reset)
+- Export as TypeScript with per-anchor `type` field
+- Shape atlas (iframe at bottom) for exploring Julia set thumbnails across parameter space
+
+**Shape atlas**: `public/shape-atlas.html` — Tiles Julia set thumbnails across parameter space near the connectedness locus boundary. Controls for fractal type, grid density, thumbnail size, and boundary band width.
+
+## Parameter Space Theory
+
+The operational theory for finding good Julia set c-values for any fractal formula.
+
+### Core concept: the connectedness locus
+
+For any fractal formula `f(z, c)`, the **connectedness locus** (Mandelbrot analog) is the set of c-values for which the Julia set is connected. Computed by iterating from the critical point (usually z=0) and checking escape. Interior = connected Julia set. Exterior = disconnected (Cantor dust).
+
+**Interesting Julia sets live near the boundary of the connectedness locus.** Too deep inside → mostly black (large interior, low detail). Too far outside → escapes too fast (no structure). The sweet spot is a narrow band just outside the boundary — the **filament zone**.
+
+### Boundary distance
+
+Approximated with a chamfer distance transform on the discretized escape grid:
+
+1. Render the escape grid at moderate resolution (600-700px, 300 iterations)
+2. Classify pixels as interior (escape = 0) or exterior
+3. Two-pass chamfer distance: forward + backward, 1.0 cardinal + 1.414 diagonal weights
+4. Convert pixel distance to c-space distance
+
+**Optimal boundary distance**: 0.01-0.06 in c-space. Varies by fractal type and boundary region.
+
+### Visual weight scoring
+
+Predicts how "interesting" a Julia set looks. Render a small (40-60px) Julia set and measure:
+
+| Metric | What it captures | Weight |
+|--------|-----------------|--------|
+| **Iteration histogram entropy** | Diversity of escape times → color band variety | 0.4 |
+| **Edge density** | Interior/exterior boundary length → filament richness | 0.3 × 10 |
+| **Interior ratio penalty** | Gaussian at 0.25 (σ=0.15) → penalizes too-empty or too-full | 0.3 |
+
+**Interior ratio sweet spot**: ~15-35%.
+
+### Anchor placement
+
+1. Use the config tool to browse each family's connectedness locus and place anchors in the filament zone
+2. **Push outward**: If shapes look too heavy/black, push each anchor further from the boundary. Typical radii 0.08–0.18.
+3. **Mix families**: Different degrees can use different fractal types. Pick the most interesting shape from whichever family offers it.
+4. **sweepTo defines radius**: The distance `|anchor - sweepTo|` becomes the spring baseRadius (scales impulse strength). Larger distance = more area to explore = more visual variety during playback.
 
 ## Key Learnings
 
 ### What works
-- **Burning Ship hull region** produces the best shapes. The southeast detail, hull, and deep hull areas all have rich fractal structure. Avoid the antenna region (collapses to degenerate shapes).
-- **Exponential snap for chord transitions**: Fast and direct. Spring-damper was tried but either felt twitchy (high stiffness) or sluggish (low stiffness). Exponential snap with rate ~8 gives immediate response without physics artifacts.
-- **No direct note kicks**: Individual note impulses cause twitchiness no matter how small. All note energy should flow into a pooling sweep energy system with ~1s decay. Motion comes from smooth breathing envelopes, not from per-note velocity pushes. Think water, not pinball.
-- **Beat-locked groove phase**: A sine wave synced to the beat grid gives musical feel. Combined with two free-running phases at irrational ratio for organic drift.
-- **Bar-level chord detection**: Per-beat detection causes excessive chord thrashing, especially on songs with arpeggiated or simple harmonic patterns (e.g., Schala's Theme sits on tonic for 12+ bars). Per-bar gives stable, musically meaningful changes.
-- **Auto-tuned visual weight**: `avg_brightness * detail_coverage_ratio` is a useful metric for matching visual density across c-values.
+- **Mixed cross-family anchors**: Picking the best shapes from each fractal family per degree gives more visual variety than being locked to one family. Each anchor carries its own `type` field.
+- **Filament zone anchors**: Anchors positioned just outside the boundary (in the filament zone) produce the best shapes — rich detail without heavy interior mass. When shapes look too heavy, push outward.
+- **Underdamped spring for c-value motion**: Two independent 1D springs (real/imag) driven by note impulses produce physically natural bouncing motion. Bass drives real axis, melody drives imag axis. ζ=0.35 gives ~3 visible bounces.
+- **Beat-grid + drum rotation**: Beat boundary crossings drive alternating CW/CCW impulses. Kick reinforces downbeat, snare drives backbeat. Friction at 1.2 (half-life ~0.58s) lets rotation carry across beats.
+- **Traditional smooth coloring**: `sqrt(smoothed / maxIter)` through palette LUT. Simple, no artifacts. Palette contrast comes from careful stop placement — peak brightness at 0.85, loop back to saturated mid-tone at 1.0.
+- **Song key vignette**: Subtle radial overlay in key color on outer edge. Constant across chord changes, gives visual coherence.
+- **Melody arm tint in fractal pixels**: Blending melody color directly into the per-pixel computation in a directional wedge (using pre-rotation coordinates) makes the color track a fractal arm as it spins. More organic than a post-composite overlay.
+- **Exponential snap for chord transitions**: Rate ~8 gives immediate response. Spring momentum carries through transitions.
+- **Cold start**: First 12 notes get 3x→1x fading boost to spring impulses, getting motion started immediately.
+- **Bar-level chord detection**: Per-bar gives stable, musically meaningful changes. Per-beat causes thrashing.
+- **BASE_RANGE = 4.8**: Slightly zoomed out from the standard 4.0 to keep shapes on screen during spring motion excursions.
 
 ### What doesn't work
-- **Iso-weight contour as sole constraint**: Strict iso-weight contours are very short (0.5-2 units) because weight changes rapidly perpendicular to the boundary. Confining all degrees to a single contour collapses visual diversity — shapes look too similar. Need to accept some weight variation for distinct shapes.
-- **Antenna region of Burning Ship**: c-values near (-1.5, -0.1) produce collapsed/degenerate shapes that lack detail. Stay in the hull region.
-- **Spring-damper for c-value transitions**: Tried underdamped spring (stiffness 4-25, various damping). Low stiffness = sluggish (doesn't reach target). High stiffness = twitchy. The fundamental problem is springs create velocity state that interacts badly with note impulses. Exponential snap is simpler and better.
-- **Per-note velocity kicks**: Even at very low strength (0.01-0.03), individual note onsets create jitter when notes are dense. The effect compounds with fast passages. Removed entirely — all note energy now flows into the sweep energy pool.
-- **Over-constraining sweep range**: Very tight sweep (0.3× sweep axis) looks dead. The sweep multipliers need room — current values are 1.2× groove + 0.5× drift along the sweep axis.
+- **Anchors too close to the locus interior**: Produces heavy, mostly-black Julia sets. Fix: push outward into filament zone.
+- **Single-family worlds with world switching**: Locking all 7 degrees to one fractal type limits visual variety. Mixed anchors are better.
+- **Cyclic banding / interior coloring**: Added complexity for minimal benefit. Traditional smooth coloring with good palettes is cleaner.
+- **Key palette LUT blend in worker**: Blending between key and chord palettes per-pixel based on escape speed was over-engineered. A simple post-composite vignette overlay achieves the key-color anchoring goal more cleanly.
+- **Strong melody/bass tint weights** (0.85/0.7): Overwhelmed the palette. Post-composite overlays for color effects don't integrate well — per-pixel blending in the worker (like melody arm) is more organic.
+- **Palettes that wash to white**: All palettes ending near white kills contrast at boundaries. Palettes should loop back to saturated mid-tone.
+- **Antenna region of Burning Ship**: c-values near (-1.5, -0.1) produce degenerate shapes. Stay in the hull region.
+- **High rotation friction** (3.0): Half-life 0.23s — rotation died before next beat. 1.2 (half-life 0.58s) lets sway carry.
+- **Linear palette mapping** (`smoothed / maxIter`): Compresses boundary detail into tiny palette range. `sqrt` spreading is essential.
 
-### Open questions for future exploration
-- **Multiple fractal types per degree**: The engine supports 10 types. Using different formulas (not just different c-values) per degree would give maximum visual diversity. Buffalo (type 9) is the closest relative to Burning Ship and is already curated.
-- **Better visual dissimilarity metric**: Iteration histogram EMD was tried in the optimizer but the results weren't clearly better than Euclidean distance in c-space. A perceptual metric (structural similarity, feature-based) might work better.
-- **Longer connected boundary paths**: The iso-weight contour idea is sound in theory but the Burning Ship boundary is too fractal — connected paths are short. Maybe use multiple disconnected contour segments with fast snaps between them (hybrid approach).
-- **Per-song anchor tuning**: Different songs use different chord progressions. Schala's Theme barely leaves tonic. A song-adaptive system could allocate more visual range to the chords that actually appear.
-- **Other fractal families**: Celtic, PerpBurn, and Buffalo all have interesting boundary structure that hasn't been fully explored for music mapping.
+### Open questions
+- **Per-song anchor tuning**: Different songs use different chord progressions. A song-adaptive system could allocate more visual range to chords that actually appear.
+- **Transition path optimization**: Chord snaps pass through arbitrary intermediate c-values. Optimizing the path could eliminate occasional degenerate flashes.
+- **More fractal types in mix**: PerpBurn (8), Phoenix (5), and others have interesting boundary structure not yet explored for mixed anchors.
+- **Bass arm tint**: Currently only melody gets a directional arm tint. Bass could get a similar treatment in the opposite direction.

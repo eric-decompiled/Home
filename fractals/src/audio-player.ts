@@ -44,9 +44,13 @@ export const audioPlayer = {
     if (!synth) return;
     if (sequencer) {
       sequencer.pause();
+      sequencer.loadNewSongList([{ binary: midiBuffer }]);
+      sequencer.pause();
+    } else {
+      sequencer = new Sequencer(synth);
+      sequencer.loadNewSongList([{ binary: midiBuffer }]);
+      sequencer.pause();
     }
-    sequencer = new Sequencer(synth);
-    sequencer.loadNewSongList([{ binary: midiBuffer }]);
   },
 
   async play() {
@@ -74,6 +78,9 @@ export const audioPlayer = {
     if (sequencer) {
       sequencer.pause();
       sequencer.currentTime = 0;
+    }
+    if (synth) {
+      synth.stopAll(true);
     }
   },
 

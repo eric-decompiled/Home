@@ -12,18 +12,16 @@ interface SongEntry {
 }
 
 const songs: SongEntry[] = [
+  { name: 'Prelude (Final Fantasy)', file: 'ff1-prelude.mid' },
   { name: "Schala's Theme (Chrono Trigger)", file: 'schala.mid' },
   { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },
-  { name: 'Prelude (Final Fantasy I)', file: 'ff1-prelude.mid' },
-  { name: 'The Rebel Army (Final Fantasy II)', file: 'ff2-rebel-army.mid' },
-  { name: 'Eternal Wind (Final Fantasy III)', file: 'ff3-eternal-wind.mid' },
-  { name: 'Theme of Love (Final Fantasy IV)', file: 'ff4-theme-of-love.mid' },
-  { name: 'Ahead on our Way (Final Fantasy V)', file: 'ff5-ahead-on-our-way.mid' },
-  { name: "Terra's Theme (Final Fantasy VI)", file: 'ff6-terras-theme.mid' },
-  { name: "Aerith's Theme (Final Fantasy VII)", file: 'aeris-theme.mid' },
-  { name: 'Prelude (Final Fantasy VII)', file: 'ff7-prelude.mid' },
-  { name: 'Eyes on Me (Final Fantasy VIII)', file: 'ff8-eyes-on-me.mid' },
   { name: "You're Not Alone (Final Fantasy IX)", file: 'ff9-youre-not-alone.mid' },
+  { name: "Frog's Theme (Chrono Trigger)", file: 'frog-theme.mid' },
+  { name: 'Rose of May / Beatrix (Final Fantasy IX)', file: 'ff9-beatrix.mid' },
+  { name: 'Red Wings (Final Fantasy IV)', file: 'ff4-red-wings.mid' },
+  { name: 'Liberi Fatali (Final Fantasy VIII)', file: 'ff8-liberi-fatali.mid' },
+  { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },
+  { name: 'J-E-N-O-V-A (Final Fantasy VII)', file: 'ff7-jenova.mid' },
 ];
 
 // --- State ---
@@ -34,7 +32,19 @@ let lastTime = 0;
 let displayWidth = 800;
 let displayHeight = 600;
 let isPlaying = false;
-let idleSweepAngle = 0;
+let idlePhase1 = 0;
+let idlePhase2 = 0;
+const IDLE_PHI = 1.618033988749895;
+
+// --- Adaptive fidelity ---
+const MAX_FIDELITY = 0.45;
+let renderFidelity = 0.45;
+
+// --- FPS monitoring ---
+let fpsFrameCount = 0;
+let fpsLastSample = 0;
+let currentFps = 0;
+let currentRenderMs = 0;
 
 // Note names for key display
 const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -52,10 +62,12 @@ app.innerHTML = `
           ${songs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
         </select>
       </div>
+      <a href="/config.html" target="_blank" class="config-link" style="display:none">Config</a>
       <div class="song-info">
         <span class="info-badge" id="key-display">Key: --</span>
         <span class="info-badge" id="bpm-display">BPM: --</span>
         <span class="info-badge" id="chord-display">--</span>
+        <span class="info-badge" id="fps-display">-- fps</span>
       </div>
     </header>
 
@@ -74,10 +86,6 @@ app.innerHTML = `
           <label>Color</label>
           <div class="palette-grid" id="palette-grid"></div>
         </div>
-        <div class="setting-group">
-          <label>Quality: <span id="fidelity-val">0.60x</span></label>
-          <input type="range" id="fidelity" min="0.1" max="1" step="0.05" value="0.6">
-        </div>
       </div>
     </footer>
   </div>
@@ -93,10 +101,8 @@ const timeDisplay = document.getElementById('time-display')!;
 const keyDisplay = document.getElementById('key-display')!;
 const bpmDisplay = document.getElementById('bpm-display')!;
 const chordDisplay = document.getElementById('chord-display')!;
+const fpsDisplay = document.getElementById('fps-display')!;
 const paletteGrid = document.getElementById('palette-grid')!;
-const fidelitySlider = document.getElementById('fidelity') as HTMLInputElement;
-const fidelityVal = document.getElementById('fidelity-val')!;
-
 // --- Palette buttons ---
 
 function createPaletteGradient(palette: typeof palettes[0]): string {
@@ -198,6 +204,7 @@ async function loadSong(index: number) {
 
   const modeLabel = timeline.keyMode === 'minor' ? 'm' : '';
   keyDisplay.textContent = `Key: ${noteNames[timeline.key]}${modeLabel}`;
+  fractalEngine.setKeyPalette(timeline.key);
   bpmDisplay.textContent = `BPM: ${Math.round(timeline.tempo)}`;
   chordDisplay.textContent = `${timeline.timeSignature[0]}/${timeline.timeSignature[1]}`;
 
@@ -253,18 +260,6 @@ seekBar.addEventListener('input', () => {
 seekBar.addEventListener('mouseup', () => { seeking = false; });
 seekBar.addEventListener('touchend', () => { seeking = false; });
 
-fidelitySlider.addEventListener('input', () => {
-  const f = parseFloat(fidelitySlider.value);
-  fidelityVal.textContent = f.toFixed(2) + 'x';
-  fractalEngine.setParams(
-    fractalEngine.getCReal(),
-    fractalEngine.getCImag(),
-    fractalEngine.getZoom(),
-    fractalEngine.getMaxIterations(),
-    f
-  );
-  dirty = true;
-});
 
 // --- Chord display update ---
 
@@ -300,6 +295,30 @@ function updateChordDisplay(currentTime: number) {
   }
 }
 
+// --- Worker frame callback ---
+
+fractalEngine.onFrameReady = (renderMs: number) => {
+  currentRenderMs = renderMs;
+  fpsFrameCount++;
+
+  // Adaptive fidelity based on worker render time
+  // Target ~42ms (24fps) per render on the worker thread
+  const TARGET_MS = 42;
+  if (renderMs > TARGET_MS * 0.8) {
+    renderFidelity = Math.max(0.15, renderFidelity * 0.93);
+  } else if (renderMs < TARGET_MS * 0.4) {
+    renderFidelity = Math.min(MAX_FIDELITY, renderFidelity + 0.01);
+  }
+
+  const now = performance.now();
+  if (now - fpsLastSample >= 1000) {
+    currentFps = fpsFrameCount;
+    fpsFrameCount = 0;
+    fpsLastSample = now;
+    fpsDisplay.textContent = `${currentFps} fps | ${currentRenderMs.toFixed(0)}ms | ${renderFidelity.toFixed(2)}x`;
+  }
+};
+
 // --- Animation / render loop ---
 
 function loop(time: number): void {
@@ -309,8 +328,8 @@ function loop(time: number): void {
   if (isPlaying && timeline) {
     const currentTime = audioPlayer.getCurrentTime();
 
-    // Check if song ended
-    if (audioPlayer.isFinished() || currentTime >= timeline.duration) {
+    // Check if song ended (guard: only after playback has actually started)
+    if (currentTime > 0.5 && (audioPlayer.isFinished() || currentTime >= timeline.duration)) {
       audioPlayer.pause();
       isPlaying = false;
       playBtn.textContent = '\u25B6';
@@ -329,35 +348,36 @@ function loop(time: number): void {
       fractalEngine.setParams(
         params.cReal,
         params.cImag,
-        fractalEngine.getZoom(),
+        1.0,
         params.baseIter,
-        fractalEngine.getFidelity()
+        renderFidelity
       );
       fractalEngine.setFractalType(params.fractalType, params.phoenixP);
+      fractalEngine.setRotation(params.rotation);
       fractalEngine.setPalette(params.paletteIndex);
-      fractalEngine.setNoteTints(
-        params.melodyPitchClass, params.melodyVelocity,
-        params.bassPitchClass, params.bassVelocity
-      );
+      fractalEngine.setMelodyTint(params.melodyPitchClass, params.melodyVelocity);
       updatePaletteUI(params.paletteIndex);
       dirty = true;
     }
   } else {
-    // Idle or paused: Burning Ship tonic anchor with gentle breathing
-    idleSweepAngle += 0.15 * dt;
-    const cr = -0.31 + 0.012 * Math.cos(idleSweepAngle);
-    const ci = -1.15 + 0.012 * Math.sin(idleSweepAngle);
-    fractalEngine.setFractalType(3);
-    fractalEngine.setParams(cr, ci, 1.0, 150, fractalEngine.getFidelity());
+    // Idle or paused: gentle Lissajous orbit around tonic anchor
+    const idle = musicMapper.getIdleAnchor();
+    idlePhase1 += 0.15 * dt;
+    idlePhase2 += 0.15 * IDLE_PHI * dt;
+    const cr = idle.real + 0.015 * Math.sin(idlePhase1);
+    const ci = idle.imag + 0.015 * Math.sin(idlePhase2);
+    fractalEngine.setFractalType(idle.type);
+    fractalEngine.setRotation(idlePhase1 * 0.3);
+    fractalEngine.setParams(cr, ci, 1.0, 150, renderFidelity);
     dirty = true;
   }
 
   fractalEngine.update(dt);
-  fractalEngine.decayTints(dt);
 
-  if (dirty) {
+  // Send render to worker if dirty and worker is idle
+  if (dirty && !fractalEngine.isRendering()) {
+    fractalEngine.requestRender(canvas, displayWidth, displayHeight);
     dirty = false;
-    fractalEngine.render(canvas, displayWidth, displayHeight);
   }
 
   requestAnimationFrame(loop);
@@ -366,5 +386,5 @@ function loop(time: number): void {
 requestAnimationFrame(loop);
 
 // Auto-load default song
-songPicker.value = '0';
-loadSong(0);
+songPicker.value = '2';
+loadSong(2);

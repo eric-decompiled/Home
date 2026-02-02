@@ -41,7 +41,16 @@
       "WebFetch(domain:www.shadertoy.com)",
       "WebFetch(domain:darkeclipz.github.io)",
       "Bash(node:*)",
-      "Bash(NODE_PATH=./node_modules node:*)"
+      "Bash(NODE_PATH=./node_modules node:*)",
+      "Bash(git stash:*)",
+      "WebFetch(domain:mathr.co.uk)",
+      "WebFetch(domain:www.mrob.com)",
+      "WebFetch(domain:icefractal.com)",
+      "Bash(lsof:*)",
+      "WebFetch(domain:www.hellandheavennet.com)",
+      "WebFetch(domain:www.ffotaku.com)",
+      "WebFetch(domain:www.ffcompendium.com)",
+      "WebFetch(domain:www.gamersoundtracks.com)"
     ]
   }
 }
