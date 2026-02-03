@@ -51,7 +51,8 @@
       "WebFetch(domain:www.ffotaku.com)",
       "WebFetch(domain:www.ffcompendium.com)",
       "WebFetch(domain:www.gamersoundtracks.com)",
-      "WebFetch(domain:midifind.com)"
+      "WebFetch(domain:midifind.com)",
+      "WebFetch(domain:decompiled.dev)"
     ]
   }
 }

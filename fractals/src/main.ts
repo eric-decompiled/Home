@@ -58,7 +58,7 @@ app.innerHTML = `
           ${songs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
         </select>
       </div>
-      <a href="/config.html" target="_blank" class="config-link">Config</a>
+      <a href="config.html" target="_blank" class="config-link">Config</a>
       <div class="song-info">
         <span class="info-badge" id="key-display">Key: --</span>
         <span class="info-badge" id="bpm-display">BPM: --</span>
