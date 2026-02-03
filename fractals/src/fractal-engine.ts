@@ -207,10 +207,35 @@ let rotation = 0;
 
 // Key color for vignette (sampled from key palette mid-tone)
 let keyR = 0, keyG = 0, keyB = 0;
+let keyPitchClass = 0; // used to rotate the clock face so key = 12 o'clock
 
-// Melody arm tint
-let melodyArmR = 0, melodyArmG = 0, melodyArmB = 0;
-let melodyArmStrength = 0;
+// Diatonic semitone offsets from key root (used to highlight in-key dots)
+const MAJOR_OFFSETS = new Set([0, 2, 4, 5, 7, 9, 11]);
+const MINOR_OFFSETS = new Set([0, 2, 3, 5, 7, 8, 10]);
+let diatonicOffsets: Set<number> = MAJOR_OFFSETS;
+
+// Precomputed clock dot colors (12 pitch classes, sampled at 0.65 brightness)
+const clockDotColors: RGB[] = palettes.map(p => {
+  const tmp = new Uint8Array(LUT_SIZE * 3);
+  buildLUTInto(tmp, p);
+  const li = Math.round(0.65 * (LUT_SIZE - 1)) * 3;
+  return [tmp[li], tmp[li + 1], tmp[li + 2]] as RGB;
+});
+
+// Melody lightning ball — travels between clock positions with trail
+let melodyEnabled = false;
+let melodyLightR = 0, melodyLightG = 0, melodyLightB = 0;
+let melodyLightX = 0, melodyLightY = -1; // current position (unit circle)
+let melodyLightTX = 0, melodyLightTY = -1; // target position
+let melodyLightStrength = 0;
+let lastMelodyPitchClass = -1;
+
+interface TrailPoint { x: number; y: number; r: number; g: number; b: number; age: number; }
+
+// Light trail connecting recent melody positions (~5s at 24fps)
+const TRAIL_MAX = 120;
+const melodyTrail: TrailPoint[] = [];
+
 
 buildColorLUT(palettes[currentPaletteIndex]);
 lutA.set(colorLUT);
@@ -262,6 +287,68 @@ function handleBand(e: MessageEvent) {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = 'low';
       ctx.drawImage(offscreen, 0, 0, pendingDisplayW, pendingDisplayH);
+
+      // 12 pitch class dots arranged like a clock face
+      // In-key notes are larger and brighter, chromatic notes are small and faded
+      if (melodyEnabled) {
+        const cx = pendingDisplayW / 2, cy = pendingDisplayH / 2;
+        const edgeR = Math.min(cx, cy) * 0.85;
+        const baseDotR = Math.max(2, Math.min(cx, cy) * 0.012);
+        for (let i = 0; i < 12; i++) {
+          const pc = (keyPitchClass + i) % 12;
+          const inKey = diatonicOffsets.has(i);
+          const angle = (i / 12) * Math.PI * 2;
+          const dx = cx + Math.sin(angle) * edgeR;
+          const dy = cy - Math.cos(angle) * edgeR;
+          const [cr, cg, cb] = clockDotColors[pc];
+          const dotR = inKey ? baseDotR * 1.15 : baseDotR * 0.85;
+          const alpha = inKey ? 0.6 : 0.3;
+          ctx.beginPath();
+          ctx.arc(dx, dy, dotR, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+          ctx.fill();
+        }
+      }
+
+      // Melody trail — bright glowing line connecting recent positions
+      if (melodyEnabled && melodyTrail.length > 1) {
+        const cx = pendingDisplayW / 2, cy = pendingDisplayH / 2;
+        const edgeR = Math.min(cx, cy) * 0.85;
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.lineCap = 'round';
+        // Outer glow — soft bloom
+        for (let i = 1; i < melodyTrail.length; i++) {
+          const prev = melodyTrail[i - 1];
+          const cur = melodyTrail[i];
+          const fade = 1 - cur.age / TRAIL_MAX;
+          if (fade <= 0) continue;
+          ctx.beginPath();
+          ctx.moveTo(cx + prev.x * edgeR, cy + prev.y * edgeR);
+          ctx.lineTo(cx + cur.x * edgeR, cy + cur.y * edgeR);
+          ctx.strokeStyle = `rgba(${cur.r},${cur.g},${cur.b},${(fade * 0.10).toFixed(3)})`;
+          ctx.lineWidth = 6 + fade * 8;
+          ctx.stroke();
+        }
+        // Bright core — white-hot newest, fading to palette color
+        for (let i = 1; i < melodyTrail.length; i++) {
+          const prev = melodyTrail[i - 1];
+          const cur = melodyTrail[i];
+          const fade = 1 - cur.age / TRAIL_MAX;
+          if (fade <= 0) continue;
+          ctx.beginPath();
+          ctx.moveTo(cx + prev.x * edgeR, cy + prev.y * edgeR);
+          ctx.lineTo(cx + cur.x * edgeR, cy + cur.y * edgeR);
+          const wt = fade * fade;
+          const wr = Math.round(cur.r + (255 - cur.r) * wt * 0.5);
+          const wg = Math.round(cur.g + (255 - cur.g) * wt * 0.5);
+          const wb = Math.round(cur.b + (255 - cur.b) * wt * 0.5);
+          ctx.strokeStyle = `rgba(${wr},${wg},${wb},${(fade * 0.6).toFixed(3)})`;
+          ctx.lineWidth = 1.5 + fade * 3;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
 
       // Subtle song-key vignette on outer edge
       if (keyR + keyG + keyB > 0) {
@@ -322,15 +409,34 @@ export const fractalEngine = {
     }
   },
 
+  setMelodyEnabled(enabled: boolean) {
+    melodyEnabled = enabled;
+    if (!melodyEnabled) {
+      melodyLightStrength = 0;
+      melodyTrail.length = 0;
+      lastMelodyPitchClass = -1;
+    }
+  },
+
   setMelodyTint(pitchClass: number, velocity: number) {
-    if (pitchClass < 0 || velocity <= 0) return;
-    const p = palettes[pitchClass % palettes.length];
-    // Sample a bright stop from the melody palette
-    const tmpLut = new Uint8Array(LUT_SIZE * 3);
-    buildLUTInto(tmpLut, p);
-    const li = Math.round(0.65 * (LUT_SIZE - 1)) * 3;
-    melodyArmR = tmpLut[li]; melodyArmG = tmpLut[li + 1]; melodyArmB = tmpLut[li + 2];
-    melodyArmStrength = Math.min(1.0, melodyArmStrength + velocity * 0.6);
+    if (!melodyEnabled) return;
+    if (pitchClass < 0 || velocity <= 0) {
+      lastMelodyPitchClass = -1;
+      return;
+    }
+    // Onset: new note or same note reappearing after silence
+    if (pitchClass !== lastMelodyPitchClass) {
+      const p = palettes[pitchClass % palettes.length];
+      const tmpLut = new Uint8Array(LUT_SIZE * 3);
+      buildLUTInto(tmpLut, p);
+      const li = Math.round(0.85 * (LUT_SIZE - 1)) * 3;
+      melodyLightR = tmpLut[li]; melodyLightG = tmpLut[li + 1]; melodyLightB = tmpLut[li + 2];
+      const angle = (((pitchClass - keyPitchClass + 12) % 12) / 12) * Math.PI * 2;
+      melodyLightTX = Math.sin(angle);
+      melodyLightTY = -Math.cos(angle);
+      melodyLightStrength = Math.min(1.0, velocity * 0.9);
+      lastMelodyPitchClass = pitchClass;
+    }
   },
 
   update(dt: number) {
@@ -341,18 +447,35 @@ export const fractalEngine = {
         colorLUT.set(lutB);
       }
     }
-    // Decay melody arm tint
-    melodyArmStrength *= Math.exp(-2.5 * dt);
-    if (melodyArmStrength < 0.01) melodyArmStrength = 0;
+    if (melodyEnabled) {
+      // Move melody light toward target in a straight line
+      const melSnap = 1 - Math.exp(-10.0 * dt);
+      melodyLightX += (melodyLightTX - melodyLightX) * melSnap;
+      melodyLightY += (melodyLightTY - melodyLightY) * melSnap;
+      // Decay melody strength — fast pulse
+      melodyLightStrength *= Math.exp(-4.0 * dt);
+      if (melodyLightStrength < 0.05) {
+        melodyLightStrength = 0;
+        lastMelodyPitchClass = -1; // allow re-trigger on same pitch
+      }
+
+      // Push melody trail point each frame
+      melodyTrail.unshift({ x: melodyLightX, y: melodyLightY, r: melodyLightR, g: melodyLightG, b: melodyLightB, age: 0 });
+      for (let i = 0; i < melodyTrail.length; i++) melodyTrail[i].age++;
+      while (melodyTrail.length > TRAIL_MAX) melodyTrail.pop();
+    }
+
   },
 
-  setKeyPalette(pitchClass: number) {
+  setKeyPalette(pitchClass: number, mode?: 'major' | 'minor') {
     // Sample mid-tone from the key's palette for the edge vignette
     const p = palettes[pitchClass % palettes.length];
     const tmpLut = new Uint8Array(LUT_SIZE * 3);
     buildLUTInto(tmpLut, p);
     const li = Math.round(0.5 * (LUT_SIZE - 1)) * 3;
     keyR = tmpLut[li]; keyG = tmpLut[li + 1]; keyB = tmpLut[li + 2];
+    keyPitchClass = pitchClass;
+    diatonicOffsets = mode === 'minor' ? MINOR_OFFSETS : MAJOR_OFFSETS;
   },
 
   setFractalType(type: number, p?: number) {
@@ -418,7 +541,6 @@ export const fractalEngine = {
         fractalType,
         phoenixP,
         colorLUT: lutSnapshot,
-        melodyArmR, melodyArmG, melodyArmB, melodyArmStrength,
       });
     }
   },

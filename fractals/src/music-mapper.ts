@@ -25,22 +25,22 @@ const DEFAULT_ORBITS: Array<{ dr: number; di: number }> = [
 ];
 
 const defaultAnchors: Record<number, CValue> = {
-  0: { real: -0.9123, imag: 0.4882, type: 6,
-       orbits: [{dr:0.0675, di:0.0541}, {dr:-0.1125, di:0.0800}, {dr:-0.1113, di:-0.0703}, {dr:0.0063, di:-0.3124}] },
-  1: { real: -0.9123, imag: 0.4882, type: 6,
-       orbits: [{dr:0.0675, di:0.0541}, {dr:-0.1125, di:0.0800}, {dr:-0.1113, di:-0.0703}, {dr:0.0063, di:-0.3124}] },
-  2: { real: 0.3215, imag: 0.3842, type: 8,
-       orbits: [{dr:0.0800, di:0.0000}, {dr:0.0000, di:0.0800}, {dr:-0.0800, di:0.0000}, {dr:0.0000, di:-0.0800}] },
-  3: { real: 0.3386, imag: -1.5682, type: 3,
-       orbits: [{dr:0.3780, di:0.2838}, {dr:0.0203, di:0.3658}, {dr:-0.3341, di:0.2716}, {dr:0.6591, di:-0.0036}] },
+  0: { real: -0.5221, imag: 0.4757, type: 6,
+       orbits: [{dr:-0.7419, di:0.0166}, {dr:-0.4233, di:0.3550}, {dr:-0.1113, di:-0.0703}, {dr:-0.3839, di:-0.2936}] },  // Celtic
+  1: { real: -0.5221, imag: 0.4757, type: 6,
+       orbits: [{dr:-0.7419, di:0.0166}, {dr:-0.4233, di:0.3550}, {dr:-0.1113, di:-0.0703}, {dr:-0.3839, di:-0.2936}] },  // Celtic
+  2: { real: -0.5576, imag: -0.1589, type: 5,
+       orbits: [{dr:0.2919, di:-0.4629}, {dr:-0.3965, di:-0.4415}, {dr:-0.7363, di:-0.4160}, {dr:0.5742, di:-0.4492}] },  // Phoenix
+  3: { real: 0.5002, imag: -0.8946, type: 4,
+       orbits: [{dr:0.3780, di:0.2838}, {dr:0.0203, di:0.3658}, {dr:-0.3341, di:0.2716}, {dr:0.6591, di:-0.0036}] },  // Tricorn
   4: { real: -1.2810, imag: -0.4794, type: 6,
-       orbits: [{dr:0.3687, di:0.2541}, {dr:-0.4120, di:0.3658}, {dr:-0.3442, di:0.0000}, {dr:0.0000, di:-0.3003}] },
-  5: { real: -0.8935, imag: -0.2073, type: 6,
-       orbits: [{dr:0.0996, di:0.0439}, {dr:-0.0372, di:0.1101}, {dr:-0.1378, di:-0.0510}, {dr:-0.0813, di:-0.2638}] },
-  6: { real: -1.0169, imag: -1.0135, type: 3,
-       orbits: [{dr:0.0128, di:-0.2683}, {dr:-0.3061, di:0.2928}, {dr:-0.3486, di:0.0034}, {dr:0.3770, di:0.0085}] },
-  7: { real: -0.5409, imag: -0.9587, type: 9,
-       orbits: [{dr:0.3182, di:-0.0236}, {dr:-0.0152, di:0.2597}, {dr:0.3001, di:0.2507}, {dr:-0.3193, di:0.2747}] },
+       orbits: [{dr:0.3687, di:0.2541}, {dr:-0.4120, di:0.3658}, {dr:-0.3442, di:0.0000}, {dr:0.0000, di:-0.3003}] },  // Celtic
+  5: { real: -0.5105, imag: -0.1510, type: 6,
+       orbits: [{dr:-0.4352, di:0.0001}, {dr:-0.7093, di:-0.8774}, {dr:-0.3907, di:-0.3198}, {dr:-0.3993, di:-0.6451}] },  // Celtic
+  6: { real: 0.5002, imag: 0.8995, type: 4,
+       orbits: [{dr:-0.0106, di:-0.3597}, {dr:0.1861, di:-0.1572}, {dr:-0.1064, di:0.2003}, {dr:0.2598, di:0.0718}] },  // Tricorn
+  7: { real: -0.5371, imag: 0.2219, type: 5,
+       orbits: [{dr:0.3026, di:0.3311}, {dr:0.0532, di:0.4003}, {dr:0.5794, di:0.1968}, {dr:-0.5195, di:0.4130}] },  // Phoenix
 };
 
 const STORAGE_KEY = 'fractal-anchors';
@@ -275,7 +275,8 @@ export const musicMapper = {
     // Iterations: tension only
     const iterBase = Math.round(120 + currentTension * 60);
 
-    // --- Find highest and lowest sounding notes for tint ---
+    // --- Find melody (highest note >= C4) and bass (lowest note < C4) ---
+    const SPLIT_MIDI = 60; // middle C divides melody from bass
     let highestMidi = -1, highestVel = 0;
     let lowestMidi = 999, lowestVel = 0;
     for (let i = notes.length - 1; i >= 0; i--) {
@@ -284,8 +285,8 @@ export const musicMapper = {
       if (n.time < currentTime - 2.0) break;
       if (n.isDrum) continue;
       if (n.time + n.duration >= currentTime) {
-        if (n.midi > highestMidi) { highestMidi = n.midi; highestVel = n.velocity; }
-        if (n.midi < lowestMidi) { lowestMidi = n.midi; lowestVel = n.velocity; }
+        if (n.midi >= SPLIT_MIDI && n.midi > highestMidi) { highestMidi = n.midi; highestVel = n.velocity; }
+        if (n.midi < SPLIT_MIDI && n.midi < lowestMidi) { lowestMidi = n.midi; lowestVel = n.velocity; }
       }
     }
 

@@ -20,6 +20,9 @@ const songs: SongEntry[] = [
   { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },
   { name: 'J-E-N-O-V-A (Final Fantasy VII)', file: 'ff7-jenova.mid' },
   { name: 'Hallelujah (Leonard Cohen)', file: 'hallelujah.mid' },
+  { name: 'Stab the Sword of Justice (Star Ocean 2)', file: 'so2-battle.mid' },
+  { name: 'Incarnation of the Devil (Star Ocean 2)', file: 'so2-incarnation.mid' },
+  { name: 'Zeik Tuvai Battle (Wild Arms)', file: 'wa1-zeik-tuvai.mid' },
 ];
 
 // --- State ---
@@ -58,6 +61,7 @@ app.innerHTML = `
           ${songs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
         </select>
       </div>
+      <button class="toggle-btn" id="melody-toggle">Melody</button>
       <a href="config.html" target="_blank" class="config-link">Config</a>
       <div class="song-info">
         <span class="info-badge" id="key-display">Key: --</span>
@@ -92,6 +96,15 @@ const keyDisplay = document.getElementById('key-display')!;
 const bpmDisplay = document.getElementById('bpm-display')!;
 const chordDisplay = document.getElementById('chord-display')!;
 const fpsDisplay = document.getElementById('fps-display')!;
+const melodyToggle = document.getElementById('melody-toggle') as HTMLButtonElement;
+
+let showMelody = false;
+melodyToggle.classList.toggle('active', showMelody);
+melodyToggle.addEventListener('click', () => {
+  showMelody = !showMelody;
+  melodyToggle.classList.toggle('active', showMelody);
+  fractalEngine.setMelodyEnabled(showMelody);
+});
 
 // --- Canvas sizing ---
 
@@ -166,7 +179,7 @@ async function loadSong(index: number) {
 
   const modeLabel = timeline.keyMode === 'minor' ? 'm' : '';
   keyDisplay.textContent = `Key: ${noteNames[timeline.key]}${modeLabel}`;
-  fractalEngine.setKeyPalette(timeline.key);
+  fractalEngine.setKeyPalette(timeline.key, timeline.keyMode);
   bpmDisplay.textContent = `BPM: ${Math.round(timeline.tempo)}`;
   chordDisplay.textContent = `${timeline.timeSignature[0]}/${timeline.timeSignature[1]}`;
 

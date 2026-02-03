@@ -28,12 +28,6 @@ ctx.onmessage = (e: MessageEvent) => {
 
   const cLUT: Uint8Array = msg.colorLUT;
 
-  // Melody arm tint
-  const mArmR: number = msg.melodyArmR || 0;
-  const mArmG: number = msg.melodyArmG || 0;
-  const mArmB: number = msg.melodyArmB || 0;
-  const mArmStr: number = msg.melodyArmStrength || 0;
-
   const rangeW = BASE_RANGE / zoomVal;
   const rangeH = rangeW * (fullH / w);
   const xMin = cx - rangeW / 2;
@@ -162,26 +156,6 @@ ctx.onmessage = (e: MessageEvent) => {
         r = cLUT[lutIdx];
         g = cLUT[lutIdx + 1];
         b = cLUT[lutIdx + 2];
-      }
-
-      // Melody arm tint: blend melody color into one arm of the fractal
-      if (mArmStr > 0.01 && iteration < maxIter) {
-        // Use pre-rotation coords (fractal space) — "up" = dy < 0
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist > 0.001) {
-          // Angle from "up" direction (-y axis)
-          const cosAngle = -dy / dist;
-          // Smooth angular falloff: only where cosAngle > 0 (upper half)
-          if (cosAngle > 0) {
-            // Raise to power for narrow wedge, scale by strength and radial fade
-            const angular = cosAngle * cosAngle * cosAngle; // ~60° effective width
-            const radial = Math.min(1.0, dist * 2.0 / (rangeW * 0.5));
-            const blend = mArmStr * angular * radial * 0.4;
-            r = r + (mArmR - r) * blend;
-            g = g + (mArmG - g) * blend;
-            b = b + (mArmB - b) * blend;
-          }
-        }
       }
 
       const oR = r > 0 ? (r < 255 ? r | 0 : 255) : 0;
