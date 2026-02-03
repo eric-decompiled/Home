@@ -20,15 +20,10 @@ h1 { color:#16c79a; font-size:18px; margin-bottom:2px; }
   color:#000; cursor:pointer; font-weight:600; font-size:12px; }
 .actions button:hover { background:#1de9b6; }
 
-.panels { display:flex; gap:12px; margin-bottom:12px; }
-.panel { flex:1; min-width:0; }
+.panels { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:12px; }
+.panel { flex:1 1 calc(33.333% - 8px); min-width:0; max-width:calc(33.333% - 8px); }
 .panel h2 { font-size:13px; color:#16c79a; margin-bottom:4px; }
 .panel canvas { display:block; width:100%; border:1px solid #0f3460; border-radius:4px; cursor:crosshair; }
-
-.bottom { display:flex; gap:16px; align-items:flex-start; }
-.julia-wrap { }
-.julia-wrap canvas { display:block; border:1px solid #0f3460; border-radius:4px; }
-.julia-info { font-size:12px; color:#16c79a; margin-top:4px; font-family:monospace; }
 
 .assign-info { font-size:12px; color:#888; margin-top:8px; font-family:monospace; line-height:1.8; }
 .assign-info .row { display:flex; gap:8px; align-items:center; }
@@ -36,34 +31,62 @@ h1 { color:#16c79a; font-size:18px; margin-bottom:2px; }
 .assign-info .type-tag { font-size:10px; padding:1px 5px; border-radius:3px; background:#1a1a2e; color:#aaa; }
 
 #status { font-size:11px; color:#555; margin-top:6px; }
+
+.preview-box {
+  position:fixed; z-index:1000;
+  background:#111; border:1px solid #0f3460; border-radius:6px;
+  box-shadow:0 4px 24px rgba(0,0,0,0.6);
+  overflow:hidden; user-select:none;
+}
+.preview-header {
+  display:flex; align-items:center; gap:8px; padding:6px 10px;
+  background:#1a1a2e; cursor:move; font-size:12px;
+}
+.preview-header .title { color:#16c79a; font-weight:600; flex:1; }
+.preview-header label { color:#888; font-size:11px; }
+.preview-header input[type="number"] {
+  width:52px; background:#0a0a0a; border:1px solid #333; border-radius:3px;
+  color:#ccc; font-size:11px; padding:2px 4px; text-align:center; font-family:monospace;
+}
+.preview-header input[type="number"]:focus { border-color:#16c79a; outline:none; }
+.preview-body { padding:6px; }
+.preview-body canvas { display:block; border-radius:3px; }
+.preview-info { font-size:11px; color:#16c79a; margin-top:4px; font-family:monospace; padding:0 2px; }
 </style>
 </head>
 <body>
 <h1>Mix Config</h1>
-<p class="sub">Select a degree, then click any panel to place its anchor. Mix fractal types freely.</p>
+<p class="sub">Select a degree, then click any panel to place its center. Drag orbit dots (1-4) to shape beat motion. <span style="color:#444; margin-left:8px;">alpha — changes won't persist</span></p>
 
 <div class="degree-bar" id="degree-bar">
+  <button id="atlas-btn" style="padding:5px 14px; background:#16c79a; border:none; border-radius:4px; color:#000; cursor:pointer; font-weight:600; font-size:12px; margin-right:8px">Hide Atlas</button>
   <div class="actions">
+    <button id="surprise-btn" style="background:#e8a0ff; color:#000;">Surprise Me</button>
+    <button id="save-btn">Save</button>
+    <button id="load-btn">Load</button>
     <button id="export-btn">Copy TypeScript</button>
-    <button id="clear-btn">Clear All</button>
+    <button id="reset-btn">Reset</button>
   </div>
 </div>
 
 <div class="panels" id="panels"></div>
 
-<div class="bottom">
-  <div class="julia-wrap">
-    <canvas id="julia-canvas" width="350" height="350"></canvas>
-    <div class="julia-info" id="julia-info">Click a panel to preview Julia set</div>
-  </div>
-  <div class="assign-info" id="assign-info"></div>
-</div>
+<div class="assign-info" id="assign-info"></div>
 <div id="status"></div>
 
-<div style="margin-top:32px; border-top:1px solid #1a1a2e; padding-top:16px;">
-  <h2 style="color:#16c79a; font-size:16px; margin-bottom:8px;">Shape Atlas</h2>
-  <iframe src="/shape-atlas.html" style="width:100%; height:850px; border:1px solid #0f3460; border-radius:4px; background:#0a0a0a;"></iframe>
+<div class="preview-box" id="preview-box" style="right:20px; bottom:20px;">
+  <div class="preview-header" id="preview-header">
+    <span class="title">Preview</span>
+    <label>BPM</label>
+    <input type="number" id="bpm-input" value="120" min="30" max="300" step="5">
+    <span id="palette-btns" style="display:flex; gap:2px;"></span>
+  </div>
+  <div class="preview-body">
+    <canvas id="julia-canvas" width="350" height="350"></canvas>
+    <div class="preview-info" id="julia-info">Click a panel to preview Julia set</div>
+  </div>
 </div>
+
 
 <script>
 const PANEL_SIZE = 500;
@@ -73,6 +96,10 @@ const JULIA_ITER = 180;
 
 const degreeNames = ['0','I','ii','iii','IV','V','vi','vii'];
 const degreeColors = ['#888','#ff4444','#44aaff','#44dd88','#ffaa22','#ff66cc','#88ccff','#ffff44'];
+
+// Beat orbit point colors
+const orbitColors = ['#ff6666', '#66bbff', '#66ff99', '#ffcc44'];
+const orbitLabels = ['1', '2', '3', '4'];
 
 // --- Fractal families ---
 const families = [
@@ -118,29 +145,214 @@ const families = [
       return 0;
     },
   },
+  {
+    id: 'phoenix', label: 'Phoenix', typeNum: 5,
+    bounds: { rMin:-2.0, rMax:1.5, iMin:-1.5, iMax:1.5 },
+    locus(cr, ci, maxIter) {
+      let x=0,y=0,px=0,py=0;const p=-0.5;
+      for(let i=0;i<maxIter;i++){const nx=x*x-y*y+cr+p*px;const ny=2*x*y+ci+p*py;px=x;py=y;x=nx;y=ny;if(x*x+y*y>100)return i+1;}
+      return 0;
+    },
+    julia(fx, fy, jR, jI, maxIter) {
+      let x=fx,y=fy,px=0,py=0;const p=-0.5;
+      for(let i=0;i<maxIter;i++){const nx=x*x-y*y+jR+p*px;const ny=2*x*y+jI+p*py;px=x;py=y;x=nx;y=ny;if(x*x+y*y>4)return i+1;}
+      return 0;
+    },
+  },
+  {
+    id: 'tricorn', label: 'Tricorn', typeNum: 4,
+    bounds: { rMin:-2.5, rMax:1.5, iMin:-1.8, iMax:1.8 },
+    locus(cr, ci, maxIter) {
+      let x=0,y=0;
+      for(let i=0;i<maxIter;i++){const nx=x*x-y*y+cr;const ny=-2*x*y+ci;x=nx;y=ny;if(x*x+y*y>100)return i+1;}
+      return 0;
+    },
+    julia(fx, fy, jR, jI, maxIter) {
+      let x=fx,y=fy;
+      for(let i=0;i<maxIter;i++){const nx=x*x-y*y+jR;const ny=-2*x*y+jI;x=nx;y=ny;if(x*x+y*y>4)return i+1;}
+      return 0;
+    },
+  },
+  {
+    id: 'perp-burn', label: 'PerpBurn', typeNum: 8,
+    bounds: { rMin:-2.2, rMax:1.2, iMin:-2.0, iMax:0.8 },
+    locus(cr, ci, maxIter) {
+      let x=0,y=0;
+      for(let i=0;i<maxIter;i++){const ay=Math.abs(y);const nx=x*x-ay*ay+cr;const ny=2*x*ay+ci;x=nx;y=ny;if(x*x+y*y>100)return i+1;}
+      return 0;
+    },
+    julia(fx, fy, jR, jI, maxIter) {
+      let x=fx,y=fy;
+      for(let i=0;i<maxIter;i++){const ay=Math.abs(y);const nx=x*x-ay*ay+jR;const ny=2*x*ay+jI;x=nx;y=ny;if(x*x+y*y>4)return i+1;}
+      return 0;
+    },
+  },
 ];
+
+// --- Chromatic palettes (from fractal-engine.ts) ---
+const palettes = [
+  { name:'C',  stops:[{pos:0,color:[4,0,3]},{pos:0.15,color:[55,0,42]},{pos:0.4,color:[170,20,130]},{pos:0.65,color:[220,60,175]},{pos:0.85,color:[240,120,200]},{pos:1,color:[200,80,165]}] },
+  { name:'C♯', stops:[{pos:0,color:[3,0,8]},{pos:0.15,color:[35,0,55]},{pos:0.4,color:[110,20,175]},{pos:0.65,color:[160,60,220]},{pos:0.85,color:[185,110,235]},{pos:1,color:[145,70,195]}] },
+  { name:'D',  stops:[{pos:0,color:[1,0,10]},{pos:0.15,color:[18,4,65]},{pos:0.4,color:[65,30,175]},{pos:0.65,color:[110,70,220]},{pos:0.85,color:[150,120,240]},{pos:1,color:[110,80,200]}] },
+  { name:'D♯', stops:[{pos:0,color:[0,0,10]},{pos:0.15,color:[10,8,65]},{pos:0.4,color:[40,40,180]},{pos:0.65,color:[80,90,220]},{pos:0.85,color:[120,140,240]},{pos:1,color:[80,100,200]}] },
+  { name:'E',  stops:[{pos:0,color:[0,4,20]},{pos:0.15,color:[0,28,80]},{pos:0.4,color:[0,95,170]},{pos:0.65,color:[30,155,230]},{pos:0.85,color:[70,190,245]},{pos:1,color:[30,140,200]}] },
+  { name:'F',  stops:[{pos:0,color:[0,3,8]},{pos:0.15,color:[0,30,55]},{pos:0.4,color:[0,120,150]},{pos:0.65,color:[30,180,200]},{pos:0.85,color:[80,210,225]},{pos:1,color:[40,170,185]}] },
+  { name:'F♯', stops:[{pos:0,color:[0,4,3]},{pos:0.15,color:[0,38,30]},{pos:0.4,color:[10,150,115]},{pos:0.65,color:[40,200,155]},{pos:0.85,color:[90,230,185]},{pos:1,color:[50,185,145]}] },
+  { name:'G',  stops:[{pos:0,color:[0,0,0]},{pos:0.15,color:[0,24,16]},{pos:0.4,color:[15,160,120]},{pos:0.65,color:[50,210,165]},{pos:0.85,color:[95,240,195]},{pos:1,color:[55,195,155]}] },
+  { name:'G♯', stops:[{pos:0,color:[3,2,0]},{pos:0.15,color:[50,35,0]},{pos:0.4,color:[175,135,0]},{pos:0.65,color:[230,190,20]},{pos:0.85,color:[250,215,50]},{pos:1,color:[210,170,15]}] },
+  { name:'A',  stops:[{pos:0,color:[0,0,0]},{pos:0.15,color:[75,0,0]},{pos:0.35,color:[190,35,0]},{pos:0.55,color:[240,120,10]},{pos:0.75,color:[255,190,40]},{pos:0.9,color:[245,160,25]},{pos:1,color:[200,100,5]}] },
+  { name:'A♯', stops:[{pos:0,color:[5,0,1]},{pos:0.15,color:[58,0,22]},{pos:0.4,color:[190,30,80]},{pos:0.65,color:[235,70,130]},{pos:0.85,color:[245,130,175]},{pos:1,color:[205,80,135]}] },
+  { name:'B',  stops:[{pos:0,color:[5,0,3]},{pos:0.15,color:[50,0,35]},{pos:0.4,color:[170,15,110]},{pos:0.65,color:[215,55,160]},{pos:0.85,color:[235,110,195]},{pos:1,color:[195,65,155]}] },
+];
+
+const LUT_SIZE = 2048;
+let currentPaletteLUT = new Uint8Array(LUT_SIZE * 3);
+let currentPaletteIdx = 4; // E (blue) default
+
+function buildLUT(palette) {
+  const out = new Uint8Array(LUT_SIZE * 3);
+  const stops = palette.stops;
+  for (let i = 0; i < LUT_SIZE; i++) {
+    const t = i / (LUT_SIZE - 1);
+    let s0 = stops[0], s1 = stops[stops.length - 1];
+    for (let j = 0; j < stops.length - 1; j++) {
+      if (t >= stops[j].pos && t <= stops[j + 1].pos) { s0 = stops[j]; s1 = stops[j + 1]; break; }
+    }
+    const range = s1.pos - s0.pos;
+    const f = range === 0 ? 0 : (t - s0.pos) / range;
+    const idx = i * 3;
+    out[idx]   = Math.round(s0.color[0] + (s1.color[0] - s0.color[0]) * f);
+    out[idx+1] = Math.round(s0.color[1] + (s1.color[1] - s0.color[1]) * f);
+    out[idx+2] = Math.round(s0.color[2] + (s1.color[2] - s0.color[2]) * f);
+  }
+  return out;
+}
+
+function setPalette(idx) {
+  currentPaletteIdx = idx;
+  currentPaletteLUT = buildLUT(palettes[idx]);
+}
+
+// Build palette buttons
+{
+  const wrap = document.getElementById('palette-btns');
+  palettes.forEach((p, i) => {
+    const btn = document.createElement('div');
+    const midStop = p.stops[Math.floor(p.stops.length * 0.6)];
+    const c = midStop.color;
+    btn.style.cssText = `width:16px; height:16px; border-radius:3px; cursor:pointer; background:rgb(${c[0]},${c[1]},${c[2]}); border:2px solid ${i === currentPaletteIdx ? '#fff' : 'transparent'}; transition:border-color 0.15s;`;
+    btn.title = p.name;
+    btn.dataset.idx = i;
+    btn.addEventListener('click', () => {
+      setPalette(i);
+      wrap.querySelectorAll('div').forEach(b => b.style.borderColor = parseInt(b.dataset.idx) === i ? '#fff' : 'transparent');
+    });
+    wrap.appendChild(btn);
+  });
+}
+
+setPalette(currentPaletteIdx);
 
 // --- State ---
 let selectedDegree = 1;
 
-// Each degree: { familyIdx, real, imag, radius }  or null
+// Each degree: { familyIdx, real, imag, orbits: [{dr,di},{dr,di},{dr,di},{dr,di}] } or null
 const anchors = new Array(8).fill(null);
-// Default radius for new placements
-const DEFAULT_RADIUS = 0.085;
+const DEFAULT_ORBITS = [
+  { dr: 0.08, di: 0 },
+  { dr: 0, di: 0.08 },
+  { dr: -0.08, di: 0 },
+  { dr: 0, di: -0.08 },
+];
+
+const STORAGE_KEY = 'fractal-anchors';
+
+// typeNum → familyIdx lookup
+const typeToFamily = {};
+families.forEach((f, i) => { typeToFamily[f.typeNum] = i; });
+
+// Hardcoded defaults — matches music-mapper.ts defaultAnchors
+const PRESET_ANCHORS = [
+  { type: 6, real: -0.9123, imag: 0.4882, orbits: [{dr:0.0675,di:0.0541},{dr:-0.1125,di:0.0800},{dr:-0.1113,di:-0.0703},{dr:0.0063,di:-0.3124}] },
+  { type: 6, real: -0.9123, imag: 0.4882, orbits: [{dr:0.0675,di:0.0541},{dr:-0.1125,di:0.0800},{dr:-0.1113,di:-0.0703},{dr:0.0063,di:-0.3124}] },
+  { type: 8, real: 0.3215, imag: 0.3842, orbits: [{dr:0.0800,di:0.0000},{dr:0.0000,di:0.0800},{dr:-0.0800,di:0.0000},{dr:0.0000,di:-0.0800}] },
+  { type: 3, real: 0.3386, imag: -1.5682, orbits: [{dr:0.3780,di:0.2838},{dr:0.0203,di:0.3658},{dr:-0.3341,di:0.2716},{dr:0.6591,di:-0.0036}] },
+  { type: 6, real: -1.2810, imag: -0.4794, orbits: [{dr:0.3687,di:0.2541},{dr:-0.4120,di:0.3658},{dr:-0.3442,di:0.0000},{dr:0.0000,di:-0.3003}] },
+  { type: 6, real: -0.8935, imag: -0.2073, orbits: [{dr:0.0996,di:0.0439},{dr:-0.0372,di:0.1101},{dr:-0.1378,di:-0.0510},{dr:-0.0813,di:-0.2638}] },
+  { type: 3, real: -1.0169, imag: -1.0135, orbits: [{dr:0.0128,di:-0.2683},{dr:-0.3061,di:0.2928},{dr:-0.3486,di:0.0034},{dr:0.3770,di:0.0085}] },
+  { type: 9, real: -0.5409, imag: -0.9587, orbits: [{dr:0.3182,di:-0.0236},{dr:-0.0152,di:0.2597},{dr:0.3001,di:0.2507},{dr:-0.3193,di:0.2747}] },
+];
+
+function loadPresetAnchors() {
+  for (let deg = 0; deg <= 7; deg++) {
+    const p = PRESET_ANCHORS[deg];
+    const fi = typeToFamily[p.type];
+    anchors[deg] = {
+      familyIdx: fi,
+      real: p.real,
+      imag: p.imag,
+      orbits: p.orbits.map(o => ({ ...o })),
+    };
+  }
+}
+
+function saveToStorage() {
+  const out = {};
+  for (let deg = 0; deg <= 7; deg++) {
+    const a = anchors[deg];
+    if (!a) continue;
+    const f = families[a.familyIdx];
+    out[deg] = {
+      real: a.real, imag: a.imag, type: f.typeNum,
+      orbits: a.orbits.map(o => ({ dr: o.dr, di: o.di })),
+    };
+  }
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(out));
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) { alert('No saved data found.'); return; }
+    const parsed = JSON.parse(raw);
+    // Old schema check: if no orbits on first entry, ignore
+    if (parsed['0'] && !parsed['0'].orbits) {
+      alert('Saved data uses old format — ignoring.');
+      return;
+    }
+    for (let deg = 0; deg <= 7; deg++) {
+      const cv = parsed[deg];
+      if (!cv || !cv.orbits) { anchors[deg] = null; continue; }
+      const fi = typeToFamily[cv.type];
+      if (fi === undefined) { anchors[deg] = null; continue; }
+      anchors[deg] = {
+        familyIdx: fi, real: cv.real, imag: cv.imag,
+        orbits: cv.orbits.map(o => ({ dr: o.dr, di: o.di })),
+      };
+    }
+    redrawAllOverlays();
+  } catch { alert('Failed to load saved data.'); }
+}
 
 // Per-panel state
 const panelState = families.map((f, i) => ({
   canvas: null,
   locusBuffer: null,
+  atlasBuffer: null,
+  atlasBounds: null,
   bounds: { ...f.bounds },
   zoomLevel: 1.0,
   origBounds: { ...f.bounds },
 }));
 
+const ATLAS_TILE = 50;
+const ATLAS_THUMB = 40;
+const ATLAS_JULIA_ITER = 80;
+let showAtlas = true;
+
 // --- Degree bar ---
 function buildDegreeBar() {
   const bar = document.getElementById('degree-bar');
-  // Insert before actions div
   const actions = bar.querySelector('.actions');
   for (let deg = 1; deg <= 7; deg++) {
     const btn = document.createElement('div');
@@ -157,7 +369,11 @@ function selectDegree(deg) {
   document.querySelectorAll('.deg-btn').forEach(b =>
     b.classList.toggle('active', parseInt(b.dataset.deg) === deg));
   const a = anchors[deg];
-  if (a) showJulia(families[a.familyIdx], a.real, a.imag);
+  if (a) {
+    startPreview(families[a.familyIdx], a);
+  } else {
+    stopPreview();
+  }
   redrawAllOverlays();
 }
 
@@ -192,6 +408,63 @@ function renderLocus(familyIdx) {
   ctx.putImageData(img, 0, 0);
 }
 
+function renderAtlas(familyIdx) {
+  const f = families[familyIdx];
+  const ps = panelState[familyIdx];
+  const b = ps.bounds;
+
+  if (!ps.atlasBuffer) {
+    ps.atlasBuffer = document.createElement('canvas');
+    ps.atlasBuffer.width = PANEL_SIZE;
+    ps.atlasBuffer.height = PANEL_SIZE;
+  }
+  const ctx = ps.atlasBuffer.getContext('2d');
+  ctx.clearRect(0, 0, PANEL_SIZE, PANEL_SIZE);
+
+  const cols = Math.floor(PANEL_SIZE / ATLAS_TILE);
+  const rows = Math.floor(PANEL_SIZE / ATLAS_TILE);
+  const thumbCanvas = document.createElement('canvas');
+  thumbCanvas.width = ATLAS_THUMB;
+  thumbCanvas.height = ATLAS_THUMB;
+  const tCtx = thumbCanvas.getContext('2d');
+  const img = tCtx.createImageData(ATLAS_THUMB, ATLAS_THUMB);
+  const d = img.data;
+  const jRange = 3.2, jHalf = jRange / 2, jStep = jRange / ATLAS_THUMB;
+
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      const cx = (col + 0.5) * ATLAS_TILE;
+      const cy = (row + 0.5) * ATLAS_TILE;
+      const c = {
+        r: b.rMin + (cx / PANEL_SIZE) * (b.rMax - b.rMin),
+        i: b.iMin + (cy / PANEL_SIZE) * (b.iMax - b.iMin),
+      };
+
+      for (let py = 0; py < ATLAS_THUMB; py++) {
+        for (let px = 0; px < ATLAS_THUMB; px++) {
+          const esc = f.julia(-jHalf + px * jStep, -jHalf + py * jStep, c.r, c.i, ATLAS_JULIA_ITER);
+          const idx = (py * ATLAS_THUMB + px) * 4;
+          if (esc === 0) {
+            d[idx] = d[idx+1] = d[idx+2] = 0;
+          } else {
+            const t = Math.sqrt(esc / ATLAS_JULIA_ITER);
+            d[idx] = Math.min(255, t * 180);
+            d[idx+1] = Math.min(255, t * 200);
+            d[idx+2] = Math.min(255, t * 240);
+          }
+          d[idx+3] = 255;
+        }
+      }
+      tCtx.putImageData(img, 0, 0);
+
+      const pad = (ATLAS_TILE - ATLAS_THUMB) / 2;
+      ctx.drawImage(thumbCanvas, col * ATLAS_TILE + pad, row * ATLAS_TILE + pad);
+    }
+  }
+
+  ps.atlasBounds = { ...b };
+}
+
 function cToPixel(familyIdx, r, i) {
   const b = panelState[familyIdx].bounds;
   return {
@@ -213,7 +486,22 @@ function drawOverlay(familyIdx) {
   const ctx = ps.canvas.getContext('2d');
   ctx.drawImage(ps.locusBuffer, 0, 0);
 
-  const pxPerC = PANEL_SIZE / (ps.bounds.rMax - ps.bounds.rMin);
+  // Atlas overlay
+  if (showAtlas && ps.atlasBuffer) {
+    ctx.globalAlpha = 0.85;
+    ctx.drawImage(ps.atlasBuffer, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = '#ffffff18';
+    ctx.lineWidth = 1;
+    const cols = Math.floor(PANEL_SIZE / ATLAS_TILE);
+    const rows = Math.floor(PANEL_SIZE / ATLAS_TILE);
+    for (let i = 1; i < cols; i++) {
+      ctx.beginPath(); ctx.moveTo(i * ATLAS_TILE, 0); ctx.lineTo(i * ATLAS_TILE, PANEL_SIZE); ctx.stroke();
+    }
+    for (let i = 1; i < rows; i++) {
+      ctx.beginPath(); ctx.moveTo(0, i * ATLAS_TILE); ctx.lineTo(PANEL_SIZE, i * ATLAS_TILE); ctx.stroke();
+    }
+  }
 
   // Draw all anchors that belong to this family
   for (let deg = 1; deg <= 7; deg++) {
@@ -221,28 +509,42 @@ function drawOverlay(familyIdx) {
     if (!a || a.familyIdx !== familyIdx) continue;
 
     const p = cToPixel(familyIdx, a.real, a.imag);
-    const rPx = Math.max(4, a.radius * pxPerC);
     const col = degreeColors[deg];
     const isSelected = deg === selectedDegree;
 
-    // Radius fill
-    ctx.globalAlpha = 0.15;
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, rPx, 0, Math.PI*2);
-    ctx.fill();
-    ctx.globalAlpha = 1;
+    // Draw lines from center to each orbit point
+    for (let oi = 0; oi < 4; oi++) {
+      const orb = a.orbits[oi];
+      const op = cToPixel(familyIdx, a.real + orb.dr, a.imag + orb.di);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(op.x, op.y);
+      ctx.strokeStyle = isSelected ? orbitColors[oi] + 'aa' : orbitColors[oi] + '44';
+      ctx.lineWidth = isSelected ? 1.5 : 1;
+      ctx.stroke();
 
-    // Radius ring
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, rPx, 0, Math.PI*2);
-    ctx.strokeStyle = col + (isSelected ? 'cc' : '66');
-    ctx.lineWidth = isSelected ? 2 : 1;
-    ctx.stroke();
+      // Orbit dot
+      ctx.beginPath();
+      ctx.arc(op.x, op.y, isSelected ? 5 : 3, 0, Math.PI * 2);
+      ctx.fillStyle = orbitColors[oi];
+      ctx.globalAlpha = isSelected ? 1 : 0.5;
+      ctx.fill();
+      ctx.globalAlpha = 1;
 
-    // Dot
+      // Label
+      if (isSelected) {
+        ctx.font = 'bold 9px monospace';
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#000';
+        ctx.strokeText(orbitLabels[oi], op.x + 6, op.y - 4);
+        ctx.fillStyle = orbitColors[oi];
+        ctx.fillText(orbitLabels[oi], op.x + 6, op.y - 4);
+      }
+    }
+
+    // Center dot
     ctx.beginPath();
-    ctx.arc(p.x, p.y, isSelected ? 6 : 4, 0, Math.PI*2);
+    ctx.arc(p.x, p.y, isSelected ? 6 : 4, 0, Math.PI * 2);
     ctx.fillStyle = col;
     ctx.fill();
     if (isSelected) {
@@ -251,19 +553,13 @@ function drawOverlay(familyIdx) {
       ctx.stroke();
     }
 
-    // Label
+    // Degree label
     ctx.font = 'bold 11px monospace';
     ctx.lineWidth = 3;
     ctx.strokeStyle = '#000';
     ctx.strokeText(degreeNames[deg], p.x+8, p.y-6);
     ctx.fillStyle = '#fff';
     ctx.fillText(degreeNames[deg], p.x+8, p.y-6);
-
-    // Resize handle (right edge)
-    if (isSelected) {
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(p.x+rPx-3, p.y-3, 6, 6);
-    }
   }
 }
 
@@ -272,13 +568,86 @@ function redrawAllOverlays() {
   updateAssignInfo();
 }
 
-// --- Julia preview ---
-function showJulia(family, jR, jI) {
+// --- Animated Julia preview with orbit cycling ---
+let previewAnim = null;
+let previewFamily = null;
+let previewAnchor = null;  // { real, imag, orbits }
+
+let pvPhase = 0;
+let pvLastTime = 0;
+let previewBpm = 120;
+
+// --- Draggable preview box ---
+{
+  const box = document.getElementById('preview-box');
+  const header = document.getElementById('preview-header');
+  let dragging = false, dx = 0, dy = 0;
+  header.addEventListener('mousedown', (e) => {
+    if (e.target.tagName === 'INPUT') return;
+    dragging = true;
+    const r = box.getBoundingClientRect();
+    dx = e.clientX - r.left;
+    dy = e.clientY - r.top;
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    box.style.left = (e.clientX - dx) + 'px';
+    box.style.top = (e.clientY - dy) + 'px';
+    box.style.right = 'auto';
+    box.style.bottom = 'auto';
+  });
+  window.addEventListener('mouseup', () => { dragging = false; });
+}
+
+// BPM input
+document.getElementById('bpm-input').addEventListener('input', (e) => {
+  const v = parseInt(e.target.value);
+  if (v >= 30 && v <= 300) previewBpm = v;
+});
+
+function startPreview(family, anchor) {
+  stopPreview();
+  previewFamily = family;
+  previewAnchor = anchor;
+  pvPhase = 0;
+  pvLastTime = 0;
+  previewAnim = requestAnimationFrame(previewLoop);
+}
+
+function stopPreview() {
+  if (previewAnim) { cancelAnimationFrame(previewAnim); previewAnim = null; }
+}
+
+function previewLoop(time) {
+  if (!previewFamily || !previewAnchor) return;
+  const dt = pvLastTime === 0 ? 0.016 : Math.min((time - pvLastTime) / 1000, 0.05);
+  pvLastTime = time;
+
+  const a = previewAnchor;
+  const beatDur = 60 / previewBpm;
+
+  pvPhase += dt;
+  const beatFloat = pvPhase / beatDur;
+  const beatIndex = Math.floor(beatFloat) % 4;
+  const beatFrac = beatFloat - Math.floor(beatFloat);
+  const t = Math.sin(Math.PI * beatFrac);
+
+  const orb = a.orbits[beatIndex];
+  const cr = a.real + orb.dr * t;
+  const ci = a.imag + orb.di * t;
+
+  renderJulia(previewFamily, cr, ci);
+  previewAnim = requestAnimationFrame(previewLoop);
+}
+
+function renderJulia(family, jR, jI) {
   const canvas = document.getElementById('julia-canvas');
   const ctx = canvas.getContext('2d');
   const img = ctx.createImageData(JULIA_SIZE, JULIA_SIZE);
   const d = img.data;
   const range = 3.6, half = range/2, step = range/JULIA_SIZE;
+  const lut = currentPaletteLUT;
 
   for (let py=0; py<JULIA_SIZE; py++) {
     for (let px=0; px<JULIA_SIZE; px++) {
@@ -288,9 +657,10 @@ function showJulia(family, jR, jI) {
         d[idx]=d[idx+1]=d[idx+2]=0;
       } else {
         const t = Math.sqrt(esc/JULIA_ITER);
-        d[idx]=Math.min(255, t*200);
-        d[idx+1]=Math.min(255, t*220);
-        d[idx+2]=Math.min(255, t*255);
+        const li = Math.min(LUT_SIZE - 1, Math.round(t * (LUT_SIZE - 1))) * 3;
+        d[idx]   = lut[li];
+        d[idx+1] = lut[li+1];
+        d[idx+2] = lut[li+2];
       }
       d[idx+3]=255;
     }
@@ -298,6 +668,11 @@ function showJulia(family, jR, jI) {
   ctx.putImageData(img, 0, 0);
   document.getElementById('julia-info').textContent =
     `${family.label} | c = ${jR.toFixed(4)} + ${jI.toFixed(4)}i`;
+}
+
+function showJulia(family, jR, jI) {
+  stopPreview();
+  renderJulia(family, jR, jI);
 }
 
 // --- Assignment info ---
@@ -312,7 +687,7 @@ function updateAssignInfo() {
     if (a) {
       const f = families[a.familyIdx];
       html += `<span class="type-tag">${f.label}</span> `;
-      html += `(${a.real.toFixed(4)}, ${a.imag.toFixed(4)}) r=${a.radius.toFixed(4)}`;
+      html += `(${a.real.toFixed(4)}, ${a.imag.toFixed(4)})`;
     } else {
       html += `<span style="color:#555">unassigned</span>`;
     }
@@ -346,8 +721,9 @@ function setupPanel(familyIdx) {
   document.getElementById('panels').appendChild(wrap);
 
   // --- Drag state ---
-  let dragMode = null; // 'anchor' | 'resize' | 'pan'
+  let dragMode = null; // 'center' | 'orbit' | 'pan'
   let dragDeg = -1;
+  let dragOrbitIdx = -1;
   let dragStartMx, dragStartMy;
   let dragStartData = {};
   let isDragging = false;
@@ -362,21 +738,23 @@ function setupPanel(familyIdx) {
   }
 
   function hitTest(mx, my) {
-    const pxPerC = PANEL_SIZE / (ps.bounds.rMax - ps.bounds.rMin);
-    // Check selected degree's resize handle first
+    // Check selected degree's orbit points first
     const sa = anchors[selectedDegree];
     if (sa && sa.familyIdx === familyIdx) {
-      const p = cToPixel(familyIdx, sa.real, sa.imag);
-      const rPx = Math.max(4, sa.radius * pxPerC);
-      if (Math.abs(Math.hypot(mx-p.x, my-p.y) - rPx) < 6)
-        return { type:'resize', deg:selectedDegree };
+      const cp = cToPixel(familyIdx, sa.real, sa.imag);
+      for (let oi = 0; oi < 4; oi++) {
+        const orb = sa.orbits[oi];
+        const op = cToPixel(familyIdx, sa.real + orb.dr, sa.imag + orb.di);
+        if (Math.hypot(mx - op.x, my - op.y) < 8)
+          return { type: 'orbit', deg: selectedDegree, orbitIdx: oi };
+      }
     }
-    // Check anchor dots
+    // Check anchor center dots
     for (let deg = 1; deg <= 7; deg++) {
       const a = anchors[deg];
       if (!a || a.familyIdx !== familyIdx) continue;
       const p = cToPixel(familyIdx, a.real, a.imag);
-      if (Math.hypot(mx-p.x, my-p.y) < 8) return { type:'anchor', deg };
+      if (Math.hypot(mx-p.x, my-p.y) < 8) return { type:'center', deg };
     }
     return { type:'empty' };
   }
@@ -389,18 +767,23 @@ function setupPanel(familyIdx) {
     dragStartMy = e.clientY;
     isDragging = false;
 
-    if (hit.type === 'anchor') {
-      dragMode = 'anchor';
+    if (hit.type === 'orbit') {
+      dragMode = 'orbit';
+      dragDeg = hit.deg;
+      dragOrbitIdx = hit.orbitIdx;
+      const a = anchors[hit.deg];
+      const orb = a.orbits[hit.orbitIdx];
+      dragStartData = { dr: orb.dr, di: orb.di };
+      isDragging = true;
+      canvas.style.cursor = 'move';
+    } else if (hit.type === 'center') {
+      dragMode = 'center';
       dragDeg = hit.deg;
       selectedDegree = hit.deg;
       selectDegree(hit.deg);
       const a = anchors[hit.deg];
       dragStartData = { real: a.real, imag: a.imag };
       canvas.style.cursor = 'move';
-    } else if (hit.type === 'resize') {
-      dragMode = 'resize';
-      dragDeg = selectedDegree;
-      canvas.style.cursor = 'ew-resize';
     } else {
       dragMode = 'pan';
       dragStartData = { ...ps.bounds };
@@ -410,7 +793,6 @@ function setupPanel(familyIdx) {
 
   window.addEventListener('mousemove', (e) => {
     if (dragMode === null) return;
-    // Check if this drag belongs to this panel
     const rect = canvas.getBoundingClientRect();
     if (dragMode === 'pan' && dragStartData.rMin === undefined) return;
 
@@ -422,19 +804,16 @@ function setupPanel(familyIdx) {
     const cDx = dx * (ps.bounds.rMax - ps.bounds.rMin) / rect.width;
     const cDy = dy * (ps.bounds.iMax - ps.bounds.iMin) / rect.height;
 
-    if (dragMode === 'anchor' && anchors[dragDeg]?.familyIdx === familyIdx) {
+    if (dragMode === 'orbit' && anchors[dragDeg]?.familyIdx === familyIdx) {
+      const a = anchors[dragDeg];
+      a.orbits[dragOrbitIdx].dr = dragStartData.dr + cDx;
+      a.orbits[dragOrbitIdx].di = dragStartData.di + cDy;
+      if (dragDeg === 1 && anchors[0]) anchors[0].orbits[dragOrbitIdx] = { ...a.orbits[dragOrbitIdx] };
+      redrawAllOverlays();
+    } else if (dragMode === 'center' && anchors[dragDeg]?.familyIdx === familyIdx) {
       anchors[dragDeg].real = dragStartData.real + cDx;
       anchors[dragDeg].imag = dragStartData.imag + cDy;
-      if (dragDeg === 1) { anchors[0] = { ...anchors[1] }; }
-      redrawAllOverlays();
-    } else if (dragMode === 'resize' && anchors[dragDeg]?.familyIdx === familyIdx) {
-      const a = anchors[dragDeg];
-      const pos = getPos(e);
-      const p = cToPixel(familyIdx, a.real, a.imag);
-      const distPx = Math.hypot(pos.x-p.x, pos.y-p.y);
-      const pxPerC = PANEL_SIZE / (ps.bounds.rMax - ps.bounds.rMin);
-      a.radius = Math.max(0.003, distPx / pxPerC);
-      if (dragDeg === 1 && anchors[0]) anchors[0].radius = a.radius;
+      if (dragDeg === 1) { anchors[0] = { ...anchors[1], orbits: anchors[1].orbits.map(o => ({...o})) }; }
       redrawAllOverlays();
     } else if (dragMode === 'pan') {
       const pDx = -dx * (dragStartData.rMax - dragStartData.rMin) / rect.width;
@@ -444,7 +823,7 @@ function setupPanel(familyIdx) {
       ps.bounds.iMin = dragStartData.iMin + pDy;
       ps.bounds.iMax = dragStartData.iMax + pDy;
       if (renderTimeout) clearTimeout(renderTimeout);
-      renderTimeout = setTimeout(() => { renderLocus(familyIdx); drawOverlay(familyIdx); }, 100);
+      renderTimeout = setTimeout(() => { renderLocus(familyIdx); if (showAtlas) renderAtlas(familyIdx); drawOverlay(familyIdx); }, 100);
     }
   });
 
@@ -452,29 +831,33 @@ function setupPanel(familyIdx) {
     if (dragMode === null) return;
     canvas.style.cursor = 'crosshair';
 
-    if (!isDragging && dragMode !== 'resize') {
-      if (dragMode === 'anchor') {
-        // Click on existing anchor — just select
-        showJulia(f, anchors[dragDeg].real, anchors[dragDeg].imag);
+    if (!isDragging && dragMode !== 'orbit') {
+      if (dragMode === 'center') {
+        // Click on existing anchor — just select, start preview
+        const a = anchors[dragDeg];
+        startPreview(f, a);
       } else {
         // Click on empty space — place/move selected degree here
         const pos = getPos(e);
         const c = pixelToC(familyIdx, pos.x, pos.y);
-        const existingRadius = anchors[selectedDegree]?.radius || DEFAULT_RADIUS;
+        const existing = anchors[selectedDegree];
+        const existingOrbits = existing?.orbits
+          ? existing.orbits.map(o => ({ ...o }))
+          : DEFAULT_ORBITS.map(o => ({ ...o }));
         anchors[selectedDegree] = {
           familyIdx,
           real: c.r,
           imag: c.i,
-          radius: existingRadius,
+          orbits: existingOrbits,
         };
         // Keep 0 in sync with 1
-        if (selectedDegree === 1) anchors[0] = { ...anchors[selectedDegree] };
-        showJulia(f, c.r, c.i);
+        if (selectedDegree === 1) anchors[0] = { ...anchors[selectedDegree], orbits: existingOrbits.map(o => ({...o})) };
+        startPreview(f, anchors[selectedDegree]);
         redrawAllOverlays();
       }
-    } else if (dragMode === 'anchor' || dragMode === 'resize') {
+    } else if (dragMode === 'center' || dragMode === 'orbit') {
       const a = anchors[dragDeg];
-      if (a) showJulia(families[a.familyIdx], a.real, a.imag);
+      if (a) startPreview(families[a.familyIdx], a);
     }
 
     dragMode = null;
@@ -483,6 +866,7 @@ function setupPanel(familyIdx) {
 
   // Zoom
   canvas.addEventListener('wheel', (e) => {
+    if (!e.ctrlKey) return;
     e.preventDefault();
     const pos = getPos(e);
     const c = pixelToC(familyIdx, pos.x, pos.y);
@@ -498,6 +882,7 @@ function setupPanel(familyIdx) {
     const origW = ps.origBounds.rMax - ps.origBounds.rMin;
     ps.zoomLevel = origW / (ps.bounds.rMax - ps.bounds.rMin);
     renderLocus(familyIdx);
+    if (showAtlas) renderAtlas(familyIdx);
     drawOverlay(familyIdx);
   }, { passive: false });
 
@@ -506,6 +891,7 @@ function setupPanel(familyIdx) {
     ps.bounds = { ...ps.origBounds };
     ps.zoomLevel = 1.0;
     renderLocus(familyIdx);
+    if (showAtlas) renderAtlas(familyIdx);
     drawOverlay(familyIdx);
   });
 
@@ -520,6 +906,24 @@ function setupPanel(familyIdx) {
 }
 
 // --- Export ---
+document.getElementById('atlas-btn').addEventListener('click', () => {
+  showAtlas = !showAtlas;
+  document.getElementById('atlas-btn').textContent = showAtlas ? 'Hide Atlas' : 'Show Atlas';
+  if (showAtlas) {
+    for (let i = 0; i < families.length; i++) renderAtlas(i);
+  }
+  for (let i = 0; i < families.length; i++) drawOverlay(i);
+});
+
+document.getElementById('save-btn').addEventListener('click', () => {
+  saveToStorage();
+  alert('Saved to browser storage.');
+});
+
+document.getElementById('load-btn').addEventListener('click', () => {
+  loadFromStorage();
+});
+
 document.getElementById('export-btn').addEventListener('click', () => {
   let lines = `const mixedAnchors: Record<number, CValue> = {\n`;
   for (let deg = 0; deg <= 7; deg++) {
@@ -529,21 +933,117 @@ document.getElementById('export-btn').addEventListener('click', () => {
       continue;
     }
     const f = families[a.familyIdx];
-    const sr = a.real + a.radius;
+    const orbStr = a.orbits.map(o =>
+      `{dr:${o.dr.toFixed(4)}, di:${o.di.toFixed(4)}}`
+    ).join(', ');
     lines += `  ${deg}: { real: ${a.real.toFixed(4)}, imag: ${a.imag.toFixed(4)}, type: ${f.typeNum},\n`;
-    lines += `       sweepTo: { real: ${sr.toFixed(4)}, imag: ${a.imag.toFixed(4)} } },`;
-    lines += `  // ${f.label}, radius=${a.radius.toFixed(4)}\n`;
+    lines += `       orbits: [${orbStr}] },`;
+    lines += `  // ${f.label}\n`;
   }
   lines += '};';
   navigator.clipboard.writeText(lines).then(() => alert('Copied to clipboard!'));
 });
 
-document.getElementById('clear-btn').addEventListener('click', () => {
-  anchors.fill(null);
+document.getElementById('reset-btn').addEventListener('click', () => {
+  loadPresetAnchors();
   redrawAllOverlays();
+  selectDegree(1);
 });
 
+// --- Surprise Me: intelligent random anchor generation ---
+
+// Tension per degree — dissonant degrees get more movement
+const degreeTension = [0.1, 0.1, 0.35, 0.5, 0.3, 0.7, 0.45, 0.85];
+
+function findBoundaryPoint(familyIdx) {
+  // Sample random points and find ones near the connectedness locus boundary.
+  // Strategy: random candidate, check escape at center + 4 neighbors.
+  // Boundary = mixed escape/interior among neighbors.
+  const f = families[familyIdx];
+  const b = f.bounds;
+  const iter = 150;
+  const probeR = 0.03; // neighbor probe distance
+
+  let bestR = 0, bestI = 0, bestScore = -1;
+
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const cr = b.rMin + Math.random() * (b.rMax - b.rMin);
+    const ci = b.iMin + Math.random() * (b.iMax - b.iMin);
+
+    // Check center + 8 neighbors
+    const probes = [
+      [cr, ci],
+      [cr + probeR, ci], [cr - probeR, ci],
+      [cr, ci + probeR], [cr, ci - probeR],
+      [cr + probeR*0.7, ci + probeR*0.7], [cr - probeR*0.7, ci + probeR*0.7],
+      [cr + probeR*0.7, ci - probeR*0.7], [cr - probeR*0.7, ci - probeR*0.7],
+    ];
+
+    let interior = 0, exterior = 0;
+    let escSum = 0;
+    for (const [pr, pi] of probes) {
+      const esc = f.locus(pr, pi, iter);
+      if (esc === 0) interior++; else { exterior++; escSum += esc; }
+    }
+
+    // Best spots: mix of interior and exterior (boundary zone)
+    // Slight preference for just-outside (more exterior than interior)
+    if (interior === 0 || exterior === 0) continue;
+    const mixScore = Math.min(interior, exterior) / probes.length;
+    // Bonus for being slightly outside (exterior > interior)
+    const outsideBias = exterior > interior ? 1.2 : 1.0;
+    // Bonus for moderate escape times (not too fast = still interesting structure)
+    const avgEsc = exterior > 0 ? escSum / exterior : 0;
+    const escBonus = avgEsc > 5 && avgEsc < iter * 0.7 ? 1.3 : 1.0;
+    const score = mixScore * outsideBias * escBonus;
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestR = cr;
+      bestI = ci;
+    }
+  }
+
+  return { r: bestR, i: bestI };
+}
+
+function generateSurpriseAnchors() {
+  // Pick 2-3 families to use (variety but not chaos)
+  const shuffled = [...families.keys()].sort(() => Math.random() - 0.5);
+  const numFamilies = 2 + Math.floor(Math.random() * 2); // 2 or 3
+  const familyPool = shuffled.slice(0, numFamilies);
+
+  for (let deg = 1; deg <= 7; deg++) {
+    const fi = familyPool[deg % familyPool.length];
+    const pt = findBoundaryPoint(fi);
+    const tension = degreeTension[deg];
+
+    // Orbit radius scales with tension: tonic = tight, dominant/vii = wide
+    const baseOrbitR = 0.06 + tension * 0.25;
+
+    // Generate 4 orbit offsets — roughly spread around but with randomness
+    const orbits = [];
+    const baseAngle = Math.random() * Math.PI * 2;
+    for (let oi = 0; oi < 4; oi++) {
+      const angle = baseAngle + (oi / 4) * Math.PI * 2 + (Math.random() - 0.5) * 0.8;
+      const r = baseOrbitR * (0.6 + Math.random() * 0.8);
+      orbits.push({ dr: r * Math.cos(angle), di: r * Math.sin(angle) });
+    }
+
+    anchors[deg] = { familyIdx: fi, real: pt.r, imag: pt.i, orbits };
+  }
+  // Degree 0 mirrors degree 1
+  anchors[0] = { ...anchors[1], orbits: anchors[1].orbits.map(o => ({ ...o })) };
+
+  redrawAllOverlays();
+  // Select degree I and start preview
+  selectDegree(1);
+}
+
+document.getElementById('surprise-btn').addEventListener('click', generateSurpriseAnchors);
+
 // --- Init ---
+loadPresetAnchors();
 buildDegreeBar();
 for (let i = 0; i < families.length; i++) setupPanel(i);
 
@@ -552,9 +1052,10 @@ document.getElementById('status').textContent = 'Rendering...';
 setTimeout(() => {
   for (let i = 0; i < families.length; i++) {
     renderLocus(i);
+    renderAtlas(i);
     drawOverlay(i);
   }
-  document.getElementById('status').textContent = 'Ready. Select a degree, click a panel to place.';
+  document.getElementById('status').textContent = 'Ready. Select a degree, click a panel to place. Drag orbit dots to shape beat motion.';
 }, 30);
 </script>
 </body>

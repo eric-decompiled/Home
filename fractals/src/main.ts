@@ -1,5 +1,5 @@
 import './style.css';
-import { fractalEngine, palettes } from './fractal-engine.ts';
+import { fractalEngine } from './fractal-engine.ts';
 import { analyzeMidiBuffer, type MusicTimeline } from './midi-analyzer.ts';
 import { audioPlayer } from './audio-player.ts';
 import { musicMapper } from './music-mapper.ts';
@@ -17,11 +17,9 @@ const songs: SongEntry[] = [
   { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },
   { name: "You're Not Alone (Final Fantasy IX)", file: 'ff9-youre-not-alone.mid' },
   { name: "Frog's Theme (Chrono Trigger)", file: 'frog-theme.mid' },
-  { name: 'Rose of May / Beatrix (Final Fantasy IX)', file: 'ff9-beatrix.mid' },
-  { name: 'Red Wings (Final Fantasy IV)', file: 'ff4-red-wings.mid' },
-  { name: 'Liberi Fatali (Final Fantasy VIII)', file: 'ff8-liberi-fatali.mid' },
   { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },
   { name: 'J-E-N-O-V-A (Final Fantasy VII)', file: 'ff7-jenova.mid' },
+  { name: 'Hallelujah (Leonard Cohen)', file: 'hallelujah.mid' },
 ];
 
 // --- State ---
@@ -32,9 +30,7 @@ let lastTime = 0;
 let displayWidth = 800;
 let displayHeight = 600;
 let isPlaying = false;
-let idlePhase1 = 0;
-let idlePhase2 = 0;
-const IDLE_PHI = 1.618033988749895;
+let idlePhase = 0;
 
 // --- Adaptive fidelity ---
 const MAX_FIDELITY = 0.45;
@@ -62,7 +58,7 @@ app.innerHTML = `
           ${songs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
         </select>
       </div>
-      <a href="/config.html" target="_blank" class="config-link" style="display:none">Config</a>
+      <a href="/config.html" target="_blank" class="config-link">Config</a>
       <div class="song-info">
         <span class="info-badge" id="key-display">Key: --</span>
         <span class="info-badge" id="bpm-display">BPM: --</span>
@@ -81,12 +77,6 @@ app.innerHTML = `
         <input type="range" id="seek-bar" min="0" max="100" step="0.1" value="0" disabled>
         <span class="time-display" id="time-display">0:00 / 0:00</span>
       </div>
-      <div class="settings">
-        <div class="setting-group">
-          <label>Color</label>
-          <div class="palette-grid" id="palette-grid"></div>
-        </div>
-      </div>
     </footer>
   </div>
 `;
@@ -102,34 +92,6 @@ const keyDisplay = document.getElementById('key-display')!;
 const bpmDisplay = document.getElementById('bpm-display')!;
 const chordDisplay = document.getElementById('chord-display')!;
 const fpsDisplay = document.getElementById('fps-display')!;
-const paletteGrid = document.getElementById('palette-grid')!;
-// --- Palette buttons ---
-
-function createPaletteGradient(palette: typeof palettes[0]): string {
-  const stops = palette.stops.map(
-    (s) => `rgb(${s.color[0]},${s.color[1]},${s.color[2]}) ${s.pos * 100}%`
-  );
-  return `linear-gradient(90deg, ${stops.join(', ')})`;
-}
-
-palettes.forEach((p, i) => {
-  const btn = document.createElement('button');
-  btn.className = 'palette-btn' + (i === 4 ? ' active' : '');
-  btn.style.background = createPaletteGradient(p);
-  btn.title = p.name;
-  btn.addEventListener('click', () => {
-    fractalEngine.setPalette(i);
-    document.querySelectorAll('.palette-btn').forEach((b) => b.classList.remove('active'));
-    btn.classList.add('active');
-    dirty = true;
-  });
-  paletteGrid.appendChild(btn);
-});
-
-function updatePaletteUI(index: number) {
-  const btns = paletteGrid.querySelectorAll('.palette-btn');
-  btns.forEach((b, i) => b.classList.toggle('active', i === index));
-}
 
 // --- Canvas sizing ---
 
@@ -356,18 +318,19 @@ function loop(time: number): void {
       fractalEngine.setRotation(params.rotation);
       fractalEngine.setPalette(params.paletteIndex);
       fractalEngine.setMelodyTint(params.melodyPitchClass, params.melodyVelocity);
-      updatePaletteUI(params.paletteIndex);
       dirty = true;
     }
   } else {
-    // Idle or paused: gentle Lissajous orbit around tonic anchor
+    // Idle or paused: gentle orbit around center using first orbit point
     const idle = musicMapper.getIdleAnchor();
-    idlePhase1 += 0.15 * dt;
-    idlePhase2 += 0.15 * IDLE_PHI * dt;
-    const cr = idle.real + 0.015 * Math.sin(idlePhase1);
-    const ci = idle.imag + 0.015 * Math.sin(idlePhase2);
+    idlePhase += 0.3 * dt;
+    const t = Math.sin(Math.PI * idlePhase);
+    const orbit = idle.orbits?.[0] ?? { dr: 0.08, di: 0 };
+    const cr = idle.real + orbit.dr * t * 0.5;
+    const ci = idle.imag + orbit.di * t * 0.5;
     fractalEngine.setFractalType(idle.type);
-    fractalEngine.setRotation(idlePhase1 * 0.3);
+    fractalEngine.setRotation(idlePhase * 0.3);
+    if (timeline) fractalEngine.setPalette(timeline.key);
     fractalEngine.setParams(cr, ci, 1.0, 150, renderFidelity);
     dirty = true;
   }
@@ -386,5 +349,5 @@ function loop(time: number): void {
 requestAnimationFrame(loop);
 
 // Auto-load default song
-songPicker.value = '2';
-loadSong(2);
+songPicker.value = '1';
+loadSong(1);

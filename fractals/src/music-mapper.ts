@@ -7,8 +7,8 @@ interface CValue {
   imag: number;
   type: number;
   phoenix?: number;
-  // Optional sweep endpoint: breathing oscillates along anchor↔sweepTo axis
-  sweepTo?: { real: number; imag: number };
+  // 4 orbit offsets (relative to center), one per beat
+  orbits: Array<{ dr: number; di: number }>;
 }
 
 // type: 0=Julia z²+c, 1=Cubic z³+c, 2=Quartic z⁴+c, 3=BurningShip,
@@ -16,24 +16,66 @@ interface CValue {
 
 // --- Mixed anchors: cross-family degree assignments ---
 
-const anchors: Record<number, CValue> = {
-  0: { real: -0.7527, imag: -1.1378, type: 3,
-       sweepTo: { real: -0.6201, imag: -1.1378 } },  // Burning Ship, radius=0.1326
-  1: { real: -0.7527, imag: -1.1378, type: 3,
-       sweepTo: { real: -0.6201, imag: -1.1378 } },  // Burning Ship, radius=0.1326
-  2: { real: -1.6544, imag: -0.0925, type: 3,
-       sweepTo: { real: -1.5279, imag: -0.0925 } },  // Burning Ship, radius=0.1265
-  3: { real: -0.9500, imag: 0.2503, type: 6,
-       sweepTo: { real: -0.8061, imag: 0.2503 } },  // Celtic, radius=0.1439
-  4: { real: -1.0375, imag: -0.3443, type: 6,
-       sweepTo: { real: -0.9260, imag: -0.3443 } },  // Celtic, radius=0.1115
-  5: { real: 0.5740, imag: -0.5472, type: 9,
-       sweepTo: { real: 0.6758, imag: -0.5472 } },  // Buffalo, radius=0.1019
-  6: { real: 1.2885, imag: -1.0817, type: 9,
-       sweepTo: { real: 1.3735, imag: -1.0817 } },  // Buffalo, radius=0.0850
-  7: { real: 0.8324, imag: -1.3553, type: 3,
-       sweepTo: { real: 1.0106, imag: -1.3553 } },  // Burning Ship, radius=0.1781
+
+const DEFAULT_ORBITS: Array<{ dr: number; di: number }> = [
+  { dr: 0.08, di: 0 },
+  { dr: 0, di: 0.08 },
+  { dr: -0.08, di: 0 },
+  { dr: 0, di: -0.08 },
+];
+
+const defaultAnchors: Record<number, CValue> = {
+  0: { real: -0.9123, imag: 0.4882, type: 6,
+       orbits: [{dr:0.0675, di:0.0541}, {dr:-0.1125, di:0.0800}, {dr:-0.1113, di:-0.0703}, {dr:0.0063, di:-0.3124}] },
+  1: { real: -0.9123, imag: 0.4882, type: 6,
+       orbits: [{dr:0.0675, di:0.0541}, {dr:-0.1125, di:0.0800}, {dr:-0.1113, di:-0.0703}, {dr:0.0063, di:-0.3124}] },
+  2: { real: 0.3215, imag: 0.3842, type: 8,
+       orbits: [{dr:0.0800, di:0.0000}, {dr:0.0000, di:0.0800}, {dr:-0.0800, di:0.0000}, {dr:0.0000, di:-0.0800}] },
+  3: { real: 0.3386, imag: -1.5682, type: 3,
+       orbits: [{dr:0.3780, di:0.2838}, {dr:0.0203, di:0.3658}, {dr:-0.3341, di:0.2716}, {dr:0.6591, di:-0.0036}] },
+  4: { real: -1.2810, imag: -0.4794, type: 6,
+       orbits: [{dr:0.3687, di:0.2541}, {dr:-0.4120, di:0.3658}, {dr:-0.3442, di:0.0000}, {dr:0.0000, di:-0.3003}] },
+  5: { real: -0.8935, imag: -0.2073, type: 6,
+       orbits: [{dr:0.0996, di:0.0439}, {dr:-0.0372, di:0.1101}, {dr:-0.1378, di:-0.0510}, {dr:-0.0813, di:-0.2638}] },
+  6: { real: -1.0169, imag: -1.0135, type: 3,
+       orbits: [{dr:0.0128, di:-0.2683}, {dr:-0.3061, di:0.2928}, {dr:-0.3486, di:0.0034}, {dr:0.3770, di:0.0085}] },
+  7: { real: -0.5409, imag: -0.9587, type: 9,
+       orbits: [{dr:0.3182, di:-0.0236}, {dr:-0.0152, di:0.2597}, {dr:0.3001, di:0.2507}, {dr:-0.3193, di:0.2747}] },
 };
+
+const STORAGE_KEY = 'fractal-anchors';
+
+let anchors: Record<number, CValue> = { ...defaultAnchors };
+
+function loadAnchorsFromStorage(): void {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Record<string, any>;
+    if (!parsed['0'] || !parsed['1']) return;
+    // Schema check: new format has orbits array, old format has sweepTo
+    if (!parsed['0'].orbits) {
+      // Old schema — ignore, use hardcoded defaults
+      return;
+    }
+    const loaded: Record<number, CValue> = {};
+    for (let d = 0; d <= 7; d++) {
+      if (parsed[d] && parsed[d].orbits) {
+        loaded[d] = parsed[d];
+      }
+    }
+    if (Object.keys(loaded).length >= 2) {
+      anchors = loaded;
+    }
+  } catch { /* ignore malformed data */ }
+}
+
+loadAnchorsFromStorage();
+
+// Live-reload when config.html saves in another tab
+window.addEventListener('storage', (e) => {
+  if (e.key === STORAGE_KEY) loadAnchorsFromStorage();
+});
 
 // Root pitch class applies a tiny rotation around the degree anchor
 function centerForChord(degree: number, root: number): CValue {
@@ -46,7 +88,7 @@ function centerForChord(degree: number, root: number): CValue {
     imag: anchor.imag + radius * Math.sin(angle),
     type: anchor.type,
     phoenix: anchor.phoenix,
-    sweepTo: anchor.sweepTo,
+    orbits: anchor.orbits ?? [...DEFAULT_ORBITS],
   };
 }
 
@@ -80,22 +122,9 @@ let currentPalette = 4;
 let currentFractalType = getDefaultAnchor().type;
 let currentPhoenixP = -0.5;
 
-let lastNoteIndex = -1;
-
-// Cold start: first notes get extra energy to kick things off
-let noteCount = 0;
-const coldStartNotes = 12;  // first N notes get boosted
-const coldStartMultiplier = 3.0; // extra kick factor
-
-// Underdamped spring — two independent 1D oscillators
-let springRealPos = 0;   // displacement from equilibrium
-let springRealVel = 0;   // velocity (units: c-space / second)
-let springImagPos = 0;
-let springImagVel = 0;
-
-// Spring parameters (adapted by tempo in setTempo)
-let omega0 = 4.5;        // natural frequency rad/s (~0.7 Hz)
-const zeta = 0.35;       // damping ratio — ~3 visible bounces
+// Current orbit offsets (interpolated on chord change)
+let currentOrbits: Array<{ dr: number; di: number }> = [...DEFAULT_ORBITS];
+let targetOrbits: Array<{ dr: number; di: number }> = [...DEFAULT_ORBITS];
 
 // Beat-driven rotation
 let rotationAngle = 0;
@@ -109,11 +138,6 @@ let beatsPerBar = 4;
 // Drum processing
 let lastDrumIndex = -1;
 
-let intensityEnergy = 0; // total energy, expands radius, decays fast ~0.4s
-
-// Exploration radius derived from |anchor - sweepTo|
-let baseRadius = 0.03;
-
 // Exponential snap — fast, direct transition to new chord target
 const snapRate = 8.0;  // ~0.12s to 90% — responsive chord changes
 
@@ -124,8 +148,6 @@ export const musicMapper = {
   setTempo(bpm: number, timeSig?: [number, number]) {
     beatDuration = 60 / bpm;
     beatsPerBar = timeSig ? timeSig[0] : 4;
-    // Adapt spring: faster songs → stiffer spring
-    omega0 = Math.max(3.0, Math.min(6.0, 3.5 + (bpm - 60) / 60));
     smoothingRate = 4.0 + (bpm / 120) * 2.0;
     // Faster tempo → more friction so rotation doesn't accumulate
     rotationFriction = 1.2 + Math.max(0, (bpm - 100) / 60) * 1.5;
@@ -162,60 +184,27 @@ export const musicMapper = {
       currentFractalType = center.type;
       currentPhoenixP = center.phoenix ?? -0.5;
 
-      // Compute exploration radius from |anchor - sweepTo|
-      if (center.sweepTo) {
-        const dx = center.sweepTo.real - center.real;
-        const dy = center.sweepTo.imag - center.imag;
-        baseRadius = Math.sqrt(dx * dx + dy * dy);
-      } else {
-        baseRadius = 0.03;
-      }
+      // Update target orbits
+      targetOrbits = center.orbits.map(o => ({ ...o }));
     }
-
-    // --- Decay intensity energy ---
-    intensityEnergy *= Math.exp(-1.7 * dt);  // ~0.4s half-life
-    if (intensityEnergy > 4.0) intensityEnergy = 4.0;
 
     // --- Exponential snap toward target ---
     const snapDecay = 1 - Math.exp(-snapRate * dt);
     currentCenter.real += (targetCenter.real - currentCenter.real) * snapDecay;
     currentCenter.imag += (targetCenter.imag - currentCenter.imag) * snapDecay;
 
+    // Snap orbits too
+    for (let i = 0; i < 4; i++) {
+      currentOrbits[i].dr += (targetOrbits[i].dr - currentOrbits[i].dr) * snapDecay;
+      currentOrbits[i].di += (targetOrbits[i].di - currentOrbits[i].di) * snapDecay;
+    }
+
     // Tension smoothing
     const decay = 1 - Math.exp(-smoothingRate * dt);
     currentTension += (targetTension - currentTension) * decay;
 
-    // --- Process new notes → spring impulses ---
+    // --- Process drum hits → rotation ---
     const noteLookback = 0.05;
-    const impulseScale = baseRadius * 3.0;
-    for (let i = lastNoteIndex + 1; i < notes.length; i++) {
-      const n = notes[i];
-      if (n.time > currentTime) break;
-      if (n.time < currentTime - noteLookback) { lastNoteIndex = i; continue; }
-      if (n.isDrum) { lastNoteIndex = i; continue; }
-
-      lastNoteIndex = i;
-      noteCount++;
-
-      // Cold start: first notes get extra momentum
-      const coldBoost = noteCount <= coldStartNotes
-        ? 1.0 + (coldStartMultiplier - 1.0) * (1.0 - noteCount / coldStartNotes)
-        : 1.0;
-
-      const v = n.velocity * coldBoost;
-      if (n.midi < 60) {
-        // Bass → real axis, direction alternates by pitch parity
-        const dir = (n.midi % 2 === 0) ? 1.0 : -1.0;
-        springRealVel += dir * v * 0.7 * impulseScale;
-      } else {
-        // Melody → imag axis, direction alternates by pitch parity
-        const dir = (n.midi % 2 === 0) ? 1.0 : -1.0;
-        springImagVel += dir * v * 0.8 * impulseScale;
-      }
-      intensityEnergy += v * 0.25;
-    }
-
-    // --- Process drum hits → rotation + spring kicks ---
     for (let i = lastDrumIndex + 1; i < drums.length; i++) {
       const d = drums[i];
       if (d.time > currentTime) break;
@@ -228,7 +217,6 @@ export const musicMapper = {
 
       if (d.type === 'kick') {
         rotationVelocity += 0.5;
-        springRealVel += baseRadius * 1.5;
       } else if (d.type === 'snare') {
         rotationVelocity -= 0.6;
       } else if (d.type === 'hihat') {
@@ -266,22 +254,26 @@ export const musicMapper = {
     rotationVelocity *= Math.exp(-rotationFriction * safeDt);
     rotationAngle += rotationVelocity * safeDt;
 
-    // --- Spring integration (semi-implicit Euler) ---
-    const omega0sq = omega0 * omega0;
-    const damping = 2 * zeta * omega0;
+    // --- Orbit-based c-value: beat-synchronized ---
+    let offsetReal = 0;
+    let offsetImag = 0;
 
-    // Real axis
-    const accelR = -damping * springRealVel - omega0sq * springRealPos;
-    springRealVel += accelR * safeDt;
-    springRealPos += springRealVel * safeDt;
+    if (beatDuration > 0) {
+      const barDuration = beatDuration * beatsPerBar;
+      const posInBar = currentTime % barDuration;
+      const beatFloat = posInBar / beatDuration;
+      const beatIndex = Math.floor(beatFloat) % currentOrbits.length;
+      const beatFrac = beatFloat - Math.floor(beatFloat);
 
-    // Imag axis
-    const accelI = -damping * springImagVel - omega0sq * springImagPos;
-    springImagVel += accelI * safeDt;
-    springImagPos += springImagVel * safeDt;
+      // Sinusoidal: 0 at beat boundary (center), 1 at beat midpoint (orbit point)
+      const t = Math.sin(Math.PI * beatFrac);
 
-    // Iterations: tension + intensity
-    const iterBase = Math.round(120 + currentTension * 60 + intensityEnergy * 15);
+      offsetReal = currentOrbits[beatIndex].dr * t;
+      offsetImag = currentOrbits[beatIndex].di * t;
+    }
+
+    // Iterations: tension only
+    const iterBase = Math.round(120 + currentTension * 60);
 
     // --- Find highest and lowest sounding notes for tint ---
     let highestMidi = -1, highestVel = 0;
@@ -298,8 +290,8 @@ export const musicMapper = {
     }
 
     return {
-      cReal: currentCenter.real + springRealPos,
-      cImag: currentCenter.imag + springImagPos,
+      cReal: currentCenter.real + offsetReal,
+      cImag: currentCenter.imag + offsetImag,
       fractalType: currentFractalType,
       phoenixP: currentPhoenixP,
       paletteIndex: currentPalette,
@@ -321,14 +313,8 @@ export const musicMapper = {
     currentPalette = 4;
     currentFractalType = def.type;
     currentPhoenixP = -0.5;
-    lastNoteIndex = -1;
-    noteCount = 0;
-    springRealPos = 0;
-    springRealVel = 0;
-    springImagPos = 0;
-    springImagVel = 0;
-    intensityEnergy = 0;
-    baseRadius = 0.03;
+    currentOrbits = (def.orbits ?? DEFAULT_ORBITS).map(o => ({ ...o }));
+    targetOrbits = currentOrbits.map(o => ({ ...o }));
     lastChordIndex = -1;
     rotationAngle = 0;
     rotationVelocity = 0;

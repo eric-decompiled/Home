@@ -37,6 +37,7 @@ export const audioPlayer = {
     // If synth is already up, load immediately
     if (synth) {
       this._loadSequencer(midiBuffer);
+      pendingMidiBuffer = null;
     }
   },
 
@@ -44,11 +45,14 @@ export const audioPlayer = {
     if (!synth) return;
     if (sequencer) {
       sequencer.pause();
+      synth.stopAll(true);
       sequencer.loadNewSongList([{ binary: midiBuffer }]);
+      sequencer.currentTime = 0;
       sequencer.pause();
     } else {
       sequencer = new Sequencer(synth);
       sequencer.loadNewSongList([{ binary: midiBuffer }]);
+      sequencer.currentTime = 0;
       sequencer.pause();
     }
   },
@@ -58,8 +62,9 @@ export const audioPlayer = {
     await ensureInit();
 
     // If we had a pending buffer that wasn't loaded yet, load now
-    if (pendingMidiBuffer && !sequencer) {
+    if (pendingMidiBuffer) {
       this._loadSequencer(pendingMidiBuffer);
+      pendingMidiBuffer = null;
     }
     if (!sequencer) return;
 
