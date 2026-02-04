@@ -5,39 +5,19 @@
 // Creates layered, flowing curtains of light.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { palettes } from '../fractal-engine.ts';
+import { samplePaletteColor } from './effect-utils.ts';
 
 interface Ribbon {
-  y: number;         // center vertical position (0-1)
-  freq: number;      // wave frequency
-  amplitude: number; // wave height
-  speed: number;     // horizontal drift speed
-  phase: number;     // wave phase offset
+  y: number;
+  freq: number;
+  amplitude: number;
+  speed: number;
+  phase: number;
   r: number;
   g: number;
   b: number;
-  life: number;      // 0-1, fades over time
+  life: number;
   thickness: number;
-}
-
-function samplePaletteColor(paletteIdx: number, pos: number): [number, number, number] {
-  const p = palettes[paletteIdx % palettes.length];
-  const stops = p.stops;
-  let s0 = stops[0], s1 = stops[stops.length - 1];
-  for (let j = 0; j < stops.length - 1; j++) {
-    if (pos >= stops[j].pos && pos <= stops[j + 1].pos) {
-      s0 = stops[j];
-      s1 = stops[j + 1];
-      break;
-    }
-  }
-  const range = s1.pos - s0.pos;
-  const f = range === 0 ? 0 : (pos - s0.pos) / range;
-  return [
-    Math.round(s0.color[0] + (s1.color[0] - s0.color[0]) * f),
-    Math.round(s0.color[1] + (s1.color[1] - s0.color[1]) * f),
-    Math.round(s0.color[2] + (s1.color[2] - s0.color[2]) * f),
-  ];
 }
 
 export class MelodyAuroraEffect implements VisualEffect {

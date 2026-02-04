@@ -1,7 +1,8 @@
-// --- Melody Web Effect ---
-// A network graph of the 12 pitch classes arranged in a circle.
-// When melody notes play, their node lights up and edges glow between
-// recently-played notes, building a web of melodic relationships.
+// --- Chord Web Effect ---
+// Like Melody Web but tracks chord root movements only.
+// Edges connect successive chord roots, building a map of the
+// song's harmonic progression. Thicker edges = more frequent
+// chord transitions. Current chord triad is highlighted.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES, chordTriad, semitoneOffset } from './effect-utils.ts';
@@ -20,9 +21,9 @@ interface EdgeState {
   recent: number;
 }
 
-export class MelodyWebEffect implements VisualEffect {
-  readonly id = 'melody-web';
-  readonly name = 'Melody Web';
+export class ChordWebEffect implements VisualEffect {
+  readonly id = 'chord-web';
+  readonly name = 'Chord Web';
   readonly isPostProcess = false;
   readonly defaultBlend: BlendMode = 'screen';
   readonly defaultOpacity = 1.0;
@@ -33,23 +34,19 @@ export class MelodyWebEffect implements VisualEffect {
   private height = 600;
   private ready = false;
 
-  // 12 pitch class nodes
   private nodes: NodeState[] = [];
-  // Edges: 66 unique pairs (12 choose 2), indexed as i*12+j where i<j
   private edges: Map<number, EdgeState> = new Map();
-  // Melody trail: last N pitch classes for trailing arc
-  private melodyTrail: number[] = [];
+  private chordTrail: number[] = [];
 
-  private lastPitchClass = -1;
+  private lastChordRoot = -1;
   private time = 0;
   private key = 0;
   private breathPhase = 0;
-  private chordNotes: Set<number> = new Set(); // pitch classes in current chord
+  private chordNotes: Set<number> = new Set();
 
-  // Config
   private radius = 0.85;
-  private edgeDecay = 0.9995; // per-frame multiplier for accumulated strength
-  private nodeDecay = 3.0;    // exponential decay rate for node brightness
+  private edgeDecay = 0.998;
+  private nodeDecay = 1.5; // slower decay than melody — chords linger
   private webIntensity = 1.0;
 
   private diatonicOffsets: Set<number> = MAJOR_OFFSETS;
@@ -69,9 +66,7 @@ export class MelodyWebEffect implements VisualEffect {
         brightness: 0,
         hitCount: 0,
         lastHitTime: -10,
-        r: c[0],
-        g: c[1],
-        b: c[2],
+        r: c[0], g: c[1], b: c[2],
       });
     }
     this.edges.clear();
@@ -100,75 +95,66 @@ export class MelodyWebEffect implements VisualEffect {
 
   update(dt: number, music: MusicParams): void {
     this.time += dt;
-    this.breathPhase += dt * 0.8;
+    this.breathPhase += dt * 0.6; // slower breathing than melody web
     this.key = music.key;
     this.keyMode = music.keyMode;
     this.diatonicOffsets = music.keyMode === 'minor' ? MINOR_OFFSETS : MAJOR_OFFSETS;
     this.chordNotes = chordTriad(music.chordRoot, music.chordQuality);
 
-    // Melody onset — light up node and create/strengthen edge
-    if (music.melodyOnset && music.melodyPitchClass >= 0 && music.melodyVelocity > 0) {
-      const pc = music.melodyPitchClass;
-      const node = this.nodes[pc];
+    // Chord change — light up node and create edge
+    const root = music.chordRoot;
+    if (root >= 0 && root !== this.lastChordRoot) {
+      const node = this.nodes[root];
       node.brightness = 1.0;
       node.hitCount++;
       node.lastHitTime = this.time;
 
-      // Update color from current palette
-      const c = samplePaletteColor(pc, 0.75);
+      const c = samplePaletteColor(root, 0.75);
       node.r = c[0];
       node.g = c[1];
       node.b = c[2];
 
-      // Create edges to all recently-active nodes (not just the previous note)
-      for (let j = 0; j < 12; j++) {
-        if (j === pc) continue;
-        const other = this.nodes[j];
-        if (other.brightness < 0.05) continue;
-        const ek = this.edgeKey(pc, j);
+      // Edge from previous chord root
+      if (this.lastChordRoot >= 0 && this.lastChordRoot !== root) {
+        const ek = this.edgeKey(root, this.lastChordRoot);
         const edge = this.edges.get(ek) ?? { strength: 0, recent: 0 };
-        // Stronger connection to brighter (more recent) nodes
-        const boost = j === this.lastPitchClass ? 0.15 : 0.08 * other.brightness;
-        edge.strength = Math.min(1.0, edge.strength + boost);
-        edge.recent = Math.max(edge.recent, j === this.lastPitchClass ? 1.0 : 0.5 * other.brightness);
+        edge.strength = Math.min(1.0, edge.strength + 0.2);
+        edge.recent = 1.0;
         this.edges.set(ek, edge);
-
       }
 
-      // Push to melody trail
-      if (this.melodyTrail.length === 0 || this.melodyTrail[this.melodyTrail.length - 1] !== pc) {
-        this.melodyTrail.push(pc);
-        if (this.melodyTrail.length > 6) {
-          this.melodyTrail.shift();
+      // Push to chord trail
+      if (this.chordTrail.length === 0 || this.chordTrail[this.chordTrail.length - 1] !== root) {
+        this.chordTrail.push(root);
+        if (this.chordTrail.length > 8) {
+          this.chordTrail.shift();
         }
       }
 
-      this.lastPitchClass = pc;
+      this.lastChordRoot = root;
     }
 
-    // Beat pulse — briefly brighten all active nodes
+    // Beat pulse — brighten active nodes on kick
     if (music.kick) {
       for (const node of this.nodes) {
         if (node.brightness > 0.05) {
-          node.brightness = Math.min(1.0, node.brightness + 0.2);
+          node.brightness = Math.min(1.0, node.brightness + 0.15);
         }
       }
     }
 
-    // Decay nodes
+    // Decay
     for (const node of this.nodes) {
       node.brightness *= Math.exp(-this.nodeDecay * dt);
     }
 
-    // Decay edges
     for (const [key, edge] of this.edges) {
       edge.strength *= this.edgeDecay;
-      edge.recent *= Math.exp(-5.0 * dt);
+      edge.recent *= Math.exp(-3.0 * dt); // slower flash decay than melody
       if (edge.strength < 0.001 && edge.recent < 0.001) {
         this.edges.delete(key);
       }
     }
-
   }
 
   render(): HTMLCanvasElement {
@@ -182,7 +168,7 @@ export class MelodyWebEffect implements VisualEffect {
     const r = Math.min(cx, cy) * this.radius;
     const breath = 1 + Math.sin(this.breathPhase) * 0.02;
 
-    // Compute node positions (key at 12 o'clock)
+    // Node positions (key at 12 o'clock)
     const positions: Array<{ x: number; y: number }> = [];
     for (let i = 0; i < 12; i++) {
       const semitones = semitoneOffset(i, this.key);
@@ -196,21 +182,21 @@ export class MelodyWebEffect implements VisualEffect {
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
 
-    // Draw edges
+    // --- Draw edges ---
     for (const [key, edge] of this.edges) {
       const lo = Math.floor(key / 12);
       const hi = key % 12;
       const p0 = positions[lo];
       const p1 = positions[hi];
-      // Hold bright most of their life, then drop off sharply near death
-      // smoothstep(0, 0.3, s) stays ~1.0 above 0.3, falls to 0 below
       const s = edge.strength;
-      const t = Math.min(Math.max(s / 0.3, 0), 1);
-      const strengthAlpha = t * t * (3 - 2 * t);
-      const totalAlpha = (strengthAlpha * 0.4 + edge.recent * 0.6) * this.webIntensity;
+      // Steeper cliff: edges hold near full brightness until strength drops
+      // below 0.5, then fall off sharply via a quintic ease-out
+      const t = Math.min(Math.max(s / 0.5, 0), 1);
+      const t3 = t * t * t;
+      const strengthAlpha = t3 * t3; // s^6 — very steep cliff
+      const totalAlpha = (strengthAlpha * 0.5 + edge.recent * 0.5) * this.webIntensity;
       if (totalAlpha < 0.005) continue;
 
-      // Blend colors of the two nodes
       const n0 = this.nodes[lo];
       const n1 = this.nodes[hi];
       const mr = Math.round((n0.r + n1.r) / 2);
@@ -222,10 +208,10 @@ export class MelodyWebEffect implements VisualEffect {
       ctx.moveTo(p0.x, p0.y);
       ctx.lineTo(p1.x, p1.y);
       ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(totalAlpha * 0.15).toFixed(3)})`;
-      ctx.lineWidth = 6 + edge.recent * 8;
+      ctx.lineWidth = 8 + edge.recent * 10;
       ctx.stroke();
 
-      // Core line
+      // Core line — thicker than melody web to emphasize structure
       ctx.beginPath();
       ctx.moveTo(p0.x, p0.y);
       ctx.lineTo(p1.x, p1.y);
@@ -234,32 +220,30 @@ export class MelodyWebEffect implements VisualEffect {
       const wg = Math.min(255, mg + Math.round((255 - mg) * bright));
       const wb = Math.min(255, mb + Math.round((255 - mb) * bright));
       ctx.strokeStyle = `rgba(${wr},${wg},${wb},${(totalAlpha * 0.5).toFixed(3)})`;
-      ctx.lineWidth = 1 + edge.strength * 2 + edge.recent * 2;
+      ctx.lineWidth = 1.5 + edge.strength * 3 + edge.recent * 3;
       ctx.stroke();
     }
 
-    // Draw melody trail — fading arc through recent melody notes
-    if (this.melodyTrail.length >= 2) {
-      const len = this.melodyTrail.length;
+    // --- Chord trail — fading arc through recent chord roots ---
+    if (this.chordTrail.length >= 2) {
+      const len = this.chordTrail.length;
       for (let i = 0; i < len - 1; i++) {
-        const fromPC = this.melodyTrail[i];
-        const toPC = this.melodyTrail[i + 1];
+        const fromPC = this.chordTrail[i];
+        const toPC = this.chordTrail[i + 1];
         const p0 = positions[fromPC];
         const p1 = positions[toPC];
         const age = (i + 1) / len;
         const alpha = age * age;
-        const lineW = 1.5 + age * 3;
+        const lineW = 2 + age * 4;
         const n = this.nodes[toPC];
 
-        // Glow pass
         ctx.beginPath();
         ctx.moveTo(p0.x, p0.y);
         ctx.lineTo(p1.x, p1.y);
         ctx.strokeStyle = `rgba(${n.r},${n.g},${n.b},${(alpha * 0.15).toFixed(3)})`;
-        ctx.lineWidth = lineW + 6;
+        ctx.lineWidth = lineW + 8;
         ctx.stroke();
 
-        // Core pass
         ctx.beginPath();
         ctx.moveTo(p0.x, p0.y);
         ctx.lineTo(p1.x, p1.y);
@@ -272,7 +256,7 @@ export class MelodyWebEffect implements VisualEffect {
       }
     }
 
-    // Draw nodes as Roman numerals (diatonic) or small dots (chromatic)
+    // --- Draw nodes as Roman numerals ---
     const degreeMap = this.keyMode === 'minor' ? MINOR_DEGREES : MAJOR_DEGREES;
 
     for (let i = 0; i < 12; i++) {
@@ -283,11 +267,10 @@ export class MelodyWebEffect implements VisualEffect {
       const inChord = this.chordNotes.has(i);
       const numeral = degreeMap[semitones];
 
-      // Chord tones get a brightness boost
       const chordBoost = inChord ? 0.25 : 0;
       const alpha = (inKey ? 0.3 : 0.15) + chordBoost + node.brightness * 0.7;
 
-      // Outer glow — chord tones always glow
+      // Outer glow
       if (node.brightness > 0.05 || inKey || inChord) {
         const glowR = 12 + node.brightness * 15 + (inChord ? 8 : 0);
         const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowR);
@@ -304,7 +287,6 @@ export class MelodyWebEffect implements VisualEffect {
       const cb = Math.min(255, node.b + Math.round((255 - node.b) * wt * 0.6));
 
       if (numeral) {
-        // Roman numeral for diatonic degrees
         const sizeBoost = inChord ? 3 : 0;
         const fontSize = Math.max(11, Math.round(Math.min(w, h) * 0.025 + node.brightness * 4 + sizeBoost));
         ctx.save();
@@ -323,7 +305,6 @@ export class MelodyWebEffect implements VisualEffect {
         ctx.shadowBlur = 0;
         ctx.restore();
       } else {
-        // Small dot for chromatic notes
         const dotR = 2 + node.brightness * 3 + (inChord ? 2 : 0);
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, dotR, 0, Math.PI * 2);
@@ -331,16 +312,16 @@ export class MelodyWebEffect implements VisualEffect {
         ctx.fill();
       }
 
-      // Pulse ring on recent hit
+      // Pulse ring on chord hit
       const timeSinceHit = this.time - node.lastHitTime;
-      if (timeSinceHit < 0.5) {
-        const pulseT = timeSinceHit / 0.5;
-        const pulseR = 10 + pulseT * 20;
-        const pulseAlpha = (1 - pulseT) * 0.3;
+      if (timeSinceHit < 0.6) {
+        const pulseT = timeSinceHit / 0.6;
+        const pulseR = 12 + pulseT * 25;
+        const pulseAlpha = (1 - pulseT) * 0.35;
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, pulseR, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(${node.r},${node.g},${node.b},${pulseAlpha.toFixed(3)})`;
-        ctx.lineWidth = 1.5 * (1 - pulseT);
+        ctx.lineWidth = 2 * (1 - pulseT);
         ctx.stroke();
       }
     }
@@ -354,7 +335,7 @@ export class MelodyWebEffect implements VisualEffect {
   dispose(): void {
     this.ready = false;
     this.edges.clear();
-    this.melodyTrail.length = 0;
+    this.chordTrail.length = 0;
   }
 
   getConfig(): EffectConfig[] {

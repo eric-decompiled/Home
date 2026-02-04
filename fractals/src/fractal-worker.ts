@@ -160,10 +160,10 @@ ctx.onmessage = (e: MessageEvent) => {
         const oG = g > 0 ? (g < 255 ? g | 0 : 255) : 0;
         const oB = b > 0 ? (b < 255 ? b | 0 : 255) : 0;
 
-        // Alpha from pixel brightness: hard floor cuts all dark
-        // pixels, steep ramp so only vivid filaments are visible.
+        // Alpha from pixel brightness: floor cuts very dark pixels,
+        // ramp lets mid-tone body stay mostly opaque.
         const brightness = oR > oG ? (oR > oB ? oR : oB) : (oG > oB ? oG : oB);
-        let oA = brightness < 30 ? 0 : (brightness - 30) * 6;
+        let oA = brightness < 15 ? 0 : (brightness - 15) * 4;
         if (oA > 255) oA = 255;
 
         data32[row * w + px] = (oA << 24) | (oB << 16) | (oG << 8) | oR;

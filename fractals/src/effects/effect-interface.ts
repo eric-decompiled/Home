@@ -20,6 +20,7 @@ export interface MusicParams {
   keyMode: 'major' | 'minor';
 
   melodyPitchClass: number;  // -1 if none
+  melodyMidiNote: number;    // actual MIDI note number, -1 if none
   melodyVelocity: number;    // 0-1
   melodyOnset: boolean;      // true on frame of new note
   bassPitchClass: number;    // -1 if none

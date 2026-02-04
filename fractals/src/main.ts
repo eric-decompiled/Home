@@ -12,9 +12,10 @@ import { WaveInterferenceEffect } from './effects/wave-interference.ts';
 import { ChladniEffect } from './effects/chladni.ts';
 import { DomainWarpEffect } from './effects/domain-warp.ts';
 import { SpirographEffect } from './effects/spirograph.ts';
-import { MelodyArcsEffect } from './effects/melody-arcs.ts';
 import { MelodyAuroraEffect } from './effects/melody-aurora.ts';
 import { MelodyWebEffect } from './effects/melody-web.ts';
+import { ChordWebEffect } from './effects/chord-web.ts';
+import { MelodyClockEffect } from './effects/melody-clock.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
 
 // --- Song list ---
@@ -25,9 +26,11 @@ interface SongEntry {
 }
 
 const songs: SongEntry[] = [
+  { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },
+  { name: 'A Minor Scale Test', file: 'a-minor-test.mid' },
+  { name: 'A Major Scale Test', file: 'a-major-test.mid' },
   { name: 'Prelude (Final Fantasy)', file: 'ff1-prelude.mid' },
   { name: "Schala's Theme (Chrono Trigger)", file: 'schala.mid' },
-  { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },
   { name: "You're Not Alone (Final Fantasy IX)", file: 'ff9-youre-not-alone.mid' },
   { name: "Frog's Theme (Chrono Trigger)", file: 'frog-theme.mid' },
   { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },
@@ -71,9 +74,10 @@ const waveEffect = new WaveInterferenceEffect();
 const chladniEffect = new ChladniEffect();
 const domainWarpEffect = new DomainWarpEffect();
 const spirographEffect = new SpirographEffect();
-const melodyEffect = new MelodyArcsEffect();
 const melodyAuroraEffect = new MelodyAuroraEffect();
 const melodyWebEffect = new MelodyWebEffect();
+const chordWebEffect = new ChordWebEffect();
+const melodyClockEffect = new MelodyClockEffect();
 
 // --- Layer slot definitions (mutually exclusive within each slot) ---
 
@@ -101,7 +105,7 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Melody',
-    effects: [melodyEffect, melodyAuroraEffect, melodyWebEffect],
+    effects: [melodyAuroraEffect, melodyWebEffect, chordWebEffect, melodyClockEffect],
     activeId: null,
   },
 ];
@@ -183,7 +187,9 @@ const layerList = document.getElementById('layer-list')!;
 
 // --- Layers panel toggle ---
 
-let layerPanelOpen = false;
+let layerPanelOpen = true;
+layersToggle.classList.add('active');
+layerPanel.classList.add('open');
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
@@ -571,5 +577,5 @@ function loop(time: number): void {
 requestAnimationFrame(loop);
 
 // Auto-load default song
-songPicker.value = '1';
-loadSong(1);
+songPicker.value = '0';
+loadSong(0);

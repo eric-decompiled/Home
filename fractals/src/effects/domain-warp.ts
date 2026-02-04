@@ -122,15 +122,17 @@ interface WarpAnchor {
   detail: number;      // extra detail layer strength (0-0.5)
 }
 
+// Warp amount ordered by harmonic dissonance:
+// I (smooth) → IV/vi (gentle) → iii (mild) → ii (rough) → V (tense) → vii (chaotic)
 const DEGREE_ANCHORS: Record<number, WarpAnchor> = {
-  0: { warpAmount: 3.0, warpScale: 4.0, flowSpeed: 0.2, detail: 0.2 },  // chromatic
-  1: { warpAmount: 2.0, warpScale: 3.5, flowSpeed: 0.15, detail: 0.1 }, // I — gentle, flowing
-  2: { warpAmount: 3.5, warpScale: 5.0, flowSpeed: 0.25, detail: 0.3 }, // ii — moderate swirl
-  3: { warpAmount: 2.5, warpScale: 4.0, flowSpeed: 0.18, detail: 0.15 },// iii — elegant
-  4: { warpAmount: 4.0, warpScale: 3.0, flowSpeed: 0.2, detail: 0.25 }, // IV — broad, warm
-  5: { warpAmount: 5.0, warpScale: 6.0, flowSpeed: 0.3, detail: 0.4 },  // V — complex, tense
-  6: { warpAmount: 3.0, warpScale: 4.5, flowSpeed: 0.22, detail: 0.2 }, // vi — smooth
-  7: { warpAmount: 5.5, warpScale: 7.0, flowSpeed: 0.35, detail: 0.45 },// vii — chaotic
+  0: { warpAmount: 4.0, warpScale: 4.0, flowSpeed: 0.2, detail: 0.25 },  // chromatic — unsettled
+  1: { warpAmount: 1.5, warpScale: 3.5, flowSpeed: 0.15, detail: 0.08 }, // I — smooth, resolved
+  2: { warpAmount: 4.5, warpScale: 5.5, flowSpeed: 0.25, detail: 0.35 }, // ii — rough, unresolved
+  3: { warpAmount: 3.0, warpScale: 4.0, flowSpeed: 0.18, detail: 0.18 }, // iii — mild tension
+  4: { warpAmount: 2.0, warpScale: 3.5, flowSpeed: 0.17, detail: 0.12 }, // IV — warm, stable
+  5: { warpAmount: 5.0, warpScale: 6.0, flowSpeed: 0.28, detail: 0.4 },  // V — dominant, tense
+  6: { warpAmount: 2.2, warpScale: 4.0, flowSpeed: 0.16, detail: 0.1 },  // vi — gentle, relative minor
+  7: { warpAmount: 5.8, warpScale: 7.0, flowSpeed: 0.35, detail: 0.45 }, // vii — most dissonant
 };
 
 export class DomainWarpEffect implements VisualEffect {
@@ -156,6 +158,9 @@ export class DomainWarpEffect implements VisualEffect {
   private currentFlow = 0.15;
   private currentDetail = 0.1;
   private amplitude = 1.0;
+  // Smoothed music accumulators (all decay toward 0)
+  private energy = 0;        // smoothed drum energy
+  private melodyHeat = 0;    // smoothed melody activity
 
   private color1: [number, number, number] = [0.02, 0.02, 0.06];
   private color2: [number, number, number] = [0.1, 0.2, 0.5];
@@ -220,9 +225,20 @@ export class DomainWarpEffect implements VisualEffect {
   }
 
   update(dt: number, music: MusicParams): void {
-    this.time += dt;
+    // Smooth energy accumulator — drums/melody feed in, decays slowly
+    if (music.kick) this.energy += 0.12;
+    if (music.snare) this.energy += 0.08;
+    if (music.hihat) this.energy += 0.02;
+    if (music.melodyOnset) this.melodyHeat += 0.06 * music.melodyVelocity;
+    this.energy *= Math.exp(-0.8 * dt);      // half-life ~0.87s — long, smooth
+    this.melodyHeat *= Math.exp(-0.6 * dt);  // half-life ~1.15s — even longer
 
-    // Degree → anchor
+    // Music modulates the RATE of forward flow — always moving, never reversing.
+    // Calm sections drift slowly, intense sections push faster.
+    const flowRate = 1.0 + this.energy * 0.8 + music.tension * 0.5 + this.melodyHeat * 0.35;
+    this.time += dt * flowRate;
+
+    // Degree → anchor (smooth snap)
     const anchor = DEGREE_ANCHORS[music.chordDegree] ?? DEGREE_ANCHORS[0];
     const snap = 1 - Math.exp(-3.0 * dt);
     this.currentWarp += (anchor.warpAmount - this.currentWarp) * snap;
@@ -230,25 +246,34 @@ export class DomainWarpEffect implements VisualEffect {
     this.currentFlow += (anchor.flowSpeed - this.currentFlow) * snap;
     this.currentDetail += (anchor.detail - this.currentDetail) * snap;
 
-    // Beat → amplitude pulse
-    if (music.kick) this.amplitude = 1.4;
-    if (music.snare) this.amplitude = 1.25;
-    this.amplitude += (1.0 - this.amplitude) * (1 - Math.exp(-3.0 * dt));
+    // Warp depth: energy deepens the folds (clamped so intense songs don't blow out)
+    const energyClamped = Math.min(this.energy, 0.5);
+    this.currentWarp = Math.min(this.currentWarp + music.tension * 0.1 + energyClamped * 0.4, 6.5);
 
-    // Tension → detail boost
-    this.currentDetail = (DEGREE_ANCHORS[music.chordDegree]?.detail ?? 0.2) + music.tension * 0.15;
+    // Scale breathing: slow multi-bar cycle, energy widens the range
+    const barCycle = music.currentTime * 0.15; // ~6-7s full cycle
+    const breathRange = 0.3 + this.energy * 0.4;
+    this.currentScale += Math.sin(barCycle) * breathRange;
 
-    // Colors from palette
+    // Detail: energy + tension reveal more structure
+    this.currentDetail = (DEGREE_ANCHORS[music.chordDegree]?.detail ?? 0.2)
+      + music.tension * 0.05 + this.energy * 0.1;
+
+    // Amplitude: gentle swell from energy
+    this.amplitude = 1.0 + this.energy * 0.15;
+
+    // Color intensity: energy pushes colors brighter, calm = muted
+    const intensity = 0.7 + this.energy * 0.5 + music.tension * 0.2;
     if (music.paletteIndex >= 0 && music.paletteIndex < palettes.length) {
       const p = palettes[music.paletteIndex];
       const c0 = p.stops[0]?.color ?? [5, 5, 15];
       const c1 = p.stops[1]?.color ?? [25, 50, 130];
       const c2 = p.stops[3]?.color ?? [100, 150, 200];
       const c3 = p.stops[4]?.color ?? [200, 230, 255];
-      this.color1 = [c0[0] / 255, c0[1] / 255, c0[2] / 255];
-      this.color2 = [c1[0] / 255, c1[1] / 255, c1[2] / 255];
-      this.color3 = [c2[0] / 255, c2[1] / 255, c2[2] / 255];
-      this.color4 = [c3[0] / 255, c3[1] / 255, c3[2] / 255];
+      this.color1 = [c0[0] / 255 * intensity, c0[1] / 255 * intensity, c0[2] / 255 * intensity];
+      this.color2 = [c1[0] / 255 * intensity, c1[1] / 255 * intensity, c1[2] / 255 * intensity];
+      this.color3 = [c2[0] / 255 * intensity, c2[1] / 255 * intensity, c2[2] / 255 * intensity];
+      this.color4 = [c3[0] / 255 * intensity, c3[1] / 255 * intensity, c3[2] / 255 * intensity];
     }
   }
 

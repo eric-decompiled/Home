@@ -26,22 +26,22 @@ const DEFAULT_ORBITS: Array<{ dr: number; di: number }> = [
 ];
 
 const defaultAnchors: Record<number, CValue> = {
-  0: { real: -0.5221, imag: 0.4757, type: 6,
-       orbits: [{dr:-0.7419, di:0.0166}, {dr:-0.4233, di:0.3550}, {dr:-0.1113, di:-0.0703}, {dr:-0.3839, di:-0.2936}] },  // Celtic
-  1: { real: -0.5221, imag: 0.4757, type: 6,
-       orbits: [{dr:-0.7419, di:0.0166}, {dr:-0.4233, di:0.3550}, {dr:-0.1113, di:-0.0703}, {dr:-0.3839, di:-0.2936}] },  // Celtic
-  2: { real: -0.5576, imag: -0.1589, type: 5,
-       orbits: [{dr:0.2919, di:-0.4629}, {dr:-0.3965, di:-0.4415}, {dr:-0.7363, di:-0.4160}, {dr:0.5742, di:-0.4492}] },  // Phoenix
-  3: { real: 0.5002, imag: -0.8946, type: 4,
-       orbits: [{dr:0.3780, di:0.2838}, {dr:0.0203, di:0.3658}, {dr:-0.3341, di:0.2716}, {dr:0.6591, di:-0.0036}] },  // Tricorn
-  4: { real: -1.2810, imag: -0.4794, type: 6,
-       orbits: [{dr:0.3687, di:0.2541}, {dr:-0.4120, di:0.3658}, {dr:-0.3442, di:0.0000}, {dr:0.0000, di:-0.3003}] },  // Celtic
-  5: { real: -0.5105, imag: -0.1510, type: 6,
-       orbits: [{dr:-0.4352, di:0.0001}, {dr:-0.7093, di:-0.8774}, {dr:-0.3907, di:-0.3198}, {dr:-0.3993, di:-0.6451}] },  // Celtic
-  6: { real: 0.5002, imag: 0.8995, type: 4,
-       orbits: [{dr:-0.0106, di:-0.3597}, {dr:0.1861, di:-0.1572}, {dr:-0.1064, di:0.2003}, {dr:0.2598, di:0.0718}] },  // Tricorn
-  7: { real: -0.5371, imag: 0.2219, type: 5,
-       orbits: [{dr:0.3026, di:0.3311}, {dr:0.0532, di:0.4003}, {dr:0.5794, di:0.1968}, {dr:-0.5195, di:0.4130}] },  // Phoenix
+  0: { real: -0.8810, imag: 0.1639, type: 6,
+       orbits: [{dr:0.0656, di:0.0546}, {dr:-0.1209, di:0.1082}, {dr:-0.1218, di:-0.0022}, {dr:0.0036, di:0.1119}] },  // Celtic
+  1: { real: -0.8810, imag: 0.1639, type: 6,
+       orbits: [{dr:0.0656, di:0.0546}, {dr:-0.1209, di:0.1082}, {dr:-0.1218, di:-0.0022}, {dr:0.0036, di:0.1119}] },  // Celtic
+  2: { real: 0.1883, imag: 0.6481, type: 8,
+       orbits: [{dr:0.1997, di:-0.0541}, {dr:-0.1467, di:0.2231}, {dr:-0.6051, di:0.1399}, {dr:0.2297, di:-0.1992}] },  // PerpBurn
+  3: { real: 0.2947, imag: 0.3604, type: 5,
+       orbits: [{dr:0.2508, di:0.2157}, {dr:-0.1745, di:0.2363}, {dr:-0.6362, di:0.2409}, {dr:0.2815, di:-0.1671}] },  // Phoenix
+  4: { real: 1.1772, imag: 0.3988, type: 9,
+       orbits: [{dr:-0.0063, di:0.2825}, {dr:0.0086, di:-0.2964}, {dr:-0.0047, di:0.5345}, {dr:0.0000, di:-0.5652}] },  // Buffalo
+  5: { real: -0.8009, imag: -0.1379, type: 6,
+       orbits: [{dr:-0.1772, di:-0.1422}, {dr:-0.2958, di:-0.3257}, {dr:-0.2934, di:-0.0442}, {dr:-0.0550, di:-0.3273}] },  // Celtic
+  6: { real: -0.9104, imag: -0.5710, type: 5,
+       orbits: [{dr:0.0245, di:-0.1014}, {dr:0.1243, di:-0.1980}, {dr:-0.0779, di:-0.0033}, {dr:-0.1898, di:0.0769}] },  // Phoenix
+  7: { real: -0.9103, imag: 0.7650, type: 8,
+       orbits: [{dr:0.0410, di:0.1533}, {dr:-0.2852, di:0.0580}, {dr:0.2728, di:-0.0353}, {dr:-0.0716, di:-0.4982}] },  // PerpBurn
 };
 
 const STORAGE_KEY = 'fractal-anchors';
@@ -158,6 +158,7 @@ let frameHihat = false;
 let frameMelodyOnset = false;
 let lastMelodyPC = -1;
 let currentMelodyPC = -1;
+let currentMelodyMidi = -1;
 let currentMelodyVel = 0;
 let currentBassPC = -1;
 let currentBassVel = 0;
@@ -336,6 +337,7 @@ export const musicMapper = {
     frameMelodyOnset = melPC >= 0 && melPC !== lastMelodyPC;
     lastMelodyPC = melPC;
     currentMelodyPC = melPC;
+    currentMelodyMidi = highestMidi;
     currentMelodyVel = highestVel;
     currentBassPC = lowestMidi < 999 ? lowestMidi % 12 : -1;
     currentBassVel = lowestVel;
@@ -372,6 +374,7 @@ export const musicMapper = {
       key: currentKey,
       keyMode: currentKeyMode,
       melodyPitchClass: currentMelodyPC,
+      melodyMidiNote: currentMelodyMidi,
       melodyVelocity: currentMelodyVel,
       melodyOnset: frameMelodyOnset,
       bassPitchClass: currentBassPC,
@@ -400,6 +403,7 @@ export const musicMapper = {
       key: currentKey,
       keyMode: currentKeyMode,
       melodyPitchClass: -1,
+      melodyMidiNote: -1,
       melodyVelocity: 0,
       melodyOnset: false,
       bassPitchClass: -1,
