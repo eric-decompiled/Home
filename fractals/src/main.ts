@@ -3,6 +3,19 @@ import { fractalEngine } from './fractal-engine.ts';
 import { analyzeMidiBuffer, type MusicTimeline } from './midi-analyzer.ts';
 import { audioPlayer } from './audio-player.ts';
 import { musicMapper } from './music-mapper.ts';
+import { Compositor } from './effects/compositor.ts';
+import { FractalEffect } from './effects/fractal-effect.ts';
+import { StrangeAttractorsEffect } from './effects/strange-attractors.ts';
+import { FlowFieldEffect } from './effects/flow-field.ts';
+import { KaleidoscopeEffect } from './effects/kaleidoscope.ts';
+import { WaveInterferenceEffect } from './effects/wave-interference.ts';
+import { ChladniEffect } from './effects/chladni.ts';
+import { DomainWarpEffect } from './effects/domain-warp.ts';
+import { SpirographEffect } from './effects/spirograph.ts';
+import { MelodyArcsEffect } from './effects/melody-arcs.ts';
+import { MelodyAuroraEffect } from './effects/melody-aurora.ts';
+import { MelodyWebEffect } from './effects/melody-web.ts';
+import type { VisualEffect } from './effects/effect-interface.ts';
 
 // --- Song list ---
 
@@ -45,8 +58,70 @@ let fpsLastSample = 0;
 let currentFps = 0;
 let currentRenderMs = 0;
 
-// Note names for key display
 const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+// --- Compositor + effects ---
+
+const compositor = new Compositor();
+const fractalEffect = new FractalEffect();
+const attractorsEffect = new StrangeAttractorsEffect();
+const flowFieldEffect = new FlowFieldEffect();
+const kaleidoscopeEffect = new KaleidoscopeEffect();
+const waveEffect = new WaveInterferenceEffect();
+const chladniEffect = new ChladniEffect();
+const domainWarpEffect = new DomainWarpEffect();
+const spirographEffect = new SpirographEffect();
+const melodyEffect = new MelodyArcsEffect();
+const melodyAuroraEffect = new MelodyAuroraEffect();
+const melodyWebEffect = new MelodyWebEffect();
+
+// --- Layer slot definitions (mutually exclusive within each slot) ---
+
+interface LayerSlot {
+  name: string;
+  effects: VisualEffect[];
+  activeId: string | null; // null = "None"
+}
+
+const layerSlots: LayerSlot[] = [
+  {
+    name: 'Background',
+    effects: [domainWarpEffect, waveEffect, chladniEffect],
+    activeId: 'domainwarp',
+  },
+  {
+    name: 'Foreground',
+    effects: [fractalEffect, flowFieldEffect, spirographEffect, attractorsEffect],
+    activeId: 'fractal',
+  },
+  {
+    name: 'Overlay',
+    effects: [kaleidoscopeEffect],
+    activeId: null,
+  },
+  {
+    name: 'Melody',
+    effects: [melodyEffect, melodyAuroraEffect, melodyWebEffect],
+    activeId: null,
+  },
+];
+
+// Register all effects with compositor (all start disabled, we'll enable per slot)
+for (const slot of layerSlots) {
+  for (const effect of slot.effects) {
+    compositor.addLayer(effect, false);
+  }
+}
+
+// Apply initial active selections
+function applySlotSelections(): void {
+  for (const slot of layerSlots) {
+    for (const effect of slot.effects) {
+      compositor.setEnabled(effect.id, effect.id === slot.activeId);
+    }
+  }
+}
+applySlotSelections();
 
 // --- HTML ---
 
@@ -61,7 +136,7 @@ app.innerHTML = `
           ${songs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
         </select>
       </div>
-      <button class="toggle-btn" id="melody-toggle">Melody</button>
+      <button class="toggle-btn" id="layers-toggle">Layers</button>
       <a href="config.html" target="_blank" class="config-link">Config</a>
       <div class="song-info">
         <span class="info-badge" id="key-display">Key: --</span>
@@ -71,8 +146,14 @@ app.innerHTML = `
       </div>
     </header>
 
-    <div class="canvas-wrap">
-      <canvas id="canvas"></canvas>
+    <div class="main-area">
+      <div class="layer-panel" id="layer-panel">
+        <div class="layer-panel-header">Layers</div>
+        <div id="layer-list"></div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="canvas"></canvas>
+      </div>
     </div>
 
     <footer class="bottom-bar">
@@ -96,25 +177,151 @@ const keyDisplay = document.getElementById('key-display')!;
 const bpmDisplay = document.getElementById('bpm-display')!;
 const chordDisplay = document.getElementById('chord-display')!;
 const fpsDisplay = document.getElementById('fps-display')!;
-const melodyToggle = document.getElementById('melody-toggle') as HTMLButtonElement;
+const layersToggle = document.getElementById('layers-toggle') as HTMLButtonElement;
+const layerPanel = document.getElementById('layer-panel')!;
+const layerList = document.getElementById('layer-list')!;
 
-let showMelody = false;
-melodyToggle.classList.toggle('active', showMelody);
-melodyToggle.addEventListener('click', () => {
-  showMelody = !showMelody;
-  melodyToggle.classList.toggle('active', showMelody);
-  fractalEngine.setMelodyEnabled(showMelody);
+// --- Layers panel toggle ---
+
+let layerPanelOpen = false;
+layersToggle.addEventListener('click', () => {
+  layerPanelOpen = !layerPanelOpen;
+  layersToggle.classList.toggle('active', layerPanelOpen);
+  layerPanel.classList.toggle('open', layerPanelOpen);
 });
+
+// --- Build layer panel UI ---
+
+function buildLayerPanel(): void {
+  layerList.innerHTML = '';
+
+  for (const slot of layerSlots) {
+    // Slot header
+    const slotDiv = document.createElement('div');
+    slotDiv.className = 'layer-slot';
+
+    const header = document.createElement('div');
+    header.className = 'slot-header';
+
+    const label = document.createElement('span');
+    label.className = 'slot-label';
+    label.textContent = slot.name;
+
+    // Effect picker dropdown
+    const select = document.createElement('select');
+    select.className = 'slot-select';
+
+    const noneOpt = document.createElement('option');
+    noneOpt.value = '';
+    noneOpt.textContent = 'None';
+    if (!slot.activeId) noneOpt.selected = true;
+    select.appendChild(noneOpt);
+
+    for (const effect of slot.effects) {
+      const opt = document.createElement('option');
+      opt.value = effect.id;
+      opt.textContent = effect.name;
+      if (effect.id === slot.activeId) opt.selected = true;
+      select.appendChild(opt);
+    }
+
+    select.addEventListener('change', () => {
+      slot.activeId = select.value || null;
+      applySlotSelections();
+      buildConfigSection(slotDiv, slot);
+      dirty = true;
+    });
+
+    header.appendChild(label);
+    header.appendChild(select);
+    slotDiv.appendChild(header);
+
+    // Config section for active effect
+    buildConfigSection(slotDiv, slot);
+
+    layerList.appendChild(slotDiv);
+  }
+}
+
+function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
+  // Remove old config
+  const old = container.querySelector('.slot-config');
+  if (old) old.remove();
+
+  if (!slot.activeId) return;
+  const effect = slot.effects.find(e => e.id === slot.activeId);
+  if (!effect) return;
+
+  const configs = effect.getConfig();
+  if (configs.length === 0) return;
+
+  const configDiv = document.createElement('div');
+  configDiv.className = 'slot-config';
+
+  for (const cfg of configs) {
+    const row = document.createElement('div');
+    row.className = 'config-row';
+
+    const label = document.createElement('label');
+    label.textContent = cfg.label;
+    row.appendChild(label);
+
+    if (cfg.type === 'range') {
+      const input = document.createElement('input');
+      input.type = 'range';
+      input.min = String(cfg.min ?? 0);
+      input.max = String(cfg.max ?? 1);
+      input.step = String(cfg.step ?? 0.1);
+      input.value = String(cfg.value);
+      const valDisplay = document.createElement('span');
+      valDisplay.className = 'config-value';
+      valDisplay.textContent = String(cfg.value);
+      input.addEventListener('input', () => {
+        const v = parseFloat(input.value);
+        effect.setConfigValue(cfg.key, v);
+        valDisplay.textContent = String(v);
+      });
+      row.appendChild(input);
+      row.appendChild(valDisplay);
+    } else if (cfg.type === 'select') {
+      const sel = document.createElement('select');
+      for (const opt of cfg.options ?? []) {
+        const o = document.createElement('option');
+        o.value = opt;
+        o.textContent = opt;
+        if (opt === cfg.value) o.selected = true;
+        sel.appendChild(o);
+      }
+      sel.addEventListener('change', () => {
+        effect.setConfigValue(cfg.key, sel.value);
+      });
+      row.appendChild(sel);
+    } else if (cfg.type === 'toggle') {
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = cfg.value as boolean;
+      input.addEventListener('change', () => {
+        effect.setConfigValue(cfg.key, input.checked);
+      });
+      row.appendChild(input);
+    }
+
+    configDiv.appendChild(row);
+  }
+
+  container.appendChild(configDiv);
+}
+
+buildLayerPanel();
 
 // --- Canvas sizing ---
 
 function resizeCanvas(): void {
   const wrap = document.querySelector('.canvas-wrap')!;
   const rect = wrap.getBoundingClientRect();
-  const availW = rect.width - 16; // padding
+  const availW = rect.width - 16;
   const availH = rect.height - 16;
 
-  // Fit 4:3 aspect ratio within available space
   if (availW / availH > 4 / 3) {
     displayHeight = Math.floor(Math.max(240, availH));
     displayWidth = Math.floor(displayHeight * 4 / 3);
@@ -127,6 +334,7 @@ function resizeCanvas(): void {
   canvas.height = displayHeight;
   canvas.style.width = displayWidth + 'px';
   canvas.style.height = displayHeight + 'px';
+  compositor.resize(displayWidth, displayHeight);
   dirty = true;
 }
 
@@ -175,6 +383,7 @@ async function loadSong(index: number) {
   }
 
   musicMapper.setTempo(timeline.tempo, timeline.timeSignature);
+  musicMapper.setKey(timeline.key, timeline.keyMode);
   audioPlayer.loadMidi(midiBuffer);
 
   const modeLabel = timeline.keyMode === 'minor' ? 'm' : '';
@@ -228,13 +437,13 @@ seekBar.addEventListener('input', () => {
   audioPlayer.seek(t);
   musicMapper.reset();
   musicMapper.setTempo(timeline.tempo, timeline.timeSignature);
+  musicMapper.setKey(timeline.key, timeline.keyMode);
   updateTimeDisplay(t);
   dirty = true;
 });
 
 seekBar.addEventListener('mouseup', () => { seeking = false; });
 seekBar.addEventListener('touchend', () => { seeking = false; });
-
 
 // --- Chord display update ---
 
@@ -258,7 +467,6 @@ function updateChordDisplay(currentTime: number) {
       dim: 'dim', aug: 'aug', unknown: '?',
     };
     const chordName = `${root}${qualityLabels[currentChord.quality]}`;
-    // Show Roman numeral degree if diatonic
     const degree = currentChord.degree;
     if (degree > 0) {
       const isMinorQuality = currentChord.quality === 'minor' || currentChord.quality === 'min7' || currentChord.quality === 'dim';
@@ -276,8 +484,6 @@ fractalEngine.onFrameReady = (renderMs: number) => {
   currentRenderMs = renderMs;
   fpsFrameCount++;
 
-  // Adaptive fidelity based on worker render time
-  // Target ~42ms (24fps) per render on the worker thread
   const TARGET_MS = 42;
   if (renderMs > TARGET_MS * 0.8) {
     renderFidelity = Math.max(0.15, renderFidelity * 0.93);
@@ -303,7 +509,6 @@ function loop(time: number): void {
   if (isPlaying && timeline) {
     const currentTime = audioPlayer.getCurrentTime();
 
-    // Check if song ended (guard: only after playback has actually started)
     if (currentTime > 0.5 && (audioPlayer.isFinished() || currentTime >= timeline.duration)) {
       audioPlayer.pause();
       isPlaying = false;
@@ -311,48 +516,52 @@ function loop(time: number): void {
       audioPlayer.seek(0);
       musicMapper.reset();
     } else {
-      // Update seek bar
       if (!seeking) {
         seekBar.value = String(currentTime);
       }
       updateTimeDisplay(currentTime);
       updateChordDisplay(currentTime);
 
-      // Get fractal params from music
+      // Get fractal params from music (always computed — fractal effect reads them)
       const params = musicMapper.update(dt, currentTime, timeline.chords, timeline.drums, timeline.notes);
-      fractalEngine.setParams(
-        params.cReal,
-        params.cImag,
-        1.0,
-        params.baseIter,
-        renderFidelity
+
+      // Set fractal-specific params
+      fractalEffect.setFractalParams(
+        params.cReal, params.cImag, 1.0,
+        params.baseIter, renderFidelity,
+        params.fractalType, params.phoenixP,
+        params.rotation, params.paletteIndex
       );
-      fractalEngine.setFractalType(params.fractalType, params.phoenixP);
-      fractalEngine.setRotation(params.rotation);
-      fractalEngine.setPalette(params.paletteIndex);
-      fractalEngine.setMelodyTint(params.melodyPitchClass, params.melodyVelocity);
+
+      // Generic music params for all other effects
+      const musicParams = musicMapper.getMusicParams(dt, currentTime);
+      compositor.update(dt, musicParams);
+
       dirty = true;
     }
   } else {
-    // Idle or paused: gentle orbit around center using first orbit point
+    // Idle
     const idle = musicMapper.getIdleAnchor();
     idlePhase += 0.3 * dt;
     const t = Math.sin(Math.PI * idlePhase);
     const orbit = idle.orbits?.[0] ?? { dr: 0.08, di: 0 };
     const cr = idle.real + orbit.dr * t * 0.5;
     const ci = idle.imag + orbit.di * t * 0.5;
-    fractalEngine.setFractalType(idle.type);
-    fractalEngine.setRotation(idlePhase * 0.3);
-    if (timeline) fractalEngine.setPalette(timeline.key);
-    fractalEngine.setParams(cr, ci, 1.0, 150, renderFidelity);
+
+    fractalEffect.setFractalParams(
+      cr, ci, 1.0, 150, renderFidelity,
+      idle.type, -0.5, idlePhase * 0.3,
+      timeline ? timeline.key : 4
+    );
+
+    const idleMusic = musicMapper.getIdleMusicParams(dt);
+    compositor.update(dt, idleMusic);
+
     dirty = true;
   }
 
-  fractalEngine.update(dt);
-
-  // Send render to worker if dirty and worker is idle
-  if (dirty && !fractalEngine.isRendering()) {
-    fractalEngine.requestRender(canvas, displayWidth, displayHeight);
+  if (dirty) {
+    compositor.render(canvas);
     dirty = false;
   }
 

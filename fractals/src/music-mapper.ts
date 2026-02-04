@@ -1,4 +1,5 @@
 import type { ChordEvent, DrumHit, NoteEvent } from './midi-analyzer.ts';
+import type { MusicParams } from './effects/effect-interface.ts';
 
 // --- Julia set anchors by harmonic degree ---
 
@@ -144,13 +145,39 @@ const snapRate = 8.0;  // ~0.12s to 90% — responsive chord changes
 let smoothingRate = 6.0;
 let lastChordIndex = -1;
 
+// --- Music params state (for generic effect consumption) ---
+let currentBeatPosition = 0;
+let currentBarPosition = 0;
+let currentBeatIndex = 0;
+let currentChordRoot = 0;
+let currentChordDegree = 1;
+let currentChordQuality = 'major';
+let frameKick = false;
+let frameSnare = false;
+let frameHihat = false;
+let frameMelodyOnset = false;
+let lastMelodyPC = -1;
+let currentMelodyPC = -1;
+let currentMelodyVel = 0;
+let currentBassPC = -1;
+let currentBassVel = 0;
+let currentKey = 0;
+let currentKeyMode: 'major' | 'minor' = 'major';
+let currentBpm = 120;
+
 export const musicMapper = {
   setTempo(bpm: number, timeSig?: [number, number]) {
     beatDuration = 60 / bpm;
     beatsPerBar = timeSig ? timeSig[0] : 4;
     smoothingRate = 4.0 + (bpm / 120) * 2.0;
+    currentBpm = bpm;
     // Faster tempo → more friction so rotation doesn't accumulate
     rotationFriction = 1.2 + Math.max(0, (bpm - 100) / 60) * 1.5;
+  },
+
+  setKey(pitchClass: number, mode: 'major' | 'minor') {
+    currentKey = pitchClass;
+    currentKeyMode = mode;
   },
 
   getIdleAnchor(): CValue {
@@ -183,6 +210,9 @@ export const musicMapper = {
       currentPalette = chord.root;
       currentFractalType = center.type;
       currentPhoenixP = center.phoenix ?? -0.5;
+      currentChordRoot = chord.root;
+      currentChordDegree = chord.degree;
+      currentChordQuality = chord.quality;
 
       // Update target orbits
       targetOrbits = center.orbits.map(o => ({ ...o }));
@@ -204,6 +234,9 @@ export const musicMapper = {
     currentTension += (targetTension - currentTension) * decay;
 
     // --- Process drum hits → rotation ---
+    frameKick = false;
+    frameSnare = false;
+    frameHihat = false;
     const noteLookback = 0.05;
     for (let i = lastDrumIndex + 1; i < drums.length; i++) {
       const d = drums[i];
@@ -217,10 +250,13 @@ export const musicMapper = {
 
       if (d.type === 'kick') {
         rotationVelocity += 0.5;
+        frameKick = true;
       } else if (d.type === 'snare') {
         rotationVelocity -= 0.6;
+        frameSnare = true;
       } else if (d.type === 'hihat') {
         rotationVelocity += (beatInBar % 2 === 0 ? 1 : -1) * 0.12;
+        frameHihat = true;
       }
     }
 
@@ -265,6 +301,11 @@ export const musicMapper = {
       const beatIndex = Math.floor(beatFloat) % currentOrbits.length;
       const beatFrac = beatFloat - Math.floor(beatFloat);
 
+      // Track beat/bar position for MusicParams
+      currentBeatPosition = beatFrac;
+      currentBarPosition = posInBar / barDuration;
+      currentBeatIndex = beatIndex;
+
       // Sinusoidal: 0 at beat boundary (center), 1 at beat midpoint (orbit point)
       const t = Math.sin(Math.PI * beatFrac);
 
@@ -290,6 +331,15 @@ export const musicMapper = {
       }
     }
 
+    // Track melody onset
+    const melPC = highestMidi >= 0 ? highestMidi % 12 : -1;
+    frameMelodyOnset = melPC >= 0 && melPC !== lastMelodyPC;
+    lastMelodyPC = melPC;
+    currentMelodyPC = melPC;
+    currentMelodyVel = highestVel;
+    currentBassPC = lowestMidi < 999 ? lowestMidi % 12 : -1;
+    currentBassVel = lowestVel;
+
     return {
       cReal: currentCenter.real + offsetReal,
       cImag: currentCenter.imag + offsetImag,
@@ -298,10 +348,66 @@ export const musicMapper = {
       paletteIndex: currentPalette,
       baseIter: iterBase,
       rotation: rotationAngle,
-      melodyPitchClass: highestMidi >= 0 ? highestMidi % 12 : -1,
+      melodyPitchClass: melPC,
       melodyVelocity: highestVel,
-      bassPitchClass: lowestMidi < 999 ? lowestMidi % 12 : -1,
-      bassVelocity: lowestVel,
+      bassPitchClass: currentBassPC,
+      bassVelocity: currentBassVel,
+    };
+  },
+
+  getMusicParams(dt: number, currentTime: number): MusicParams {
+    return {
+      currentTime,
+      dt,
+      bpm: currentBpm,
+      beatDuration,
+      beatsPerBar,
+      beatPosition: currentBeatPosition,
+      barPosition: currentBarPosition,
+      beatIndex: currentBeatIndex,
+      chordRoot: currentChordRoot,
+      chordDegree: currentChordDegree,
+      chordQuality: currentChordQuality,
+      tension: currentTension,
+      key: currentKey,
+      keyMode: currentKeyMode,
+      melodyPitchClass: currentMelodyPC,
+      melodyVelocity: currentMelodyVel,
+      melodyOnset: frameMelodyOnset,
+      bassPitchClass: currentBassPC,
+      bassVelocity: currentBassVel,
+      kick: frameKick,
+      snare: frameSnare,
+      hihat: frameHihat,
+      paletteIndex: currentChordRoot,
+    };
+  },
+
+  getIdleMusicParams(dt: number): MusicParams {
+    return {
+      currentTime: 0,
+      dt,
+      bpm: 120,
+      beatDuration: 0.5,
+      beatsPerBar: 4,
+      beatPosition: 0,
+      barPosition: 0,
+      beatIndex: 0,
+      chordRoot: currentKey,
+      chordDegree: 1,
+      chordQuality: 'major',
+      tension: 0,
+      key: currentKey,
+      keyMode: currentKeyMode,
+      melodyPitchClass: -1,
+      melodyVelocity: 0,
+      melodyOnset: false,
+      bassPitchClass: -1,
+      bassVelocity: 0,
+      kick: false,
+      snare: false,
+      hihat: false,
+      paletteIndex: currentKey,
     };
   },
 

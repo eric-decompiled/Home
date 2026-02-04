@@ -135,10 +135,9 @@ ctx.onmessage = (e: MessageEvent) => {
         iteration++;
       }
 
-      let r: number, g: number, b: number;
       if (iteration === maxIter) {
-        // Interior: black
-        r = 0; g = 0; b = 0;
+        // Interior: transparent so background layers show through
+        data32[row * w + px] = 0x00000000;
       } else {
         // Traditional smooth coloring: normalized escape time → palette
         const logMag = Math.log(x2 + y2);
@@ -153,15 +152,22 @@ ctx.onmessage = (e: MessageEvent) => {
         if (li > lutMax) li = lutMax;
 
         const lutIdx = li * 3;
-        r = cLUT[lutIdx];
-        g = cLUT[lutIdx + 1];
-        b = cLUT[lutIdx + 2];
-      }
+        const r = cLUT[lutIdx];
+        const g = cLUT[lutIdx + 1];
+        const b = cLUT[lutIdx + 2];
 
-      const oR = r > 0 ? (r < 255 ? r | 0 : 255) : 0;
-      const oG = g > 0 ? (g < 255 ? g | 0 : 255) : 0;
-      const oB = b > 0 ? (b < 255 ? b | 0 : 255) : 0;
-      data32[row * w + px] = 0xff000000 | (oB << 16) | (oG << 8) | oR;
+        const oR = r > 0 ? (r < 255 ? r | 0 : 255) : 0;
+        const oG = g > 0 ? (g < 255 ? g | 0 : 255) : 0;
+        const oB = b > 0 ? (b < 255 ? b | 0 : 255) : 0;
+
+        // Alpha from pixel brightness: hard floor cuts all dark
+        // pixels, steep ramp so only vivid filaments are visible.
+        const brightness = oR > oG ? (oR > oB ? oR : oB) : (oG > oB ? oG : oB);
+        let oA = brightness < 30 ? 0 : (brightness - 30) * 6;
+        if (oA > 255) oA = 255;
+
+        data32[row * w + px] = (oA << 24) | (oB << 16) | (oG << 8) | oR;
+      }
     }
   }
 

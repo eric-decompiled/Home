@@ -54,7 +54,8 @@
       "WebFetch(domain:midifind.com)",
       "WebFetch(domain:decompiled.dev)",
       "Bash(ls:*)",
-      "Bash(file:*)"
+      "Bash(file:*)",
+      "Bash(grep:*)"
     ]
   }
 }

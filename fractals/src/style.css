@@ -119,6 +119,121 @@ body {
   text-align: center;
 }
 
+/* --- Main area (canvas + layer panel) --- */
+
+.main-area {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* --- Layer panel --- */
+
+.layer-panel {
+  width: 0;
+  overflow: hidden;
+  background: rgba(10, 10, 30, 0.95);
+  border-right: 1px solid #0f3460;
+  transition: width 0.25s ease;
+  flex-shrink: 0;
+}
+
+.layer-panel.open {
+  width: 280px;
+  overflow-y: auto;
+}
+
+.layer-panel-header {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #16c79a;
+  border-bottom: 1px solid #0f3460;
+  white-space: nowrap;
+}
+
+/* --- Layer slots --- */
+
+.layer-slot {
+  border-bottom: 1px solid rgba(15, 52, 96, 0.4);
+  padding: 8px 12px;
+}
+
+.slot-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.slot-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #8899aa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.slot-select {
+  padding: 4px 8px;
+  background: #1a1a2e;
+  border: 1px solid #0f3460;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 12px;
+  cursor: pointer;
+  min-width: 110px;
+}
+
+.slot-select:focus {
+  outline: none;
+  border-color: #16c79a;
+}
+
+.slot-config {
+  padding: 8px 0 2px 0;
+}
+
+.config-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.config-row label {
+  font-size: 10px;
+  color: #999;
+  min-width: 55px;
+  white-space: nowrap;
+}
+
+.config-row input[type="range"] {
+  flex: 1;
+  height: 3px !important;
+}
+
+.config-row select {
+  padding: 1px 4px;
+  background: #1a1a2e;
+  border: 1px solid #0f3460;
+  border-radius: 3px;
+  color: #ccc;
+  font-size: 10px;
+}
+
+.config-row input[type="checkbox"] {
+  accent-color: #16c79a;
+}
+
+.config-value {
+  font-size: 10px;
+  color: #888;
+  min-width: 30px;
+  text-align: right;
+}
+
 /* --- Canvas --- */
 
 .canvas-wrap {
