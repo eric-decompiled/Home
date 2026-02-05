@@ -272,23 +272,28 @@ export class WaveInterferenceEffect implements VisualEffect {
       }
     }
 
-    // Tension → wave frequency (higher = tighter ripples)
-    this.wavelength = 80 + music.tension * 40;
+    // Tension → wave complexity
+    // Low tension: slow, wide ripples; High tension: tight, fast, interference-heavy
+    const tensionSq = music.tension * music.tension;
+    this.wavelength = 100 - music.tension * 50 - tensionSq * 20; // Tighter ripples at high tension
+    const decayRate = 0.4 + music.tension * 0.6; // Faster decay = more transient/nervous
+    // More reflection at high tension creates denser interference patterns
+    this.reflection = Math.min(1.0, 0.3 + music.tension * 0.4 + tensionSq * 0.3);
 
     // Bass → background wave with bass color
     if (music.bassPitchClass >= 0) {
-      this.bassWaveAmp = music.bassVelocity * 0.4;
-      this.bassWaveFreq = 8 + music.bassPitchClass;
+      this.bassWaveAmp = music.bassVelocity * (0.4 + music.tension * 0.2);
+      this.bassWaveFreq = 8 + music.bassPitchClass + music.tension * 4;
       const bassRgb = samplePaletteColor(music.bassPitchClass, 0.6);
       this.bassColor = [bassRgb[0] / 255, bassRgb[1] / 255, bassRgb[2] / 255];
     } else {
       this.bassWaveAmp *= 0.95;
     }
 
-    // Decay sources
+    // Decay sources (faster at high tension for more transient feel)
     for (const s of this.sources) {
       s.life -= dt;
-      s.amplitude *= Math.exp(-0.5 * dt);
+      s.amplitude *= Math.exp(-decayRate * dt);
     }
     this.sources = this.sources.filter(s => s.life > 0 && s.amplitude > 0.01);
 

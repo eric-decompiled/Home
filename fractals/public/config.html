@@ -273,14 +273,14 @@ families.forEach((f, i) => { typeToFamily[f.typeNum] = i; });
 
 // Hardcoded defaults — matches music-mapper.ts defaultAnchors
 const PRESET_ANCHORS = [
-  { type: 6, real: -0.9123, imag: 0.4882, orbits: [{dr:0.0675,di:0.0541},{dr:-0.1125,di:0.0800},{dr:-0.1113,di:-0.0703},{dr:0.0063,di:-0.3124}] },
-  { type: 6, real: -0.9123, imag: 0.4882, orbits: [{dr:0.0675,di:0.0541},{dr:-0.1125,di:0.0800},{dr:-0.1113,di:-0.0703},{dr:0.0063,di:-0.3124}] },
-  { type: 8, real: 0.3215, imag: 0.3842, orbits: [{dr:0.0800,di:0.0000},{dr:0.0000,di:0.0800},{dr:-0.0800,di:0.0000},{dr:0.0000,di:-0.0800}] },
-  { type: 3, real: 0.3386, imag: -1.5682, orbits: [{dr:0.3780,di:0.2838},{dr:0.0203,di:0.3658},{dr:-0.3341,di:0.2716},{dr:0.6591,di:-0.0036}] },
-  { type: 6, real: -1.2810, imag: -0.4794, orbits: [{dr:0.3687,di:0.2541},{dr:-0.4120,di:0.3658},{dr:-0.3442,di:0.0000},{dr:0.0000,di:-0.3003}] },
-  { type: 6, real: -0.8935, imag: -0.2073, orbits: [{dr:0.0996,di:0.0439},{dr:-0.0372,di:0.1101},{dr:-0.1378,di:-0.0510},{dr:-0.0813,di:-0.2638}] },
-  { type: 3, real: -1.0169, imag: -1.0135, orbits: [{dr:0.0128,di:-0.2683},{dr:-0.3061,di:0.2928},{dr:-0.3486,di:0.0034},{dr:0.3770,di:0.0085}] },
-  { type: 9, real: -0.5409, imag: -0.9587, orbits: [{dr:0.3182,di:-0.0236},{dr:-0.0152,di:0.2597},{dr:0.3001,di:0.2507},{dr:-0.3193,di:0.2747}] },
+  { type: 4, real: 0.1691, imag: -0.4957, orbits: [{dr:-0.0164,di:0.0417},{dr:-0.1442,di:0.1592},{dr:0.0995,di:-0.1970},{dr:0.1415,di:-0.3167}] },  // Tricorn
+  { type: 4, real: 0.1691, imag: -0.4957, orbits: [{dr:-0.0164,di:0.0417},{dr:-0.1442,di:0.1592},{dr:0.0995,di:-0.1970},{dr:0.1415,di:-0.3167}] },  // Tricorn
+  { type: 8, real: 0.3215, imag: 0.3842, orbits: [{dr:0.0800,di:0.0000},{dr:0.0000,di:0.0800},{dr:-0.0800,di:0.0000},{dr:0.0000,di:-0.0800}] },  // PerpBurn
+  { type: 3, real: 0.3386, imag: -1.5682, orbits: [{dr:0.3780,di:0.2838},{dr:0.0203,di:0.3658},{dr:-0.3341,di:0.2716},{dr:0.6591,di:-0.0036}] },  // Burning Ship
+  { type: 6, real: -1.2810, imag: -0.4794, orbits: [{dr:0.3687,di:0.2541},{dr:-0.4120,di:0.3658},{dr:-0.3442,di:0.0000},{dr:0.0000,di:-0.3003}] },  // Celtic
+  { type: 4, real: 0.3789, imag: 0.5193, orbits: [{dr:0.0395,di:0.0300},{dr:0.0675,di:0.0413},{dr:-0.0305,di:-0.0552},{dr:-0.0331,di:-0.1026}] },  // Tricorn
+  { type: 3, real: -1.0169, imag: -1.0135, orbits: [{dr:0.0128,di:-0.2683},{dr:-0.3061,di:0.2928},{dr:-0.3486,di:0.0034},{dr:0.3770,di:0.0085}] },  // Burning Ship
+  { type: 9, real: -0.5409, imag: -0.9587, orbits: [{dr:0.3182,di:-0.0236},{dr:-0.0152,di:0.2597},{dr:0.3001,di:0.2507},{dr:-0.3193,di:0.2747}] },  // Buffalo
 ];
 
 function loadPresetAnchors() {

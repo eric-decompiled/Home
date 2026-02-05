@@ -67,7 +67,16 @@
       "Bash(__NEW_LINE_9d1b856882417de2__ echo -e \"\\\\n=== Blend/fade variables ===\")",
       "WebFetch(domain:thefinalfantasy.net)",
       "WebFetch(domain:gamefaqs.gamespot.com)",
-      "WebFetch(domain:modland.com)"
+      "WebFetch(domain:modland.com)",
+      "WebFetch(domain:unpkg.com)",
+      "WebFetch(domain:app.unpkg.com)",
+      "WebFetch(domain:essentia.upf.edu)",
+      "WebFetch(domain:transactions.ismir.net)",
+      "WebFetch(domain:piano-midi.de)",
+      "WebFetch(domain:www.kunstderfuge.com)",
+      "WebFetch(domain:www.mfiles.co.uk)",
+      "WebFetch(domain:hajim.rochester.edu)",
+      "WebFetch(domain:musescore.com)"
     ]
   }
 }

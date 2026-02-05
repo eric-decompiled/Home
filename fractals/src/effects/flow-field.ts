@@ -57,6 +57,8 @@ interface FlowParticle {
   y: number;
   px: number;
   py: number;
+  vx: number;  // velocity for inertia
+  vy: number;
   life: number;
 }
 
@@ -74,11 +76,11 @@ export class FlowFieldEffect implements VisualEffect {
   private ready = false;
 
   private particles: FlowParticle[] = [];
-  private particleCount = 3000;
-  private flowSpeed = 0.8;
+  private particleCount = 2500;
+  private flowSpeed = 0.4; // Gentle base flow
   private turbulence = 1.0;
   private noiseScale = 0.003;
-  private fadeRate = 0.02;
+  private fadeRate = 0.018; // Slower fade = longer trails, brighter overall
   private noiseOffset = 0;
   private perturbation = 0;
   private angleOffset = 0;
@@ -131,7 +133,15 @@ export class FlowFieldEffect implements VisualEffect {
   private newParticle(): FlowParticle {
     const x = Math.random() * this.width;
     const y = Math.random() * this.height;
-    return { x, y, px: x, py: y, life: Math.random() * 200 + 100 };
+    // Random initial velocity
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 0.5;
+    return {
+      x, y, px: x, py: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: Math.random() * 150 + 80
+    };
   }
 
   update(dt: number, music: MusicParams): void {
@@ -141,13 +151,19 @@ export class FlowFieldEffect implements VisualEffect {
     // Chord root → angle offset
     this.angleOffset = (music.chordRoot / 12) * Math.PI * 2;
 
-    // Tension → turbulence octaves
-    this.turbulence = 0.5 + music.tension * 2.5;
+    // Tension → flow complexity
+    // Low tension: smooth, laminar flow; High tension: slightly more turbulent
+    const tensionSq = music.tension * music.tension;
+    this.turbulence = 0.3 + music.tension * 1.0 + tensionSq * 0.5;
+    // Gentle flow speed variation with tension
+    this.flowSpeed = 0.4 + music.tension * 0.4;
+    // Subtle noise detail change
+    this.noiseScale = 0.002 + music.tension * 0.001;
 
     // Beat → field perturbation burst + speed boost
-    if (music.kick) { this.perturbation += 0.5; this.drumBoost += 3.0; }
-    if (music.snare) { this.perturbation += 0.3; this.drumBoost += 2.0; }
-    if (music.hihat) this.drumBoost += 0.5;
+    if (music.kick) { this.perturbation += 0.5 + music.tension * 0.3; this.drumBoost += 3.0; }
+    if (music.snare) { this.perturbation += 0.3 + music.tension * 0.2; this.drumBoost += 2.0; }
+    if (music.hihat) this.drumBoost += 0.5 + music.tension * 0.3;
     this.perturbation *= Math.exp(-3.0 * dt);
     this.drumBoost *= Math.exp(-6.0 * dt);
 
@@ -181,8 +197,14 @@ export class FlowFieldEffect implements VisualEffect {
         angle += noise2d(nx * 4 + this.noiseOffset * 3, ny * 4) * this.perturbation * Math.PI;
       }
 
-      let vx = Math.cos(angle) * speed;
-      let vy = Math.sin(angle) * speed;
+      // Flow field target velocity
+      const targetVx = Math.cos(angle) * speed;
+      const targetVy = Math.sin(angle) * speed;
+
+      // Inertia: gradually steer toward flow direction (lower = more weight/inertia)
+      const steerRate = 0.06;
+      p.vx += (targetVx - p.vx) * steerRate;
+      p.vy += (targetVy - p.vy) * steerRate;
 
       // Mouse interaction: push particles away
       if (this.mouseX >= 0 && this.mouseY >= 0) {
@@ -193,15 +215,14 @@ export class FlowFieldEffect implements VisualEffect {
         if (distSq < radiusSq && distSq > 1) {
           const dist = Math.sqrt(distSq);
           const falloff = 1 - dist / this.mouseStrength;
-          // Strong repulsion force
           const force = falloff * falloff * this.mouseForce * 15;
-          vx += (dx / dist) * force;
-          vy += (dy / dist) * force;
+          p.vx += (dx / dist) * force;
+          p.vy += (dy / dist) * force;
         }
       }
 
-      p.x += vx;
-      p.y += vy;
+      p.x += p.vx;
+      p.y += p.vy;
       p.life--;
 
       // Respawn if off-screen or dead
@@ -228,7 +249,7 @@ export class FlowFieldEffect implements VisualEffect {
     const g = this.useWhite ? 255 : this.colorG;
     const b = this.useWhite ? 255 : this.colorB;
 
-    ctx.strokeStyle = `rgba(${r},${g},${b},0.4)`;
+    ctx.strokeStyle = `rgba(${r},${g},${b},0.6)`;
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (const p of this.particles) {

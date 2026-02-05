@@ -1,5 +1,7 @@
-import type { ChordEvent, DrumHit, NoteEvent, TrackInfo } from './midi-analyzer.ts';
+import type { ChordEvent, DrumHit, NoteEvent, TrackInfo, KeyRegion } from './midi-analyzer.ts';
 import type { MusicParams, ActiveVoice } from './effects/effect-interface.ts';
+import { createMidiBeatSync, createIdleBeatSync, type BeatSync, type TempoEvent, type TimeSignatureEvent } from './beat-sync.ts';
+import { gsap } from './animation.ts';
 
 // --- Julia set anchors by harmonic degree ---
 
@@ -26,22 +28,22 @@ const DEFAULT_ORBITS: Array<{ dr: number; di: number }> = [
 ];
 
 const defaultAnchors: Record<number, CValue> = {
-  0: { real: -0.8810, imag: 0.1639, type: 6,
-       orbits: [{dr:0.0656, di:0.0546}, {dr:-0.1209, di:0.1082}, {dr:-0.1218, di:-0.0022}, {dr:0.0036, di:0.1119}] },  // Celtic
-  1: { real: -0.8810, imag: 0.1639, type: 6,
-       orbits: [{dr:0.0656, di:0.0546}, {dr:-0.1209, di:0.1082}, {dr:-0.1218, di:-0.0022}, {dr:0.0036, di:0.1119}] },  // Celtic
-  2: { real: 0.1883, imag: 0.6481, type: 8,
-       orbits: [{dr:0.1997, di:-0.0541}, {dr:-0.1467, di:0.2231}, {dr:-0.6051, di:0.1399}, {dr:0.2297, di:-0.1992}] },  // PerpBurn
-  3: { real: 0.2947, imag: 0.3604, type: 5,
-       orbits: [{dr:0.2508, di:0.2157}, {dr:-0.1745, di:0.2363}, {dr:-0.6362, di:0.2409}, {dr:0.2815, di:-0.1671}] },  // Phoenix
-  4: { real: 1.1772, imag: 0.3988, type: 9,
-       orbits: [{dr:-0.0063, di:0.2825}, {dr:0.0086, di:-0.2964}, {dr:-0.0047, di:0.5345}, {dr:0.0000, di:-0.5652}] },  // Buffalo
-  5: { real: -0.8009, imag: -0.1379, type: 6,
-       orbits: [{dr:-0.1772, di:-0.1422}, {dr:-0.2958, di:-0.3257}, {dr:-0.2934, di:-0.0442}, {dr:-0.0550, di:-0.3273}] },  // Celtic
-  6: { real: -0.9104, imag: -0.5710, type: 5,
-       orbits: [{dr:0.0245, di:-0.1014}, {dr:0.1243, di:-0.1980}, {dr:-0.0779, di:-0.0033}, {dr:-0.1898, di:0.0769}] },  // Phoenix
-  7: { real: -0.9103, imag: 0.7650, type: 8,
-       orbits: [{dr:0.0410, di:0.1533}, {dr:-0.2852, di:0.0580}, {dr:0.2728, di:-0.0353}, {dr:-0.0716, di:-0.4982}] },  // PerpBurn
+  0: { real: 0.1691, imag: -0.4957, type: 4,
+       orbits: [{dr:-0.0164, di:0.0417}, {dr:-0.1442, di:0.1592}, {dr:0.0995, di:-0.1970}, {dr:0.1415, di:-0.3167}] },  // Tricorn
+  1: { real: 0.1691, imag: -0.4957, type: 4,
+       orbits: [{dr:-0.0164, di:0.0417}, {dr:-0.1442, di:0.1592}, {dr:0.0995, di:-0.1970}, {dr:0.1415, di:-0.3167}] },  // Tricorn
+  2: { real: 0.3215, imag: 0.3842, type: 8,
+       orbits: [{dr:0.0800, di:0.0000}, {dr:0.0000, di:0.0800}, {dr:-0.0800, di:0.0000}, {dr:0.0000, di:-0.0800}] },  // PerpBurn
+  3: { real: 0.3386, imag: -1.5682, type: 3,
+       orbits: [{dr:0.3780, di:0.2838}, {dr:0.0203, di:0.3658}, {dr:-0.3341, di:0.2716}, {dr:0.6591, di:-0.0036}] },  // Burning Ship
+  4: { real: -1.2810, imag: -0.4794, type: 6,
+       orbits: [{dr:0.3687, di:0.2541}, {dr:-0.4120, di:0.3658}, {dr:-0.3442, di:0.0000}, {dr:0.0000, di:-0.3003}] },  // Celtic
+  5: { real: 0.3789, imag: 0.5193, type: 4,
+       orbits: [{dr:0.0395, di:0.0300}, {dr:0.0675, di:0.0413}, {dr:-0.0305, di:-0.0552}, {dr:-0.0331, di:-0.1026}] },  // Tricorn
+  6: { real: -1.0169, imag: -1.0135, type: 3,
+       orbits: [{dr:0.0128, di:-0.2683}, {dr:-0.3061, di:0.2928}, {dr:-0.3486, di:0.0034}, {dr:0.3770, di:0.0085}] },  // Burning Ship
+  7: { real: -0.5409, imag: -0.9587, type: 9,
+       orbits: [{dr:0.3182, di:-0.0236}, {dr:-0.0152, di:0.2597}, {dr:0.3001, di:0.2507}, {dr:-0.3193, di:0.2747}] },  // Buffalo
 };
 
 const STORAGE_KEY = 'fractal-anchors';
@@ -132,7 +134,8 @@ let rotationAngle = 0;
 let rotationVelocity = 0;
 let rotationFriction = 1.2;
 
-// Beat tracking (set in setTempo)
+// Beat tracking via BeatSync abstraction
+let beatSync: BeatSync = createIdleBeatSync();
 let beatDuration = 0.5;
 let beatsPerBar = 4;
 
@@ -155,11 +158,18 @@ let currentChordQuality = 'major';
 let frameKick = false;
 let frameSnare = false;
 let frameHihat = false;
+let frameOnBeat = false;
+let frameOnBar = false;
+let currentBeatStability = 1.0;
+let currentNextBeatIn = 0;
+let currentNextBarIn = 0;
 let frameMelodyOnset = false;
 let lastMelodyPC = -1;
+let lastMelodyMidi = -1;  // for interval calculation
 let currentMelodyPC = -1;
 let currentMelodyMidi = -1;
 let currentMelodyVel = 0;
+let melodicTensionAccum = 0;  // real-time melodic tension accumulator
 let currentBassPC = -1;
 let currentBassMidi = -1;
 let currentBassVel = 0;
@@ -167,13 +177,36 @@ let currentKey = 0;
 let currentKeyMode: 'major' | 'minor' = 'major';
 let currentBpm = 120;
 
+// Key modulation tracking
+let keyRegions: KeyRegion[] = [];
+let currentKeyRegionIndex = -1;
+let keyRotationTarget = 0;       // target rotation in radians
+const keyRotationState = { value: 0 }; // animated by GSAP
+let frameOnModulation = false;
+
 // Multi-voice tracking
 let currentActiveVoices: ActiveVoice[] = [];
 let lastActiveKeys = new Set<string>(); // "channel:midi" for onset detection
 let currentTracks: TrackInfo[] = [];
 
 export const musicMapper = {
-  setTempo(bpm: number, timeSig?: [number, number]) {
+  setTempo(
+    bpm: number,
+    timeSig?: [number, number],
+    tempoEvents?: TempoEvent[],
+    timeSigEvents?: TimeSignatureEvent[]
+  ) {
+    // Create BeatSync with all tempo/time sig events
+    if (tempoEvents && timeSigEvents) {
+      beatSync = createMidiBeatSync(tempoEvents, timeSigEvents);
+    } else {
+      beatSync = createMidiBeatSync(
+        [{ time: 0, bpm }],
+        [{ time: 0, numerator: timeSig ? timeSig[0] : 4, denominator: timeSig ? timeSig[1] : 4 }]
+      );
+    }
+
+    // Initial values (will be updated dynamically by BeatSync)
     beatDuration = 60 / bpm;
     beatsPerBar = timeSig ? timeSig[0] : 4;
     smoothingRate = 4.0 + (bpm / 120) * 2.0;
@@ -185,6 +218,14 @@ export const musicMapper = {
   setKey(pitchClass: number, mode: 'major' | 'minor') {
     currentKey = pitchClass;
     currentKeyMode = mode;
+    // Initialize rotation to align this key at 12 o'clock
+    keyRotationTarget = -pitchClass * (Math.PI * 2 / 12);
+    keyRotationState.value = keyRotationTarget;
+  },
+
+  setKeyRegions(regions: KeyRegion[]) {
+    keyRegions = regions;
+    currentKeyRegionIndex = -1;
   },
 
   getIdleAnchor(): CValue {
@@ -236,9 +277,11 @@ export const musicMapper = {
       currentOrbits[i].di += (targetOrbits[i].di - currentOrbits[i].di) * snapDecay;
     }
 
-    // Tension smoothing
+    // Tension smoothing with melodic modulation
+    // Combine harmonic tension (from chord analysis) with real-time melodic tension
+    const effectiveTension = Math.min(1, targetTension + melodicTensionAccum * 0.3);
     const decay = 1 - Math.exp(-smoothingRate * dt);
-    currentTension += (targetTension - currentTension) * decay;
+    currentTension += (effectiveTension - currentTension) * decay;
 
     // --- Process drum hits → rotation ---
     frameKick = false;
@@ -267,29 +310,40 @@ export const musicMapper = {
       }
     }
 
+    // --- Get beat state from BeatSync ---
+    const beat = beatSync.update(currentTime, dt);
+
+    // Update module state from BeatSync (dynamic tempo support)
+    beatDuration = beat.beatDuration;
+    beatsPerBar = beat.beatsPerBar;
+    currentBpm = beat.bpm;
+
+    // Track beat/bar positions for MusicParams
+    currentBeatPosition = beat.beatPhase;
+    currentBarPosition = beat.barPhase;
+    currentBeatIndex = beat.beatIndex;
+
+    // Beat events for effects
+    frameOnBeat = beat.onBeat;
+    frameOnBar = beat.onBar;
+    currentBeatStability = beat.stability;
+    currentNextBeatIn = beat.nextBeatIn;
+    currentNextBarIn = beat.nextBarIn;
+
     // --- Beat-grid rotation impulses ---
-    if (beatDuration > 0) {
-      const barDuration = beatDuration * beatsPerBar;
-      const posInBar = currentTime % barDuration;
-      const prevPosInBar = (currentTime - dt) % barDuration;
+    if (beat.onBeat) {
+      // Beats 0,2 → CCW (+), beats 1,3 → CW (-)
+      const cw = (beat.beatIndex % 2 === 0) ? 1 : -1;
+      const strength = (beat.beatIndex === 1) ? 1.0 : 0.7;
+      rotationVelocity += cw * 0.7 * strength;
+    }
 
-      // Check beat boundary crossings
-      for (let beat = 0; beat < beatsPerBar; beat++) {
-        const beatTime = beat * beatDuration;
-        if (prevPosInBar <= beatTime && posInBar > beatTime && dt > 0) {
-          // Beats 0,2 → CCW (+), beats 1,3 → CW (-)
-          const cw = (beat % 2 === 0) ? 1 : -1;
-          const strength = (beat === 1) ? 1.0 : 0.7;
-          rotationVelocity += cw * 0.7 * strength;
-        }
-
-        // Eighth-note subdivision (halfway between beats)
-        const eighthTime = beatTime + beatDuration * 0.5;
-        if (prevPosInBar <= eighthTime && posInBar > eighthTime && dt > 0) {
-          const cw8 = (beat % 2 === 0) ? 1 : -1;
-          rotationVelocity += cw8 * 0.20;
-        }
-      }
+    // Eighth-note subdivision impulses (at 0.5 beat phase)
+    // We detect crossing 0.5 by checking if we went from <0.5 to >=0.5
+    const prevBeatPhase = (currentTime - dt > 0) ? (beatSync.update(currentTime - dt, 0).beatPhase) : 0;
+    if (prevBeatPhase < 0.5 && beat.beatPhase >= 0.5 && dt > 0) {
+      const cw8 = (beat.beatIndex % 2 === 0) ? 1 : -1;
+      rotationVelocity += cw8 * 0.20;
     }
 
     // --- Rotation friction + integration ---
@@ -301,30 +355,21 @@ export const musicMapper = {
     let offsetReal = 0;
     let offsetImag = 0;
 
-    if (beatDuration > 0) {
-      const barDuration = beatDuration * beatsPerBar;
-      const posInBar = currentTime % barDuration;
-      const beatFloat = posInBar / beatDuration;
-      const beatIndex = Math.floor(beatFloat) % currentOrbits.length;
-      const beatFrac = beatFloat - Math.floor(beatFloat);
-
-      // Track beat/bar position for MusicParams
-      currentBeatPosition = beatFrac;
-      currentBarPosition = posInBar / barDuration;
-      currentBeatIndex = beatIndex;
+    if (beat.beatDuration > 0) {
+      const orbitIndex = beat.beatIndex % currentOrbits.length;
 
       // Sinusoidal: 0 at beat boundary (center), 1 at beat midpoint (orbit point)
-      const t = Math.sin(Math.PI * beatFrac);
+      const t = Math.sin(Math.PI * beat.beatPhase);
 
-      offsetReal = currentOrbits[beatIndex].dr * t;
-      offsetImag = currentOrbits[beatIndex].di * t;
+      offsetReal = currentOrbits[orbitIndex].dr * t;
+      offsetImag = currentOrbits[orbitIndex].di * t;
     }
 
     // Iterations: tension only
     const iterBase = Math.round(120 + currentTension * 60);
 
-    // --- Find melody (highest note >= C4) and bass (lowest note < C4) ---
-    const SPLIT_MIDI = 60; // middle C divides melody from bass
+    // --- Find melody (highest note) and bass (lowest note) ---
+    // No fixed split point - melody is highest sounding, bass is lowest sounding
     let highestMidi = -1, highestVel = 0;
     let lowestMidi = 999, lowestVel = 0;
     for (let i = notes.length - 1; i >= 0; i--) {
@@ -333,15 +378,30 @@ export const musicMapper = {
       if (n.time < currentTime - 2.0) break;
       if (n.isDrum) continue;
       if (n.time + n.duration >= currentTime) {
-        if (n.midi >= SPLIT_MIDI && n.midi > highestMidi) { highestMidi = n.midi; highestVel = n.velocity; }
-        if (n.midi < SPLIT_MIDI && n.midi < lowestMidi) { lowestMidi = n.midi; lowestVel = n.velocity; }
+        if (n.midi > highestMidi) { highestMidi = n.midi; highestVel = n.velocity; }
+        if (n.midi < lowestMidi) { lowestMidi = n.midi; lowestVel = n.velocity; }
       }
     }
 
     // Track melody onset
     const melPC = highestMidi >= 0 ? highestMidi % 12 : -1;
     frameMelodyOnset = melPC >= 0 && melPC !== lastMelodyPC;
+
+    // --- Real-time melodic tension (Lerdahl: melodic attraction component) ---
+    if (frameMelodyOnset && highestMidi >= 0 && lastMelodyMidi >= 0) {
+      const interval = Math.abs(highestMidi - lastMelodyMidi);
+      // Large intervals add tension (leaps are more tense than steps)
+      // Steps (1-2 semitones): low tension
+      // 3rds (3-4): moderate
+      // 5th+ (7+): high tension, dramatic leap
+      const intervalTension = interval <= 2 ? 0 : interval <= 4 ? 0.1 : interval <= 7 ? 0.2 : 0.35;
+      melodicTensionAccum += intervalTension * highestVel;
+    }
+    // Decay melodic tension accumulator
+    melodicTensionAccum *= Math.exp(-2.0 * dt);
+
     lastMelodyPC = melPC;
+    lastMelodyMidi = highestMidi;
     currentMelodyPC = melPC;
     currentMelodyMidi = highestMidi;
     currentMelodyVel = highestVel;
@@ -388,6 +448,50 @@ export const musicMapper = {
   },
 
   getMusicParams(dt: number, currentTime: number): MusicParams {
+    // Check for key modulation (disabled for now - detection over-modulates)
+    frameOnModulation = false;
+    // TODO: Re-enable when modulation detection is more stable
+    if (false && keyRegions.length > 0) {
+      // Find current key region
+      let newRegionIndex = 0;
+      for (let i = keyRegions.length - 1; i >= 0; i--) {
+        if (keyRegions[i].startTime <= currentTime) {
+          newRegionIndex = i;
+          break;
+        }
+      }
+
+      // Detect modulation (new region)
+      if (newRegionIndex !== currentKeyRegionIndex) {
+        currentKeyRegionIndex = newRegionIndex;
+        const region = keyRegions[newRegionIndex];
+
+        // Update current key
+        currentKey = region.key;
+        currentKeyMode = region.mode;
+
+        // Calculate shortest rotation path to new key
+        const newTarget = -region.key * (Math.PI * 2 / 12);
+        let delta = newTarget - keyRotationTarget;
+
+        // Normalize to shortest path (-π to π)
+        while (delta > Math.PI) delta -= Math.PI * 2;
+        while (delta < -Math.PI) delta += Math.PI * 2;
+
+        keyRotationTarget += delta;
+
+        // Tween rotation over 1 beat
+        gsap.to(keyRotationState, {
+          value: keyRotationTarget,
+          duration: beatDuration,
+          ease: 'power2.inOut',
+          overwrite: true,
+        });
+
+        frameOnModulation = newRegionIndex > 0; // Don't flag first region as modulation
+      }
+    }
+
     return {
       currentTime,
       dt,
@@ -397,12 +501,19 @@ export const musicMapper = {
       beatPosition: currentBeatPosition,
       barPosition: currentBarPosition,
       beatIndex: currentBeatIndex,
+      onBeat: frameOnBeat,
+      onBar: frameOnBar,
+      beatStability: currentBeatStability,
+      nextBeatIn: currentNextBeatIn,
+      nextBarIn: currentNextBarIn,
       chordRoot: currentChordRoot,
       chordDegree: currentChordDegree,
       chordQuality: currentChordQuality,
       tension: currentTension,
       key: currentKey,
       keyMode: currentKeyMode,
+      keyRotation: keyRotationState.value,
+      onModulation: frameOnModulation,
       melodyPitchClass: currentMelodyPC,
       melodyMidiNote: currentMelodyMidi,
       melodyVelocity: currentMelodyVel,
@@ -433,12 +544,19 @@ export const musicMapper = {
       beatPosition: 0,
       barPosition: 0,
       beatIndex: 0,
+      onBeat: false,
+      onBar: false,
+      beatStability: 1.0,
+      nextBeatIn: 0.5,
+      nextBarIn: 2.0,
       chordRoot: currentKey,
       chordDegree: 1,
       chordQuality: 'major',
       tension: 0,
       key: currentKey,
       keyMode: currentKeyMode,
+      keyRotation: keyRotationState.value,
+      onModulation: false,
       melodyPitchClass: -1,
       melodyMidiNote: -1,
       melodyVelocity: 0,
@@ -456,6 +574,11 @@ export const musicMapper = {
   },
 
   reset() {
+    // Reset key modulation state
+    currentKeyRegionIndex = -1;
+    keyRotationTarget = -currentKey * (Math.PI * 2 / 12);
+    keyRotationState.value = keyRotationTarget;
+    frameOnModulation = false;
     const def = getDefaultAnchor();
     currentCenter = { ...def };
     targetCenter = { ...def };
@@ -472,5 +595,9 @@ export const musicMapper = {
     lastDrumIndex = -1;
     currentActiveVoices = [];
     lastActiveKeys = new Set();
+    lastMelodyPC = -1;
+    lastMelodyMidi = -1;
+    melodicTensionAccum = 0;
+    beatSync.reset();
   },
 };

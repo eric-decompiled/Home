@@ -22,12 +22,21 @@ export interface MusicParams {
   barPosition: number;     // 0-1 within current bar
   beatIndex: number;       // which beat in bar (0-3)
 
+  // Beat events (from BeatSync)
+  onBeat: boolean;         // true on frame when beat boundary crossed
+  onBar: boolean;          // true on frame when bar boundary crossed
+  beatStability: number;   // 0-1, how confident the beat grid is
+  nextBeatIn: number;      // seconds until next beat (for anticipation)
+  nextBarIn: number;       // seconds until next bar
+
   chordRoot: number;       // pitch class 0-11
   chordDegree: number;     // 1-7 (0 = chromatic)
   chordQuality: string;
   tension: number;         // 0-1
   key: number;             // pitch class 0-11
   keyMode: 'major' | 'minor';
+  keyRotation: number;     // rotation offset in radians to align tonic at 12 o'clock (tweened on modulation)
+  onModulation: boolean;   // true on frame when key modulation detected
 
   melodyPitchClass: number;  // -1 if none
   melodyMidiNote: number;    // actual MIDI note number, -1 if none

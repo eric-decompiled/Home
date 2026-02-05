@@ -23,15 +23,15 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [200, 80, 165] },
     ],
   },
-  { // 1 - C# - Purple
+  { // 1 - C# - Purple (muted accidental)
     name: 'C\u266F',
     stops: [
-      { pos: 0.0,  color: [3, 0, 8] },
-      { pos: 0.15, color: [35, 0, 55] },
-      { pos: 0.4,  color: [110, 20, 175] },
-      { pos: 0.65, color: [160, 60, 220] },
-      { pos: 0.85, color: [185, 110, 235] },
-      { pos: 1.0,  color: [145, 70, 195] },
+      { pos: 0.0,  color: [2, 0, 5] },
+      { pos: 0.15, color: [25, 0, 40] },
+      { pos: 0.4,  color: [70, 15, 115] },
+      { pos: 0.65, color: [100, 40, 145] },
+      { pos: 0.85, color: [120, 70, 160] },
+      { pos: 1.0,  color: [90, 45, 125] },
     ],
   },
   { // 2 - D - Indigo
@@ -45,15 +45,15 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [110, 80, 200] },
     ],
   },
-  { // 3 - D# - Blue-Violet
+  { // 3 - D# - Blue-Violet (muted accidental)
     name: 'D\u266F',
     stops: [
-      { pos: 0.0,  color: [0, 0, 10] },
-      { pos: 0.15, color: [10, 8, 65] },
-      { pos: 0.4,  color: [40, 40, 180] },
-      { pos: 0.65, color: [80, 90, 220] },
-      { pos: 0.85, color: [120, 140, 240] },
-      { pos: 1.0,  color: [80, 100, 200] },
+      { pos: 0.0,  color: [0, 0, 6] },
+      { pos: 0.15, color: [6, 5, 45] },
+      { pos: 0.4,  color: [25, 25, 120] },
+      { pos: 0.65, color: [50, 55, 145] },
+      { pos: 0.85, color: [75, 90, 165] },
+      { pos: 1.0,  color: [50, 65, 130] },
     ],
   },
   { // 4 - E - Blue (Ocean)
@@ -78,15 +78,15 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [40, 170, 185] },
     ],
   },
-  { // 6 - F# - Cyan-Green
+  { // 6 - F# - Cyan-Green (muted accidental)
     name: 'F\u266F',
     stops: [
-      { pos: 0.0,  color: [0, 4, 3] },
-      { pos: 0.15, color: [0, 38, 30] },
-      { pos: 0.4,  color: [10, 150, 115] },
-      { pos: 0.65, color: [40, 200, 155] },
-      { pos: 0.85, color: [90, 230, 185] },
-      { pos: 1.0,  color: [50, 185, 145] },
+      { pos: 0.0,  color: [0, 3, 2] },
+      { pos: 0.15, color: [0, 25, 20] },
+      { pos: 0.4,  color: [6, 100, 75] },
+      { pos: 0.65, color: [25, 130, 100] },
+      { pos: 0.85, color: [55, 155, 120] },
+      { pos: 1.0,  color: [30, 120, 95] },
     ],
   },
   { // 7 - G - Green (Emerald)
@@ -100,15 +100,15 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [55, 195, 155] },
     ],
   },
-  { // 8 - G# - Gold
+  { // 8 - G# - Gold (muted accidental)
     name: 'G\u266F',
     stops: [
-      { pos: 0.0,  color: [3, 2, 0] },
-      { pos: 0.15, color: [50, 35, 0] },
-      { pos: 0.4,  color: [175, 135, 0] },
-      { pos: 0.65, color: [230, 190, 20] },
-      { pos: 0.85, color: [250, 215, 50] },
-      { pos: 1.0,  color: [210, 170, 15] },
+      { pos: 0.0,  color: [2, 1, 0] },
+      { pos: 0.15, color: [35, 25, 0] },
+      { pos: 0.4,  color: [115, 90, 0] },
+      { pos: 0.65, color: [150, 125, 12] },
+      { pos: 0.85, color: [170, 145, 30] },
+      { pos: 1.0,  color: [140, 115, 10] },
     ],
   },
   { // 9 - A - Red (Fire)
@@ -123,15 +123,15 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [200, 100, 5] },
     ],
   },
-  { // 10 - A# - Rose
+  { // 10 - A# - Rose (muted accidental)
     name: 'A\u266F',
     stops: [
-      { pos: 0.0,  color: [5, 0, 1] },
-      { pos: 0.15, color: [58, 0, 22] },
-      { pos: 0.4,  color: [190, 30, 80] },
-      { pos: 0.65, color: [235, 70, 130] },
-      { pos: 0.85, color: [245, 130, 175] },
-      { pos: 1.0,  color: [205, 80, 135] },
+      { pos: 0.0,  color: [3, 0, 1] },
+      { pos: 0.15, color: [40, 0, 15] },
+      { pos: 0.4,  color: [125, 20, 55] },
+      { pos: 0.65, color: [155, 45, 85] },
+      { pos: 0.85, color: [170, 85, 115] },
+      { pos: 1.0,  color: [135, 55, 90] },
     ],
   },
   { // 11 - B - Fuchsia

@@ -39,6 +39,7 @@ export class MelodyClockEffect implements VisualEffect {
   private handBrightness = 0;
   private key = 0;
   private keyMode: 'major' | 'minor' = 'major';
+  private keyRotation = 0;  // animated rotation offset for modulations
   private lastPitchClass = -1;
   private lastMidiNote = -1;
   private colR = 200;
@@ -52,6 +53,7 @@ export class MelodyClockEffect implements VisualEffect {
   private energy = 0;
   private radius = 0.85;
   private breathPhase = 0;
+  private anticipation = 0;  // Builds before beat lands
 
 
   constructor() {
@@ -79,17 +81,31 @@ export class MelodyClockEffect implements VisualEffect {
     this.breathPhase += dt * 0.8;
     this.key = music.key;
     this.keyMode = music.keyMode;
+    this.keyRotation = music.keyRotation;
 
     if (music.kick) this.energy += 0.3;
     if (music.snare) this.energy += 0.2;
     this.energy *= Math.exp(-2.5 * dt);
 
+    // Beat anticipation: build tension as nextBeatIn approaches 0
+    // Creates a "breath in" effect before the beat lands
+    const nextBeat = music.nextBeatIn ?? 0.5;
+    const beatDur = music.beatDuration || 0.5;
+    // Anticipation ramps up in the last 30% of the beat
+    const anticipationWindow = beatDur * 0.3;
+    if (nextBeat < anticipationWindow && nextBeat > 0) {
+      const t = 1 - (nextBeat / anticipationWindow);  // 0→1 as beat approaches
+      this.anticipation = t * t * 0.3;  // Quadratic ramp, max 0.3
+    } else {
+      this.anticipation *= Math.exp(-8 * dt);  // Quick decay after beat
+    }
+
     // Follow each melody note - light and quick
     if (music.melodyOnset && music.melodyPitchClass >= 0 && music.melodyVelocity > 0) {
       const pc = music.melodyPitchClass;
       const midiNote = music.melodyMidiNote;
-      const semitones = semitoneOffset(pc, this.key);
-      const newAngle = (semitones / 12) * Math.PI * 2 - Math.PI / 2;
+      // Use absolute pitch class position (keyRotation handles alignment)
+      const newAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2;
 
       // Use actual MIDI note to determine direction:
       // melody ascending → clockwise, melody descending → counter-clockwise
@@ -162,7 +178,7 @@ export class MelodyClockEffect implements VisualEffect {
     const r = minDim * this.radius;
     const breath = 1 + Math.sin(this.breathPhase) * 0.015;
     const handLen = r * 0.90 * breath;
-    const angle = this.handAngle;
+    const angle = this.handAngle + this.keyRotation;  // Apply modulation rotation
     const R = this.colR, G = this.colG, B = this.colB;
     const brt = 0.6 + this.handBrightness * 0.35 + this.energy * 0.1;
     const alpha = Math.min(1, brt);
@@ -208,8 +224,8 @@ export class MelodyClockEffect implements VisualEffect {
         if (age >= 1) continue;
         const a = (1 - age) * (1 - age);
         const trailR = r * breath;
-        let startA = seg.angle;
-        let arcDiff = next.angle - startA;
+        let startA = seg.angle + this.keyRotation;
+        let arcDiff = next.angle - seg.angle;
         while (arcDiff > Math.PI) arcDiff -= Math.PI * 2;
         while (arcDiff < -Math.PI) arcDiff += Math.PI * 2;
 
@@ -236,7 +252,8 @@ export class MelodyClockEffect implements VisualEffect {
 
     for (let i = 0; i < 12; i++) {
       const semitones = semitoneOffset(i, this.key);
-      const tickAngle = (semitones / 12) * Math.PI * 2 - Math.PI / 2;
+      // Use absolute pitch class position + keyRotation (like note-spiral)
+      const tickAngle = (i / 12) * Math.PI * 2 - Math.PI / 2 + this.keyRotation;
       const inKey = diatonicOffsets.has(semitones);
       const isCurrent = i === this.lastPitchClass;
       const outerR = r * breath;
@@ -482,10 +499,10 @@ export class MelodyClockEffect implements VisualEffect {
     tail.closePath();
     fillP(tail);
 
-    // --- Tip glow ---
+    // --- Tip glow (responds to anticipation) ---
     const tipPt = ptAt(1, 0);
-    const orbSz = 10 + this.handBrightness * 10 + this.energy * 4;
-    const orbA = 0.4 + this.handBrightness * 0.5;
+    const orbSz = 10 + this.handBrightness * 10 + this.energy * 4 + this.anticipation * 8;
+    const orbA = 0.4 + this.handBrightness * 0.5 + this.anticipation * 0.3;
     const orbGrd = ctx.createRadialGradient(tipPt.x, tipPt.y, 0, tipPt.x, tipPt.y, orbSz * 3);
     orbGrd.addColorStop(0, `rgba(255,255,255,${(orbA * 0.6).toFixed(3)})`);
     orbGrd.addColorStop(0.3, `rgba(${R},${G},${B},${(orbA * 0.3).toFixed(3)})`);
@@ -493,8 +510,8 @@ export class MelodyClockEffect implements VisualEffect {
     ctx.fillStyle = orbGrd;
     ctx.fillRect(tipPt.x - orbSz * 3, tipPt.y - orbSz * 3, orbSz * 6, orbSz * 6);
 
-    // --- Center hub ---
-    const hubSz = 6 + this.energy * 5;
+    // --- Center hub (pulses with anticipation) ---
+    const hubSz = 6 + this.energy * 5 + this.anticipation * 4;
     ctx.beginPath();
     ctx.arc(cx, cy, hubSz * 1.5, 0, Math.PI * 2);
     ctx.strokeStyle = `rgba(${R},${G},${B},${(0.08 + this.energy * 0.12).toFixed(3)})`;

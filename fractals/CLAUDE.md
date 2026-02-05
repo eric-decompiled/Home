@@ -11,6 +11,7 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 | `src/main.ts` | App shell: HTML, event listeners, render loop, UI, layer compositor |
 | `src/midi-analyzer.ts` | MIDI parsing (@tonejs/midi), key detection, bar-level chord detection |
 | `src/music-mapper.ts` | Maps musical analysis → fractal parameters via orbit-based beat motion + beat-driven rotation |
+| `src/beat-sync.ts` | Generalized beat tracking abstraction with tempo change support |
 | `src/fractal-engine.ts` | Multi-type fractal renderer with precomputed color LUT and post-composite overlays |
 | `src/fractal-worker.ts` | Pure per-pixel fractal computation in Web Workers (no color effects) |
 | `src/audio-player.ts` | MIDI playback via spessasynth_lib (SoundFont-based AudioWorklet synthesizer) |
@@ -56,7 +57,7 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 Shared data passed to all effects each frame (`src/effects/effect-interface.ts`):
 
 - **Timing**: `currentTime`, `dt`, `bpm`, `beatDuration`, `beatsPerBar`, `beatPosition` (0-1), `barPosition` (0-1), `beatIndex`
-- **Harmony**: `chordRoot`, `chordDegree`, `chordQuality`, `tension`, `key`, `keyMode`
+- **Harmony**: `chordRoot`, `chordDegree`, `chordQuality`, `tension`, `key`, `keyMode`, `keyRotation` (animated radians for modulation), `onModulation`
 - **Melody**: `melodyPitchClass`, `melodyMidiNote`, `melodyVelocity`, `melodyOnset`
 - **Bass**: `bassPitchClass`, `bassMidiNote`, `bassVelocity`
 - **Drums**: `kick`, `snare`, `hihat` (boolean onsets)
@@ -77,11 +78,46 @@ Key design decisions:
 
 `midi-analyzer.ts` processes MIDI files into a `MusicTimeline`:
 
-1. **Key detection** — Krumhansl-Schmuckler algorithm on pitch class histogram weighted by `duration * velocity`
-2. **Bar-level chord detection** — weighted pitch class profiles per bar, matched against chord templates with diatonic bias. Chord timestamps use earliest actual note onset within the bar. Per-bar (not per-beat) prevents excessive chord thrashing.
-3. **Harmonic metadata** — each `ChordEvent` includes: root (pitch class 0-11), quality (major/minor/dom7/min7/dim/aug), degree (1-7 relative to key), pre-computed tension (0-1), and next degree (look-ahead)
+1. **Global key detection** — Krumhansl-Schmuckler algorithm on full pitch class histogram weighted by `duration * velocity`
+2. **Local key / modulation detection** — Windowed K-S with hysteresis. Tempo-based windows (2 bars window, 0.5 bar hop) for musically meaningful detection that scales with tempo. Returns `KeyRegion[]` with `{startTime, endTime, key, mode, confidence}`.
+3. **Bar-level chord detection** — weighted pitch class profiles per bar, matched against chord templates with diatonic bias. Chord timestamps use earliest actual note onset within the bar. Per-bar (not per-beat) prevents excessive chord thrashing.
+4. **Harmonic metadata** — each `ChordEvent` includes: root (pitch class 0-11), quality (major/minor/dom7/min7/dim/aug), degree (1-7 relative to key), pre-computed tension (0-1), and next degree (look-ahead)
 
 Tension computed from harmonic function: `degreeTension[degree] + qualityTensionBoost[quality]`. Tonic (I) = 0, dominant (V) = 0.7, leading tone (vii) = 0.85.
+
+**Test file**: `circle-of-fifths.mid` traverses all 12 keys (C→G→D→A→E→B→F#→Db→Ab→Eb→Bb→F→C) to verify modulation detection.
+
+## Beat Sync System
+
+`beat-sync.ts` provides a generalized beat tracking abstraction based on MIR research. Supports dynamic tempo and time signature changes.
+
+### BeatState Interface
+
+| Field | Description |
+|-------|-------------|
+| `beatPhase` | 0-1 position within current beat |
+| `barPhase` | 0-1 position within current bar |
+| `bpm`, `beatDuration`, `beatsPerBar` | Current tempo/timing |
+| `beatIndex` | Which beat in bar (0-indexed) |
+| `onBeat`, `onBar` | True on frame when boundary crossed |
+| `stability` | 0-1 confidence in beat grid |
+| `nextBeatIn`, `nextBarIn` | Seconds until next boundary (for anticipation) |
+
+### Accurate Phase with Tempo Changes
+
+Uses precomputed cumulative beat counts at each tempo change point. Phase is calculated as:
+```typescript
+totalBeats = segment.startBeat + elapsedInSegment * (bpm / 60)
+beatPhase = totalBeats % 1
+```
+
+This handles ritardando, accelerando, and mid-song tempo changes correctly.
+
+### Extensibility
+
+The `BeatSync` interface can wrap different sources:
+- **MIDI timing** (current): Exact, stability=1.0
+- **Audio analysis** (future): Essentia.js, Meyda, or aubio for real-time beat detection
 
 ## Fractal Engine
 
@@ -106,7 +142,7 @@ Rendering: multi-worker band-split, offscreen canvas at `displaySize * fidelity`
 
 Includes test MIDIs (A major/minor scales, chromatic test) plus game soundtracks (Final Fantasy, Chrono Trigger, FFT).
 
-**Adding new MIDIs**: Validate fetched files before adding—parse with `@tonejs/midi` or check first 4 bytes are `MThd`. RIFF-wrapped MIDIs (`.rmi`, header `RIFF`) fail to parse. Sites like ffcompendium.com serve RIFF-wrapped; midishrine.com serves standard MIDIs.
+**Adding new MIDIs**: Place files in `public/midi/` (not `public/` root). Validate before adding—parse with `@tonejs/midi` or check first 4 bytes are `MThd`. RIFF-wrapped MIDIs (`.rmi`, header `RIFF`) fail to parse. Sites like ffcompendium.com serve RIFF-wrapped; midishrine.com serves standard MIDIs.
 
 ## Exploration Tools
 
@@ -136,6 +172,7 @@ Includes test MIDIs (A major/minor scales, chromatic test) plus game soundtracks
 - **Stepwise vs leap trail drawing**: Stepwise motion (≤3 semitones) follows the spiral curve for musical continuity; larger intervals draw straight lines for visual clarity
 - **Chord root for bass tracking**: Bass clock follows chord root rather than individual bass notes for harmonic stability
 - **GSAP beat-relative timing for clocks**: Hand motion duration as fraction of beat (0.5 beats for melody, 1.0 beats for bass) keeps motion musically grounded
+- **Key modulation rotation**: On detected modulation, tween `keyRotation` so the new tonic aligns to 12 o'clock. Effects (note spiral, clocks) apply this offset to all angle calculations. Shortest-path normalization prevents 360° spins.
 
 ### What Doesn't Work
 - **Anchors inside locus**: Heavy, mostly-black Julia sets
@@ -198,6 +235,37 @@ this.energy *= Math.exp(-3.0 * dt);
 // Slow follower (the "wave")
 this.smoothed += (this.energy - this.smoothed) * rate * dt;
 ```
+
+## Audio Visualization Libraries (Research)
+
+### Tier 1: Comprehensive Audio Analysis
+| Library | Purpose | Notes |
+|---------|---------|-------|
+| **Essentia.js** | Full MIR | WebAssembly-powered, onset/beat/tempo detection, key/chord estimation, melody extraction, ML models via TensorFlow.js |
+| **Meyda** | Feature extraction | RMS, spectral centroid/flatness/rolloff, MFCC. Lightweight, well-documented |
+| **aubiojs** | Real-time pitch/onset/tempo | WASM-compiled from C aubio library. Low latency, battle-tested algorithms |
+
+### Tier 2: Beat Detection
+| Library | Focus |
+|---------|-------|
+| **web-audio-beat-detector** | BPM detection from AudioBuffer. Simple API, good for electronic music |
+| **BeatDetect.js** | BPM + first beat offset + first bar timing |
+| **beat-beat-js** | Low-freq filtering for beat inference, callback on each beat |
+
+### Tier 3: Visualization
+| Library | Type | Best For |
+|---------|------|----------|
+| **p5.js + p5.sound** | Canvas/WebGL | Rapid prototyping, FFT/amplitude built-in |
+| **audioMotion-analyzer** | Spectrum analyzer | Zero-dependency, 240-band spectrum, Bark/Mel scales, weighting filters |
+| **Wave.js** | Canvas | 12 pre-built visualization effects, simple API |
+| **wavesurfer.js** | Waveform display | Interactive waveforms, spectrogram plugin |
+
+### Tier 4: Creative/Live Coding
+| Tool | Description |
+|------|-------------|
+| **Hydra** | Live-codable video synth, compiles to WebGL, uses Meyda for FFT |
+| **Shadertoy** | GLSL shader playground with audio input (512x2 texture: spectrum + waveform) |
+| **projectM / Milkshake** | MilkDrop preset renderer in WebGL. Thousands of existing presets |
 
 ## Future Ideas
 

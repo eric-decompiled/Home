@@ -36,6 +36,7 @@ export class BassClockEffect implements VisualEffect {
   private handBrightness = 0;
   private key = 0;
   private keyMode: 'major' | 'minor' = 'major';
+  private keyRotation = 0;  // animated rotation offset for modulations
   private lastPitchClass = -1;
   private handLength = 0.95; // Fixed at outer layer
   private colR = 150;
@@ -49,6 +50,7 @@ export class BassClockEffect implements VisualEffect {
   private energy = 0;
   private radius = 0.45; // Inner radius for bass
   private breathPhase = 0;
+  private anticipation = 0;  // Builds before bar lands
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -75,17 +77,31 @@ export class BassClockEffect implements VisualEffect {
     this.breathPhase += dt * 0.5; // Slower breath for bass
     this.key = music.key;
     this.keyMode = music.keyMode;
+    this.keyRotation = music.keyRotation;
 
     if (music.kick) this.energy += 0.5; // Bass responds more to kick
     if (music.snare) this.energy += 0.15;
     this.energy *= Math.exp(-2.0 * dt);
 
+    // Bar anticipation: bass clock builds before bar boundary (chord changes often align)
+    // Slower, weightier anticipation than melody
+    const nextBar = music.nextBarIn ?? 2.0;
+    const barDur = (music.beatDuration || 0.5) * (music.beatsPerBar || 4);
+    // Anticipation ramps up in the last 20% of the bar
+    const anticipationWindow = barDur * 0.2;
+    if (nextBar < anticipationWindow && nextBar > 0) {
+      const t = 1 - (nextBar / anticipationWindow);  // 0→1 as bar approaches
+      this.anticipation = t * t * 0.25;  // Subtle, max 0.25
+    } else {
+      this.anticipation *= Math.exp(-4 * dt);  // Slower decay for bass
+    }
+
     // Follow chord root for stability (not random bass notes)
     const pc = music.chordRoot >= 0 ? music.chordRoot : -1;
 
     if (pc >= 0) {
-      const semitones = semitoneOffset(pc, this.key);
-      const newAngle = (semitones / 12) * Math.PI * 2 - Math.PI / 2;
+      // Use absolute pitch class position (keyRotation handles alignment)
+      const newAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2;
 
       // Use shortest path
       let diff = newAngle - this.handAngle;
@@ -155,7 +171,7 @@ export class BassClockEffect implements VisualEffect {
     const breath = 1 + Math.sin(this.breathPhase) * 0.02;
     const handLen = maxR * this.handLength * breath;
     const r = numeralR; // Ring/numerals at fixed outer radius
-    const angle = this.handAngle;
+    const angle = this.handAngle + this.keyRotation;  // Apply modulation rotation
     const R = this.colR, G = this.colG, B = this.colB;
     const brt = 0.5 + this.handBrightness * 0.4 + this.energy * 0.15;
     const alpha = Math.min(1, brt);
@@ -193,8 +209,8 @@ export class BassClockEffect implements VisualEffect {
         if (age >= 1) continue;
         const a = (1 - age) * (1 - age);
         const trailR = r * breath;
-        let startA = seg.angle;
-        let arcDiff = next.angle - startA;
+        let startA = seg.angle + this.keyRotation;
+        let arcDiff = next.angle - seg.angle;
         while (arcDiff > Math.PI) arcDiff -= Math.PI * 2;
         while (arcDiff < -Math.PI) arcDiff += Math.PI * 2;
 
@@ -219,7 +235,8 @@ export class BassClockEffect implements VisualEffect {
 
     for (let i = 0; i < 12; i++) {
       const semitones = semitoneOffset(i, this.key);
-      const tickAngle = (semitones / 12) * Math.PI * 2 - Math.PI / 2;
+      // Use absolute pitch class position + keyRotation (like note-spiral)
+      const tickAngle = (i / 12) * Math.PI * 2 - Math.PI / 2 + this.keyRotation;
       const inKey = diatonicOffsets.has(semitones);
       const isCurrent = i === this.lastPitchClass;
       const outerR = r * breath;
@@ -359,10 +376,10 @@ export class BassClockEffect implements VisualEffect {
     tailShaft.closePath();
     fillP(tailShaft);
 
-    // --- Tip glow ---
+    // --- Tip glow (responds to anticipation) ---
     const tipPt = ptAt(1, 0);
-    const orbSz = 8 + this.handBrightness * 12 + this.energy * 6;
-    const orbA = 0.3 + this.handBrightness * 0.5;
+    const orbSz = 8 + this.handBrightness * 12 + this.energy * 6 + this.anticipation * 10;
+    const orbA = 0.3 + this.handBrightness * 0.5 + this.anticipation * 0.25;
     const orbGrd = ctx.createRadialGradient(tipPt.x, tipPt.y, 0, tipPt.x, tipPt.y, orbSz * 2.5);
     orbGrd.addColorStop(0, `rgba(255,255,255,${(orbA * 0.5).toFixed(3)})`);
     orbGrd.addColorStop(0.4, `rgba(${R},${G},${B},${(orbA * 0.3).toFixed(3)})`);
@@ -370,8 +387,8 @@ export class BassClockEffect implements VisualEffect {
     ctx.fillStyle = orbGrd;
     ctx.fillRect(tipPt.x - orbSz * 2.5, tipPt.y - orbSz * 2.5, orbSz * 5, orbSz * 5);
 
-    // --- Center hub (larger for bass) ---
-    const hubSz = 8 + this.energy * 6;
+    // --- Center hub (larger for bass, pulses with anticipation) ---
+    const hubSz = 8 + this.energy * 6 + this.anticipation * 5;
     ctx.beginPath();
     ctx.arc(cx, cy, hubSz * 1.3, 0, Math.PI * 2);
     ctx.strokeStyle = `rgba(${R},${G},${B},${(0.1 + this.energy * 0.15).toFixed(3)})`;

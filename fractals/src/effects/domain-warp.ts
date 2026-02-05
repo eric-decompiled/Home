@@ -421,11 +421,12 @@ export class DomainWarpEffect implements VisualEffect {
     }
 
     // Parameters follow wave level with gentle smoothing
-    // Chord quality adds texture complexity
-    const targetWarp = anchor.warpAmount + qualityWarp + music.tension * 0.3 + waveLevel * 1.2;
+    // Tension drives visual complexity: low tension = smooth, high tension = rough/detailed
+    const tensionSq = music.tension * music.tension; // Exponential response for dramatic peaks
+    const targetWarp = anchor.warpAmount + qualityWarp + music.tension * 0.8 + waveLevel * 1.2;
     const barCycle = music.currentTime * 0.08;
-    const targetScale = anchor.warpScale + Math.sin(barCycle) * 0.2 + waveLevel * 0.4;
-    const targetDetail = anchor.detail + qualityDetail + music.tension * 0.04 + waveLevel * 0.08;
+    const targetScale = anchor.warpScale + Math.sin(barCycle) * 0.2 + waveLevel * 0.4 + tensionSq * 1.5;
+    const targetDetail = anchor.detail + qualityDetail + music.tension * 0.15 + tensionSq * 0.1 + waveLevel * 0.08;
 
     // Smooth follow (the wave level already has momentum, so light smoothing here)
     this.currentWarp += (targetWarp - this.currentWarp) * 3.0 * dt;

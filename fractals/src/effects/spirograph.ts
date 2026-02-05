@@ -157,8 +157,14 @@ export class SpirographEffect implements VisualEffect {
     this.rotationVelocity *= Math.exp(-1.0 * dt);
     this.rotation += this.rotationVelocity * dt;
 
-    // Tension → draw speed
-    this.drawSpeed = 1.5 + music.tension * 3.0;
+    // Tension → draw speed and complexity
+    // High tension = faster, more frantic drawing with more layers
+    const tensionSq = music.tension * music.tension;
+    this.drawSpeed = 1.5 + music.tension * 3.0 + tensionSq * 2.0;
+    // Extra layers at high tension (up to +2)
+    const baseLayers = this.layers;
+    const tensionLayers = Math.floor(music.tension * 2);
+    this.layers = Math.min(5, baseLayers + tensionLayers);
 
     // Color from palette
     if (music.paletteIndex >= 0 && music.paletteIndex < palettes.length) {

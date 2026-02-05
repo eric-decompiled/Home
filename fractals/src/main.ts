@@ -1,5 +1,4 @@
 import './style.css';
-import { gsap } from './animation.ts';
 import { fractalEngine } from './fractal-engine.ts';
 import { analyzeMidiBuffer, type MusicTimeline } from './midi-analyzer.ts';
 import { audioPlayer } from './audio-player.ts';
@@ -30,6 +29,7 @@ interface SongEntry {
 }
 
 const songs: SongEntry[] = [
+  { name: 'Circle of Fifths (Modulation Test)', file: 'circle-of-fifths.mid' },
   { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },
   { name: 'A Minor Scale Test', file: 'a-minor-test.mid' },
   { name: 'A Major Scale Test', file: 'a-major-test.mid' },
@@ -46,6 +46,13 @@ const songs: SongEntry[] = [
   { name: 'Zeik Tuvai Battle (Wild Arms)', file: 'wa1-zeik-tuvai.mid' },
   { name: "Hero's Theme (Final Fantasy Tactics)", file: 'fft-heros-theme.mid' },
   { name: 'Decisive Battle (Final Fantasy Tactics)', file: 'fft-decisive-battle.mid' },
+  { name: 'Area 0 (The Guardian Legend)', file: 'guardian-legend-area0.mid' },
+  { name: 'Alien Sector Flight (The Guardian Legend)', file: 'guardian-legend-corridor.mid' },
+  // Classical pieces with expressive tempo changes (rubato)
+  { name: 'Nocturne Op.9 No.2 (Chopin)', file: 'chopin-nocturne.mid' },
+  { name: 'Clair de Lune (Debussy)', file: 'clair-de-lune.mid' },
+  { name: 'Prelude in C Major BWV 846 (Bach)', file: 'bach-prelude-c.mid' },
+  { name: 'Toccata and Fugue in D minor (Bach)', file: 'bach-toccata-fugue.mid' },
 ];
 
 // --- State ---
@@ -57,10 +64,6 @@ let displayWidth = 800;
 let displayHeight = 600;
 let isPlaying = false;
 let idlePhase = 0;
-// GSAP-driven drum bounce
-const drumBounce = { zoom: 0 };
-let drumBounceEnabled = true;
-let drumBounceIntensity = 1.0;
 
 // --- Adaptive fidelity ---
 const MAX_FIDELITY = 0.45;
@@ -104,13 +107,13 @@ interface LayerSlot {
 const layerSlots: LayerSlot[] = [
   {
     name: 'Background',
-    effects: [domainWarpEffect, waveEffect, chladniEffect],
-    activeId: 'domainwarp',
+    effects: [domainWarpEffect, waveEffect, chladniEffect, flowFieldEffect],
+    activeId: 'flowfield',
   },
   {
     name: 'Foreground',
-    effects: [fractalEffect, flowFieldEffect, spirographEffect, attractorsEffect, noteSpiralEffect],
-    activeId: 'note-spiral',
+    effects: [fractalEffect, spirographEffect, attractorsEffect, noteSpiralEffect],
+    activeId: 'fractal',
   },
   {
     name: 'Overlay',
@@ -352,65 +355,6 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
 
 buildLayerPanel();
 
-// --- Drum bounce controls ---
-{
-  const slotDiv = document.createElement('div');
-  slotDiv.className = 'layer-slot';
-
-  // Header with toggle
-  const header = document.createElement('div');
-  header.className = 'slot-header';
-  const slotLabel = document.createElement('span');
-  slotLabel.className = 'slot-label';
-  slotLabel.textContent = 'Drum Bounce';
-  const toggle = document.createElement('input');
-  toggle.type = 'checkbox';
-  toggle.checked = drumBounceEnabled;
-  header.appendChild(slotLabel);
-  header.appendChild(toggle);
-  slotDiv.appendChild(header);
-
-  // Config section for intensity slider
-  const configDiv = document.createElement('div');
-  configDiv.className = 'slot-config';
-
-  // Intensity slider
-  const intensityRow = document.createElement('div');
-  intensityRow.className = 'config-row';
-  const intensityLabel = document.createElement('label');
-  intensityLabel.textContent = 'Intensity';
-  const intensitySlider = document.createElement('input');
-  intensitySlider.type = 'range';
-  intensitySlider.min = '0.2';
-  intensitySlider.max = '3.0';
-  intensitySlider.step = '0.1';
-  intensitySlider.value = String(drumBounceIntensity);
-  const intensityVal = document.createElement('span');
-  intensityVal.className = 'config-value';
-  intensityVal.textContent = String(drumBounceIntensity);
-  intensitySlider.addEventListener('input', () => {
-    drumBounceIntensity = parseFloat(intensitySlider.value);
-    intensityVal.textContent = intensitySlider.value;
-  });
-  intensityRow.appendChild(intensityLabel);
-  intensityRow.appendChild(intensitySlider);
-  intensityRow.appendChild(intensityVal);
-  configDiv.appendChild(intensityRow);
-
-  slotDiv.appendChild(configDiv);
-
-  toggle.addEventListener('change', () => {
-    drumBounceEnabled = toggle.checked;
-    if (!drumBounceEnabled) {
-      gsap.killTweensOf(drumBounce);
-      drumBounce.zoom = 0;
-    }
-    configDiv.style.display = drumBounceEnabled ? '' : 'none';
-  });
-
-  layerList.appendChild(slotDiv);
-}
-
 // --- Canvas sizing ---
 
 function resizeCanvas(): void {
@@ -455,8 +399,10 @@ async function loadSong(index: number) {
   playBtn.textContent = '\u25B6';
   musicMapper.reset();
   compositor.resetAll();
+  lastKeyRegionIndex = -1;
 
   keyDisplay.textContent = 'Key: ...';
+  keyDisplay.style.color = '';
   bpmDisplay.textContent = 'BPM: ...';
   chordDisplay.textContent = 'Loading...';
 
@@ -480,8 +426,14 @@ async function loadSong(index: number) {
     return;
   }
 
-  musicMapper.setTempo(timeline.tempo, timeline.timeSignature);
+  musicMapper.setTempo(
+    timeline.tempo,
+    timeline.timeSignature,
+    timeline.tempoEvents,
+    timeline.timeSignatureEvents
+  );
   musicMapper.setKey(timeline.key, timeline.keyMode);
+  musicMapper.setKeyRegions(timeline.keyRegions);
   musicMapper.setTracks(timeline.tracks);
   audioPlayer.loadMidi(midiBuffer);
 
@@ -534,8 +486,14 @@ seekBar.addEventListener('input', () => {
   const t = parseFloat(seekBar.value);
   audioPlayer.seek(t);
   musicMapper.reset();
-  musicMapper.setTempo(timeline.tempo, timeline.timeSignature);
+  musicMapper.setTempo(
+    timeline.tempo,
+    timeline.timeSignature,
+    timeline.tempoEvents,
+    timeline.timeSignatureEvents
+  );
   musicMapper.setKey(timeline.key, timeline.keyMode);
+  musicMapper.setKeyRegions(timeline.keyRegions);
   updateTimeDisplay(t);
   dirty = true;
 });
@@ -572,6 +530,40 @@ function updateChordDisplay(currentTime: number) {
       chordDisplay.textContent = `${chordName}  ${numeral}`;
     } else {
       chordDisplay.textContent = chordName;
+    }
+  }
+}
+
+// --- Key display update (shows modulations) ---
+
+let lastKeyRegionIndex = -1;
+
+function updateKeyDisplay(currentTime: number) {
+  if (!timeline || timeline.keyRegions.length === 0) return;
+
+  // Find current key region
+  let regionIndex = 0;
+  for (let i = timeline.keyRegions.length - 1; i >= 0; i--) {
+    if (timeline.keyRegions[i].startTime <= currentTime) {
+      regionIndex = i;
+      break;
+    }
+  }
+
+  // Only update if changed
+  if (regionIndex !== lastKeyRegionIndex) {
+    lastKeyRegionIndex = regionIndex;
+    const region = timeline.keyRegions[regionIndex];
+    const modeLabel = region.mode === 'minor' ? 'm' : '';
+    const keyName = noteNames[region.key];
+
+    // Show if this is a modulation (not the first region)
+    if (regionIndex > 0) {
+      keyDisplay.textContent = `Key: ${keyName}${modeLabel} \u2192`; // arrow indicates modulation
+      keyDisplay.style.color = '#ffcc00'; // highlight modulation
+    } else {
+      keyDisplay.textContent = `Key: ${keyName}${modeLabel}`;
+      keyDisplay.style.color = '';
     }
   }
 }
@@ -619,6 +611,7 @@ function loop(time: number): void {
       }
       updateTimeDisplay(currentTime);
       updateChordDisplay(currentTime);
+      updateKeyDisplay(currentTime);
 
       // Get fractal params from music (always computed — fractal effect reads them)
       const params = musicMapper.update(dt, currentTime, timeline.chords, timeline.drums, timeline.notes);
@@ -626,60 +619,9 @@ function loop(time: number): void {
       // Generic music params for all other effects
       const musicParams = musicMapper.getMusicParams(dt, currentTime);
 
-      // GSAP drum bounce - each drum type has distinct character
-      // Beat 1 emphasis: stronger bounce on downbeat
-      const beat1Boost = musicParams.beatIndex === 0 ? 1.3 : 1.0;
-      if (drumBounceEnabled) {
-        // Kick: heavy, deep elastic bounce
-        if (musicParams.kick) {
-          gsap.to(drumBounce, {
-            zoom: drumBounce.zoom + 0.08 * drumBounceIntensity * beat1Boost,
-            duration: 0.08,
-            ease: 'power2.out',
-            onComplete: () => {
-              gsap.to(drumBounce, {
-                zoom: 0,
-                duration: 0.4,
-                ease: 'elastic.out(1, 0.4)',
-              });
-            }
-          });
-        }
-        // Snare: sharp snap with quick return
-        if (musicParams.snare) {
-          gsap.to(drumBounce, {
-            zoom: drumBounce.zoom + 0.05 * drumBounceIntensity * beat1Boost,
-            duration: 0.05,
-            ease: 'power3.out',
-            onComplete: () => {
-              gsap.to(drumBounce, {
-                zoom: 0,
-                duration: 0.25,
-                ease: 'back.out(2)',
-              });
-            }
-          });
-        }
-        // Hihat: light tap
-        if (musicParams.hihat) {
-          gsap.to(drumBounce, {
-            zoom: drumBounce.zoom + 0.015 * drumBounceIntensity * beat1Boost,
-            duration: 0.03,
-            ease: 'power2.out',
-            onComplete: () => {
-              gsap.to(drumBounce, {
-                zoom: 0,
-                duration: 0.12,
-                ease: 'power2.out',
-              });
-            }
-          });
-        }
-      }
-
       // Set fractal-specific params
       fractalEffect.setFractalParams(
-        params.cReal, params.cImag, 1.0 + drumBounce.zoom,
+        params.cReal, params.cImag, 1.0,
         params.baseIter, renderFidelity,
         params.fractalType, params.phoenixP,
         params.rotation, params.paletteIndex
@@ -700,7 +642,7 @@ function loop(time: number): void {
     fractalEffect.setFractalParams(
       cr, ci, 1.0, 150, renderFidelity,
       idle.type, -0.5, idlePhase * 0.3,
-      timeline ? timeline.key : 4
+      timeline ? timeline.key : 0  // Default to C (tonic) when no song loaded
     );
 
     const idleMusic = musicMapper.getIdleMusicParams(dt);
@@ -720,6 +662,6 @@ function loop(time: number): void {
 
 requestAnimationFrame(loop);
 
-// Auto-load default song (To Zanarkand)
-songPicker.value = '0';
-loadSong(0);
+// Auto-load default song (J-E-N-O-V-A)
+songPicker.value = '10';
+loadSong(10);

@@ -49,6 +49,7 @@ export class NoteSpiralEffect implements VisualEffect {
   private time = 0;
   private key = 0;
   private keyMode: 'major' | 'minor' = 'major';
+  private keyRotation = 0;  // animated rotation offset for modulations
   private breathPhase = 0;
   private awake = false;
 
@@ -57,6 +58,7 @@ export class NoteSpiralEffect implements VisualEffect {
   private trailMax = 24;
   private darkBackdrop = true;
   private glowOutlines = true;
+  private currentTension = 0;  // for tension-driven visuals
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -102,19 +104,21 @@ export class NoteSpiralEffect implements VisualEffect {
 
   // Map MIDI note to spiral position
   // Lower notes → smaller radius (center), higher notes → outer rim
-  // Angle: semitone within octave maps to 0–2π, offset by key so tonic is at top
+  // Angle: pitch class maps to clock position, keyRotation animates during modulations
   private notePos(midi: number, cx: number, cy: number, maxR: number): { x: number; y: number; r: number } {
     const t = (midi - MIDI_LO) / MIDI_RANGE; // 0 (low) to 1 (high)
     // Radius: center for bass, outer rim for melody
     // Square root curve — more even visual spacing across octaves
     const radius = maxR * (0.02 + 0.98 * Math.sqrt(t));
 
-    // Angle: each semitone is 1/12 of a revolution, key root at 12 o'clock
+    // Angle: each pitch class is 1/12 of a revolution
+    // keyRotation is animated to keep current key's tonic at 12 o'clock
     const pc = midi % 12;
-    const fromRoot = ((pc - this.key + 12) % 12); // 0 = root, 1-11 = semitones above root
-    // Twist proportional to position within octave (0 at root, builds to next root)
+    const baseAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2; // C at top before rotation
+    // Small twist for spiral effect
+    const fromRoot = ((pc - this.key + 12) % 12);
     const twist = (fromRoot / 12) * 0.15;
-    const finalAngle = (fromRoot / 12) * Math.PI * 2 - Math.PI / 2 + twist;
+    const finalAngle = baseAngle + this.keyRotation + twist;
     return {
       x: cx + Math.cos(finalAngle) * radius,
       y: cy + Math.sin(finalAngle) * radius,
@@ -127,55 +131,69 @@ export class NoteSpiralEffect implements VisualEffect {
     this.breathPhase += dt * 0.5;
     this.key = music.key;
     this.keyMode = music.keyMode;
+    this.keyRotation = music.keyRotation;
 
     if (!this.awake) {
       if (music.currentTime > 0.1) this.awake = true;
       else return;
     }
 
-    // Light up all voice onsets (multi-instrument)
+    // Light up all active voices - keep sustained notes visible
     for (const voice of music.activeVoices) {
-      if (!voice.onset) continue;
       if (voice.midi < MIDI_LO || voice.midi >= MIDI_HI) continue;
 
       const idx = voice.midi - MIDI_LO;
       const node = this.nodes[idx];
-      node.brightness = 1.0;
-      node.velocity = voice.velocity;
-      node.lastHitTime = this.time;
 
-      const c = samplePaletteColor(voice.pitchClass, 0.75);
-      node.r = c[0]; node.g = c[1]; node.b = c[2];
+      // Keep sustained notes at minimum brightness, flash on onset
+      const minBrightness = 0.4; // sustained notes stay visible
+      if (voice.onset) {
+        node.brightness = 1.0;
+        node.velocity = voice.velocity;
+        node.lastHitTime = this.time;
 
-      // Trail from previous note on same track
-      const lastMidi = this.lastMidiByTrack.get(voice.track) ?? -1;
-      if (lastMidi >= MIDI_LO && lastMidi < MIDI_HI && lastMidi !== voice.midi) {
-        this.trails.push({
-          from: lastMidi,
-          to: voice.midi,
-          strength: 1.0,
-          age: 0,
-        });
-        if (this.trails.length > this.trailMax) this.trails.shift();
+        const c = samplePaletteColor(voice.pitchClass, 0.75);
+        node.r = c[0]; node.g = c[1]; node.b = c[2];
+
+        // Trail from previous note on same track
+        const lastMidi = this.lastMidiByTrack.get(voice.track) ?? -1;
+        if (lastMidi >= MIDI_LO && lastMidi < MIDI_HI && lastMidi !== voice.midi) {
+          this.trails.push({
+            from: lastMidi,
+            to: voice.midi,
+            strength: 1.0,
+            age: 0,
+          });
+          if (this.trails.length > this.trailMax) this.trails.shift();
+        }
+        this.lastMidiByTrack.set(voice.track, voice.midi);
+      } else {
+        // Sustained note - keep visible
+        node.brightness = Math.max(node.brightness, minBrightness);
       }
-      this.lastMidiByTrack.set(voice.track, voice.midi);
     }
 
-    // Beat pulse — brighten active nodes
+    // Track tension for visual modulation
+    this.currentTension = music.tension;
+
+    // Beat pulse — brighten active nodes (stronger pulse at high tension)
     if (music.kick) {
+      const pulseStrength = 0.15 + music.tension * 0.1;
       for (const node of this.nodes) {
-        if (node.brightness > 0.05) node.brightness = Math.min(1.0, node.brightness + 0.15);
+        if (node.brightness > 0.05) node.brightness = Math.min(1.0, node.brightness + pulseStrength);
       }
     }
 
-    // Decay nodes
+    // Decay nodes (faster decay at high tension = more nervous/transient)
+    const nodeDecay = 2.5 + music.tension * 1.5;
     for (const node of this.nodes) {
-      node.brightness *= Math.exp(-2.5 * dt);
+      node.brightness *= Math.exp(-nodeDecay * dt);
     }
 
-    // Decay trails
+    // Decay trails (faster at high tension for more frantic feel)
+    const trailDecay = 0.15 + music.tension * 0.2;
     for (let i = this.trails.length - 1; i >= 0; i--) {
-      this.trails[i].strength *= Math.exp(-0.15 * dt);  // slower decay for longer TTL
+      this.trails[i].strength *= Math.exp(-trailDecay * dt);
       this.trails[i].age += dt;
       if (this.trails[i].strength < 0.005) {
         this.trails.splice(i, 1);
@@ -191,7 +209,7 @@ export class NoteSpiralEffect implements VisualEffect {
 
     const cx = w / 2;
     const cy = h / 2;
-    const maxR = Math.min(cx, cy) * 0.9;
+    const maxR = Math.min(w, h) / 2 * 0.9;
     const breath = 1 + Math.sin(this.breathPhase) * 0.01;
 
     // --- Dark backdrop with box-shadow effect ---
@@ -423,11 +441,13 @@ export class NoteSpiralEffect implements VisualEffect {
           }
         }
 
-        // Point glow at note position
-        const glowR = 8 + alpha * 25 + node.velocity * 10;
+        // Point glow at note position (larger and brighter at high tension)
+        const tensionGlow = 1.0 + this.currentTension * 0.5;
+        const glowR = (8 + alpha * 25 + node.velocity * 10) * tensionGlow;
+        const glowIntensity = this.intensity * (1.0 + this.currentTension * 0.3);
         const glow = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowR);
-        glow.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(alpha * 0.6 * this.intensity).toFixed(3)})`);
-        glow.addColorStop(0.4, `rgba(${node.r},${node.g},${node.b},${(alpha * 0.2 * this.intensity).toFixed(3)})`);
+        glow.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(alpha * 0.6 * glowIntensity).toFixed(3)})`);
+        glow.addColorStop(0.4, `rgba(${node.r},${node.g},${node.b},${(alpha * 0.2 * glowIntensity).toFixed(3)})`);
         glow.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
         ctx.fillStyle = glow;
         ctx.fillRect(pos.x - glowR, pos.y - glowR, glowR * 2, glowR * 2);
