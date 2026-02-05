@@ -1,6 +1,6 @@
-# Fractal Jukebox
+# Fractured Jukebox
 
-Music-reactive fractal visualizer with mixed cross-family anchors (Celtic, PerpBurn, Phoenix, Buffalo). Plays MIDI files through a SoundFont synthesizer and maps harmonic analysis to fractal parameters in real time.
+A layered music visualization system that transforms MIDI files into synchronized visual experiences. Combines fractal rendering, physics simulations, and procedural graphics—all driven by real-time harmonic analysis. Plays MIDI through a SoundFont synthesizer while mapping musical structure (key, chords, melody, bass, drums) to visual parameters across multiple composited effect layers.
 
 ## Architecture
 
@@ -14,35 +14,54 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 | `src/fractal-engine.ts` | Multi-type fractal renderer with precomputed color LUT and post-composite overlays |
 | `src/fractal-worker.ts` | Pure per-pixel fractal computation in Web Workers (no color effects) |
 | `src/audio-player.ts` | MIDI playback via spessasynth_lib (SoundFont-based AudioWorklet synthesizer) |
-| `src/effects/` | Visual effect layers (domain warp, harmonic web, melody clock, etc.) |
+| `src/effects/` | Visual effect layers (see below) |
 
 ## Visual Effects System
 
-Effects are organized into layer slots (mutually exclusive within each slot). Each effect implements `VisualEffect` interface from `src/effects/effect-interface.ts`.
+Effects are organized into layer slots (mutually exclusive within each slot). Each effect implements `VisualEffect` interface from `src/effects/effect-interface.ts`. Layers composite via configurable blend modes (screen, multiply, overlay, etc.) and per-layer opacity.
 
-### Layer slots (in `main.ts`)
-- **Background**: Domain Warp (default), Spirograph
-- **Overlay**: Harmonic Web (default), Melody Arcs, Melody Aurora
-- **Melody**: Melody Clock, others
+### Layer Slots
 
-### Key effects
+| Slot | Purpose | Effects |
+|------|---------|---------|
+| **Background** | Full-canvas animated backdrop | Domain Warp (default), Waves, Chladni |
+| **Foreground** | Main visual element | Fractal, Flow Field, Spirograph, Strange Attractors, Note Spiral (default) |
+| **Overlay** | Post-process effects | Kaleidoscope |
+| **Melody** | Melodic visualization | Melody Aurora, Melody Web, Chord Web, Melody Clock |
+| **Bass** | Bass note tracking | Bass Web, Bass Clock |
 
-**Domain Warp** (`src/effects/domain-warp.ts`): WebGL-based layered fbm warped through itself. Per-degree anchors control warp amount/scale/flow. Energy from drums clamped at 0.5 with warp ceiling 6.5 to prevent overdriving on intense songs.
+### Effect Catalog
 
-**Harmonic Web** (`src/effects/melody-web.ts`): Network graph of 12 pitch classes in a circle. Nodes shown as Roman numerals (I–VII for diatonic, small dots for chromatic). Uses traditional case: uppercase for major triads, lowercase for minor (e.g. minor key: i, ii, III, iv, v, VI, VII). Edges connect recently-played notes, building a web of harmonic relationships. Edge decay 0.9995 (~23s half-life at 60fps) with smoothstep alpha curve — bright most of life, fast fade near end. Radius 0.85.
+**Wave Interference** (`src/effects/wave-interference.ts`): WebGL ripple simulation. Drops appear at melody onsets positioned by pitch class (clock position) and octave (radius). Per-note coloring from chromatic palette. Models wave reflection off boundaries via ghost sources with phase inversion. Configurable decay, frequency, reflection amount.
 
-**Melody Clock** (`src/effects/melody-clock.ts`): Openwork Breguet/pomme-style clock hand. Drawn as stroked outlines with transparent interiors (filigree style). Features: volute scrollwork, open ellipse moon window, teardrop, fleur-de-lis tip with three petals, crescent tail. Roman numeral markers at diatonic positions. Hand direction tracks actual MIDI note pitch — ascending melody goes clockwise, descending goes counter-clockwise. Arc trail on clock edge shows recent sweep path.
+**Domain Warp** (`src/effects/domain-warp.ts`): WebGL layered fbm warped through itself. Per-degree anchors control warp amount/scale/flow. Uses **spatial wave tank physics**:
+- **Bass wave**: pushes from bottom (low notes below middle C, bass line)
+- **Melody wave**: pushes from sides (high notes, melody, harmony)
+- **Chord quality modulation**: dim/aug = rough texture, 7ths = sophisticated detail, major = clean
+- **Pitch-weighted energy**: higher notes contribute more energy (1x at MIDI 60, 2x at 84, 3x at 108)
+- **Warp ceiling**: capped at 6.5 to prevent overdriving on intense songs
 
-### MusicParams interface (`src/effects/effect-interface.ts`)
+**Spirograph** (`src/effects/spirograph.ts`): Parametric curve drawing with music-reactive parameters.
 
-Shared data passed to all effects each frame. Includes:
-- Beat/bar timing (position, index, BPM)
-- Chord info (root, degree, quality, tension)
-- Key and mode
-- `melodyPitchClass`, `melodyMidiNote` (actual MIDI note number for direction), `melodyVelocity`, `melodyOnset`
-- `bassPitchClass`, `bassVelocity`
-- Drum onsets (kick, snare, hihat)
-- `paletteIndex`
+**Note Spiral** (`src/effects/note-spiral.ts`): All active MIDI voices rendered as glowing orbs on a spiral covering full piano range (MIDI 21-108, A0 to C8). Pitch class determines angle (root at 12 o'clock), with **sqrt radius curve** for even visual spacing across octaves (low notes center, high notes outer). Shows polyphonic voicing with connecting trails between consecutive notes. Trail behavior: **stepwise motion** (1-3 semitones) follows the spiral curve, while larger intervals draw straight lines. Longer trail TTL (decay 0.15) keeps connections visible. Flashlight beams project outward from active notes — bass notes get wide/short/dim beams, treble notes get narrow/long/bright beams.
+
+**Melody Web** (`src/effects/melody-web.ts`): Network graph of 12 pitch classes arranged in a circle as dots. Larger dots for diatonic scale degrees, smaller for chromatic. Edges connect recently-played notes, building a web of melodic relationships. Edge decay 0.9995 (~23s half-life at 60fps) with smoothstep alpha curve. Melody trail shows recent note sequence.
+
+**Melody Clock** (`src/effects/melody-clock.ts`): Openwork Breguet/pomme-style clock hand tracking individual melody notes. Drawn as stroked outlines with transparent interiors (filigree style). Features: volute scrollwork, open ellipse moon window, teardrop, fleur-de-lis tip with three petals, crescent tail. Roman numeral markers at diatonic positions. Hand direction tracks actual MIDI pitch—ascending melody goes clockwise, descending counter-clockwise. Uses GSAP with **0.5 beat duration** and power2.out ease for smooth motion with some heft. Arc trail shows recent sweep path.
+
+**Bass Clock** (`src/effects/bass-clock.ts`): Industrial station-clock style hand tracking **chord root** (not individual bass notes) for harmonic stability. Heavy tapered hand with circular counterweight. Roman numeral markers on outer ring (just outside note spiral radius). **Fixed hand length at 0.95** (outer layer). Uses GSAP with full beat duration and power2.inOut ease for slow, weighty motion.
+
+### MusicParams Interface
+
+Shared data passed to all effects each frame (`src/effects/effect-interface.ts`):
+
+- **Timing**: `currentTime`, `dt`, `bpm`, `beatDuration`, `beatsPerBar`, `beatPosition` (0-1), `barPosition` (0-1), `beatIndex`
+- **Harmony**: `chordRoot`, `chordDegree`, `chordQuality`, `tension`, `key`, `keyMode`
+- **Melody**: `melodyPitchClass`, `melodyMidiNote`, `melodyVelocity`, `melodyOnset`
+- **Bass**: `bassPitchClass`, `bassMidiNote`, `bassVelocity`
+- **Drums**: `kick`, `snare`, `hihat` (boolean onsets)
+- **Multi-voice**: `activeVoices[]` (all sounding notes with track info), `tracks[]`
+- **Color**: `paletteIndex`
 
 ## Audio Playback
 
@@ -59,70 +78,129 @@ Key design decisions:
 `midi-analyzer.ts` processes MIDI files into a `MusicTimeline`:
 
 1. **Key detection** — Krumhansl-Schmuckler algorithm on pitch class histogram weighted by `duration * velocity`
-2. **Bar-level chord detection** — weighted pitch class profiles per bar (using `beatsPerBar * beatDuration` windows), matched against chord templates with diatonic bias. Chord timestamps use the earliest actual note onset within the bar, not the bar boundary. Per-bar (not per-beat) prevents excessive chord thrashing.
+2. **Bar-level chord detection** — weighted pitch class profiles per bar, matched against chord templates with diatonic bias. Chord timestamps use earliest actual note onset within the bar. Per-bar (not per-beat) prevents excessive chord thrashing.
 3. **Harmonic metadata** — each `ChordEvent` includes: root (pitch class 0-11), quality (major/minor/dom7/min7/dim/aug), degree (1-7 relative to key), pre-computed tension (0-1), and next degree (look-ahead)
 
-Tension is computed from harmonic function: `degreeTension[degree] + qualityTensionBoost[quality]`. Tonic (I) = 0, dominant (V) = 0.7, leading tone (vii) = 0.85.
-
-## Music → Fractal Mapping
-
-`music-mapper.ts` maps musical properties to visual parameters. A single set of 8 mixed cross-family anchors maps harmonic degrees (I-vii + chromatic fallback 0) to curated c-values. Each anchor carries its own fractal `type` field.
-
-Current anchor types: Celtic (0, 1, 5), PerpBurn (2, 7), Phoenix (3, 6), Buffalo (4).
-
-### Movement system: orbit-based beat synchronization
-
-Each degree defines a **center** and **4 orbit offsets** in c-space. The c-value moves between orbit points synchronized to the beat grid using sinusoidal interpolation. Exponential snap rate 8.0 (~0.12s to 90%) for chord transitions.
-
-### Rotation system: beat-grid + drums
-
-Beat-grid impulses (CW/CCW alternating on beat boundaries) plus drum impulses (kick CCW, snare CW, hihat subtle alternating). Friction: `exp(-1.2 * dt)` — half-life ~0.58s.
-
-### Color system
-
-- **Smooth escape coloring**: `sqrt(smoothed / maxIter)` → 2048-entry palette LUT, black interior
-- **Chord root → palette**: 12 chromatic palettes, peak brightness at 0.85, loop to saturated mid-tone at 1.0
-- **Song key vignette**: Radial gradient overlay on outer edge using key color
-- **Idle animation**: Gentle sinusoidal orbit around tonic anchor
+Tension computed from harmonic function: `degreeTension[degree] + qualityTensionBoost[quality]`. Tonic (I) = 0, dominant (V) = 0.7, leading tone (vii) = 0.85.
 
 ## Fractal Engine
 
-10 supported iteration types. Music mapping currently uses Celtic (6), PerpBurn (8), Phoenix (5), Buffalo (9).
+10 supported Julia set iteration types. Music mapping uses mixed cross-family anchors: Celtic (0, 1, 5), PerpBurn (2, 7), Phoenix (3, 6), Buffalo (4).
 
-Rendering: multi-worker band-split, offscreen canvas at `displaySize * fidelity` (default 0.45x), `BASE_RANGE = 4.8`. Pure workers — no color effects, just iteration + LUT lookup.
+### Movement System
+Each harmonic degree defines a **center** and **4 orbit offsets** in c-space. The c-value moves between orbit points synchronized to the beat grid using sinusoidal interpolation. Exponential snap rate 8.0 (~0.12s to 90%) for chord transitions.
+
+### Rotation System
+Beat-grid impulses (CW/CCW alternating) plus drum impulses (kick CCW, snare CW, hihat subtle). Friction: `exp(-1.2 * dt)` — half-life ~0.58s.
+
+### Color System
+- **Smooth escape coloring**: `sqrt(smoothed / maxIter)` → 2048-entry palette LUT, black interior
+- **Chord root → palette**: 12 chromatic palettes, peak brightness at 0.85, loop to saturated mid-tone
+- **Song key vignette**: Radial gradient overlay using key color
+
+Rendering: multi-worker band-split, offscreen canvas at `displaySize * fidelity` (default 0.45x), `BASE_RANGE = 4.8`.
 
 ## Song Library
 
-Default: A Minor Scale Test. Test songs for both A major and A minor scales (140 BPM, 1 bar per chord, walking through all diatonic triads). Also includes Final Fantasy titles, Chrono Trigger themes, and others.
+**Default song**: "To Zanarkand" (FFX) — chosen for its gentle piano melody that demonstrates the visualizer without overwhelming the effects.
+
+Includes test MIDIs (A major/minor scales, chromatic test) plus game soundtracks (Final Fantasy, Chrono Trigger, FFT).
+
+**Adding new MIDIs**: Validate fetched files before adding—parse with `@tonejs/midi` or check first 4 bytes are `MThd`. RIFF-wrapped MIDIs (`.rmi`, header `RIFF`) fail to parse. Sites like ffcompendium.com serve RIFF-wrapped; midishrine.com serves standard MIDIs.
 
 ## Exploration Tools
 
-**Config tool**: `public/config.html` — Multi-panel cross-family anchor picker with zoom/pan, orbit dot dragging, and TypeScript export.
-
-**Shape atlas**: `public/shape-atlas.html` — Julia set thumbnail grid across parameter space near connectedness locus boundary.
-
+- **Config tool** (`public/config.html`): Multi-panel cross-family anchor picker with zoom/pan, orbit dot dragging, TypeScript export
+- **Shape atlas** (`public/shape-atlas.html`): Julia set thumbnail grid across parameter space
 
 ## Key Learnings
 
-### What works
-- **Mixed cross-family anchors**: Best shapes from each fractal family per degree. Each anchor carries its own `type` field.
-- **Filament zone anchors**: Just outside the connectedness locus boundary. Push outward if shapes look too heavy/black.
-- **Orbit-based beat motion**: 4 offsets per anchor with sinusoidal interpolation. Tight musical coupling.
-- **Beat-grid + drum rotation**: Friction at 1.2 lets sway carry across beats.
-- **Traditional smooth coloring with sqrt spreading**: Simple, no artifacts. Peak brightness at 0.85 avoids white washout.
-- **Song key vignette**: Constant color anchor across chord changes.
-- **Bar-level chord detection**: Stable, musically meaningful. Per-beat causes thrashing.
-- **Harmonic web with Roman numerals**: Clean display of harmonic relationships. Long edge decay (0.9995) with smoothstep keeps connections visible.
-- **Openwork clock hand**: Stroked outlines with transparent interior look elegant. MIDI note tracking gives correct CW/CCW direction.
-- **Domain warp energy clamping**: Cap energy at 0.5, warp ceiling 6.5 prevents overdriving on intense songs.
-- **Pure workers**: No color effects in workers simplifies pipeline.
+### What Works
+- **Mixed cross-family fractal anchors**: Best shapes from each family per harmonic degree
+- **Filament zone anchors**: Just outside connectedness locus boundary
+- **Orbit-based beat motion**: 4 offsets per anchor with sinusoidal interpolation
+- **Bar-level chord detection**: Stable, musically meaningful
+- **Openwork clock hands**: Stroked outlines with transparent interiors
+- **Wave reflection via ghost sources**: Simple, effective boundary modeling
+- **Pitch-positioned wave drops**: Clock angle + octave radius creates musical geography
+- **Separate melody/bass clocks**: Different visual weight matches musical register
+- **Long edge decay with smoothstep**: Connections stay visible, fade gracefully
+- **Spatial wave tanks**: Separate waves for different musical elements—bass from bottom, melody from sides. Creates directional visual interest without requiring explicit drum visualization
+- **Pitch-weighted energy**: Higher notes contribute more energy (scale by `1 + (midi - 60) / 24`). High-energy pieces feel appropriately intense
+- **Chord quality modulation**: Map chord quality to texture—dim/aug = rough warp, 7ths = sophisticated detail, major = clean baseline
+- **Wave tank physics**: For fluid motion, model energy as waves with momentum—push creates motion that continues after input stops
+- **Generalized pulse driver**: Use `activeVoices` onsets (any instrument) + beat grid pulse + drums, not just drums. Works with any MIDI
+- **dt capping**: `dt = Math.min(dt, 0.1)` prevents physics blowup when browser throttles backgrounded tabs
+- **Anchor + offset model**: Parameters = anchor base + energy offset. When energy decays, values return to anchor (restoring force)
+- **sqrt radius for spirals**: Even visual spacing across octaves. Cubic curves compress bass too much. Formula: `radius = maxR * (0.02 + 0.98 * Math.sqrt(t))`
+- **Stepwise vs leap trail drawing**: Stepwise motion (≤3 semitones) follows the spiral curve for musical continuity; larger intervals draw straight lines for visual clarity
+- **Chord root for bass tracking**: Bass clock follows chord root rather than individual bass notes for harmonic stability
+- **GSAP beat-relative timing for clocks**: Hand motion duration as fraction of beat (0.5 beats for melody, 1.0 beats for bass) keeps motion musically grounded
 
-### What doesn't work
-- **Anchors too close to locus interior**: Heavy, mostly-black Julia sets. Push outward.
-- **Single-family worlds**: Limits visual variety. Mixed anchors are better.
-- **Solid-fill clock hand silhouettes**: Scrollwork details invisible. Openwork/outline style is much more readable.
-- **Heavy overlay draw calls**: Particle systems, long trails (120+ points), combined overlays crash framerate. Keep overlays minimal or move to workers.
-- **Bass overlay effects**: Screen glow + trail too expensive. Multiply darkening invisible on black fractal interior. Bass visualization remains unsolved.
-- **Palettes washing to white**: Loop back to saturated mid-tone instead.
-- **High rotation friction (3.0)**: Rotation dies before next beat. 1.2 is the sweet spot.
-- **Linear palette mapping**: Compresses boundary detail. `sqrt` spreading is essential.
+### What Doesn't Work
+- **Anchors inside locus**: Heavy, mostly-black Julia sets
+- **Solid-fill clock silhouettes**: Details invisible
+- **Heavy particle systems**: Crash framerate—keep overlays minimal
+- **Palettes washing to white**: Loop to saturated mid-tone instead
+- **High rotation friction**: Rotation dies before next beat (1.2 is sweet spot)
+- **Linear palette mapping**: Compresses boundary detail (`sqrt` spreading essential)
+- **Spring physics for music response**: Feels stiff/mechanical. Wave tank (mass + momentum) is more fluid
+- **Direct energy → parameter mapping**: Feels twitchy. Cascade through smoothing: energy → wave level → parameter
+- **Drum-only energy drivers**: Many MIDIs have no drums. Generalize to all note onsets + beat grid
+- **Drum pulse circles around beat positions**: Tried subdividing a circle into beat positions (4ths for 4/4, 3rds for 3/4) with drum pulses at those positions. Experimented with capacitor models (fast absorb, slow bleed), hihat accents, different radii. Despite multiple iterations, always felt either too heavy/sudden or the effect didn't "land" visually. Drum visualization on domain warp remains unsolved — better to let the wave tanks respond to all onsets rather than trying to visualize drums specifically
+- **Bass clock tracking individual bass notes**: Too erratic — random bass notes cause the hand to jump around. Following chord root provides harmonic stability
+
+## Available Libraries
+
+### GSAP (GreenSock Animation Platform)
+Installed and available via `src/animation.ts`. Currently used for:
+- **Palette crossfade** (`fractal-engine.ts`): Smooth LUT blending when chords change palette
+- **Drum bounce** (`main.ts`): Elastic/back easing for kick, snare, hihat zoom effects
+- **Chord transitions**: Flow speed changes, shape morphs (spirograph) on chord changes
+- **Clock animations**: Hand angle and brightness in melody/bass clocks
+
+Best suited for:
+- Fixed-duration transitions triggered by discrete events (chord changes, note onsets)
+- One-shot tweens with known endpoints
+- Elastic/bounce/back easing for punchy effects
+- Beat-relative durations (`beatDuration * multiplier`)
+
+Not ideal for:
+- Continuous physics simulation (wave tanks, fluid motion) — manual physics better
+- Rapid target changes where tweens would constantly interrupt each other
+- Impulse accumulators — use manual `Math.exp(-rate * dt)` decay
+
+### Animation Patterns
+
+**Discrete events** (chord changes, note onsets): Use GSAP with beat-relative timing
+```typescript
+gsap.to(this, {
+  targetValue: anchor.value,
+  duration: beatDur * 1.0,
+  ease: 'power2.inOut',
+  overwrite: true,
+});
+```
+
+**Continuous physics** (fluid motion, energy response): Use wave tank model
+```typescript
+// Wave with momentum - push creates motion that persists
+const push = energy * 5.0;
+this.waveVel += (push - k * this.wave - damping * this.waveVel) * dt;
+this.wave += this.waveVel * dt;
+```
+
+**Energy accumulation**: Use cascaded smoothing
+```typescript
+// Fast accumulator
+this.energy += onsetEnergy;
+this.energy *= Math.exp(-3.0 * dt);
+// Slow follower (the "wave")
+this.smoothed += (this.energy - this.smoothed) * rate * dt;
+```
+
+## Future Ideas
+
+- **Microphone pitch detection**: Attempted autocorrelation-based detection for live input. Issues with octave errors and jitter. Consider `crepe.js` (neural network) for better accuracy.
+- **More physics simulations**: Particle systems, fluid dynamics, string vibration
+- **Shader-based effects**: Move more computation to GPU

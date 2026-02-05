@@ -1,5 +1,5 @@
-import type { ChordEvent, DrumHit, NoteEvent } from './midi-analyzer.ts';
-import type { MusicParams } from './effects/effect-interface.ts';
+import type { ChordEvent, DrumHit, NoteEvent, TrackInfo } from './midi-analyzer.ts';
+import type { MusicParams, ActiveVoice } from './effects/effect-interface.ts';
 
 // --- Julia set anchors by harmonic degree ---
 
@@ -161,10 +161,16 @@ let currentMelodyPC = -1;
 let currentMelodyMidi = -1;
 let currentMelodyVel = 0;
 let currentBassPC = -1;
+let currentBassMidi = -1;
 let currentBassVel = 0;
 let currentKey = 0;
 let currentKeyMode: 'major' | 'minor' = 'major';
 let currentBpm = 120;
+
+// Multi-voice tracking
+let currentActiveVoices: ActiveVoice[] = [];
+let lastActiveKeys = new Set<string>(); // "channel:midi" for onset detection
+let currentTracks: TrackInfo[] = [];
 
 export const musicMapper = {
   setTempo(bpm: number, timeSig?: [number, number]) {
@@ -340,7 +346,31 @@ export const musicMapper = {
     currentMelodyMidi = highestMidi;
     currentMelodyVel = highestVel;
     currentBassPC = lowestMidi < 999 ? lowestMidi % 12 : -1;
+    currentBassMidi = lowestMidi < 999 ? lowestMidi : -1;
     currentBassVel = lowestVel;
+
+    // --- Build active voices with onset detection ---
+    const newActiveKeys = new Set<string>();
+    const voices: ActiveVoice[] = [];
+    for (let i = notes.length - 1; i >= 0; i--) {
+      const n = notes[i];
+      if (n.time > currentTime) continue;
+      if (n.time < currentTime - 2.0) break;
+      if (n.isDrum) continue;
+      if (n.time + n.duration >= currentTime) {
+        const key = `${n.channel}:${n.midi}`;
+        newActiveKeys.add(key);
+        voices.push({
+          midi: n.midi,
+          pitchClass: n.midi % 12,
+          velocity: n.velocity,
+          track: n.channel,
+          onset: !lastActiveKeys.has(key),
+        });
+      }
+    }
+    lastActiveKeys = newActiveKeys;
+    currentActiveVoices = voices;
 
     return {
       cReal: currentCenter.real + offsetReal,
@@ -378,12 +408,19 @@ export const musicMapper = {
       melodyVelocity: currentMelodyVel,
       melodyOnset: frameMelodyOnset,
       bassPitchClass: currentBassPC,
+      bassMidiNote: currentBassMidi,
       bassVelocity: currentBassVel,
       kick: frameKick,
       snare: frameSnare,
       hihat: frameHihat,
       paletteIndex: currentChordRoot,
+      activeVoices: currentActiveVoices,
+      tracks: currentTracks,
     };
+  },
+
+  setTracks(tracks: TrackInfo[]) {
+    currentTracks = tracks;
   },
 
   getIdleMusicParams(dt: number): MusicParams {
@@ -407,11 +444,14 @@ export const musicMapper = {
       melodyVelocity: 0,
       melodyOnset: false,
       bassPitchClass: -1,
+      bassMidiNote: -1,
       bassVelocity: 0,
       kick: false,
       snare: false,
       hihat: false,
       paletteIndex: currentKey,
+      activeVoices: [],
+      tracks: currentTracks,
     };
   },
 
@@ -430,5 +470,7 @@ export const musicMapper = {
     rotationAngle = 0;
     rotationVelocity = 0;
     lastDrumIndex = -1;
+    currentActiveVoices = [];
+    lastActiveKeys = new Set();
   },
 };

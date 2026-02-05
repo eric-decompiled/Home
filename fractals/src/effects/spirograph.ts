@@ -12,6 +12,7 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
+import { gsap } from '../animation.ts';
 
 interface SpiroAnchor {
   R: number;   // outer radius
@@ -54,9 +55,6 @@ export class SpirographEffect implements VisualEffect {
   private currentR = 3;
   private currentr = 1;
   private currentd = 0.8;
-  private targetR = 3;
-  private targetr = 1;
-  private targetd = 0.8;
   private layers = 3;
   private fadeRate = 0.008;
   private rotation = 0;
@@ -69,6 +67,9 @@ export class SpirographEffect implements VisualEffect {
 
   // Beat pulse
   private pulseScale = 1.0;
+
+  // Chord tracking for GSAP transitions
+  private lastChordDegree = -1;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -103,23 +104,52 @@ export class SpirographEffect implements VisualEffect {
   }
 
   update(dt: number, music: MusicParams): void {
-    // Degree → anchor
+    // Degree → anchor (GSAP transition on chord change)
     const anchor = DEGREE_ANCHORS[music.chordDegree] ?? DEGREE_ANCHORS[0];
-    this.targetR = anchor.R;
-    this.targetr = anchor.r;
-    this.targetd = anchor.d;
     this.layers = anchor.layers;
 
-    // Smooth snap
-    const snap = 1 - Math.exp(-2.0 * dt);
-    this.currentR += (this.targetR - this.currentR) * snap;
-    this.currentr += (this.targetr - this.currentr) * snap;
-    this.currentd += (this.targetd - this.currentd) * snap;
+    // Trigger coordinated morph on chord change
+    if (music.chordDegree !== this.lastChordDegree) {
+      this.lastChordDegree = music.chordDegree;
 
-    // Beat → pulse
-    if (music.kick) this.pulseScale = 1.15;
-    if (music.snare) this.pulseScale = 1.08;
-    this.pulseScale += (1.0 - this.pulseScale) * (1 - Math.exp(-4.0 * dt));
+      // GSAP: Coordinated shape morph over ~1 beat with elastic feel
+      const beatDur = music.beatDuration || 0.5;
+      gsap.to(this, {
+        currentR: anchor.R,
+        currentr: anchor.r,
+        currentd: anchor.d,
+        duration: beatDur * 1.0,
+        ease: 'elastic.out(1, 0.7)',
+        overwrite: true,
+      });
+    }
+
+    // Beat → pulse with GSAP (beat 1 emphasis)
+    const beat1Boost = music.beatIndex === 0 ? 1.3 : 1.0;
+    if (music.kick) {
+      const beatDur = music.beatDuration || 0.5;
+      const pulseAmount = 1.0 + 0.15 * beat1Boost;
+      gsap.to(this, {
+        pulseScale: pulseAmount,
+        duration: beatDur * 0.1,
+        ease: 'power2.out',
+        onComplete: () => {
+          gsap.to(this, { pulseScale: 1.0, duration: beatDur * 0.4, ease: 'power2.out' });
+        }
+      });
+    }
+    if (music.snare && !music.kick) {
+      const beatDur = music.beatDuration || 0.5;
+      const pulseAmount = 1.0 + 0.08 * beat1Boost;
+      gsap.to(this, {
+        pulseScale: pulseAmount,
+        duration: beatDur * 0.1,
+        ease: 'power2.out',
+        onComplete: () => {
+          gsap.to(this, { pulseScale: 1.0, duration: beatDur * 0.3, ease: 'power2.out' });
+        }
+      });
+    }
 
     // Rotation
     if (music.kick) this.rotationVelocity += 0.1;

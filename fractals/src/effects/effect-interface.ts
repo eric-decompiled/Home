@@ -1,6 +1,16 @@
 // --- Visual Effect System Types ---
 
+import type { TrackInfo } from '../midi-analyzer.ts';
+
 export type RGB = [number, number, number];
+
+export interface ActiveVoice {
+  midi: number;        // MIDI note number
+  pitchClass: number;  // 0-11
+  velocity: number;    // 0-1
+  track: number;       // index into MusicParams.tracks
+  onset: boolean;      // true on frame this note began sounding
+}
 
 export interface MusicParams {
   currentTime: number;
@@ -24,6 +34,7 @@ export interface MusicParams {
   melodyVelocity: number;    // 0-1
   melodyOnset: boolean;      // true on frame of new note
   bassPitchClass: number;    // -1 if none
+  bassMidiNote: number;      // actual MIDI note number, -1 if none
   bassVelocity: number;      // 0-1
 
   // Drum onsets this frame
@@ -33,6 +44,10 @@ export interface MusicParams {
 
   // For color consistency across effects
   paletteIndex: number;
+
+  // Multi-voice instrument tracking
+  activeVoices: ActiveVoice[];
+  tracks: TrackInfo[];
 }
 
 export interface EffectConfig {

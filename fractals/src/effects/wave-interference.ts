@@ -3,6 +3,7 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
+import { samplePaletteColor } from './effect-utils.ts';
 
 const SIM_W = 320;
 const SIM_H = 240;
@@ -16,6 +17,8 @@ void main() {
 }`;
 
 // Up to 8 wave sources, packed as uniforms
+// Each source has its own color based on pitch class
+// Includes reflection off boundaries (ghost sources at mirrored positions)
 const FRAG_SRC = `
 precision highp float;
 varying vec2 v_uv;
@@ -25,46 +28,88 @@ uniform vec2 u_sources[8];
 uniform float u_amplitudes[8];
 uniform float u_frequencies[8];
 uniform float u_phases[8];
-uniform vec3 u_color1;
-uniform vec3 u_color2;
-uniform vec3 u_color3;
+uniform vec3 u_sourceColors[8];
+uniform vec3 u_bgColor;
 uniform float u_decay;
 uniform float u_baseWaveAmp;
 uniform float u_baseWaveFreq;
+uniform vec3 u_bassColor;
+uniform float u_reflection;
+
+// Calculate wave contribution from a source, including reflections
+float calcWave(vec2 pos, vec2 src, float amp, float freq, float phase, float t) {
+  float wave = 0.0;
+
+  // Direct wave
+  float dist = distance(pos, src);
+  wave += amp * sin(dist * freq - t * 6.0 + phase) * exp(-dist * u_decay);
+
+  // Reflected waves (ghost sources at mirrored positions)
+  // Reflection loses some energy
+  float reflAmp = amp * u_reflection;
+
+  // Left edge reflection (x = 0)
+  vec2 srcL = vec2(-src.x, src.y);
+  dist = distance(pos, srcL);
+  wave += reflAmp * sin(dist * freq - t * 6.0 + phase + 3.14159) * exp(-dist * u_decay);
+
+  // Right edge reflection (x = 1)
+  vec2 srcR = vec2(2.0 - src.x, src.y);
+  dist = distance(pos, srcR);
+  wave += reflAmp * sin(dist * freq - t * 6.0 + phase + 3.14159) * exp(-dist * u_decay);
+
+  // Top edge reflection (y = 0)
+  vec2 srcT = vec2(src.x, -src.y);
+  dist = distance(pos, srcT);
+  wave += reflAmp * sin(dist * freq - t * 6.0 + phase + 3.14159) * exp(-dist * u_decay);
+
+  // Bottom edge reflection (y = 1)
+  vec2 srcB = vec2(src.x, 2.0 - src.y);
+  dist = distance(pos, srcB);
+  wave += reflAmp * sin(dist * freq - t * 6.0 + phase + 3.14159) * exp(-dist * u_decay);
+
+  return wave;
+}
 
 void main() {
   vec2 pos = v_uv;
-  float sum = 0.0;
+  vec3 colorSum = vec3(0.0);
+  float totalWeight = 0.0;
 
-  // Point sources
+  // Point sources - each contributes its own color
   for (int i = 0; i < 8; i++) {
     if (i >= u_sourceCount) break;
-    float dist = distance(pos, u_sources[i]);
-    float wave = u_amplitudes[i] * sin(dist * u_frequencies[i] - u_time * 3.0 + u_phases[i]);
-    wave *= exp(-dist * u_decay);
-    sum += wave;
+
+    float wave = calcWave(pos, u_sources[i], u_amplitudes[i], u_frequencies[i], u_phases[i], u_time);
+
+    // Positive wave crests carry the source color
+    float weight = max(0.0, wave);
+    colorSum += u_sourceColors[i] * weight;
+    totalWeight += weight;
+
+    // Negative troughs add darker version
+    float trough = max(0.0, -wave) * 0.3;
+    colorSum += u_sourceColors[i] * 0.2 * trough;
+    totalWeight += trough;
   }
 
-  // Background bass wave
+  // Background bass wave (horizontal, no reflection needed)
   if (u_baseWaveAmp > 0.01) {
-    sum += u_baseWaveAmp * sin(pos.y * u_baseWaveFreq + u_time * 1.5);
+    float bassWave = u_baseWaveAmp * sin(pos.y * u_baseWaveFreq + u_time * 1.5);
+    float bassWeight = max(0.0, bassWave) * 0.5;
+    colorSum += u_bassColor * bassWeight;
+    totalWeight += bassWeight;
   }
 
-  // Normalize to 0-1 range
-  float t = sum * 0.5 + 0.5;
-  t = clamp(t, 0.0, 1.0);
-
-  // Color mapping
-  vec3 col;
-  if (t < 0.33) {
-    col = mix(vec3(0.0), u_color1, t * 3.0);
-  } else if (t < 0.66) {
-    col = mix(u_color1, u_color2, (t - 0.33) * 3.0);
-  } else {
-    col = mix(u_color2, u_color3, (t - 0.66) * 3.0);
+  // Mix with background
+  vec3 col = u_bgColor * 0.1;
+  if (totalWeight > 0.01) {
+    col = mix(col, colorSum / totalWeight, min(1.0, totalWeight * 2.0));
+    col *= 1.0 + totalWeight * 0.5; // brighten peaks
   }
 
-  float alpha = length(col) > 0.05 ? 1.0 : 0.0;
+  col = clamp(col, 0.0, 1.0);
+  float alpha = length(col) > 0.03 ? 1.0 : 0.0;
   gl_FragColor = vec4(col, alpha);
 }`;
 
@@ -75,6 +120,7 @@ interface WaveSource {
   frequency: number;
   phase: number;
   life: number;
+  color: [number, number, number]; // RGB 0-1
 }
 
 export class WaveInterferenceEffect implements VisualEffect {
@@ -98,15 +144,14 @@ export class WaveInterferenceEffect implements VisualEffect {
   private sources: WaveSource[] = [];
   private maxSources = 6;
   private time = 0;
-  private wavelength = 40;
+  private wavelength = 80;
   private decayRate = 3.0;
   private intensity = 1.0;
   private bassWaveAmp = 0;
   private bassWaveFreq = 10;
-
-  private color1: [number, number, number] = [0.0, 0.2, 0.5];
-  private color2: [number, number, number] = [0.1, 0.5, 0.8];
-  private color3: [number, number, number] = [0.8, 0.9, 1.0];
+  private bassColor: [number, number, number] = [0.2, 0.1, 0.4];
+  private bgColor: [number, number, number] = [0.02, 0.02, 0.08];
+  private reflection = 0.5; // How much waves reflect off boundaries (0-1)
 
   constructor() {
     this.outputCanvas = document.createElement('canvas');
@@ -161,8 +206,8 @@ export class WaveInterferenceEffect implements VisualEffect {
 
     // Cache uniforms
     gl.useProgram(this.program);
-    const uNames = ['u_time', 'u_sourceCount', 'u_decay', 'u_color1', 'u_color2', 'u_color3',
-                     'u_baseWaveAmp', 'u_baseWaveFreq'];
+    const uNames = ['u_time', 'u_sourceCount', 'u_decay', 'u_bgColor',
+                     'u_baseWaveAmp', 'u_baseWaveFreq', 'u_bassColor', 'u_reflection'];
     for (const name of uNames) {
       this.uniforms[name] = gl.getUniformLocation(this.program, name);
     }
@@ -171,6 +216,7 @@ export class WaveInterferenceEffect implements VisualEffect {
       this.uniforms[`u_amplitudes[${i}]`] = gl.getUniformLocation(this.program, `u_amplitudes[${i}]`);
       this.uniforms[`u_frequencies[${i}]`] = gl.getUniformLocation(this.program, `u_frequencies[${i}]`);
       this.uniforms[`u_phases[${i}]`] = gl.getUniformLocation(this.program, `u_phases[${i}]`);
+      this.uniforms[`u_sourceColors[${i}]`] = gl.getUniformLocation(this.program, `u_sourceColors[${i}]`);
     }
   }
 
@@ -184,12 +230,25 @@ export class WaveInterferenceEffect implements VisualEffect {
   update(dt: number, music: MusicParams): void {
     this.time += dt;
 
-    // Melody onsets → spawn wave source at clock position
+    // Melody onsets → spawn wave source at clock position with pitch color
+    // Root at 12 o'clock, chromatic scale clockwise
+    // Radius based on octave: low notes inner, high notes outer
     if (music.melodyOnset && music.melodyPitchClass >= 0) {
-      const angle = ((music.melodyPitchClass - music.key + 12) % 12 / 12) * Math.PI * 2;
-      const edgeR = 0.35;
-      const x = 0.5 + Math.sin(angle) * edgeR;
-      const y = 0.5 - Math.cos(angle) * edgeR;
+      const fromRoot = (music.melodyPitchClass - music.key + 12) % 12;
+      // π/2 = top, going clockwise (decreasing angle)
+      const angle = Math.PI / 2 - (fromRoot / 12) * Math.PI * 2;
+
+      // Radius from MIDI note: C2(36) to C7(96) → 0.08 to 0.28
+      const midiNote = music.melodyMidiNote ?? 60;
+      const t = Math.max(0, Math.min(1, (midiNote - 36) / 60)); // normalize to 0-1
+      const edgeR = 0.08 + t * 0.20; // inner to outer based on pitch height
+
+      const x = 0.5 + Math.cos(angle) * edgeR;
+      const y = 0.5 + Math.sin(angle) * edgeR;
+
+      // Get color from pitch class
+      const rgb = samplePaletteColor(music.melodyPitchClass, 0.8);
+      const color: [number, number, number] = [rgb[0] / 255, rgb[1] / 255, rgb[2] / 255];
 
       this.sources.push({
         x, y,
@@ -197,6 +256,7 @@ export class WaveInterferenceEffect implements VisualEffect {
         frequency: this.wavelength + music.melodyPitchClass * 2,
         phase: this.time * 3,
         life: 3.0,
+        color,
       });
 
       // Limit sources
@@ -212,13 +272,15 @@ export class WaveInterferenceEffect implements VisualEffect {
       }
     }
 
-    // Tension → wave frequency
-    this.wavelength = 30 + music.tension * 30;
+    // Tension → wave frequency (higher = tighter ripples)
+    this.wavelength = 80 + music.tension * 40;
 
-    // Bass → background wave
+    // Bass → background wave with bass color
     if (music.bassPitchClass >= 0) {
       this.bassWaveAmp = music.bassVelocity * 0.4;
       this.bassWaveFreq = 8 + music.bassPitchClass;
+      const bassRgb = samplePaletteColor(music.bassPitchClass, 0.6);
+      this.bassColor = [bassRgb[0] / 255, bassRgb[1] / 255, bassRgb[2] / 255];
     } else {
       this.bassWaveAmp *= 0.95;
     }
@@ -230,15 +292,11 @@ export class WaveInterferenceEffect implements VisualEffect {
     }
     this.sources = this.sources.filter(s => s.life > 0 && s.amplitude > 0.01);
 
-    // Color from palette
+    // Background color from key
     if (music.paletteIndex >= 0 && music.paletteIndex < palettes.length) {
       const p = palettes[music.paletteIndex];
-      const c1 = p.stops[1]?.color ?? [0, 50, 130];
-      const c2 = p.stops[3]?.color ?? [30, 130, 200];
-      const c3 = p.stops[4]?.color ?? [200, 230, 255];
-      this.color1 = [c1[0] / 255, c1[1] / 255, c1[2] / 255];
-      this.color2 = [c2[0] / 255, c2[1] / 255, c2[2] / 255];
-      this.color3 = [c3[0] / 255, c3[1] / 255, c3[2] / 255];
+      const bg = p.stops[0]?.color ?? [5, 5, 20];
+      this.bgColor = [bg[0] / 255, bg[1] / 255, bg[2] / 255];
     }
   }
 
@@ -258,11 +316,11 @@ export class WaveInterferenceEffect implements VisualEffect {
     gl.uniform1f(this.uniforms.u_time!, this.time);
     gl.uniform1i(this.uniforms.u_sourceCount!, this.sources.length);
     gl.uniform1f(this.uniforms.u_decay!, this.decayRate);
-    gl.uniform3f(this.uniforms.u_color1!, ...this.color1);
-    gl.uniform3f(this.uniforms.u_color2!, ...this.color2);
-    gl.uniform3f(this.uniforms.u_color3!, ...this.color3);
+    gl.uniform3f(this.uniforms.u_bgColor!, ...this.bgColor);
     gl.uniform1f(this.uniforms.u_baseWaveAmp!, this.bassWaveAmp);
     gl.uniform1f(this.uniforms.u_baseWaveFreq!, this.bassWaveFreq);
+    gl.uniform3f(this.uniforms.u_bassColor!, ...this.bassColor);
+    gl.uniform1f(this.uniforms.u_reflection!, this.reflection);
 
     for (let i = 0; i < 8; i++) {
       const s = this.sources[i];
@@ -271,11 +329,13 @@ export class WaveInterferenceEffect implements VisualEffect {
         gl.uniform1f(this.uniforms[`u_amplitudes[${i}]`]!, s.amplitude);
         gl.uniform1f(this.uniforms[`u_frequencies[${i}]`]!, s.frequency);
         gl.uniform1f(this.uniforms[`u_phases[${i}]`]!, s.phase);
+        gl.uniform3f(this.uniforms[`u_sourceColors[${i}]`]!, ...s.color);
       } else {
         gl.uniform2f(this.uniforms[`u_sources[${i}]`]!, 0, 0);
         gl.uniform1f(this.uniforms[`u_amplitudes[${i}]`]!, 0);
         gl.uniform1f(this.uniforms[`u_frequencies[${i}]`]!, 0);
         gl.uniform1f(this.uniforms[`u_phases[${i}]`]!, 0);
+        gl.uniform3f(this.uniforms[`u_sourceColors[${i}]`]!, 0, 0, 0);
       }
     }
 
@@ -309,6 +369,7 @@ export class WaveInterferenceEffect implements VisualEffect {
       { key: 'wavelength', label: 'Wavelength', type: 'range', value: this.wavelength, min: 10, max: 80, step: 5 },
       { key: 'decayRate', label: 'Decay', type: 'range', value: this.decayRate, min: 1, max: 10, step: 0.5 },
       { key: 'intensity', label: 'Intensity', type: 'range', value: this.intensity, min: 0.2, max: 2, step: 0.1 },
+      { key: 'reflection', label: 'Reflection', type: 'range', value: this.reflection, min: 0, max: 1, step: 0.1 },
     ];
   }
 
@@ -325,6 +386,9 @@ export class WaveInterferenceEffect implements VisualEffect {
         break;
       case 'intensity':
         this.intensity = value as number;
+        break;
+      case 'reflection':
+        this.reflection = value as number;
         break;
     }
   }

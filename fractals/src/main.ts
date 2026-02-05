@@ -1,4 +1,5 @@
 import './style.css';
+import { gsap } from './animation.ts';
 import { fractalEngine } from './fractal-engine.ts';
 import { analyzeMidiBuffer, type MusicTimeline } from './midi-analyzer.ts';
 import { audioPlayer } from './audio-player.ts';
@@ -16,6 +17,9 @@ import { MelodyAuroraEffect } from './effects/melody-aurora.ts';
 import { MelodyWebEffect } from './effects/melody-web.ts';
 import { ChordWebEffect } from './effects/chord-web.ts';
 import { MelodyClockEffect } from './effects/melody-clock.ts';
+import { BassWebEffect } from './effects/bass-web.ts';
+import { BassClockEffect } from './effects/bass-clock.ts';
+import { NoteSpiralEffect } from './effects/note-spiral.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
 
 // --- Song list ---
@@ -29,6 +33,7 @@ const songs: SongEntry[] = [
   { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },
   { name: 'A Minor Scale Test', file: 'a-minor-test.mid' },
   { name: 'A Major Scale Test', file: 'a-major-test.mid' },
+  { name: 'Chromatic Test', file: 'chromatic-test.mid' },
   { name: 'Prelude (Final Fantasy)', file: 'ff1-prelude.mid' },
   { name: "Schala's Theme (Chrono Trigger)", file: 'schala.mid' },
   { name: "You're Not Alone (Final Fantasy IX)", file: 'ff9-youre-not-alone.mid' },
@@ -39,6 +44,8 @@ const songs: SongEntry[] = [
   { name: 'Stab the Sword of Justice (Star Ocean 2)', file: 'so2-battle.mid' },
   { name: 'Incarnation of the Devil (Star Ocean 2)', file: 'so2-incarnation.mid' },
   { name: 'Zeik Tuvai Battle (Wild Arms)', file: 'wa1-zeik-tuvai.mid' },
+  { name: "Hero's Theme (Final Fantasy Tactics)", file: 'fft-heros-theme.mid' },
+  { name: 'Decisive Battle (Final Fantasy Tactics)', file: 'fft-decisive-battle.mid' },
 ];
 
 // --- State ---
@@ -50,6 +57,10 @@ let displayWidth = 800;
 let displayHeight = 600;
 let isPlaying = false;
 let idlePhase = 0;
+// GSAP-driven drum bounce
+const drumBounce = { zoom: 0 };
+let drumBounceEnabled = true;
+let drumBounceIntensity = 1.0;
 
 // --- Adaptive fidelity ---
 const MAX_FIDELITY = 0.45;
@@ -78,6 +89,9 @@ const melodyAuroraEffect = new MelodyAuroraEffect();
 const melodyWebEffect = new MelodyWebEffect();
 const chordWebEffect = new ChordWebEffect();
 const melodyClockEffect = new MelodyClockEffect();
+const bassWebEffect = new BassWebEffect();
+const bassClockEffect = new BassClockEffect();
+const noteSpiralEffect = new NoteSpiralEffect();
 
 // --- Layer slot definitions (mutually exclusive within each slot) ---
 
@@ -95,8 +109,8 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Foreground',
-    effects: [fractalEffect, flowFieldEffect, spirographEffect, attractorsEffect],
-    activeId: 'fractal',
+    effects: [fractalEffect, flowFieldEffect, spirographEffect, attractorsEffect, noteSpiralEffect],
+    activeId: 'note-spiral',
   },
   {
     name: 'Overlay',
@@ -106,6 +120,11 @@ const layerSlots: LayerSlot[] = [
   {
     name: 'Melody',
     effects: [melodyAuroraEffect, melodyWebEffect, chordWebEffect, melodyClockEffect],
+    activeId: null,
+  },
+  {
+    name: 'Bass',
+    effects: [bassWebEffect, bassClockEffect],
     activeId: null,
   },
 ];
@@ -133,7 +152,7 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = `
   <div class="container">
     <header class="top-bar">
-      <h1>Fractal Jukebox</h1>
+      <h1>Fractured Jukebox</h1>
       <div class="song-picker-wrap">
         <select id="song-picker">
           <option value="">-- Select a Song --</option>
@@ -184,6 +203,19 @@ const fpsDisplay = document.getElementById('fps-display')!;
 const layersToggle = document.getElementById('layers-toggle') as HTMLButtonElement;
 const layerPanel = document.getElementById('layer-panel')!;
 const layerList = document.getElementById('layer-list')!;
+
+// --- Mouse tracking for interactive effects ---
+
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+  const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+  flowFieldEffect.setMouse(x, y);
+});
+
+canvas.addEventListener('mouseleave', () => {
+  flowFieldEffect.setMouse(-1, -1);
+});
 
 // --- Layers panel toggle ---
 
@@ -320,6 +352,65 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
 
 buildLayerPanel();
 
+// --- Drum bounce controls ---
+{
+  const slotDiv = document.createElement('div');
+  slotDiv.className = 'layer-slot';
+
+  // Header with toggle
+  const header = document.createElement('div');
+  header.className = 'slot-header';
+  const slotLabel = document.createElement('span');
+  slotLabel.className = 'slot-label';
+  slotLabel.textContent = 'Drum Bounce';
+  const toggle = document.createElement('input');
+  toggle.type = 'checkbox';
+  toggle.checked = drumBounceEnabled;
+  header.appendChild(slotLabel);
+  header.appendChild(toggle);
+  slotDiv.appendChild(header);
+
+  // Config section for intensity slider
+  const configDiv = document.createElement('div');
+  configDiv.className = 'slot-config';
+
+  // Intensity slider
+  const intensityRow = document.createElement('div');
+  intensityRow.className = 'config-row';
+  const intensityLabel = document.createElement('label');
+  intensityLabel.textContent = 'Intensity';
+  const intensitySlider = document.createElement('input');
+  intensitySlider.type = 'range';
+  intensitySlider.min = '0.2';
+  intensitySlider.max = '3.0';
+  intensitySlider.step = '0.1';
+  intensitySlider.value = String(drumBounceIntensity);
+  const intensityVal = document.createElement('span');
+  intensityVal.className = 'config-value';
+  intensityVal.textContent = String(drumBounceIntensity);
+  intensitySlider.addEventListener('input', () => {
+    drumBounceIntensity = parseFloat(intensitySlider.value);
+    intensityVal.textContent = intensitySlider.value;
+  });
+  intensityRow.appendChild(intensityLabel);
+  intensityRow.appendChild(intensitySlider);
+  intensityRow.appendChild(intensityVal);
+  configDiv.appendChild(intensityRow);
+
+  slotDiv.appendChild(configDiv);
+
+  toggle.addEventListener('change', () => {
+    drumBounceEnabled = toggle.checked;
+    if (!drumBounceEnabled) {
+      gsap.killTweensOf(drumBounce);
+      drumBounce.zoom = 0;
+    }
+    configDiv.style.display = drumBounceEnabled ? '' : 'none';
+  });
+
+  layerList.appendChild(slotDiv);
+}
+
 // --- Canvas sizing ---
 
 function resizeCanvas(): void {
@@ -363,6 +454,7 @@ async function loadSong(index: number) {
   isPlaying = false;
   playBtn.textContent = '\u25B6';
   musicMapper.reset();
+  compositor.resetAll();
 
   keyDisplay.textContent = 'Key: ...';
   bpmDisplay.textContent = 'BPM: ...';
@@ -390,11 +482,11 @@ async function loadSong(index: number) {
 
   musicMapper.setTempo(timeline.tempo, timeline.timeSignature);
   musicMapper.setKey(timeline.key, timeline.keyMode);
+  musicMapper.setTracks(timeline.tracks);
   audioPlayer.loadMidi(midiBuffer);
 
   const modeLabel = timeline.keyMode === 'minor' ? 'm' : '';
   keyDisplay.textContent = `Key: ${noteNames[timeline.key]}${modeLabel}`;
-  fractalEngine.setKeyPalette(timeline.key, timeline.keyMode);
   bpmDisplay.textContent = `BPM: ${Math.round(timeline.tempo)}`;
   chordDisplay.textContent = `${timeline.timeSignature[0]}/${timeline.timeSignature[1]}`;
 
@@ -531,16 +623,67 @@ function loop(time: number): void {
       // Get fractal params from music (always computed — fractal effect reads them)
       const params = musicMapper.update(dt, currentTime, timeline.chords, timeline.drums, timeline.notes);
 
+      // Generic music params for all other effects
+      const musicParams = musicMapper.getMusicParams(dt, currentTime);
+
+      // GSAP drum bounce - each drum type has distinct character
+      // Beat 1 emphasis: stronger bounce on downbeat
+      const beat1Boost = musicParams.beatIndex === 0 ? 1.3 : 1.0;
+      if (drumBounceEnabled) {
+        // Kick: heavy, deep elastic bounce
+        if (musicParams.kick) {
+          gsap.to(drumBounce, {
+            zoom: drumBounce.zoom + 0.08 * drumBounceIntensity * beat1Boost,
+            duration: 0.08,
+            ease: 'power2.out',
+            onComplete: () => {
+              gsap.to(drumBounce, {
+                zoom: 0,
+                duration: 0.4,
+                ease: 'elastic.out(1, 0.4)',
+              });
+            }
+          });
+        }
+        // Snare: sharp snap with quick return
+        if (musicParams.snare) {
+          gsap.to(drumBounce, {
+            zoom: drumBounce.zoom + 0.05 * drumBounceIntensity * beat1Boost,
+            duration: 0.05,
+            ease: 'power3.out',
+            onComplete: () => {
+              gsap.to(drumBounce, {
+                zoom: 0,
+                duration: 0.25,
+                ease: 'back.out(2)',
+              });
+            }
+          });
+        }
+        // Hihat: light tap
+        if (musicParams.hihat) {
+          gsap.to(drumBounce, {
+            zoom: drumBounce.zoom + 0.015 * drumBounceIntensity * beat1Boost,
+            duration: 0.03,
+            ease: 'power2.out',
+            onComplete: () => {
+              gsap.to(drumBounce, {
+                zoom: 0,
+                duration: 0.12,
+                ease: 'power2.out',
+              });
+            }
+          });
+        }
+      }
+
       // Set fractal-specific params
       fractalEffect.setFractalParams(
-        params.cReal, params.cImag, 1.0,
+        params.cReal, params.cImag, 1.0 + drumBounce.zoom,
         params.baseIter, renderFidelity,
         params.fractalType, params.phoenixP,
         params.rotation, params.paletteIndex
       );
-
-      // Generic music params for all other effects
-      const musicParams = musicMapper.getMusicParams(dt, currentTime);
       compositor.update(dt, musicParams);
 
       dirty = true;
@@ -561,6 +704,7 @@ function loop(time: number): void {
     );
 
     const idleMusic = musicMapper.getIdleMusicParams(dt);
+
     compositor.update(dt, idleMusic);
 
     dirty = true;
@@ -576,6 +720,6 @@ function loop(time: number): void {
 
 requestAnimationFrame(loop);
 
-// Auto-load default song
+// Auto-load default song (To Zanarkand)
 songPicker.value = '0';
 loadSong(0);

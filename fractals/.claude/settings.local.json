@@ -55,7 +55,19 @@
       "WebFetch(domain:decompiled.dev)",
       "Bash(ls:*)",
       "Bash(file:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(npx tsx:*)",
+      "Bash(for f in /Users/eric/dsp/fractals/public/fft-*.mid)",
+      "Bash(while read:*)",
+      "Bash(wc:*)",
+      "Bash(for method in getFractalType getCReal getCImag getZoom getMaxIterations getFidelity getPaletteIndex)",
+      "Bash(do)",
+      "Bash(echo:*)",
+      "Bash(__NEW_LINE_ac42b07374db8c40__ echo -e \"\\\\n=== Linear interpolation with dt ===\")",
+      "Bash(__NEW_LINE_9d1b856882417de2__ echo -e \"\\\\n=== Blend/fade variables ===\")",
+      "WebFetch(domain:thefinalfantasy.net)",
+      "WebFetch(domain:gamefaqs.gamespot.com)",
+      "WebFetch(domain:modland.com)"
     ]
   }
 }

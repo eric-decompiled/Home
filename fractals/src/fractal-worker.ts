@@ -38,7 +38,7 @@ ctx.onmessage = (e: MessageEvent) => {
   // Rotation around view center
   const cosA = Math.cos(rot);
   const sinA = Math.sin(rot);
-  const rcx = cx;  // rotation pivot in fractal space
+  const rcx = cx;
   const rcy = cy;
 
   const invMaxIter = 1 / maxIter;
@@ -136,10 +136,10 @@ ctx.onmessage = (e: MessageEvent) => {
       }
 
       if (iteration === maxIter) {
-        // Interior: transparent so background layers show through
+        // Interior of the set - transparent so background layers show through
         data32[row * w + px] = 0x00000000;
       } else {
-        // Traditional smooth coloring: normalized escape time → palette
+        // Smooth coloring: normalized escape time → palette LUT
         const logMag = Math.log(x2 + y2);
         const smoothedRaw =
           logMag > 0
@@ -160,8 +160,7 @@ ctx.onmessage = (e: MessageEvent) => {
         const oG = g > 0 ? (g < 255 ? g | 0 : 255) : 0;
         const oB = b > 0 ? (b < 255 ? b | 0 : 255) : 0;
 
-        // Alpha from pixel brightness: floor cuts very dark pixels,
-        // ramp lets mid-tone body stay mostly opaque.
+        // Alpha from pixel brightness
         const brightness = oR > oG ? (oR > oB ? oR : oB) : (oG > oB ? oG : oB);
         let oA = brightness < 15 ? 0 : (brightness - 15) * 4;
         if (oA > 255) oA = 255;

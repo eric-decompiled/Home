@@ -87,7 +87,11 @@ void main() {
   float glow = lineVal * (0.7 + 0.3 * sin(u_time * 4.0)) * u_amplitude;
   col += u_color3 * glow * 0.2;
 
-  gl_FragColor = vec4(col, plateMask > 0.01 ? 1.0 : 0.0);
+  // Alpha based on brightness — lines opaque, dark areas translucent
+  float brightness = max(col.r, max(col.g, col.b));
+  float patternAlpha = smoothstep(0.0, 0.3, brightness) * plateMask;
+
+  gl_FragColor = vec4(col, patternAlpha);
 }`;
 
 // Degree anchors: curated (m, n, sign) combos for each harmonic function

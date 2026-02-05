@@ -8,6 +8,7 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES, semitoneOffset } from './effect-utils.ts';
+import { gsap } from '../animation.ts';
 
 interface ArcSegment {
   angle: number;
@@ -83,6 +84,7 @@ export class MelodyClockEffect implements VisualEffect {
     if (music.snare) this.energy += 0.2;
     this.energy *= Math.exp(-2.5 * dt);
 
+    // Follow each melody note - light and quick
     if (music.melodyOnset && music.melodyPitchClass >= 0 && music.melodyVelocity > 0) {
       const pc = music.melodyPitchClass;
       const midiNote = music.melodyMidiNote;
@@ -92,27 +94,22 @@ export class MelodyClockEffect implements VisualEffect {
       // Use actual MIDI note to determine direction:
       // melody ascending → clockwise, melody descending → counter-clockwise
       let diff = newAngle - this.handAngle;
-      // Normalize to [-2PI, 2PI]
       while (diff > Math.PI * 2) diff -= Math.PI * 2;
       while (diff < -Math.PI * 2) diff += Math.PI * 2;
 
       if (this.lastMidiNote >= 0 && midiNote >= 0) {
         const ascending = midiNote >= this.lastMidiNote;
         if (ascending) {
-          // Force clockwise (positive angle direction)
           if (diff < 0) diff += Math.PI * 2;
         } else {
-          // Force counter-clockwise (negative angle direction)
           if (diff > 0) diff -= Math.PI * 2;
         }
       } else {
-        // No previous note — use shortest path
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
       }
 
       this.targetAngle = this.handAngle + diff;
-      this.handBrightness = 1.0;
       this.lastPitchClass = pc;
       this.lastMidiNote = midiNote;
 
@@ -120,11 +117,22 @@ export class MelodyClockEffect implements VisualEffect {
       this.colR = c[0];
       this.colG = c[1];
       this.colB = c[2];
-    }
 
-    const snap = 1 - Math.exp(-10.0 * dt);
-    this.handAngle += (this.targetAngle - this.handAngle) * snap;
-    this.handBrightness *= Math.exp(-3.0 * dt);
+      // GSAP: Smooth motion with some heft
+      const beatDur = music.beatDuration || 0.5;
+      gsap.to(this, {
+        handAngle: this.targetAngle,
+        duration: beatDur * 0.5,
+        ease: 'power2.out',
+        overwrite: true,
+      });
+
+      // GSAP: Brightness pulse with longer decay
+      gsap.fromTo(this,
+        { handBrightness: 1.0 },
+        { handBrightness: 0, duration: beatDur * 0.8, ease: 'power2.out', overwrite: 'auto' }
+      );
+    }
 
     // Sample arc trail
     const angleDiff = Math.abs(this.handAngle - this.lastTrailAngle);

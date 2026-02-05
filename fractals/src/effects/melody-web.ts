@@ -4,7 +4,7 @@
 // recently-played notes, building a web of melodic relationships.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES, chordTriad, semitoneOffset } from './effect-utils.ts';
+import { samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, chordTriad, semitoneOffset } from './effect-utils.ts';
 
 interface NodeState {
   brightness: number;
@@ -53,7 +53,6 @@ export class MelodyWebEffect implements VisualEffect {
   private webIntensity = 1.0;
 
   private diatonicOffsets: Set<number> = MAJOR_OFFSETS;
-  private keyMode: 'major' | 'minor' = 'major';
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -102,7 +101,6 @@ export class MelodyWebEffect implements VisualEffect {
     this.time += dt;
     this.breathPhase += dt * 0.8;
     this.key = music.key;
-    this.keyMode = music.keyMode;
     this.diatonicOffsets = music.keyMode === 'minor' ? MINOR_OFFSETS : MAJOR_OFFSETS;
     this.chordNotes = chordTriad(music.chordRoot, music.chordQuality);
 
@@ -272,16 +270,13 @@ export class MelodyWebEffect implements VisualEffect {
       }
     }
 
-    // Draw nodes as Roman numerals (diatonic) or small dots (chromatic)
-    const degreeMap = this.keyMode === 'minor' ? MINOR_DEGREES : MAJOR_DEGREES;
-
+    // Draw nodes as dots
     for (let i = 0; i < 12; i++) {
       const node = this.nodes[i];
       const pos = positions[i];
       const semitones = semitoneOffset(i, this.key);
       const inKey = this.diatonicOffsets.has(semitones);
       const inChord = this.chordNotes.has(i);
-      const numeral = degreeMap[semitones];
 
       // Chord tones get a brightness boost
       const chordBoost = inChord ? 0.25 : 0;
@@ -303,33 +298,13 @@ export class MelodyWebEffect implements VisualEffect {
       const cg = Math.min(255, node.g + Math.round((255 - node.g) * wt * 0.6));
       const cb = Math.min(255, node.b + Math.round((255 - node.b) * wt * 0.6));
 
-      if (numeral) {
-        // Roman numeral for diatonic degrees
-        const sizeBoost = inChord ? 3 : 0;
-        const fontSize = Math.max(11, Math.round(Math.min(w, h) * 0.025 + node.brightness * 4 + sizeBoost));
-        ctx.save();
-        ctx.font = `${(inChord || node.brightness > 0.3) ? 'bold ' : ''}${fontSize}px serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        if (node.brightness > 0.05 || inChord) {
-          const shadowA = Math.max(node.brightness * 0.6, inChord ? 0.3 : 0);
-          ctx.shadowColor = `rgba(${node.r},${node.g},${node.b},${shadowA.toFixed(3)})`;
-          ctx.shadowBlur = inChord ? 14 : 10;
-        }
-
-        ctx.fillStyle = `rgba(${cr},${cg},${cb},${Math.min(1, alpha).toFixed(3)})`;
-        ctx.fillText(numeral, pos.x, pos.y);
-        ctx.shadowBlur = 0;
-        ctx.restore();
-      } else {
-        // Small dot for chromatic notes
-        const dotR = 2 + node.brightness * 3 + (inChord ? 2 : 0);
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, dotR, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${cr},${cg},${cb},${Math.min(1, alpha).toFixed(3)})`;
-        ctx.fill();
-      }
+      // Dot — larger for diatonic, smaller for chromatic
+      const baseR = inKey ? 4 : 2;
+      const dotR = baseR + node.brightness * 4 + (inChord ? 3 : 0);
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, dotR, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},${Math.min(1, alpha).toFixed(3)})`;
+      ctx.fill()
 
       // Pulse ring on recent hit
       const timeSinceHit = this.time - node.lastHitTime;

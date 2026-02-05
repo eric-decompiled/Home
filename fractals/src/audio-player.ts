@@ -2,6 +2,22 @@ import { WorkletSynthesizer, Sequencer } from 'spessasynth_lib';
 
 // --- SpessaSynth-based MIDI Player ---
 
+/** Unwrap RIFF-MIDI container if present, returning raw SMF data */
+function unwrapRiff(buffer: ArrayBuffer): ArrayBuffer {
+  const view = new DataView(buffer);
+  if (view.byteLength > 20 &&
+      view.getUint8(0) === 0x52 && view.getUint8(1) === 0x49 &&
+      view.getUint8(2) === 0x46 && view.getUint8(3) === 0x46) {
+    for (let i = 8; i < view.byteLength - 4; i++) {
+      if (view.getUint8(i) === 0x4D && view.getUint8(i + 1) === 0x54 &&
+          view.getUint8(i + 2) === 0x68 && view.getUint8(i + 3) === 0x64) {
+        return buffer.slice(i);
+      }
+    }
+  }
+  return buffer;
+}
+
 let audioCtx: AudioContext | null = null;
 let synth: WorkletSynthesizer | null = null;
 let sequencer: Sequencer | null = null;
@@ -33,6 +49,7 @@ function ensureInit(): Promise<void> {
 export const audioPlayer = {
   /** Store the MIDI buffer. Audio init is deferred to play(). */
   loadMidi(midiBuffer: ArrayBuffer) {
+    midiBuffer = unwrapRiff(midiBuffer);
     pendingMidiBuffer = midiBuffer;
     // If synth is already up, load immediately
     if (synth) {

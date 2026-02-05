@@ -27,6 +27,16 @@ export interface NoteEvent {
   isDrum: boolean;
 }
 
+export interface TrackInfo {
+  index: number;           // track index (matches NoteEvent.channel)
+  name: string;            // track name from MIDI
+  instrumentName: string;  // GM instrument name
+  instrumentFamily: string; // "piano", "strings", "brass", etc.
+  instrumentNumber: number; // GM program 0-127
+  isDrum: boolean;
+  midiChannel: number;     // actual MIDI channel (0-15)
+}
+
 export interface MusicTimeline {
   tempo: number;
   timeSignature: [number, number];
@@ -36,6 +46,7 @@ export interface MusicTimeline {
   chords: ChordEvent[];
   drums: DrumHit[];
   notes: NoteEvent[];
+  tracks: TrackInfo[];
 }
 
 // --- Chord detection ---
@@ -111,11 +122,14 @@ function detectChordWeighted(
 // --- Drum classification ---
 
 function classifyDrum(noteNumber: number): 'kick' | 'snare' | 'hihat' | null {
-  // General MIDI drum map
+  // General MIDI drum map (note numbers on channel 10 / 0-indexed channel 9)
   if (noteNumber === 35 || noteNumber === 36) return 'kick';
   if (noteNumber === 38 || noteNumber === 40 || noteNumber === 37) return 'snare';
+  if (noteNumber >= 41 && noteNumber <= 48) return 'kick';  // toms → kick (low percussive hit)
   if (noteNumber >= 42 && noteNumber <= 46) return 'hihat';
-  if (noteNumber === 49 || noteNumber === 51 || noteNumber === 57) return 'hihat'; // cymbals as hihat
+  if (noteNumber === 49 || noteNumber === 51 || noteNumber === 52 || noteNumber === 55 || noteNumber === 57 || noteNumber === 59) return 'hihat'; // cymbals/rides
+  if (noteNumber === 39) return 'snare'; // hand clap
+  if (noteNumber === 54 || noteNumber === 56) return 'hihat'; // tambourine, cowbell
   return null;
 }
 
@@ -158,8 +172,26 @@ function detectKey(pitchHistogram: number[]): { key: number; mode: 'major' | 'mi
 
 // --- Main analyzer ---
 
+/** Unwrap RIFF-MIDI container if present, returning raw SMF data */
+function unwrapRiff(buffer: ArrayBuffer): ArrayBuffer {
+  const view = new DataView(buffer);
+  // Check for 'RIFF' header
+  if (view.byteLength > 20 &&
+      view.getUint8(0) === 0x52 && view.getUint8(1) === 0x49 &&
+      view.getUint8(2) === 0x46 && view.getUint8(3) === 0x46) {
+    // Find 'MThd' inside the RIFF container (typically at offset 20)
+    for (let i = 8; i < view.byteLength - 4; i++) {
+      if (view.getUint8(i) === 0x4D && view.getUint8(i + 1) === 0x54 &&
+          view.getUint8(i + 2) === 0x68 && view.getUint8(i + 3) === 0x64) {
+        return buffer.slice(i);
+      }
+    }
+  }
+  return buffer;
+}
+
 export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
-  const midi = new Midi(buffer);
+  const midi = new Midi(unwrapRiff(buffer));
 
   const tempo = midi.header.tempos.length > 0 ? midi.header.tempos[0].bpm : 120;
   const ts = midi.header.timeSignatures.length > 0
@@ -172,21 +204,35 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
   const beatDuration = 60 / tempo;
   const notes: NoteEvent[] = [];
   const drums: DrumHit[] = [];
+  const tracks: TrackInfo[] = [];
   const pitchHistogram = new Array(12).fill(0);
 
   let totalDuration = 0;
 
   for (let trackIdx = 0; trackIdx < midi.tracks.length; trackIdx++) {
     const track = midi.tracks[trackIdx];
-    // Check both track-level and per-note channel for drum detection
-    const trackIsDrum = track.channel === 9;
+    // Detect drum tracks: channel 9 (GM), instrument name, or track name
+    const instrName = (track.instrument?.name ?? '').toLowerCase();
+    const trackName = (track.name ?? '').toLowerCase();
+    const drumKeywords = ['drum', 'kit', 'percussion', 'tom', 'snare', 'kick', 'cymbal', 'standard kit'];
+    const nameIsDrum = drumKeywords.some(kw => instrName.includes(kw) || trackName.includes(kw));
+    const trackIsDrum = track.channel === 9 || nameIsDrum;
+
+    tracks.push({
+      index: trackIdx,
+      name: track.name ?? '',
+      instrumentName: track.instrument?.name ?? '',
+      instrumentFamily: track.instrument?.family ?? '',
+      instrumentNumber: track.instrument?.number ?? 0,
+      isDrum: trackIsDrum,
+      midiChannel: track.channel ?? 0,
+    });
 
     for (const note of track.notes) {
       const endTime = note.time + note.duration;
       if (endTime > totalDuration) totalDuration = endTime;
 
-      // @tonejs/midi notes have a channel property (0-indexed)
-      const noteIsDrum = trackIsDrum || (note as unknown as { channel: number }).channel === 9;
+      const noteIsDrum = trackIsDrum;
 
       if (noteIsDrum) {
         const drumType = classifyDrum(note.midi);
@@ -298,5 +344,6 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
     chords,
     drums,
     notes,
+    tracks,
   };
 }

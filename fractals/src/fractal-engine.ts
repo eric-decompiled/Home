@@ -1,5 +1,7 @@
 // --- Color Palettes ---
 
+import { gsap } from './animation.ts';
+
 type RGB = [number, number, number];
 interface PaletteDef {
   name: string;
@@ -149,8 +151,8 @@ const LUT_SIZE = 2048;
 const colorLUT = new Uint8Array(LUT_SIZE * 3);
 const lutA = new Uint8Array(LUT_SIZE * 3);
 const lutB = new Uint8Array(LUT_SIZE * 3);
-let lutBlend = 1.0;
-const LUT_FADE_SPEED = 2.5;
+const lutBlendState = { value: 1.0 };
+const LUT_FADE_DURATION = 0.4; // seconds for palette crossfade
 
 function buildLUTInto(out: Uint8Array, palette: PaletteDef): void {
   const stops = palette.stops;
@@ -178,9 +180,9 @@ function buildColorLUT(palette: PaletteDef): void {
 }
 
 function blendLUTs(): void {
-  if (lutBlend >= 1.0) return;
-  const a = 1 - lutBlend;
-  const b = lutBlend;
+  if (lutBlendState.value >= 1.0) return;
+  const a = 1 - lutBlendState.value;
+  const b = lutBlendState.value;
   for (let i = 0; i < LUT_SIZE * 3; i++) {
     colorLUT[i] = Math.round(lutA[i] * a + lutB[i] * b);
   }
@@ -204,8 +206,6 @@ let currentPaletteIndex = 4;
 let fractalType = 0;
 let phoenixP = -0.5;
 let rotation = 0;
-
-
 
 buildColorLUT(palettes[currentPaletteIndex]);
 lutA.set(colorLUT);
@@ -301,23 +301,22 @@ export const fractalEngine = {
     if (index !== currentPaletteIndex && index >= 0 && index < palettes.length) {
       lutA.set(colorLUT);
       buildLUTInto(lutB, palettes[index]);
-      lutBlend = 0;
+      lutBlendState.value = 0;
       currentPaletteIndex = index;
+
+      // GSAP: Animate palette crossfade
+      gsap.to(lutBlendState, {
+        value: 1.0,
+        duration: LUT_FADE_DURATION,
+        ease: 'power2.inOut',
+        onUpdate: blendLUTs,
+        onComplete: () => colorLUT.set(lutB),
+      });
     }
   },
 
-  update(dt: number) {
-    if (lutBlend < 1.0) {
-      lutBlend = Math.min(1.0, lutBlend + LUT_FADE_SPEED * dt);
-      blendLUTs();
-      if (lutBlend >= 1.0) {
-        colorLUT.set(lutB);
-      }
-    }
-  },
-
-  setKeyPalette(_pitchClass: number, _mode?: 'major' | 'minor') {
-    // No-op — overlays removed
+  update(_dt: number) {
+    // Palette blending now handled by GSAP tween in setPalette
   },
 
   setFractalType(type: number, p?: number) {
@@ -326,14 +325,6 @@ export const fractalEngine = {
   },
 
   isRendering() { return rendering; },
-
-  getFractalType() { return fractalType; },
-  getCReal() { return cReal; },
-  getCImag() { return cImag; },
-  getZoom() { return zoom; },
-  getMaxIterations() { return maxIterations; },
-  getFidelity() { return fidelity; },
-  getPaletteIndex() { return currentPaletteIndex; },
 
   requestRender(canvas: HTMLCanvasElement, displayWidth: number, displayHeight: number) {
     if (rendering) return;
@@ -353,7 +344,7 @@ export const fractalEngine = {
     frameH = h;
     frameBuffer = new Uint8ClampedArray(w * h * 4);
 
-    // Snapshot LUT once for all workers
+    // Snapshot LUT for workers
     const lutSnapshot = new Uint8Array(colorLUT);
 
     // Split height into bands and dispatch to workers

@@ -75,18 +75,25 @@ export class FlowFieldEffect implements VisualEffect {
 
   private particles: FlowParticle[] = [];
   private particleCount = 3000;
-  private flowSpeed = 2.0;
+  private flowSpeed = 0.8;
   private turbulence = 1.0;
   private noiseScale = 0.003;
   private fadeRate = 0.02;
   private noiseOffset = 0;
   private perturbation = 0;
   private angleOffset = 0;
+  private drumBoost = 0;
 
   private colorR = 255;
   private colorG = 255;
   private colorB = 255;
   private useWhite = false;
+
+  // Mouse interaction
+  private mouseX = -1;
+  private mouseY = -1;
+  private mouseStrength = 200; // force radius
+  private mouseForce = 1.5;    // repulsion strength
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -106,6 +113,12 @@ export class FlowFieldEffect implements VisualEffect {
     this.canvas.height = height;
     this.ctx.fillStyle = '#000';
     this.ctx.fillRect(0, 0, width, height);
+  }
+
+  // Call this with canvas-relative mouse coordinates, or (-1,-1) when mouse leaves
+  setMouse(x: number, y: number): void {
+    this.mouseX = x;
+    this.mouseY = y;
   }
 
   private spawnParticles(): void {
@@ -131,10 +144,12 @@ export class FlowFieldEffect implements VisualEffect {
     // Tension → turbulence octaves
     this.turbulence = 0.5 + music.tension * 2.5;
 
-    // Beat → field perturbation burst
-    if (music.kick) this.perturbation += 0.5;
-    if (music.snare) this.perturbation += 0.3;
+    // Beat → field perturbation burst + speed boost
+    if (music.kick) { this.perturbation += 0.5; this.drumBoost += 3.0; }
+    if (music.snare) { this.perturbation += 0.3; this.drumBoost += 2.0; }
+    if (music.hihat) this.drumBoost += 0.5;
     this.perturbation *= Math.exp(-3.0 * dt);
+    this.drumBoost *= Math.exp(-6.0 * dt);
 
     // Color from palette
     if (!this.useWhite && music.paletteIndex >= 0 && music.paletteIndex < palettes.length) {
@@ -146,7 +161,7 @@ export class FlowFieldEffect implements VisualEffect {
     }
 
     // Step particles
-    const speed = this.flowSpeed * Math.min(dt * 60, 3);
+    const speed = (this.flowSpeed + this.drumBoost) * Math.min(dt * 60, 3);
     for (const p of this.particles) {
       p.px = p.x;
       p.py = p.y;
@@ -166,8 +181,27 @@ export class FlowFieldEffect implements VisualEffect {
         angle += noise2d(nx * 4 + this.noiseOffset * 3, ny * 4) * this.perturbation * Math.PI;
       }
 
-      p.x += Math.cos(angle) * speed;
-      p.y += Math.sin(angle) * speed;
+      let vx = Math.cos(angle) * speed;
+      let vy = Math.sin(angle) * speed;
+
+      // Mouse interaction: push particles away
+      if (this.mouseX >= 0 && this.mouseY >= 0) {
+        const dx = p.x - this.mouseX;
+        const dy = p.y - this.mouseY;
+        const distSq = dx * dx + dy * dy;
+        const radiusSq = this.mouseStrength * this.mouseStrength;
+        if (distSq < radiusSq && distSq > 1) {
+          const dist = Math.sqrt(distSq);
+          const falloff = 1 - dist / this.mouseStrength;
+          // Strong repulsion force
+          const force = falloff * falloff * this.mouseForce * 15;
+          vx += (dx / dist) * force;
+          vy += (dy / dist) * force;
+        }
+      }
+
+      p.x += vx;
+      p.y += vy;
       p.life--;
 
       // Respawn if off-screen or dead
@@ -225,6 +259,7 @@ export class FlowFieldEffect implements VisualEffect {
       { key: 'flowSpeed', label: 'Speed', type: 'range', value: this.flowSpeed, min: 0.5, max: 5, step: 0.5 },
       { key: 'noiseScale', label: 'Scale', type: 'range', value: this.noiseScale, min: 0.001, max: 0.01, step: 0.001 },
       { key: 'fadeRate', label: 'Trail Fade', type: 'range', value: this.fadeRate, min: 0.005, max: 0.1, step: 0.005 },
+      { key: 'mouseStrength', label: 'Mouse Range', type: 'range', value: this.mouseStrength, min: 50, max: 400, step: 25 },
       { key: 'useWhite', label: 'White Only', type: 'toggle', value: this.useWhite },
     ];
   }
@@ -243,6 +278,9 @@ export class FlowFieldEffect implements VisualEffect {
         break;
       case 'fadeRate':
         this.fadeRate = value as number;
+        break;
+      case 'mouseStrength':
+        this.mouseStrength = value as number;
         break;
       case 'useWhite':
         this.useWhite = value as boolean;

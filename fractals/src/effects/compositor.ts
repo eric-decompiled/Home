@@ -2,6 +2,7 @@
 // Manages a stack of VisualEffect layers, compositing them onto the main canvas.
 
 import type { VisualEffect, LayerState, BlendMode, MusicParams } from './effect-interface.ts';
+export type BgColorMode = 'black';
 
 export class Compositor {
   private layers: LayerState[] = [];
@@ -9,6 +10,7 @@ export class Compositor {
   private compositeCtx: CanvasRenderingContext2D;
   private width = 800;
   private height = 600;
+  bgColorMode: BgColorMode = 'black';
 
   constructor() {
     this.compositeCanvas = document.createElement('canvas');
@@ -79,12 +81,16 @@ export class Compositor {
     }
   }
 
+  private getBgColor(): string {
+    return '#000';
+  }
+
   render(targetCanvas: HTMLCanvasElement): void {
     const ctx = targetCanvas.getContext('2d')!;
     const w = targetCanvas.width;
     const h = targetCanvas.height;
 
-    // Clear composite
+    // Clear composite (layers blend on transparent/black)
     this.compositeCanvas.width = w;
     this.compositeCanvas.height = h;
     this.compositeCtx.clearRect(0, 0, w, h);
@@ -137,10 +143,16 @@ export class Compositor {
       }
     }
 
-    // Final blit to target
+    // Final blit to target: background color first, then composite on top
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
-    ctx.clearRect(0, 0, w, h);
+    const bgColor = this.getBgColor();
+    if (bgColor === '#000') {
+      ctx.clearRect(0, 0, w, h);
+    } else {
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, w, h);
+    }
     ctx.drawImage(this.compositeCanvas, 0, 0);
   }
 
@@ -151,6 +163,14 @@ export class Compositor {
 
   hasAnyEnabled(): boolean {
     return this.layers.some(l => l.enabled);
+  }
+
+  /** Reset all effects to fresh state (on song change) */
+  resetAll(): void {
+    for (const layer of this.layers) {
+      layer.effect.dispose();
+      layer.effect.init(this.width, this.height);
+    }
   }
 
   dispose(): void {
