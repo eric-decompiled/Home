@@ -171,8 +171,10 @@ function detectKeyWithConfidence(pitchHistogram: number[]): { key: number; mode:
       const meanH = sumH / 12, meanP = sumP / 12;
       const corr = (sum / 12 - meanH * meanP) /
         (Math.sqrt(sumH2 / 12 - meanH * meanH) * Math.sqrt(sumP2 / 12 - meanP * meanP) + 1e-10);
-      if (corr > bestCorr) {
-        bestCorr = corr;
+      // Small bias toward major keys (most songs are major, helps with ambiguous cases like C maj vs A min)
+      const adjustedCorr = mode === 'major' ? corr + 0.02 : corr;
+      if (adjustedCorr > bestCorr) {
+        bestCorr = adjustedCorr;
         bestKey = shift;
         bestMode = mode;
       }

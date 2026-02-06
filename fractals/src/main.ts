@@ -166,7 +166,7 @@ app.innerHTML = `
           ${songs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
         </select>
       </div>
-      <button class="toggle-btn" id="layers-toggle">Layers</button>
+      <button class="toggle-btn" id="layers-toggle">Animations</button>
       <a href="config.html" target="_blank" class="config-link">Config</a>
       <div class="song-info">
         <span class="info-badge" id="key-display">Key: --</span>
@@ -178,7 +178,7 @@ app.innerHTML = `
 
     <div class="main-area">
       <div class="layer-panel" id="layer-panel">
-        <div class="layer-panel-header">Layers</div>
+        <div class="layer-panel-header">Animations</div>
         <div id="layer-list"></div>
       </div>
       <div class="canvas-wrap">
@@ -224,11 +224,9 @@ canvas.addEventListener('mouseleave', () => {
   flowFieldEffect.setMouse(-1, -1);
 });
 
-// --- Layers panel toggle ---
+// --- Animations panel toggle ---
 
-let layerPanelOpen = true;
-layersToggle.classList.add('active');
-layerPanel.classList.add('open');
+let layerPanelOpen = false;
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);

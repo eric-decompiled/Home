@@ -351,29 +351,103 @@ input[type="range"]::-moz-range-thumb {
 @media (max-width: 700px) {
   .top-bar {
     flex-wrap: wrap;
-    gap: 10px;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 6px 10px;
   }
 
   .top-bar h1 {
-    font-size: 15px;
+    font-size: 14px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .song-picker-wrap {
+    flex: 1;
   }
 
   .song-picker-wrap select {
-    min-width: 150px;
+    width: 100%;
+    min-width: unset;
     font-size: 13px;
+    padding: 6px 8px;
   }
 
   .song-info {
     margin-left: 0;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .info-badge {
+    padding: 3px 8px;
+    font-size: 11px;
+    min-width: 50px;
+  }
+
+  .toggle-btn, .config-link {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  /* Canvas fills available space */
+  .canvas-wrap {
+    padding: 2px;
+  }
+
+  canvas {
+    border-radius: 0;
+    border: none;
+  }
+
+  /* Compact bottom bar */
+  .bottom-bar {
+    padding: 6px 10px;
+  }
+
+  .transport-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+
+  .time-display {
+    font-size: 11px;
+    min-width: 80px;
+  }
+
+  /* Layer panel full width on mobile */
+  .layer-panel.open {
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
+  }
+}
+
+/* Even smaller screens */
+@media (max-width: 480px) {
+  .top-bar h1 {
+    display: none;
+  }
+
+  .top-bar {
+    padding: 4px 6px;
+    gap: 6px;
   }
 
   .bottom-bar {
-    padding: 10px 12px;
+    padding: 4px 6px;
   }
 
-  .settings {
-    flex-wrap: wrap;
-    gap: 12px;
+  .transport-btn {
+    width: 32px;
+    height: 32px;
+  }
+
+  .canvas-wrap {
+    padding: 0;
   }
 }
