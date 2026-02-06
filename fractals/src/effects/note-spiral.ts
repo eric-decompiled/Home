@@ -381,7 +381,8 @@ export class NoteSpiralEffect implements VisualEffect {
 
       const timeSinceHit = this.time - node.lastHitTime;
 
-      const alpha = node.brightness;
+      // Smooth fade using sqrt curve - keeps low values visible longer
+      const alpha = Math.sqrt(node.brightness);
 
       // Flashlight beam projecting outward from center through the note
       // t: 0 = bass (inner), 1 = treble (outer)

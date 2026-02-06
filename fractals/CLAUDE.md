@@ -25,13 +25,23 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 
 | Slot | Purpose | Effects |
 |------|---------|---------|
-| **Background** | Full-canvas animated backdrop | Domain Warp (default), Waves, Chladni |
-| **Foreground** | Main visual element | Fractal, Flow Field, Spirograph, Strange Attractors, Note Spiral (default) |
-| **Overlay** | Post-process effects | Kaleidoscope |
+| **Background** | Full-canvas animated backdrop | Domain Warp (default), Waves, Chladni, Flow Field |
+| **Foreground** | Main visual element | Laser Hockey (default), Tonnetz, Fractal, Spirograph, Note Spiral |
+| **Overlay** | Post-process effects | Pitch Histogram, Kaleidoscope |
 | **Melody** | Melodic visualization | Melody Aurora, Melody Web, Chord Web, Melody Clock |
 | **Bass** | Bass note tracking | Bass Web, Bass Clock |
 
 ### Effect Catalog
+
+**Tonnetz** (`src/effects/tonnetz.ts`): Hexagonal lattice visualization of harmonic relationships based on neo-Riemannian music theory. Each node represents a pitch class (0-11), positioned using axial coordinates where `pc = (7*q + 4*r) mod 12`. Three axes encode consonant intervals: horizontal = perfect fifths, diagonals = major/minor thirds. Active pitch classes glow when notes play. Current chord highlighted as a filled triangle connecting root, third, and fifth. Chord progression path drawn as dashed line between recent chord triangles. Pulses on beat/bar boundaries. Colors derived from song key palette.
+
+**Laser Hockey** (`src/effects/laser-hockey.ts`): Interactive Tonnetz lattice with laser beams and air hockey puck. Beams shoot from active pitch class nodes toward a gliding puck target, storing the puck's position at launch (non-homing). Features:
+- **Heavy puck physics**: Very high mass simulation—small impulses, high friction (`exp(-2.5 * dt)`), low max velocity (80). Feels like pushing a bowling ball on ice.
+- **Music-driven drift**: Random direction bumps on beats (1.5), bars (2.5), melody (0.8), kick (2), snare (1.5). Accumulates slowly for gentle wandering.
+- **Mouse interaction**: Repulsion field pushes puck away (radius 120, strength 200). Click and drag to grab, flick to throw with velocity transfer.
+- **Beam collision**: Actual geometric hit detection—beam tips check distance to current puck position. Hits register marks on puck, trigger flash, and give tiny momentum bump.
+- **Hit marks**: Accumulate on puck surface with 8-second decay, colored by pitch class.
+- **Transparent compositing**: No background fill, layers over Domain Warp or other backgrounds.
 
 **Wave Interference** (`src/effects/wave-interference.ts`): WebGL ripple simulation. Drops appear at melody onsets positioned by pitch class (clock position) and octave (radius). Per-note coloring from chromatic palette. Models wave reflection off boundaries via ghost sources with phase inversion. Configurable decay, frequency, reflection amount.
 
@@ -173,6 +183,11 @@ Includes test MIDIs (A major/minor scales, chromatic test) plus game soundtracks
 - **Chord root for bass tracking**: Bass clock follows chord root rather than individual bass notes for harmonic stability
 - **GSAP beat-relative timing for clocks**: Hand motion duration as fraction of beat (0.5 beats for melody, 1.0 beats for bass) keeps motion musically grounded
 - **Key modulation rotation**: On detected modulation, tween `keyRotation` so the new tonic aligns to 12 o'clock. Effects (note spiral, clocks) apply this offset to all angle calculations. Shortest-path normalization prevents 360° spins.
+- **Heavy puck physics for interactive elements**: Simulate high mass with small impulse values, high friction, and low max velocity. Feels deliberate and weighty rather than twitchy. "Bowling ball on ice" is the target feel.
+- **Non-homing projectiles**: Store target position at launch time, not current position. Creates interesting gameplay where targets can dodge if they move.
+- **Mouse repulsion fields**: Continuous force falloff (`1 - dist/radius`)² feels more natural than hard collision boundaries. Users instinctively understand the interaction.
+- **Click-drag-flick for direct manipulation**: Track drag velocity, apply on release with cap. Intuitive physics interaction.
+- **Random direction music bumps**: Fixed directions (e.g., kick always pushes down) cause objects to get stuck at boundaries. Random angles distribute motion across the canvas.
 
 ### What Doesn't Work
 - **Anchors inside locus**: Heavy, mostly-black Julia sets

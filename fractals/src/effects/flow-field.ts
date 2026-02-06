@@ -94,8 +94,8 @@ export class FlowFieldEffect implements VisualEffect {
   // Mouse interaction
   private mouseX = -1;
   private mouseY = -1;
-  private mouseStrength = 200; // force radius
-  private mouseForce = 1.5;    // repulsion strength
+  private mouseStrength = 120; // force radius
+  private mouseForce = 0.3;    // repulsion strength (gentle)
 
   constructor() {
     this.canvas = document.createElement('canvas');

@@ -5,12 +5,13 @@ import { audioPlayer } from './audio-player.ts';
 import { musicMapper } from './music-mapper.ts';
 import { Compositor } from './effects/compositor.ts';
 import { FractalEffect } from './effects/fractal-effect.ts';
-import { StrangeAttractorsEffect } from './effects/strange-attractors.ts';
 import { FlowFieldEffect } from './effects/flow-field.ts';
 import { KaleidoscopeEffect } from './effects/kaleidoscope.ts';
 import { WaveInterferenceEffect } from './effects/wave-interference.ts';
 import { ChladniEffect } from './effects/chladni.ts';
 import { DomainWarpEffect } from './effects/domain-warp.ts';
+import { TonnetzEffect } from './effects/tonnetz.ts';
+import { LaserHockeyEffect } from './effects/laser-hockey.ts';
 import { SpirographEffect } from './effects/spirograph.ts';
 import { MelodyAuroraEffect } from './effects/melody-aurora.ts';
 import { MelodyWebEffect } from './effects/melody-web.ts';
@@ -19,6 +20,7 @@ import { MelodyClockEffect } from './effects/melody-clock.ts';
 import { BassWebEffect } from './effects/bass-web.ts';
 import { BassClockEffect } from './effects/bass-clock.ts';
 import { NoteSpiralEffect } from './effects/note-spiral.ts';
+import { PitchHistogramEffect } from './effects/pitch-histogram.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
 
 // --- Song list ---
@@ -81,12 +83,14 @@ const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', '
 
 const compositor = new Compositor();
 const fractalEffect = new FractalEffect();
-const attractorsEffect = new StrangeAttractorsEffect();
 const flowFieldEffect = new FlowFieldEffect();
 const kaleidoscopeEffect = new KaleidoscopeEffect();
+const pitchHistogramEffect = new PitchHistogramEffect();
 const waveEffect = new WaveInterferenceEffect();
 const chladniEffect = new ChladniEffect();
 const domainWarpEffect = new DomainWarpEffect();
+const tonnetzEffect = new TonnetzEffect();
+const laserHockeyEffect = new LaserHockeyEffect();
 const spirographEffect = new SpirographEffect();
 const melodyAuroraEffect = new MelodyAuroraEffect();
 const melodyWebEffect = new MelodyWebEffect();
@@ -112,12 +116,12 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Foreground',
-    effects: [fractalEffect, spirographEffect, attractorsEffect, noteSpiralEffect],
-    activeId: 'fractal',
+    effects: [laserHockeyEffect, tonnetzEffect, fractalEffect, spirographEffect, noteSpiralEffect],
+    activeId: 'note-spiral',
   },
   {
     name: 'Overlay',
-    effects: [kaleidoscopeEffect],
+    effects: [pitchHistogramEffect, kaleidoscopeEffect],
     activeId: null,
   },
   {
@@ -128,7 +132,7 @@ const layerSlots: LayerSlot[] = [
   {
     name: 'Bass',
     effects: [bassWebEffect, bassClockEffect],
-    activeId: null,
+    activeId: 'bass-clock',
   },
 ];
 
@@ -662,6 +666,6 @@ function loop(time: number): void {
 
 requestAnimationFrame(loop);
 
-// Auto-load default song (J-E-N-O-V-A)
-songPicker.value = '10';
-loadSong(10);
+// Auto-load default song (Toccata and Fugue in D minor)
+songPicker.value = '22';
+loadSong(22);
