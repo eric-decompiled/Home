@@ -163,6 +163,13 @@ let frameOnBar = false;
 let currentBeatStability = 1.0;
 let currentNextBeatIn = 0;
 let currentNextBarIn = 0;
+// Groove curves (from neuroscience research)
+let currentBeatAnticipation = 0;
+let currentBarAnticipation = 0;
+let currentBeatArrival = 0;
+let currentBarArrival = 0;
+let currentBeatGroove = 0;
+let currentBarGroove = 0;
 let frameMelodyOnset = false;
 let lastMelodyPC = -1;
 let lastMelodyMidi = -1;  // for interval calculation
@@ -329,6 +336,13 @@ export const musicMapper = {
     currentBeatStability = beat.stability;
     currentNextBeatIn = beat.nextBeatIn;
     currentNextBarIn = beat.nextBarIn;
+    // Groove curves
+    currentBeatAnticipation = beat.beatAnticipation;
+    currentBarAnticipation = beat.barAnticipation;
+    currentBeatArrival = beat.beatArrival;
+    currentBarArrival = beat.barArrival;
+    currentBeatGroove = beat.beatGroove;
+    currentBarGroove = beat.barGroove;
 
     // --- Beat-grid rotation impulses ---
     if (beat.onBeat) {
@@ -506,6 +520,13 @@ export const musicMapper = {
       beatStability: currentBeatStability,
       nextBeatIn: currentNextBeatIn,
       nextBarIn: currentNextBarIn,
+      // Groove curves
+      beatAnticipation: currentBeatAnticipation,
+      barAnticipation: currentBarAnticipation,
+      beatArrival: currentBeatArrival,
+      barArrival: currentBarArrival,
+      beatGroove: currentBeatGroove,
+      barGroove: currentBarGroove,
       chordRoot: currentChordRoot,
       chordDegree: currentChordDegree,
       chordQuality: currentChordQuality,
@@ -549,6 +570,13 @@ export const musicMapper = {
       beatStability: 1.0,
       nextBeatIn: 0.5,
       nextBarIn: 2.0,
+      // Groove curves (idle = no anticipation, no arrival)
+      beatAnticipation: 0,
+      barAnticipation: 0,
+      beatArrival: 0,
+      barArrival: 0,
+      beatGroove: 0.5,
+      barGroove: 0.5,
       chordRoot: currentKey,
       chordDegree: 1,
       chordQuality: 'major',

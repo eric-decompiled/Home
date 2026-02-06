@@ -144,11 +144,34 @@ export class MelodyWebEffect implements VisualEffect {
       this.lastPitchClass = pc;
     }
 
+    // === GROOVE CURVES ===
+    const beatArrival = music.beatArrival ?? 0;
+    const barArrival = music.barArrival ?? 0;
+
     // Beat pulse — briefly brighten all active nodes
     if (music.kick) {
       for (const node of this.nodes) {
         if (node.brightness > 0.05) {
           node.brightness = Math.min(1.0, node.brightness + 0.2);
+        }
+      }
+    }
+
+    // Groove-driven pulse on active nodes
+    if (beatArrival > 0.1) {
+      const arrivalPulse = beatArrival * 0.15;
+      for (const node of this.nodes) {
+        if (node.brightness > 0.05) {
+          node.brightness = Math.min(1.0, node.brightness + arrivalPulse);
+        }
+      }
+    }
+    // Bar arrival creates bigger pulse
+    if (barArrival > 0.1) {
+      const barPulse = barArrival * 0.2;
+      for (const node of this.nodes) {
+        if (node.brightness > 0.03) {
+          node.brightness = Math.min(1.0, node.brightness + barPulse);
         }
       }
     }

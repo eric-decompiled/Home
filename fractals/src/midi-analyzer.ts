@@ -47,6 +47,7 @@ export interface KeyRegion {
 }
 
 export interface MusicTimeline {
+  name: string;                           // song name from MIDI metadata
   tempo: number;                          // initial tempo (backward compat)
   timeSignature: [number, number];        // initial time sig (backward compat)
   tempoEvents: TempoEvent[];              // all tempo changes
@@ -376,6 +377,9 @@ function unwrapRiff(buffer: ArrayBuffer): ArrayBuffer {
 export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
   const midi = new Midi(unwrapRiff(buffer));
 
+  // Extract song name from MIDI header or first track
+  const songName = midi.header.name || midi.tracks[0]?.name || '';
+
   // Parse all tempo events with times
   const tempoEvents: TempoEvent[] = midi.header.tempos.map(t => ({
     time: midi.header.ticksToSeconds(t.ticks),
@@ -607,6 +611,7 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
   const keyRegions = detectKeyRegions(notes, totalDuration, barDuration, 4, 1.0, 3, 0.15);
 
   return {
+    name: songName,
     tempo,
     timeSignature,
     tempoEvents,

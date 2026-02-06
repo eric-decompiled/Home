@@ -265,10 +265,22 @@ export class WaveInterferenceEffect implements VisualEffect {
       }
     }
 
+    // === GROOVE CURVES ===
+    const beatArrival = music.beatArrival ?? 0;
+    const barArrival = music.barArrival ?? 0;
+
     // Beat → amplitude pulse on existing sources
     if (music.kick) {
       for (const s of this.sources) {
         s.amplitude = Math.min(1.5, s.amplitude + 0.3);
+      }
+    }
+
+    // Groove-driven amplitude boost (arrival impact)
+    if (beatArrival > 0.1 || barArrival > 0.1) {
+      const boost = beatArrival * 0.2 + barArrival * 0.3;
+      for (const s of this.sources) {
+        s.amplitude = Math.min(1.5, s.amplitude + boost);
       }
     }
 

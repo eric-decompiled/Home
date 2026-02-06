@@ -42,6 +42,26 @@ export interface BeatState {
   // Anticipation (for animation lead-in)
   nextBeatIn: number;     // seconds until next beat
   nextBarIn: number;      // seconds until next bar
+
+  // === GROOVE CURVES (from neuroscience research) ===
+  // These model the two-phase dopamine response: anticipation (caudate) + arrival (nucleus accumbens)
+
+  // Anticipation: builds 0→1 as beat approaches, accelerating curve (power of 2)
+  // Use for: tension build, approaching motion, pre-beat glow
+  beatAnticipation: number;   // 0-1, peaks just before beat
+  barAnticipation: number;    // 0-1, peaks just before bar
+
+  // Arrival: peaks at 1 on beat boundary, fast exponential decay
+  // Use for: impact flash, hit response, post-beat resonance
+  // NOTE: This is stateful - must be updated each frame with dt
+  beatArrival: number;        // 0-1, peaks on beat, decays
+  barArrival: number;         // 0-1, peaks on bar, decays
+
+  // Combined groove curve: anticipation leading into arrival
+  // Smooth sine-based curve that peaks AT the beat (not before/after)
+  // Use for: continuous motion that "lands" on the beat
+  beatGroove: number;         // 0-1, smooth curve peaking at beat
+  barGroove: number;          // 0-1, smooth curve peaking at bar
 }
 
 export interface BeatSync {
@@ -61,6 +81,10 @@ interface TempoSegment {
 
 // --- MIDI-based BeatSync implementation ---
 
+// Arrival decay rate (how fast the "hit" fades) - tuned for groove feel
+// Research: ~0.5s decay feels natural for beat impact
+const ARRIVAL_DECAY_RATE = 6.0;  // exp(-6 * 0.5) ≈ 0.05, so ~0.5s to 5%
+
 export function createMidiBeatSync(
   tempoEvents: TempoEvent[],
   timeSigEvents: TimeSignatureEvent[]
@@ -79,6 +103,10 @@ export function createMidiBeatSync(
   // Track previous beat for boundary crossing detection
   let prevTotalBeats = 0;
   let prevTotalBars = 0;
+
+  // Stateful arrival values (decay over time)
+  let beatArrival = 0;
+  let barArrival = 0;
 
   return {
     update(currentTime: number, dt: number): BeatState {
@@ -119,6 +147,27 @@ export function createMidiBeatSync(
       const barDuration = beatDuration * seg.beatsPerBar;
       const nextBarIn = (1 - barPhase) * barDuration;
 
+      // === GROOVE CURVES ===
+
+      // Anticipation: accelerating build toward beat (power curve)
+      // 1 - beatPhase gives linear approach, square it for acceleration
+      // This matches the dopamine anticipation response in caudate
+      const beatAnticipation = Math.pow(1 - beatPhase, 2);
+      const barAnticipation = Math.pow(1 - barPhase, 2);
+
+      // Arrival: trigger on beat, decay exponentially
+      // This matches the dopamine consummation response in nucleus accumbens
+      if (onBeat) beatArrival = 1.0;
+      if (onBar) barArrival = 1.0;
+      beatArrival *= Math.exp(-ARRIVAL_DECAY_RATE * dt);
+      barArrival *= Math.exp(-ARRIVAL_DECAY_RATE * dt);
+
+      // Groove curve: smooth sine that peaks AT the beat (phase = 0)
+      // cos(phase * 2π) peaks at 0, troughs at 0.5, normalize to 0-1
+      // This creates motion that "lands" on the beat
+      const beatGroove = (Math.cos(beatPhase * Math.PI * 2) + 1) * 0.5;
+      const barGroove = (Math.cos(barPhase * Math.PI * 2) + 1) * 0.5;
+
       return {
         beatPhase,
         barPhase,
@@ -131,12 +180,21 @@ export function createMidiBeatSync(
         stability: 1.0,  // MIDI timing is exact
         nextBeatIn,
         nextBarIn,
+        // Groove curves
+        beatAnticipation,
+        barAnticipation,
+        beatArrival,
+        barArrival,
+        beatGroove,
+        barGroove,
       };
     },
 
     reset() {
       prevTotalBeats = 0;
       prevTotalBars = 0;
+      beatArrival = 0;
+      barArrival = 0;
     },
   };
 }

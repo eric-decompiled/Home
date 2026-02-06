@@ -29,6 +29,24 @@ export interface MusicParams {
   nextBeatIn: number;      // seconds until next beat (for anticipation)
   nextBarIn: number;       // seconds until next bar
 
+  // === GROOVE CURVES (from neuroscience research) ===
+  // Model the two-phase dopamine response: anticipation (caudate) + arrival (NAcc)
+
+  // Anticipation: 0→1 as beat approaches, accelerating (power of 2)
+  // Use for: tension build, approaching motion, pre-beat glow
+  beatAnticipation: number;
+  barAnticipation: number;
+
+  // Arrival: peaks at 1 on boundary, fast decay (~0.5s to near-zero)
+  // Use for: impact flash, hit response, post-beat resonance
+  beatArrival: number;
+  barArrival: number;
+
+  // Groove: smooth cosine peaking AT the beat (not before/after)
+  // Use for: continuous motion that "lands" on the beat
+  beatGroove: number;
+  barGroove: number;
+
   chordRoot: number;       // pitch class 0-11
   chordDegree: number;     // 1-7 (0 = chromatic)
   chordQuality: string;

@@ -269,10 +269,22 @@ export class DomainWarpEffect implements VisualEffect {
     const beat1Boost = music.beatIndex === 0 ? 1.4 : 1.0;
 
     if (isPlaying) {
+      // === GROOVE CURVES (neuroscience-based) ===
+      // beatGroove: smooth curve that peaks AT the beat (lands on beat)
+      // beatAnticipation: builds tension before beat (dopamine anticipation)
+      // beatArrival: impact on beat, fast decay (dopamine consummation)
+      const groove = music.beatGroove ?? 0.5;
+      const anticipation = music.beatAnticipation ?? 0;
+      const arrival = music.beatArrival ?? 0;
+      const barArrival = music.barArrival ?? 0;
+
       // Separate energy by musical register:
       // BASS ENERGY: low notes (push from bottom)
-      const beatPulse = Math.pow(Math.cos(music.beatPosition * Math.PI), 2) * 0.03 * beat1Boost;
-      this.bassEnergy += beatPulse;
+      // Use groove curve for smoother beat-locked motion (replaces old beatPulse)
+      const beatPulse = groove * 0.04 * beat1Boost;
+      // Add anticipation energy (builds before beat) + arrival impact
+      const grooveEnergy = anticipation * 0.02 + arrival * 0.06 + barArrival * 0.08;
+      this.bassEnergy += beatPulse + grooveEnergy;
       if (music.bassMidiNote >= 0) this.bassEnergy += 0.04 * music.bassVelocity * beat1Boost;
 
       // Bass notes from activeVoices (MIDI < 60 = below middle C)

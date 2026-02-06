@@ -87,18 +87,17 @@ export class MelodyClockEffect implements VisualEffect {
     if (music.snare) this.energy += 0.2;
     this.energy *= Math.exp(-2.5 * dt);
 
-    // Beat anticipation: build tension as nextBeatIn approaches 0
-    // Creates a "breath in" effect before the beat lands
-    const nextBeat = music.nextBeatIn ?? 0.5;
-    const beatDur = music.beatDuration || 0.5;
-    // Anticipation ramps up in the last 30% of the beat
-    const anticipationWindow = beatDur * 0.3;
-    if (nextBeat < anticipationWindow && nextBeat > 0) {
-      const t = 1 - (nextBeat / anticipationWindow);  // 0→1 as beat approaches
-      this.anticipation = t * t * 0.3;  // Quadratic ramp, max 0.3
-    } else {
-      this.anticipation *= Math.exp(-8 * dt);  // Quick decay after beat
-    }
+    // === GROOVE CURVES ===
+    // Use pre-computed anticipation/arrival from beat-sync
+    const beatAnticipation = music.beatAnticipation ?? 0;
+    const beatArrival = music.beatArrival ?? 0;
+
+    // Anticipation builds before beat (the "breath in")
+    // Arrival creates impact on beat (the "hit")
+    this.anticipation = beatAnticipation * 0.3 + beatArrival * 0.15;
+
+    // Energy boost on arrival
+    this.energy += beatArrival * 0.25;
 
     // Follow each melody note - light and quick
     if (music.melodyOnset && music.melodyPitchClass >= 0 && music.melodyVelocity > 0) {

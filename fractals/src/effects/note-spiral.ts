@@ -176,11 +176,23 @@ export class NoteSpiralEffect implements VisualEffect {
     // Track tension for visual modulation
     this.currentTension = music.tension;
 
+    // === GROOVE CURVES ===
+    const beatArrival = music.beatArrival ?? 0;
+
     // Beat pulse — brighten active nodes (stronger pulse at high tension)
+    // Use arrival curve for the "hit" impact
     if (music.kick) {
       const pulseStrength = 0.15 + music.tension * 0.1;
       for (const node of this.nodes) {
         if (node.brightness > 0.05) node.brightness = Math.min(1.0, node.brightness + pulseStrength);
+      }
+    }
+
+    // Groove-driven pulse on active nodes
+    if (beatArrival > 0.1) {
+      const arrivalPulse = beatArrival * 0.12;
+      for (const node of this.nodes) {
+        if (node.brightness > 0.05) node.brightness = Math.min(1.0, node.brightness + arrivalPulse);
       }
     }
 

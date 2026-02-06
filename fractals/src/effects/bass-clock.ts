@@ -83,18 +83,18 @@ export class BassClockEffect implements VisualEffect {
     if (music.snare) this.energy += 0.15;
     this.energy *= Math.exp(-2.0 * dt);
 
-    // Bar anticipation: bass clock builds before bar boundary (chord changes often align)
-    // Slower, weightier anticipation than melody
-    const nextBar = music.nextBarIn ?? 2.0;
-    const barDur = (music.beatDuration || 0.5) * (music.beatsPerBar || 4);
-    // Anticipation ramps up in the last 20% of the bar
-    const anticipationWindow = barDur * 0.2;
-    if (nextBar < anticipationWindow && nextBar > 0) {
-      const t = 1 - (nextBar / anticipationWindow);  // 0→1 as bar approaches
-      this.anticipation = t * t * 0.25;  // Subtle, max 0.25
-    } else {
-      this.anticipation *= Math.exp(-4 * dt);  // Slower decay for bass
-    }
+    // === GROOVE CURVES ===
+    // Bass clock uses bar-level anticipation (chord changes often align with bars)
+    const barAnticipation = music.barAnticipation ?? 0;
+    const barArrival = music.barArrival ?? 0;
+    const beatGroove = music.beatGroove ?? 0.5;
+
+    // Bar anticipation creates slow, weighty buildup
+    // Beat groove adds subtle pulse even between bar boundaries
+    this.anticipation = barAnticipation * 0.25 + barArrival * 0.2 + beatGroove * 0.05;
+
+    // Energy boost on bar arrival (the big downbeat)
+    this.energy += barArrival * 0.35;
 
     // Follow chord root for stability (not random bass notes)
     const pc = music.chordRoot >= 0 ? music.chordRoot : -1;

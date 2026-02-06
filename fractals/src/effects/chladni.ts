@@ -219,14 +219,25 @@ export class ChladniEffect implements VisualEffect {
     this.currentM += (this.targetM - this.currentM) * snap;
     this.currentN += (this.targetN - this.currentN) * snap;
 
-    // Beat → amplitude pulse
+    // === GROOVE CURVES ===
+    const beatAnticipation = music.beatAnticipation ?? 0;
+    const beatArrival = music.beatArrival ?? 0;
+    const barArrival = music.barArrival ?? 0;
+
+    // Beat → amplitude pulse - arrival creates impact
     if (music.kick) this.amplitude = 1.5;
     if (music.snare) this.amplitude = 1.3;
+    // Arrival adds to amplitude
+    this.amplitude = Math.max(this.amplitude, 1.0 + beatArrival * 0.4 + barArrival * 0.5);
+    // Anticipation creates subtle buildup
+    this.amplitude += beatAnticipation * 0.1;
     this.amplitude += (1.0 - this.amplitude) * (1 - Math.exp(-3.0 * dt));
 
-    // Rotation from beats
+    // Rotation from beats - groove curves add subtle motion
     if (music.kick) this.rotationVelocity += 0.15;
     if (music.snare) this.rotationVelocity -= 0.12;
+    // Arrival adds rotation impulse
+    this.rotationVelocity += beatArrival * 0.08 - barArrival * 0.05;
     this.rotationVelocity *= Math.exp(-1.5 * dt);
     this.rotation += this.rotationVelocity * dt;
 

@@ -76,7 +76,7 @@ export class FlowFieldEffect implements VisualEffect {
   private ready = false;
 
   private particles: FlowParticle[] = [];
-  private particleCount = 2500;
+  private particleCount = 1500;
   private flowSpeed = 0.4; // Gentle base flow
   private turbulence = 1.0;
   private noiseScale = 0.003;
@@ -84,7 +84,6 @@ export class FlowFieldEffect implements VisualEffect {
   private noiseOffset = 0;
   private perturbation = 0;
   private angleOffset = 0;
-  private drumBoost = 0;
 
   private colorR = 255;
   private colorG = 255;
@@ -151,21 +150,36 @@ export class FlowFieldEffect implements VisualEffect {
     // Chord root → angle offset
     this.angleOffset = (music.chordRoot / 12) * Math.PI * 2;
 
-    // Tension → flow complexity
+    // Tension → flow complexity (subtle, avoid clumping)
     // Low tension: smooth, laminar flow; High tension: slightly more turbulent
-    const tensionSq = music.tension * music.tension;
-    this.turbulence = 0.3 + music.tension * 1.0 + tensionSq * 0.5;
+    this.turbulence = 0.3 + music.tension * 0.4;
     // Gentle flow speed variation with tension
-    this.flowSpeed = 0.4 + music.tension * 0.4;
+    this.flowSpeed = 0.4 + music.tension * 0.2;
     // Subtle noise detail change
-    this.noiseScale = 0.002 + music.tension * 0.001;
+    this.noiseScale = 0.002 + music.tension * 0.0005;
 
-    // Beat → field perturbation burst + speed boost
-    if (music.kick) { this.perturbation += 0.5 + music.tension * 0.3; this.drumBoost += 3.0; }
-    if (music.snare) { this.perturbation += 0.3 + music.tension * 0.2; this.drumBoost += 2.0; }
-    if (music.hihat) this.drumBoost += 0.5 + music.tension * 0.3;
+    // === GROOVE CURVES (rhythm driver) ===
+    const beatGroove = music.beatGroove ?? 0.5;
+    const barGroove = music.barGroove ?? 0.5;
+    const arrival = music.beatArrival ?? 0;
+    const barArrival = music.barArrival ?? 0;
+
+    // Speed modulation with groove (breathing effect)
+    // beatGroove peaks at beat, creates rhythmic pulse in flow speed
+    const grooveSpeed = (beatGroove - 0.5) * 0.4 + (barGroove - 0.5) * 0.25;
+    this.flowSpeed += grooveSpeed;
+
+    // Perturbation on arrivals - creates visible "burst" on beats
+    this.perturbation += arrival * 0.2 + barArrival * 0.3;
+
+    // Note onsets add energy
+    for (const voice of music.activeVoices) {
+      if (voice.onset) {
+        this.perturbation += 0.05 * voice.velocity;
+      }
+    }
+
     this.perturbation *= Math.exp(-3.0 * dt);
-    this.drumBoost *= Math.exp(-6.0 * dt);
 
     // Color from palette
     if (!this.useWhite && music.paletteIndex >= 0 && music.paletteIndex < palettes.length) {
@@ -177,7 +191,7 @@ export class FlowFieldEffect implements VisualEffect {
     }
 
     // Step particles
-    const speed = (this.flowSpeed + this.drumBoost) * Math.min(dt * 60, 3);
+    const speed = this.flowSpeed * Math.min(dt * 60, 3);
     for (const p of this.particles) {
       p.px = p.x;
       p.py = p.y;

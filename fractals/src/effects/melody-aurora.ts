@@ -98,11 +98,28 @@ export class MelodyAuroraEffect implements VisualEffect {
       }
     }
 
-    // Beat pulses
+    // === GROOVE CURVES ===
+    const beatArrival = music.beatArrival ?? 0;
+    const beatAnticipation = music.beatAnticipation ?? 0;
+
+    // Beat pulses - use arrival for impact
     if (music.kick) {
       for (const r of this.ribbons) {
         r.amplitude = Math.min(0.08, r.amplitude + 0.015);
       }
+    }
+
+    // Groove-driven amplitude boost
+    if (beatArrival > 0.1) {
+      for (const r of this.ribbons) {
+        r.amplitude = Math.min(0.08, r.amplitude + beatArrival * 0.012);
+      }
+    }
+
+    // Anticipation gently increases wave speed (building tension)
+    for (const r of this.ribbons) {
+      r.speed += beatAnticipation * 0.05;
+      r.speed = Math.min(r.speed, 1.0); // cap
     }
 
     // Fade ribbons

@@ -1,85 +1,94 @@
-// --- Spirograph / Harmonograph Centerpiece ---
-// Hypotrochoid parametric curves: the classic spirograph.
-// x = (R-r)*cos(t) + d*cos((R-r)/r * t)
-// y = (R-r)*sin(t) + d*sin((R-r)/r * t)
-//
-// The ratio R/r determines the number of petals/loops.
-// Musical intervals map naturally: simple ratios = simple curves,
-// complex ratios = intricate patterns.
-//
-// Per-degree anchors define (R, r, d) ratios for each harmonic function.
-// The curve is drawn incrementally with a glowing trail.
+// --- Spirograph Effect ---
+// Voice-driven spirograph: one orbit per active voice.
+// High notes orbit near center (fast), bass on outside (slow).
+// Orbits are elliptical, elongated toward the chord root direction.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
-import { gsap } from '../animation.ts';
 
-interface SpiroAnchor {
-  R: number;   // outer radius
-  r: number;   // inner radius
-  d: number;   // pen offset from inner circle center
-  layers: number; // number of overlaid curves with slight offsets
+interface TrailPoint {
+  x: number;
+  y: number;
+  r: number;
+  g: number;
+  b: number;
 }
 
-// Degree anchors: R/r ratio determines visual complexity
-// Simple ratios (I=2/1) = simple curves, complex (vii) = intricate
-const DEGREE_ANCHORS: Record<number, SpiroAnchor> = {
-  0: { R: 5, r: 3, d: 2.5, layers: 2 },     // chromatic — 5:3 moderate
-  1: { R: 3, r: 1, d: 0.8, layers: 3 },      // I — 3:1 = 3 petals, clean
-  2: { R: 5, r: 2, d: 1.5, layers: 2 },      // ii — 5:2 = 5 loops
-  3: { R: 7, r: 3, d: 2.0, layers: 2 },      // iii — 7:3 intricate
-  4: { R: 4, r: 1, d: 0.7, layers: 3 },      // IV — 4:1 = 4 petals, stable
-  5: { R: 8, r: 3, d: 2.2, layers: 2 },      // V — 8:3 complex, dominant
-  6: { R: 5, r: 3, d: 1.8, layers: 2 },      // vi — 5:3 warm
-  7: { R: 11, r: 4, d: 3.0, layers: 1 },     // vii — 11:4 dense, tense
-};
+interface VoiceOrbit {
+  trackIndex: number;
+  midi: number;              // current MIDI note
+  radius: number;            // orbital radius (0-1), based on pitch
+  revsPerBeat: number;       // orbital speed
+  precessionRatio: number;   // petal pattern
+  brightness: number;        // fades when voice stops
+  trail: TrailPoint[];
+  currentColor: [number, number, number];
+  // Gentle gravitational perturbation (bed sheet model)
+  perturbX: number;          // current perturbation offset
+  perturbY: number;
+}
+
+// Gravity wells at each pitch class position (like melody web)
+interface GravityWell {
+  strength: number;  // 0-1, decays when no notes at this pitch class
+}
+
+// Petal ratios indexed by track
+const PETAL_RATIOS = [1/5, 1/7, 1/3, 1/11, 1/9, 1/13, 1/4, 1/6];
+
+const MAX_VOICES = 8;
 
 export class SpirographEffect implements VisualEffect {
   readonly id = 'spirograph';
   readonly name = 'Spirograph';
   readonly isPostProcess = false;
-  readonly defaultBlend: BlendMode = 'source-over';
+  readonly defaultBlend: BlendMode = 'screen';
   readonly defaultOpacity = 1.0;
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private trailCanvas: HTMLCanvasElement;
-  private trailCtx: CanvasRenderingContext2D;
   private width = 800;
   private height = 600;
   private ready = false;
 
-  // Current drawing state
-  private phase = 0;        // parametric t
-  private drawSpeed = 2.0;  // radians per second
-  private currentR = 3;
-  private currentr = 1;
-  private currentd = 0.8;
-  private layers = 3;
-  private fadeRate = 0.008;
-  private rotation = 0;
-  private rotationVelocity = 0;
+  // Sun state
+  private sunBrightness = 0.3;
+  private sunPulse = 0;
+  private sunColor: [number, number, number] = [255, 200, 100];
 
-  // Color
-  private colorR = 100;
-  private colorG = 200;
-  private colorB = 255;
+  // Voice-driven orbits (keyed by track index)
+  private orbits: Map<number, VoiceOrbit> = new Map();
 
-  // Beat pulse
-  private pulseScale = 1.0;
+  // 12 gravity wells, one per pitch class (like melody web positions)
+  private gravityWells: GravityWell[] = [];
 
-  // Chord tracking for GSAP transitions
-  private lastChordDegree = -1;
+  // Beat tracking
+  private totalBeats = 0;
+  private lastBeatPosition = 0;
+
+  // Tonal bias - elongates orbits toward chord root direction
+  private biasAngle = 0;
+  private targetBiasAngle = 0;
+  private eccentricity = 0.5;
+
+  // Config
+  private trailLength = 800;
+  private paletteIndex = 0;
+  private keyRotation = 0;
+  private gravityStrength = 0.008;  // very gentle - bed sheet model
 
   constructor() {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d')!;
-    this.trailCanvas = document.createElement('canvas');
-    this.trailCtx = this.trailCanvas.getContext('2d')!;
   }
 
   init(width: number, height: number): void {
     this.resize(width, height);
+    // Initialize 12 gravity wells (one per pitch class)
+    this.gravityWells = [];
+    for (let i = 0; i < 12; i++) {
+      this.gravityWells.push({ strength: 0 });
+    }
     this.ready = true;
   }
 
@@ -88,95 +97,212 @@ export class SpirographEffect implements VisualEffect {
     this.height = height;
     this.canvas.width = width;
     this.canvas.height = height;
-    this.trailCanvas.width = width;
-    this.trailCanvas.height = height;
-    this.trailCtx.fillStyle = '#000';
-    this.trailCtx.fillRect(0, 0, width, height);
   }
 
-  private hypotrochoid(t: number, R: number, r: number, d: number, layerOffset: number): [number, number] {
-    const Rr = R - r;
-    const ratio = Rr / r;
-    const lo = layerOffset * 0.15;
-    const x = Rr * Math.cos(t + lo) + d * Math.cos(ratio * t + lo * 2);
-    const y = Rr * Math.sin(t + lo) + d * Math.sin(ratio * t + lo * 2);
+  // Convert MIDI pitch to orbital radius (high = inner/small, low = outer/large)
+  private midiToRadius(midi: number): number {
+    // MIDI range roughly 21-108
+    const normalized = Math.max(0, Math.min(1, (midi - 21) / (108 - 21)));
+    const inverted = 1 - normalized;  // high pitch = small radius
+    return 0.12 + inverted * 0.68;
+  }
+
+  // Convert MIDI pitch to orbital speed (high = fast, low = slow)
+  private midiToSpeed(midi: number): number {
+    const normalized = Math.max(0, Math.min(1, (midi - 21) / (108 - 21)));
+    // High notes: 2.5 revs/beat, low notes: 0.3 revs/beat
+    return 0.3 + normalized * 2.2;
+  }
+
+  // Get position for a pitch class gravity well
+  // Positioned halfway between center and the numeral position
+  private pitchClassPosition(pc: number): [number, number] {
+    // Angle: pitch class around the circle, with key rotation so tonic = north
+    const angle = (pc / 12) * Math.PI * 2 - Math.PI / 2 + this.keyRotation;
+    // Halfway between center and outer edge - gentler influence on orbits
+    const radius = 0.4;
+    const x = radius * Math.cos(angle);
+    const y = radius * Math.sin(angle);
+    return [x, y];
+  }
+
+  // Get color from palette based on pitch
+  private getPitchColor(midi: number): [number, number, number] {
+    if (this.paletteIndex < 0 || this.paletteIndex >= palettes.length) {
+      return [128, 128, 128];
+    }
+    const p = palettes[this.paletteIndex];
+    const numStops = p.stops.length;
+    if (numStops === 0) return [128, 128, 128];
+
+    // High pitch = bright, low pitch = darker
+    const normalized = Math.max(0, Math.min(1, (midi - 21) / (108 - 21)));
+    const stopIndex = Math.floor(2 + normalized * (numStops - 3));
+    const clampedIndex = Math.max(0, Math.min(numStops - 1, stopIndex));
+    const color = p.stops[clampedIndex]?.color ?? [128, 128, 128];
+    return [color[0], color[1], color[2]];
+  }
+
+  // Elliptical orbit position
+  private orbitPosition(orbit: VoiceOrbit, scale: number, beatProgress: number): [number, number] {
+    const revolutions = beatProgress * orbit.revsPerBeat;
+    const theta = revolutions * Math.PI * 2;
+    const psi = revolutions * orbit.precessionRatio * Math.PI * 2;
+
+    const r = orbit.radius * scale;
+    const a = r * (1 + this.eccentricity);
+    const b = r * (1 - this.eccentricity);
+
+    const orbitAngle = theta + psi;
+    const ex = a * Math.cos(orbitAngle);
+    const ey = b * Math.sin(orbitAngle);
+
+    const cosB = Math.cos(this.biasAngle);
+    const sinB = Math.sin(this.biasAngle);
+    const x = ex * cosB - ey * sinB;
+    const y = ex * sinB + ey * cosB;
+
     return [x, y];
   }
 
   update(dt: number, music: MusicParams): void {
-    // Degree → anchor (GSAP transition on chord change)
-    const anchor = DEGREE_ANCHORS[music.chordDegree] ?? DEGREE_ANCHORS[0];
-    this.layers = anchor.layers;
+    dt = Math.min(dt, 0.1);
 
-    // Trigger coordinated morph on chord change
-    if (music.chordDegree !== this.lastChordDegree) {
-      this.lastChordDegree = music.chordDegree;
+    // === GROOVE CURVES ===
+    const beatAnticipation = music.beatAnticipation ?? 0;
+    const beatArrival = music.beatArrival ?? 0;
+    const barArrival = music.barArrival ?? 0;
 
-      // GSAP: Coordinated shape morph over ~1 beat with elastic feel
-      const beatDur = music.beatDuration || 0.5;
-      gsap.to(this, {
-        currentR: anchor.R,
-        currentr: anchor.r,
-        currentd: anchor.d,
-        duration: beatDur * 1.0,
-        ease: 'elastic.out(1, 0.7)',
-        overwrite: true,
-      });
-    }
+    // Sun pulsing - groove curves add anticipation glow
+    if (music.kick) this.sunPulse += 0.8;
+    if (music.snare) this.sunPulse += 0.5;
+    if (music.hihat) this.sunPulse += 0.15;
+    // Arrival impact adds to pulse
+    this.sunPulse += beatArrival * 0.4 + barArrival * 0.6;
+    this.sunPulse *= Math.exp(-4.0 * dt);
+    // Anticipation creates growing glow before beat lands
+    const anticipationGlow = beatAnticipation * 0.15;
+    this.sunBrightness = 0.3 + this.sunPulse * 0.7 + anticipationGlow;
 
-    // Beat → pulse with GSAP (beat 1 emphasis)
-    const beat1Boost = music.beatIndex === 0 ? 1.3 : 1.0;
-    if (music.kick) {
-      const beatDur = music.beatDuration || 0.5;
-      const pulseAmount = 1.0 + 0.15 * beat1Boost;
-      gsap.to(this, {
-        pulseScale: pulseAmount,
-        duration: beatDur * 0.1,
-        ease: 'power2.out',
-        onComplete: () => {
-          gsap.to(this, { pulseScale: 1.0, duration: beatDur * 0.4, ease: 'power2.out' });
-        }
-      });
-    }
-    if (music.snare && !music.kick) {
-      const beatDur = music.beatDuration || 0.5;
-      const pulseAmount = 1.0 + 0.08 * beat1Boost;
-      gsap.to(this, {
-        pulseScale: pulseAmount,
-        duration: beatDur * 0.1,
-        ease: 'power2.out',
-        onComplete: () => {
-          gsap.to(this, { pulseScale: 1.0, duration: beatDur * 0.3, ease: 'power2.out' });
-        }
-      });
-    }
-
-    // Rotation
-    if (music.kick) this.rotationVelocity += 0.1;
-    if (music.snare) this.rotationVelocity -= 0.08;
-    this.rotationVelocity *= Math.exp(-1.0 * dt);
-    this.rotation += this.rotationVelocity * dt;
-
-    // Tension → draw speed and complexity
-    // High tension = faster, more frantic drawing with more layers
-    const tensionSq = music.tension * music.tension;
-    this.drawSpeed = 1.5 + music.tension * 3.0 + tensionSq * 2.0;
-    // Extra layers at high tension (up to +2)
-    const baseLayers = this.layers;
-    const tensionLayers = Math.floor(music.tension * 2);
-    this.layers = Math.min(5, baseLayers + tensionLayers);
-
-    // Color from palette
+    // Palette
+    this.paletteIndex = music.paletteIndex;
     if (music.paletteIndex >= 0 && music.paletteIndex < palettes.length) {
       const p = palettes[music.paletteIndex];
-      const c = p.stops[4]?.color ?? [100, 200, 255];
-      this.colorR = c[0];
-      this.colorG = c[1];
-      this.colorB = c[2];
+      const c = p.stops[Math.min(5, p.stops.length - 1)]?.color ?? [255, 200, 100];
+      this.sunColor = [c[0], c[1], c[2]];
     }
 
-    // Advance parametric phase
-    this.phase += this.drawSpeed * dt;
+    // Beat tracking
+    if (music.beatPosition < this.lastBeatPosition - 0.5) {
+      this.totalBeats += 1;
+    }
+    this.lastBeatPosition = music.beatPosition;
+
+    // Tonal bias
+    const chordRootAngle = (music.chordRoot / 12) * Math.PI * 2 - Math.PI / 2 + music.keyRotation;
+    this.targetBiasAngle = chordRootAngle;
+    let angleDiff = this.targetBiasAngle - this.biasAngle;
+    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+    this.biasAngle += angleDiff * 4.0 * dt;
+
+    // Store key rotation for attractor positioning
+    this.keyRotation = music.keyRotation;
+
+    // Track which tracks are currently active
+    const activeTracks = new Set<number>();
+
+    // Update orbits from active voices (non-drum only)
+    for (const voice of music.activeVoices) {
+      const trackInfo = music.tracks[voice.track];
+      if (trackInfo?.isDrum) continue;
+      if (activeTracks.size >= MAX_VOICES) break;
+
+      activeTracks.add(voice.track);
+
+      let orbit = this.orbits.get(voice.track);
+      if (!orbit) {
+        // Create new orbit for this track
+        orbit = {
+          trackIndex: voice.track,
+          midi: voice.midi,
+          radius: this.midiToRadius(voice.midi),
+          revsPerBeat: this.midiToSpeed(voice.midi),
+          precessionRatio: PETAL_RATIOS[voice.track % PETAL_RATIOS.length],
+          brightness: 0,
+          trail: [],
+          currentColor: this.getPitchColor(voice.midi),
+          perturbX: 0,
+          perturbY: 0,
+        };
+        this.orbits.set(voice.track, orbit);
+      }
+
+      // Update orbit based on current voice
+      orbit.midi = voice.midi;
+      orbit.radius = this.midiToRadius(voice.midi);
+      orbit.revsPerBeat = this.midiToSpeed(voice.midi);
+      orbit.currentColor = this.getPitchColor(voice.midi);
+      orbit.brightness = Math.min(1, orbit.brightness + 5.0 * dt);  // fade in
+
+      // Add to gravity well at this pitch class
+      const pc = voice.midi % 12;
+      this.gravityWells[pc].strength = Math.min(1, this.gravityWells[pc].strength + voice.velocity * 0.5);
+    }
+
+    // Fade out inactive orbits
+    for (const orbit of this.orbits.values()) {
+      if (!activeTracks.has(orbit.trackIndex)) {
+        orbit.brightness *= Math.exp(-3.0 * dt);
+      }
+    }
+
+    // Decay all gravity wells
+    for (const well of this.gravityWells) {
+      well.strength *= Math.exp(-2.0 * dt);
+    }
+
+    // Apply gentle gravitational influence from all 12 pitch class wells
+    // Like a bed sheet being gently pushed down at various points
+    const beatProgress = this.totalBeats + this.lastBeatPosition;
+
+    for (const orbit of this.orbits.values()) {
+      // Get the base orbit position (normalized 0-1 scale)
+      const [baseX, baseY] = this.orbitPosition(orbit, 1.0, beatProgress);
+
+      // Sum gentle pulls from all active gravity wells
+      let pullX = 0;
+      let pullY = 0;
+
+      for (let pc = 0; pc < 12; pc++) {
+        const wellStrength = this.gravityWells[pc].strength;
+        if (wellStrength < 0.01) continue;
+
+        // Get well position
+        const [wellX, wellY] = this.pitchClassPosition(pc);
+
+        // Vector from orbit to well
+        const dx = wellX - baseX;
+        const dy = wellY - baseY;
+
+        // Gentle pull toward the well (inverse square would be too harsh)
+        // Just a constant gentle tug in that direction
+        pullX += dx * wellStrength * this.gravityStrength;
+        pullY += dy * wellStrength * this.gravityStrength;
+      }
+
+      // Smoothly blend perturbation (very gentle, like bed sheet settling)
+      const smoothing = 3.0;
+      orbit.perturbX += (pullX - orbit.perturbX) * smoothing * dt;
+      orbit.perturbY += (pullY - orbit.perturbY) * smoothing * dt;
+    }
+
+    // Clean up very dim orbits with empty trails
+    for (const [trackIndex, orbit] of this.orbits) {
+      if (orbit.brightness < 0.01 && orbit.trail.length === 0) {
+        this.orbits.delete(trackIndex);
+      }
+    }
   }
 
   render(): HTMLCanvasElement {
@@ -184,85 +310,107 @@ export class SpirographEffect implements VisualEffect {
     const h = this.height;
     const cx = w / 2;
     const cy = h / 2;
-    const scale = Math.min(cx, cy) * 0.35 * this.pulseScale;
+    const scale = Math.min(cx, cy);
+    const ctx = this.ctx;
 
-    // Fade trail
-    this.trailCtx.fillStyle = `rgba(0,0,0,${this.fadeRate})`;
-    this.trailCtx.fillRect(0, 0, w, h);
+    // Clear to transparent - let background layer show through
+    ctx.clearRect(0, 0, w, h);
 
-    // Draw new segment of the curve
-    const stepsPerFrame = 200;
-    const dt = this.drawSpeed / 60 / stepsPerFrame;
+    // Sun
+    const sunSize = 15 + this.sunPulse * 25;
+    const sunGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, sunSize * 2);
+    const [sr, sg, sb] = this.sunColor;
+    sunGrad.addColorStop(0, `rgba(255, 255, 255, ${this.sunBrightness.toFixed(2)})`);
+    sunGrad.addColorStop(0.2, `rgba(${sr}, ${sg}, ${sb}, ${(this.sunBrightness * 0.8).toFixed(2)})`);
+    sunGrad.addColorStop(0.6, `rgba(${sr * 0.7 | 0}, ${sg * 0.5 | 0}, ${sb * 0.3 | 0}, ${(this.sunBrightness * 0.3).toFixed(2)})`);
+    sunGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = sunGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, sunSize * 2, 0, Math.PI * 2);
+    ctx.fill();
 
-    this.trailCtx.save();
-    this.trailCtx.translate(cx, cy);
-    this.trailCtx.rotate(this.rotation);
+    ctx.fillStyle = `rgba(255, 255, 240, ${this.sunBrightness.toFixed(2)})`;
+    ctx.beginPath();
+    ctx.arc(cx, cy, sunSize * 0.25, 0, Math.PI * 2);
+    ctx.fill();
 
-    for (let layer = 0; layer < this.layers; layer++) {
-      const layerAlpha = 0.5 - layer * 0.1;
-      const layerWidth = 2.0 - layer * 0.3;
+    const beatProgress = this.totalBeats + this.lastBeatPosition;
 
-      // Color variation per layer
-      const hueShift = layer * 30;
-      const r = Math.min(255, this.colorR + hueShift);
-      const g = Math.min(255, this.colorG - hueShift * 0.5);
-      const b = this.colorB;
+    // Draw orbits
+    for (const orbit of this.orbits.values()) {
+      const [px, py] = this.orbitPosition(orbit, scale, beatProgress);
+      // Apply gravitational perturbation
+      const screenX = cx + px + orbit.perturbX * scale;
+      const screenY = cy + py + orbit.perturbY * scale;
 
-      this.trailCtx.strokeStyle = `rgba(${r},${g},${b},${layerAlpha.toFixed(2)})`;
-      this.trailCtx.lineWidth = layerWidth;
-      this.trailCtx.beginPath();
-
-      let t = this.phase - stepsPerFrame * dt;
-      const [sx, sy] = this.hypotrochoid(t, this.currentR, this.currentr, this.currentd, layer);
-      this.trailCtx.moveTo(sx * scale, sy * scale);
-
-      for (let i = 0; i < stepsPerFrame; i++) {
-        t += dt;
-        const [px, py] = this.hypotrochoid(t, this.currentR, this.currentr, this.currentd, layer);
-        this.trailCtx.lineTo(px * scale, py * scale);
+      // Only add to trail if visible
+      if (orbit.brightness > 0.05) {
+        const [cr, cg, cb] = orbit.currentColor;
+        orbit.trail.push({ x: screenX, y: screenY, r: cr, g: cg, b: cb });
       }
-      this.trailCtx.stroke();
+
+      // Trim trail
+      while (orbit.trail.length > this.trailLength) {
+        orbit.trail.shift();
+      }
+
+      // Draw trail
+      if (orbit.trail.length > 1) {
+        for (let i = 1; i < orbit.trail.length; i++) {
+          const pt = orbit.trail[i];
+          const prev = orbit.trail[i - 1];
+          const t = i / orbit.trail.length;
+          const alpha = t * 0.6 * Math.min(1, orbit.brightness + 0.3);
+
+          ctx.strokeStyle = `rgba(${pt.r}, ${pt.g}, ${pt.b}, ${alpha.toFixed(3)})`;
+          ctx.lineWidth = 1 + t * 1.5;
+          ctx.beginPath();
+          ctx.moveTo(prev.x, prev.y);
+          ctx.lineTo(pt.x, pt.y);
+          ctx.stroke();
+        }
+      }
+
+      // Draw planet if bright enough
+      if (orbit.brightness > 0.1) {
+        const [cr, cg, cb] = orbit.currentColor;
+        const grad = ctx.createRadialGradient(screenX, screenY, 0, screenX, screenY, 8);
+        grad.addColorStop(0, `rgba(${Math.min(255, cr + 60)}, ${Math.min(255, cg + 60)}, ${Math.min(255, cb + 60)}, ${(orbit.brightness * 0.9).toFixed(2)})`);
+        grad.addColorStop(0.4, `rgba(${cr}, ${cg}, ${cb}, ${(orbit.brightness * 0.4).toFixed(2)})`);
+        grad.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = `rgba(255, 255, 255, ${(orbit.brightness * 0.8).toFixed(2)})`;
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
-
-    this.trailCtx.restore();
-
-    // Draw glowing dot at current position
-    const [dotX, dotY] = this.hypotrochoid(this.phase, this.currentR, this.currentr, this.currentd, 0);
-    const cosR = Math.cos(this.rotation);
-    const sinR = Math.sin(this.rotation);
-    const rdx = dotX * cosR - dotY * sinR;
-    const rdy = dotX * sinR + dotY * cosR;
-    const screenX = cx + rdx * scale;
-    const screenY = cy + rdy * scale;
-
-    const grad = this.trailCtx.createRadialGradient(screenX, screenY, 0, screenX, screenY, 8);
-    grad.addColorStop(0, `rgba(255,255,255,0.8)`);
-    grad.addColorStop(0.5, `rgba(${this.colorR},${this.colorG},${this.colorB},0.4)`);
-    grad.addColorStop(1, `rgba(${this.colorR},${this.colorG},${this.colorB},0)`);
-    this.trailCtx.fillStyle = grad;
-    this.trailCtx.fillRect(screenX - 8, screenY - 8, 16, 16);
-
-    // Copy to output
-    this.ctx.drawImage(this.trailCanvas, 0, 0);
 
     return this.canvas;
   }
 
-  isReady(): boolean { return this.ready; }
+  isReady(): boolean {
+    return this.ready;
+  }
 
   dispose(): void {
     this.ready = false;
+    this.orbits.clear();
   }
 
   getConfig(): EffectConfig[] {
     return [
-      { key: 'fadeRate', label: 'Trail Fade', type: 'range', value: this.fadeRate, min: 0.002, max: 0.05, step: 0.002 },
-      { key: 'drawSpeed', label: 'Speed', type: 'range', value: this.drawSpeed, min: 0.5, max: 6, step: 0.5 },
+      { key: 'trailLength', label: 'Trail Length', type: 'range', value: this.trailLength, min: 100, max: 2000, step: 100 },
     ];
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
-    if (key === 'fadeRate') this.fadeRate = value as number;
-    if (key === 'drawSpeed') this.drawSpeed = value as number;
+    if (key === 'trailLength') {
+      this.trailLength = value as number;
+    }
   }
 }

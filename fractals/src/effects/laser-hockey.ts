@@ -315,18 +315,26 @@ export class LaserHockeyEffect implements VisualEffect {
     this.hitMarks = this.hitMarks.filter(m => m.age < 8.0); // Marks last 8 seconds
     this.hitFlash *= Math.exp(-6.0 * dt);
 
+    // === GROOVE CURVES ===
+    // Use arrival for impact, anticipation for glow build
+    const beatArrival = music.beatArrival ?? 0;
+    const barArrival = music.barArrival ?? 0;
+    const anticipation = music.beatAnticipation ?? 0;
+
+    // Puck glow builds with anticipation, peaks with arrival
+    this.puckPulse += anticipation * 0.01 + beatArrival * 0.04 + barArrival * 0.06;
+
     // Heavy puck - small impulses accumulate slowly
+    // Use arrival (continuous decay) instead of onBeat (boolean)
     if (music.onBeat) {
-      this.beatPulse = 0.3;
-      this.puckPulse += 0.03;
+      this.beatPulse = Math.max(this.beatPulse, beatArrival * 0.4);
       const beatAngle = Math.random() * Math.PI * 2;
       const beatBump = 1.5;
       this.puckVelX += Math.cos(beatAngle) * beatBump;
       this.puckVelY += Math.sin(beatAngle) * beatBump;
     }
     if (music.onBar) {
-      this.barPulse = 0.5;
-      this.puckPulse += 0.05;
+      this.barPulse = Math.max(this.barPulse, barArrival * 0.6);
       const barAngle = Math.random() * Math.PI * 2;
       const barBump = 2.5;
       this.puckVelX += Math.cos(barAngle) * barBump;

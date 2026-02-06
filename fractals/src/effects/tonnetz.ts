@@ -141,8 +141,20 @@ export class TonnetzEffect implements VisualEffect {
     this.chordTriangleOpacity *= Math.exp(-0.3 * dt);
     this.chordTriangleOpacity = Math.max(this.chordTriangleOpacity, 0.4);
 
-    if (music.onBeat) this.beatPulse = 0.3;
-    if (music.onBar) this.barPulse = 0.5;
+    // === GROOVE CURVES ===
+    // Use arrival for impact (replaces boolean triggers)
+    // Use anticipation for pre-beat glow
+    const beatArrival = music.beatArrival ?? 0;
+    const barArrival = music.barArrival ?? 0;
+    const anticipation = music.beatAnticipation ?? 0;
+
+    // Blend arrival impact with anticipation glow
+    // This creates a "breathe in, hit" cycle
+    this.beatPulse = Math.max(this.beatPulse, beatArrival * 0.4);
+    this.barPulse = Math.max(this.barPulse, barArrival * 0.6);
+    // Add subtle anticipation glow
+    this.beatPulse += anticipation * 0.1 * (1 - this.beatPulse);
+
     this.beatPulse *= Math.exp(-4.0 * dt);
     this.barPulse *= Math.exp(-2.0 * dt);
 
@@ -192,9 +204,8 @@ export class TonnetzEffect implements VisualEffect {
     if (!this.ctx) return this.canvas;
     const ctx = this.ctx;
 
-    // Dark background
-    ctx.fillStyle = `rgb(${this.baseColor[0] * 0.3}, ${this.baseColor[1] * 0.3}, ${this.baseColor[2] * 0.3})`;
-    ctx.fillRect(0, 0, this.width, this.height);
+    // Clear to transparent - let background layer show through
+    ctx.clearRect(0, 0, this.width, this.height);
 
     const centerX = this.width / 2;
     const centerY = this.height / 2;

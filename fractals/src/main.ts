@@ -21,6 +21,7 @@ import { BassWebEffect } from './effects/bass-web.ts';
 import { BassClockEffect } from './effects/bass-clock.ts';
 import { NoteSpiralEffect } from './effects/note-spiral.ts';
 import { PitchHistogramEffect } from './effects/pitch-histogram.ts';
+import { GrooveWaveEffect } from './effects/groove-wave.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
 
 // --- Song list ---
@@ -99,6 +100,7 @@ const melodyClockEffect = new MelodyClockEffect();
 const bassWebEffect = new BassWebEffect();
 const bassClockEffect = new BassClockEffect();
 const noteSpiralEffect = new NoteSpiralEffect();
+const grooveWaveEffect = new GrooveWaveEffect();
 
 // --- Layer slot definitions (mutually exclusive within each slot) ---
 
@@ -121,7 +123,7 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Overlay',
-    effects: [pitchHistogramEffect, kaleidoscopeEffect],
+    effects: [grooveWaveEffect, pitchHistogramEffect, kaleidoscopeEffect],
     activeId: null,
   },
   {
@@ -226,7 +228,9 @@ canvas.addEventListener('mouseleave', () => {
 
 // --- Animations panel toggle ---
 
-let layerPanelOpen = false;
+let layerPanelOpen = true;
+layersToggle.classList.add('active');
+layerPanel.classList.add('open');
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
@@ -458,11 +462,121 @@ function updateTimeDisplay(currentTime: number) {
   timeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(total)}`;
 }
 
+// --- Custom MIDI file loading ---
+
+async function loadMidiFile(file: File) {
+  audioPlayer.stop();
+  isPlaying = false;
+  playBtn.textContent = '\u25B6';
+  musicMapper.reset();
+  compositor.resetAll();
+  lastKeyRegionIndex = -1;
+
+  keyDisplay.textContent = 'Key: ...';
+  keyDisplay.style.color = '';
+  bpmDisplay.textContent = 'BPM: ...';
+  chordDisplay.textContent = file.name;
+
+  try {
+    const midiBuffer = await file.arrayBuffer();
+    timeline = analyzeMidiBuffer(midiBuffer);
+
+    musicMapper.setTempo(
+      timeline.tempo,
+      timeline.timeSignature,
+      timeline.tempoEvents,
+      timeline.timeSignatureEvents
+    );
+    musicMapper.setKey(timeline.key, timeline.keyMode);
+    musicMapper.setKeyRegions(timeline.keyRegions);
+    musicMapper.setTracks(timeline.tracks);
+    audioPlayer.loadMidi(midiBuffer);
+
+    const modeLabel = timeline.keyMode === 'minor' ? 'm' : '';
+    keyDisplay.textContent = `Key: ${noteNames[timeline.key]}${modeLabel}`;
+    bpmDisplay.textContent = `BPM: ${Math.round(timeline.tempo)}`;
+
+    // Use song name from MIDI metadata, fallback to filename without extension
+    const baseName = file.name.replace(/\.(mid|midi)$/i, '');
+    const displayName = timeline.name || baseName;
+    chordDisplay.textContent = `${timeline.timeSignature[0]}/${timeline.timeSignature[1]}`;
+
+    // Add/update custom song option in picker
+    let customOption = songPicker.querySelector('option[value="custom"]') as HTMLOptionElement | null;
+    if (!customOption) {
+      customOption = document.createElement('option');
+      customOption.value = 'custom';
+      customOption.style.color = '#f0a500';  // Gold color for uploaded songs
+      songPicker.insertBefore(customOption, songPicker.options[1]); // After "-- Select --"
+    }
+    customOption.textContent = `⬆ ${displayName}`;
+    songPicker.value = 'custom';
+
+    seekBar.max = String(timeline.duration);
+    seekBar.value = '0';
+    seekBar.disabled = false;
+    playBtn.disabled = false;
+
+    updateTimeDisplay(0);
+    dirty = true;
+  } catch (e) {
+    console.error('Failed to load MIDI:', e);
+    chordDisplay.textContent = 'Load failed - invalid MIDI?';
+    timeline = null;
+  }
+}
+
 // --- Event listeners ---
 
 songPicker.addEventListener('change', () => {
+  if (songPicker.value === 'custom') return; // Already loaded
   const idx = parseInt(songPicker.value);
   if (!isNaN(idx)) loadSong(idx);
+});
+
+// --- Custom MIDI file input (drag & drop + file picker) ---
+
+// Create hidden file input for MIDI
+const midiFileInput = document.createElement('input');
+midiFileInput.type = 'file';
+midiFileInput.accept = '.mid,.midi,audio/midi,audio/x-midi';
+midiFileInput.style.display = 'none';
+document.body.appendChild(midiFileInput);
+
+midiFileInput.addEventListener('change', () => {
+  const file = midiFileInput.files?.[0];
+  if (file) loadMidiFile(file);
+});
+
+// Add "Load MIDI" button next to song picker
+const midiBtn = document.createElement('button');
+midiBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: -1px; margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>MIDI';
+midiBtn.title = 'Load your own MIDI file (or drag & drop)';
+midiBtn.className = 'toggle-btn';
+midiBtn.style.marginLeft = '8px';
+midiBtn.addEventListener('click', () => midiFileInput.click());
+songPicker.parentElement?.appendChild(midiBtn);
+
+// Drag & drop MIDI on canvas
+canvas.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  canvas.style.outline = '3px dashed #fff';
+});
+
+canvas.addEventListener('dragleave', () => {
+  canvas.style.outline = '';
+});
+
+canvas.addEventListener('drop', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  canvas.style.outline = '';
+
+  const file = e.dataTransfer?.files?.[0];
+  if (file && (file.name.endsWith('.mid') || file.name.endsWith('.midi'))) {
+    loadMidiFile(file);
+  }
 });
 
 playBtn.addEventListener('click', async () => {
@@ -479,23 +593,34 @@ playBtn.addEventListener('click', async () => {
   }
 });
 
+// Space bar to toggle play/pause
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && timeline) {
+    e.preventDefault();  // prevent page scroll
+    playBtn.click();
+  }
+});
+
 let seeking = false;
 seekBar.addEventListener('mousedown', () => { seeking = true; });
 seekBar.addEventListener('touchstart', () => { seeking = true; });
 
 seekBar.addEventListener('input', () => {
-  if (!timeline) return;
   const t = parseFloat(seekBar.value);
-  audioPlayer.seek(t);
-  musicMapper.reset();
-  musicMapper.setTempo(
-    timeline.tempo,
-    timeline.timeSignature,
-    timeline.tempoEvents,
-    timeline.timeSignatureEvents
-  );
-  musicMapper.setKey(timeline.key, timeline.keyMode);
-  musicMapper.setKeyRegions(timeline.keyRegions);
+
+  if (timeline) {
+    audioPlayer.seek(t);
+    musicMapper.reset();
+    musicMapper.setTempo(
+      timeline.tempo,
+      timeline.timeSignature,
+      timeline.tempoEvents,
+      timeline.timeSignatureEvents
+    );
+    musicMapper.setKey(timeline.key, timeline.keyMode);
+    musicMapper.setKeyRegions(timeline.keyRegions);
+  }
+
   updateTimeDisplay(t);
   dirty = true;
 });
@@ -599,6 +724,7 @@ function loop(time: number): void {
   lastTime = time;
 
   if (isPlaying && timeline) {
+    // --- MIDI mode ---
     const currentTime = audioPlayer.getCurrentTime();
 
     if (currentTime > 0.5 && (audioPlayer.isFinished() || currentTime >= timeline.duration)) {

@@ -15,6 +15,8 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 | `src/fractal-engine.ts` | Multi-type fractal renderer with precomputed color LUT and post-composite overlays |
 | `src/fractal-worker.ts` | Pure per-pixel fractal computation in Web Workers (no color effects) |
 | `src/audio-player.ts` | MIDI playback via spessasynth_lib (SoundFont-based AudioWorklet synthesizer) |
+| `src/audio-file-player.ts` | Local audio file playback via Web Audio API (MP3/WAV/OGG) |
+| `src/audio-analyzer.ts` | Audio analysis: BPM detection via web-audio-beat-detector |
 | `src/effects/` | Visual effect layers (see below) |
 
 ## Visual Effects System
@@ -25,9 +27,9 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 
 | Slot | Purpose | Effects |
 |------|---------|---------|
-| **Background** | Full-canvas animated backdrop | Domain Warp (default), Waves, Chladni, Flow Field |
-| **Foreground** | Main visual element | Laser Hockey (default), Tonnetz, Fractal, Spirograph, Note Spiral |
-| **Overlay** | Post-process effects | Pitch Histogram, Kaleidoscope |
+| **Background** | Full-canvas animated backdrop | Flow Field (default), Domain Warp, Waves, Chladni |
+| **Foreground** | Main visual element | Fractal (default), Laser Hockey, Tonnetz, Spirograph, Note Spiral |
+| **Overlay** | Post-process effects | Groove Wave (default), Pitch Histogram, Kaleidoscope |
 | **Melody** | Melodic visualization | Melody Aurora, Melody Web, Chord Web, Melody Clock |
 | **Bass** | Bass note tracking | Bass Web, Bass Clock |
 
@@ -62,11 +64,15 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 
 **Bass Clock** (`src/effects/bass-clock.ts`): Industrial station-clock style hand tracking **chord root** (not individual bass notes) for harmonic stability. Heavy tapered hand with circular counterweight. Roman numeral markers on outer ring (just outside note spiral radius). **Fixed hand length at 0.95** (outer layer). Uses GSAP with full beat duration and power2.inOut ease for slow, weighty motion.
 
+**Groove Wave** (`src/effects/groove-wave.ts`): Subtle overlay visualizing groove curves as animated waves at screen bottom. Two mirrored waves emanate from center: bar groove (slower, background) and beat groove (faster, main rhythm). Newest samples appear at center, oldest at edges—creates a scrolling "heartbeat monitor" effect. **Peak brightness boost**: wave segments glow 1.75× brighter at peaks (groove=1) while maintaining baseline brightness at troughs, avoiding the mistake of dimming non-peak regions too much.
+
 ### MusicParams Interface
 
 Shared data passed to all effects each frame (`src/effects/effect-interface.ts`):
 
 - **Timing**: `currentTime`, `dt`, `bpm`, `beatDuration`, `beatsPerBar`, `beatPosition` (0-1), `barPosition` (0-1), `beatIndex`
+- **Groove Curves**: `beatAnticipation`, `beatArrival`, `beatGroove`, `barAnticipation`, `barArrival`, `barGroove` (all 0-1)
+- **Lookahead**: `nextBeatIn`, `nextBarIn` (seconds until next boundary)
 - **Harmony**: `chordRoot`, `chordDegree`, `chordQuality`, `tension`, `key`, `keyMode`, `keyRotation` (animated radians for modulation), `onModulation`
 - **Melody**: `melodyPitchClass`, `melodyMidiNote`, `melodyVelocity`, `melodyOnset`
 - **Bass**: `bassPitchClass`, `bassMidiNote`, `bassVelocity`
@@ -83,6 +89,14 @@ Key design decisions:
 - **Time sync**: Uses `sequencer.currentHighResolutionTime` for smooth visualization sync.
 - Do NOT pass `oneOutput` config to WorkletSynthesizer (causes channel count errors).
 - Worklet module path must be absolute: `new URL('/spessasynth_processor.min.js', import.meta.url).href`
+
+## Custom MIDI Loading
+
+Users can load their own MIDI files via:
+- **📁 MIDI button**: Opens file picker for `.mid`/`.midi` files
+- **Drag & drop**: Drop MIDI file directly on canvas
+
+Custom MIDIs get full analysis (key detection, chord detection, tempo tracking) just like built-in songs.
 
 ## Music Analysis Pipeline
 
@@ -129,6 +143,39 @@ The `BeatSync` interface can wrap different sources:
 - **MIDI timing** (current): Exact, stability=1.0
 - **Audio analysis** (future): Essentia.js, Meyda, or aubio for real-time beat detection
 
+### Groove Curves
+
+Based on neuroscience research into the two-phase dopamine response (anticipation vs arrival), the beat sync system provides continuous groove curves that model musical expectation:
+
+| Curve | Description | Formula |
+|-------|-------------|---------|
+| `beatAnticipation` | Builds 0→1 as beat approaches | `(1 - beatPhase)²` — accelerating buildup |
+| `beatArrival` | Peaks at 1 on beat, fast decay | Trigger on `onBeat`, decay `exp(-6.0 * dt)` |
+| `beatGroove` | Smooth cosine peaking AT beat | `(cos(beatPhase * 2π) + 1) / 2` |
+| `barAnticipation` | Bar-level anticipation (slower) | Same pattern, bar-level |
+| `barArrival` | Bar-level arrival (bigger impact) | Same pattern, bar-level |
+| `barGroove` | Bar-level groove curve | Same pattern, bar-level |
+
+**Why groove curves?**
+- Boolean triggers (`onBeat`) miss the anticipation phase where dopamine builds
+- Continuous curves create smoother, more musical animations
+- Anticipation glow → arrival impact → decay models the complete groove cycle
+- Different effects use different curves: melody uses beat-level, bass uses bar-level
+
+**Usage in effects:**
+```typescript
+const anticipation = music.beatAnticipation ?? 0;
+const arrival = music.beatArrival ?? 0;
+
+// Anticipation creates pre-glow
+this.glowSize += anticipation * 0.15;
+
+// Arrival creates impact
+this.pulseIntensity += arrival * 0.4;
+```
+
+All visual effects now use groove curves for rhythm-aware animation.
+
 ## Fractal Engine
 
 10 supported Julia set iteration types. Music mapping uses mixed cross-family anchors: Celtic (0, 1, 5), PerpBurn (2, 7), Phoenix (3, 6), Buffalo (4).
@@ -162,8 +209,7 @@ Includes test MIDIs (A major/minor scales, chromatic test) plus game soundtracks
 ## Key Learnings
 
 ### What Works
-- **Mixed cross-family fractal anchors**: Best shapes from each family per harmonic degree
-- **Filament zone anchors**: Just outside connectedness locus boundary
+- **Mixed cross-family fractal anchors**: Manually curated via config tool, stored in localStorage
 - **Orbit-based beat motion**: 4 offsets per anchor with sinusoidal interpolation
 - **Bar-level chord detection**: Stable, musically meaningful
 - **Openwork clock hands**: Stroked outlines with transparent interiors
@@ -188,9 +234,10 @@ Includes test MIDIs (A major/minor scales, chromatic test) plus game soundtracks
 - **Mouse repulsion fields**: Continuous force falloff (`1 - dist/radius`)² feels more natural than hard collision boundaries. Users instinctively understand the interaction.
 - **Click-drag-flick for direct manipulation**: Track drag velocity, apply on release with cap. Intuitive physics interaction.
 - **Random direction music bumps**: Fixed directions (e.g., kick always pushes down) cause objects to get stuck at boundaries. Random angles distribute motion across the canvas.
+- **Groove curves (anticipation/arrival)**: Based on two-phase dopamine response from neuroscience. Anticipation builds before beat (caudate nucleus), arrival creates impact on beat (nucleus accumbens). Creates smoother, more musical animations than boolean triggers. Use `beatAnticipation` for glow buildup, `beatArrival` for pulse impact, `beatGroove` for continuous rhythm modulation.
+- **Bar-level groove for bass**: Bass/harmonic elements respond to `barAnticipation`/`barArrival` rather than beat-level. Creates weighty, grounded feel for low-frequency visualizations.
 
 ### What Doesn't Work
-- **Anchors inside locus**: Heavy, mostly-black Julia sets
 - **Solid-fill clock silhouettes**: Details invisible
 - **Heavy particle systems**: Crash framerate—keep overlays minimal
 - **Palettes washing to white**: Loop to saturated mid-tone instead
@@ -282,8 +329,60 @@ this.smoothed += (this.energy - this.smoothed) * rate * dt;
 | **Shadertoy** | GLSL shader playground with audio input (512x2 texture: spectrum + waveform) |
 | **projectM / Milkshake** | MilkDrop preset renderer in WebGL. Thousands of existing presets |
 
+## Groove Theory
+
+The neuroscience of groove provides a framework for music visualization. See `research/groove-and-visualizers.md` for full literature review.
+
+### The Core Insight
+
+**Groove = Prediction × Surprise × Motor Engagement**
+
+The brain continuously predicts when beats will occur. Groove emerges when predictions are *challenged but not broken*:
+
+| Complexity | Effect | Visual Response |
+|------------|--------|-----------------|
+| Too low | Boring, no urge to move | Smooth, static |
+| **Medium (optimal)** | Maximum groove | Tension/release dynamics |
+| Too high | Confusing, rhythm breaks | Fragmented, searching |
+
+This inverted-U relationship is robust across all groove research.
+
+### Two Separate Reward Phases
+
+Dopamine releases in anatomically distinct brain regions:
+
+| Phase | Brain Region | Timing | Visual Strategy |
+|-------|--------------|--------|-----------------|
+| **Anticipation** | Caudate | Before beat | Accelerating approach, tension build |
+| **Arrival** | Nucleus accumbens | At beat | Impact, release, decay |
+
+**Key implication**: Visuals that *approach* beats feel more natural than those that only *react* to beats. Use `nextBeatIn` from BeatState for anticipation effects.
+
+### Bass is Privileged
+
+Low frequencies have superior timing precision (±2ms vs ±20ms for highs) and engage vestibular + vibrotactile pathways beyond hearing. Research shows 11.8% more dancing when inaudible sub-bass is present.
+
+**Implication**: Bass should drive the largest, most stable visual elements. This validates the spatial wave tank approach (bass from bottom, melody from sides).
+
+### Practical Application
+
+```typescript
+// Anticipation builds as beat approaches
+const anticipation = Math.pow(1 - beatPhase, 2);
+
+// Separate anticipation glow from beat impact
+const anticipationGlow = anticipation * energy * 0.3;
+const beatImpact = onBeat ? 1.0 : 0;
+
+// Bass drives foundation, treble adds detail
+const foundationScale = 1 + bassEnergy * 0.5;
+const detailActivity = trebleEnergy * 0.3;
+```
+
 ## Future Ideas
 
 - **Microphone pitch detection**: Attempted autocorrelation-based detection for live input. Issues with octave errors and jitter. Consider `crepe.js` (neural network) for better accuracy.
 - **More physics simulations**: Particle systems, fluid dynamics, string vibration
 - **Shader-based effects**: Move more computation to GPU
+- **Syncopation detection**: Compute syncopation index from MIDI to modulate visual complexity (research shows medium syncopation = maximum groove)
+- **Anticipation layer**: Dedicated visual layer that builds before beats land, exploiting the caudate-nucleus accumbens dissociation

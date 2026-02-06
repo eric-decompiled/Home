@@ -36,7 +36,6 @@ export class BassWebEffect implements VisualEffect {
   private edges: Map<number, EdgeState> = new Map();
 
   private lastRoot = -1;
-  private lastBarPos = -1;
   private awake = false; // skip idle updates until real playback
   private time = 0;
   private key = 0;
@@ -125,17 +124,34 @@ export class BassWebEffect implements VisualEffect {
       this.lastRoot = root;
     }
 
+    // === GROOVE CURVES ===
+    const barAnticipation = music.barAnticipation ?? 0;
+    const barArrival = music.barArrival ?? 0;
+    const beatGroove = music.beatGroove ?? 0.5;
+
     // Bar boundary pulse — re-brighten current root node and its edges
-    if (this.lastBarPos >= 0 && music.barPosition < this.lastBarPos && this.lastRoot >= 0) {
+    // Use bar arrival for impact instead of just boundary detection
+    if (barArrival > 0.3 && this.lastRoot >= 0) {
       const node = this.nodes[this.lastRoot];
-      node.brightness = Math.min(1.0, node.brightness + 0.6);
+      node.brightness = Math.min(1.0, node.brightness + barArrival * 0.7);
       for (const [, edge] of this.edges) {
         if (edge.strength > 0.01) {
-          edge.strength = Math.min(1.0, edge.strength + 0.15);
+          edge.strength = Math.min(1.0, edge.strength + barArrival * 0.2);
         }
       }
     }
-    this.lastBarPos = music.barPosition;
+
+    // Bar anticipation creates subtle pre-glow
+    if (barAnticipation > 0.1 && this.lastRoot >= 0) {
+      const node = this.nodes[this.lastRoot];
+      node.brightness = Math.min(1.0, node.brightness + barAnticipation * 0.1);
+    }
+
+    // Beat groove adds subtle pulse to current root
+    if (beatGroove > 0.7 && this.lastRoot >= 0) {
+      const node = this.nodes[this.lastRoot];
+      node.brightness = Math.min(1.0, node.brightness + (beatGroove - 0.7) * 0.15);
+    }
 
     // Slow decay
     for (const node of this.nodes) {
@@ -280,7 +296,6 @@ export class BassWebEffect implements VisualEffect {
   reset(): void {
     this.edges.clear();
     this.lastRoot = -1;
-    this.lastBarPos = -1;
     this.awake = false;
     for (const node of this.nodes) node.brightness = 0;
   }

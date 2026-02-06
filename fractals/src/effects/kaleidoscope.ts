@@ -54,22 +54,31 @@ export class KaleidoscopeEffect implements VisualEffect {
   }
 
   update(dt: number, music: MusicParams): void {
+    // === GROOVE CURVES ===
+    const beatAnticipation = music.beatAnticipation ?? 0;
+    const beatArrival = music.beatArrival ?? 0;
+    const barArrival = music.barArrival ?? 0;
+
     // Chord degree → fold count (mapped to 3-12)
     const targetFolds = 3 + (music.chordDegree % 5) * 2; // 3,5,7,9,11
     this.foldCount = targetFolds;
 
-    // Beat → rotation impulse
+    // Beat → rotation impulse - arrival adds impact
     if (music.kick) this.rotationVelocity += 0.3;
     if (music.snare) this.rotationVelocity -= 0.25;
+    // Groove curve impulses
+    this.rotationVelocity += beatArrival * 0.15 - barArrival * 0.1;
 
     // Melody pitch → rotation offset
     if (music.melodyOnset) {
       this.rotationVelocity += ((music.melodyPitchClass % 12) / 12 - 0.5) * 0.2;
     }
 
-    // Tension → zoom pulse
-    this.zoomPulse = 1.0 + music.tension * 0.15;
+    // Tension → zoom pulse - anticipation adds subtle buildup
+    this.zoomPulse = 1.0 + music.tension * 0.15 + beatAnticipation * 0.05;
     if (music.kick) this.zoomPulse += 0.05;
+    // Arrival adds zoom punch
+    this.zoomPulse += beatArrival * 0.08 + barArrival * 0.1;
     this.zoomPulse = Math.min(1.3, this.zoomPulse);
 
     // Rotation dynamics
