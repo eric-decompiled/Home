@@ -12,6 +12,16 @@ export interface ActiveVoice {
   onset: boolean;      // true on frame this note began sounding
 }
 
+export interface UpcomingNote {
+  midi: number;        // MIDI note number
+  pitchClass: number;  // 0-11
+  velocity: number;    // 0-1
+  time: number;        // absolute start time in seconds
+  duration: number;    // note duration in seconds
+  timeUntil: number;   // seconds until note starts (can be negative if currently playing)
+  track: number;       // track index
+}
+
 export interface MusicParams {
   currentTime: number;
   dt: number;
@@ -75,6 +85,9 @@ export interface MusicParams {
   // Multi-voice instrument tracking
   activeVoices: ActiveVoice[];
   tracks: TrackInfo[];
+
+  // Lookahead for piano roll / falling notes visualization
+  upcomingNotes: UpcomingNote[];  // notes within lookahead window (default 4 seconds)
 }
 
 export interface EffectConfig {

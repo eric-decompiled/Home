@@ -23,6 +23,7 @@ let synth: WorkletSynthesizer | null = null;
 let sequencer: Sequencer | null = null;
 let initPromise: Promise<void> | null = null;
 let pendingMidiBuffer: ArrayBuffer | null = null;
+let pianoMode = false;
 
 async function init(): Promise<void> {
   if (synth) return;
@@ -44,6 +45,17 @@ function ensureInit(): Promise<void> {
     initPromise = init();
   }
   return initPromise;
+}
+
+function applyPianoMode(): void {
+  if (!synth || !pianoMode) return;
+  // Set all non-drum channels to piano (program 0)
+  // Channel 9 (0-indexed) is drums in General MIDI
+  for (let ch = 0; ch < 16; ch++) {
+    if (ch !== 9) {
+      synth.programChange(ch, 0); // 0 = Acoustic Grand Piano
+    }
+  }
 }
 
 export const audioPlayer = {
@@ -72,6 +84,8 @@ export const audioPlayer = {
       sequencer.currentTime = 0;
       sequencer.pause();
     }
+    // Apply piano mode if enabled
+    applyPianoMode();
   },
 
   async play() {
@@ -130,5 +144,26 @@ export const audioPlayer = {
   isFinished(): boolean {
     if (!sequencer) return false;
     return sequencer.isFinished;
+  },
+
+  setPianoMode(enabled: boolean) {
+    pianoMode = enabled;
+    if (synth) {
+      // Stop all sounding notes so new sound takes effect immediately
+      synth.stopAll(false);
+      if (enabled) {
+        applyPianoMode();
+      } else if (sequencer) {
+        // Reload to restore original instruments
+        const currentTime = sequencer.currentTime;
+        const wasPlaying = !sequencer.paused;
+        sequencer.currentTime = currentTime; // triggers re-send of program changes
+        if (wasPlaying) sequencer.play();
+      }
+    }
+  },
+
+  isPianoMode(): boolean {
+    return pianoMode;
   },
 };

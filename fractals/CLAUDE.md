@@ -28,7 +28,7 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 | Slot | Purpose | Effects |
 |------|---------|---------|
 | **Background** | Full-canvas animated backdrop | Flow Field (default), Domain Warp, Waves, Chladni |
-| **Foreground** | Main visual element | Fractal (default), Laser Hockey, Tonnetz, Spirograph, Note Spiral |
+| **Foreground** | Main visual element | Fractal (default), Piano Roll, Laser Hockey, Tonnetz, Spirograph, Note Spiral |
 | **Overlay** | Post-process effects | Groove Wave (default), Pitch Histogram, Kaleidoscope |
 | **Melody** | Melodic visualization | Melody Aurora, Melody Web, Chord Web, Melody Clock |
 | **Bass** | Bass note tracking | Bass Web, Bass Clock |
@@ -64,6 +64,16 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 
 **Bass Clock** (`src/effects/bass-clock.ts`): Industrial station-clock style hand tracking **chord root** (not individual bass notes) for harmonic stability. Heavy tapered hand with circular counterweight. Roman numeral markers on outer ring (just outside note spiral radius). **Fixed hand length at 0.95** (outer layer). Uses GSAP with full beat duration and power2.inOut ease for slow, weighty motion.
 
+**Piano Roll** (`src/effects/piano-roll.ts`): Falling notes visualization with piano keyboard at bottom. Notes fall from above and land on keys when they play. Features:
+- **Lookahead system**: Uses `upcomingNotes` from MusicParams for 4-second note preview
+- **Octave-aware coloring**: Low notes use darker palette stops, high notes use brighter stops
+- **Key depression**: Keys physically press down when notes hit, with smooth return
+- **Groove-synced glow**: Notes and keys pulse subtly with beatGroove/barGroove (20% swing)
+- **Multi-layer note rendering**: Body gradient, cylindrical shading, highlight, neon border, leading edge
+- **Particle system**: Sparks emit on note impact, during sustain, and on release (capped at 50 particles)
+- **Piano sound mode**: Toggle to force all instruments to piano (via program change)
+- **Performance optimized**: No shadow blur (uses layered fills), particles are simple circles
+
 **Groove Wave** (`src/effects/groove-wave.ts`): Subtle overlay visualizing groove curves as animated waves at screen bottom. Two mirrored waves emanate from center: bar groove (slower, background) and beat groove (faster, main rhythm). Newest samples appear at center, oldest at edges—creates a scrolling "heartbeat monitor" effect. **Peak brightness boost**: wave segments glow 1.75× brighter at peaks (groove=1) while maintaining baseline brightness at troughs, avoiding the mistake of dimming non-peak regions too much.
 
 ### MusicParams Interface
@@ -78,6 +88,7 @@ Shared data passed to all effects each frame (`src/effects/effect-interface.ts`)
 - **Bass**: `bassPitchClass`, `bassMidiNote`, `bassVelocity`
 - **Drums**: `kick`, `snare`, `hihat` (boolean onsets)
 - **Multi-voice**: `activeVoices[]` (all sounding notes with track info), `tracks[]`
+- **Lookahead**: `upcomingNotes[]` (notes within 4-second window, with `timeUntil`, `duration`, `midi`, `velocity`)
 - **Color**: `paletteIndex`
 
 ## Audio Playback
@@ -237,6 +248,13 @@ Includes test MIDIs (A major/minor scales, chromatic test) plus game soundtracks
 - **Groove curves (anticipation/arrival)**: Based on two-phase dopamine response from neuroscience. Anticipation builds before beat (caudate nucleus), arrival creates impact on beat (nucleus accumbens). Creates smoother, more musical animations than boolean triggers. Use `beatAnticipation` for glow buildup, `beatArrival` for pulse impact, `beatGroove` for continuous rhythm modulation.
 - **Bar-level groove for bass**: Bass/harmonic elements respond to `barAnticipation`/`barArrival` rather than beat-level. Creates weighty, grounded feel for low-frequency visualizations.
 - **CSS custom properties for smooth progress bars**: Native range input `value` updates look choppy on short tracks. Use a CSS variable (`--progress: 0-1`) to drive a `linear-gradient` background for subpixel-smooth rendering independent of the input's step value.
+- **Octave-aware palette coloring**: For piano/keyboard visualizations, map MIDI note to palette stop index—low octaves use darker stops (indices 0-2), high octaves use brighter stops (indices 3-5). Creates natural visual hierarchy matching musical register.
+- **Layered fills instead of shadow blur**: Shadow blur is extremely expensive. Fake glow with 2-3 expanding translucent rectangles/circles. Visually similar, 10x+ faster.
+- **Subtle groove modulation (20% swing max)**: Larger groove swings look distracting on fast tempo songs. Keep modulation subtle—0.9 + grooveMod * 0.2 is a good range.
+- **Key depression with smooth return**: Track active notes to hold keys down, decay brightness at exp(-4.0 * dt) for visible return animation. Threshold at 0.1 brightness for activation.
+- **Particle system caps**: Cap total particles (50 max), use simple circles with white core instead of radial gradients, reduce emission counts (2-4 per impact). Essential for performance on note-heavy songs.
+- **Two-palette-stop gradients for keys**: Pick two actual palette colors for key gradients (top/bottom) rather than darkening/lightening one color. Looks richer and more natural.
+- **Piano mode with immediate effect**: Stop all notes (`synth.stopAll`) before applying program changes so sound switches instantly, not on next note.
 
 ### What Doesn't Work
 - **Solid-fill clock silhouettes**: Details invisible
@@ -249,6 +267,9 @@ Includes test MIDIs (A major/minor scales, chromatic test) plus game soundtracks
 - **Drum-only energy drivers**: Many MIDIs have no drums. Generalize to all note onsets + beat grid
 - **Drum pulse circles around beat positions**: Tried subdividing a circle into beat positions (4ths for 4/4, 3rds for 3/4) with drum pulses at those positions. Experimented with capacitor models (fast absorb, slow bleed), hihat accents, different radii. Despite multiple iterations, always felt either too heavy/sudden or the effect didn't "land" visually. Drum visualization on domain warp remains unsolved — better to let the wave tanks respond to all onsets rather than trying to visualize drums specifically
 - **Bass clock tracking individual bass notes**: Too erratic — random bass notes cause the hand to jump around. Following chord root provides harmonic stability
+- **Shadow blur for glow effects**: Extremely expensive, causes frame drops on note-heavy songs. Use layered translucent fills instead.
+- **Radial gradients per particle**: Too expensive at scale. Use simple filled circles with a smaller white core circle.
+- **Strong groove modulation (40%+ swing)**: Looks flashy in demos but distracting on fast songs. Subtle (20%) feels better.
 
 ## Available Libraries
 

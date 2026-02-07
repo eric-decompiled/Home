@@ -1,5 +1,5 @@
 import type { ChordEvent, DrumHit, NoteEvent, TrackInfo, KeyRegion } from './midi-analyzer.ts';
-import type { MusicParams, ActiveVoice } from './effects/effect-interface.ts';
+import type { MusicParams, ActiveVoice, UpcomingNote } from './effects/effect-interface.ts';
 import { createMidiBeatSync, createIdleBeatSync, type BeatSync, type TempoEvent, type TimeSignatureEvent } from './beat-sync.ts';
 import { gsap } from './animation.ts';
 
@@ -196,6 +196,35 @@ let currentActiveVoices: ActiveVoice[] = [];
 let lastActiveKeys = new Set<string>(); // "channel:midi" for onset detection
 let currentTracks: TrackInfo[] = [];
 
+// All notes for lookahead (piano roll)
+let allNotes: NoteEvent[] = [];
+const LOOKAHEAD_SECONDS = 4.0;  // how far ahead to look for upcoming notes
+
+function computeUpcomingNotes(currentTime: number): UpcomingNote[] {
+  const upcoming: UpcomingNote[] = [];
+  const windowStart = currentTime - 0.1;  // include notes that just started
+  const windowEnd = currentTime + LOOKAHEAD_SECONDS;
+
+  for (const note of allNotes) {
+    if (note.isDrum) continue;  // skip drum notes
+    const noteEnd = note.time + note.duration;
+    // Include if note overlaps with window
+    if (note.time < windowEnd && noteEnd > windowStart) {
+      upcoming.push({
+        midi: note.midi,
+        pitchClass: note.midi % 12,
+        velocity: note.velocity,
+        time: note.time,
+        duration: note.duration,
+        timeUntil: note.time - currentTime,
+        track: note.channel,
+      });
+    }
+  }
+
+  return upcoming;
+}
+
 export const musicMapper = {
   setTempo(
     bpm: number,
@@ -246,6 +275,9 @@ export const musicMapper = {
     drums: DrumHit[],
     notes: NoteEvent[]
   ): FractalParams {
+    // Store notes for lookahead (piano roll)
+    allNotes = notes;
+
     // --- Find current chord ---
     let chordIdx = -1;
     for (let i = chords.length - 1; i >= 0; i--) {
@@ -548,6 +580,7 @@ export const musicMapper = {
       paletteIndex: currentChordRoot,
       activeVoices: currentActiveVoices,
       tracks: currentTracks,
+      upcomingNotes: computeUpcomingNotes(currentTime),
     };
   },
 
@@ -598,6 +631,7 @@ export const musicMapper = {
       paletteIndex: currentKey,
       activeVoices: [],
       tracks: currentTracks,
+      upcomingNotes: [],
     };
   },
 

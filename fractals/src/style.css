@@ -171,6 +171,24 @@ a.toggle-btn {
   color: #16c79a;
   border-bottom: 1px solid #0f3460;
   white-space: nowrap;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.panel-close-btn {
+  display: none;
+  background: none;
+  border: none;
+  color: #16c79a;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.panel-close-btn:hover {
+  color: #fff;
 }
 
 /* --- Layer slots --- */
@@ -385,6 +403,23 @@ input[type="range"]::-moz-range-thumb {
 
 /* --- Responsive --- */
 
+@media (max-width: 1100px) {
+  .preset-buttons {
+    flex-wrap: wrap;
+  }
+
+  .preset-btn {
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+}
+
+@media (max-width: 900px) {
+  .top-row {
+    flex-wrap: wrap;
+  }
+}
+
 @media (max-width: 700px) {
   .top-bar {
     gap: 6px;
@@ -465,6 +500,10 @@ input[type="range"]::-moz-range-thumb {
     right: 0;
     bottom: 0;
     z-index: 100;
+  }
+
+  .panel-close-btn {
+    display: block;
   }
 }
 

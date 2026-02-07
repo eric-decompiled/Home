@@ -19,6 +19,7 @@ import { BassClockEffect } from './effects/bass-clock.ts';
 import { NoteSpiralEffect } from './effects/note-spiral.ts';
 import { PitchHistogramEffect } from './effects/pitch-histogram.ts';
 import { GrooveWaveEffect } from './effects/groove-wave.ts';
+import { PianoRollEffect } from './effects/piano-roll.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
 
 // --- Song list ---
@@ -86,6 +87,7 @@ const melodyClockEffect = new MelodyClockEffect();
 const bassWebEffect = new BassWebEffect();
 const bassClockEffect = new BassClockEffect();
 const noteSpiralEffect = new NoteSpiralEffect();
+const pianoRollEffect = new PianoRollEffect();
 const grooveWaveEffect = new GrooveWaveEffect();
 
 // --- Layer slot definitions (mutually exclusive within each slot) ---
@@ -100,12 +102,12 @@ const layerSlots: LayerSlot[] = [
   {
     name: 'Background',
     effects: [domainWarpEffect, waveEffect, chladniEffect, flowFieldEffect],
-    activeId: 'flowfield',
+    activeId: 'flowfield',  // Cosmic Spiral default
   },
   {
     name: 'Foreground',
-    effects: [tonnetzEffect, fractalEffect, noteSpiralEffect],
-    activeId: 'note-spiral',
+    effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect],
+    activeId: 'note-spiral',  // Cosmic Spiral default
   },
   {
     name: 'Overlay',
@@ -120,7 +122,7 @@ const layerSlots: LayerSlot[] = [
   {
     name: 'Bass',
     effects: [bassWebEffect, bassClockEffect],
-    activeId: 'bass-clock',
+    activeId: 'bass-clock',  // Cosmic Spiral default
   },
 ];
 
@@ -157,10 +159,12 @@ app.innerHTML = `
         </div>
         <button class="toggle-btn" id="layers-toggle">Animations</button>
         <a href="config.html" target="_blank" class="toggle-btn">Fractal Config</a>
-        <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px;">
+        <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
+          <span style="color: #888; font-size: 12px; margin-right: 4px;">Presets:</span>
           <button class="toggle-btn preset-btn" id="preset-spiral" title="Flow Field + Note Spiral + Bass Clock">Cosmic Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-fractal" title="Chladni + Fractal + 7-fold Kaleidoscope">Fractal Cathedral</button>
           <button class="toggle-btn preset-btn" id="preset-warp" title="Domain Warp + Note Spiral + Kaleidoscope + Bass Clock">Warp Prism</button>
+          <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
         </div>
       </div>
       <div class="transport">
@@ -172,7 +176,10 @@ app.innerHTML = `
 
     <div class="main-area">
       <div class="layer-panel" id="layer-panel">
-        <div class="layer-panel-header">Animations</div>
+        <div class="layer-panel-header">
+          <span>Animations</span>
+          <button class="panel-close-btn" id="panel-close-btn">&times;</button>
+        </div>
         <div id="layer-list"></div>
       </div>
       <div class="canvas-wrap">
@@ -226,6 +233,14 @@ layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
   layerPanel.classList.toggle('open', layerPanelOpen);
+});
+
+// Close button for mobile
+const panelCloseBtn = document.getElementById('panel-close-btn')!;
+panelCloseBtn.addEventListener('click', () => {
+  layerPanelOpen = false;
+  layersToggle.classList.remove('active');
+  layerPanel.classList.remove('open');
 });
 
 // --- Build layer panel UI ---
@@ -354,12 +369,23 @@ buildLayerPanel();
 
 // --- Preset buttons ---
 
+const presetPianoBtn = document.getElementById('preset-piano') as HTMLButtonElement;
 const presetSpiralBtn = document.getElementById('preset-spiral') as HTMLButtonElement;
 const presetFractalBtn = document.getElementById('preset-fractal') as HTMLButtonElement;
 const presetWarpBtn = document.getElementById('preset-warp') as HTMLButtonElement;
 
-function applyPreset(preset: 'spiral' | 'fractal' | 'warp'): void {
-  if (preset === 'spiral') {
+// Default preset is Cosmic Spiral
+presetSpiralBtn.classList.add('active');
+
+function applyPreset(preset: 'piano' | 'spiral' | 'fractal' | 'warp'): void {
+  if (preset === 'piano') {
+    // Piano: Flow Field + Piano Roll
+    layerSlots[0].activeId = 'flowfield';     // Background
+    layerSlots[1].activeId = 'piano-roll';    // Foreground
+    layerSlots[2].activeId = null;            // Overlay
+    layerSlots[3].activeId = null;            // Melody
+    layerSlots[4].activeId = null;            // Bass
+  } else if (preset === 'spiral') {
     // Cosmic Spiral: Flow Field + Note Spiral + Bass Clock
     layerSlots[0].activeId = 'flowfield';    // Background
     layerSlots[1].activeId = 'note-spiral';  // Foreground
@@ -387,17 +413,16 @@ function applyPreset(preset: 'spiral' | 'fractal' | 'warp'): void {
   dirty = true;
 
   // Update button active states
+  presetPianoBtn.classList.toggle('active', preset === 'piano');
   presetSpiralBtn.classList.toggle('active', preset === 'spiral');
   presetFractalBtn.classList.toggle('active', preset === 'fractal');
   presetWarpBtn.classList.toggle('active', preset === 'warp');
 }
 
+presetPianoBtn.addEventListener('click', () => applyPreset('piano'));
 presetSpiralBtn.addEventListener('click', () => applyPreset('spiral'));
 presetFractalBtn.addEventListener('click', () => applyPreset('fractal'));
 presetWarpBtn.addEventListener('click', () => applyPreset('warp'));
-
-// Mark initial preset as active (Cosmic Spiral is the default)
-presetSpiralBtn.classList.add('active');
 
 // --- Canvas sizing ---
 
