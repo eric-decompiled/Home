@@ -61,3 +61,59 @@ export function chordTriad(root: number, quality: string): Set<number> {
 export function semitoneOffset(pitchClass: number, key: number): number {
   return ((pitchClass - key + 12) % 12);
 }
+
+// --- Spiral coordinate system (shared by note-spiral, bass-clock, melody-clock) ---
+
+/** MIDI range for spiral visualization */
+export const SPIRAL_MIDI_LO = 21;   // A0 (lowest piano key)
+export const SPIRAL_MIDI_HI = 106;  // A7 (highest visualized)
+export const SPIRAL_MIDI_RANGE = SPIRAL_MIDI_HI - SPIRAL_MIDI_LO; // 85 semitones
+
+/** Spiral maxR as fraction of minDim (Math.min(w, h) / 2) */
+export const SPIRAL_RADIUS_SCALE = 0.82;
+
+/** Spiral position result */
+export interface SpiralPos {
+  x: number;
+  y: number;
+  radius: number;
+  angle: number;
+  scale: number;
+}
+
+/**
+ * Calculate position on the note spiral for a given MIDI note.
+ * Use midi > SPIRAL_MIDI_HI for imaginary outer octave (e.g., numerals).
+ */
+export function spiralPos(
+  midi: number,
+  pitchClass: number,
+  key: number,
+  keyRotation: number,
+  cx: number,
+  cy: number,
+  maxR: number
+): SpiralPos {
+  const t = (midi - SPIRAL_MIDI_LO) / SPIRAL_MIDI_RANGE;
+
+  // Radius: sqrt curve for even visual spacing
+  const radius = maxR * (0.02 + 0.98 * Math.sqrt(Math.max(0, t)));
+
+  // Angle: pitch class position + key rotation + spiral twist
+  const baseAngle = (pitchClass / 12) * Math.PI * 2 - Math.PI / 2;
+  const fromRoot = ((pitchClass - key + 12) % 12);
+  const twist = (fromRoot / 12) * 0.15;
+  const angle = baseAngle + keyRotation + twist;
+
+  // Position with perspective rise
+  const rise = -t * maxR * 0.08;
+  const scale = 1.0 + t * 0.1;
+
+  return {
+    x: cx + Math.cos(angle) * radius,
+    y: cy + Math.sin(angle) * radius + rise,
+    radius,
+    angle,
+    scale,
+  };
+}

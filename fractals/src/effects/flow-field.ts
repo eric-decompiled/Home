@@ -90,11 +90,11 @@ export class FlowFieldEffect implements VisualEffect {
   private colorB = 255;
   private useWhite = false;
 
-  // Mouse interaction
+  // Mouse interaction (subtle - need to look to notice)
   private mouseX = -1;
   private mouseY = -1;
-  private mouseStrength = 120; // force radius
-  private mouseForce = 0.3;    // repulsion strength (gentle)
+  private mouseStrength = 60;  // force radius
+  private mouseForce = 0.08;   // repulsion strength
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -229,7 +229,7 @@ export class FlowFieldEffect implements VisualEffect {
         if (distSq < radiusSq && distSq > 1) {
           const dist = Math.sqrt(distSq);
           const falloff = 1 - dist / this.mouseStrength;
-          const force = falloff * falloff * this.mouseForce * 15;
+          const force = falloff * falloff * this.mouseForce * 5;
           p.vx += (dx / dist) * force;
           p.vy += (dy / dist) * force;
         }

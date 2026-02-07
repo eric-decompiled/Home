@@ -36,14 +36,14 @@ const defaultAnchors: Record<number, CValue> = {
        orbits: [{dr:0.0800, di:0.0000}, {dr:0.0000, di:0.0800}, {dr:-0.0800, di:0.0000}, {dr:0.0000, di:-0.0800}] },  // PerpBurn
   3: { real: 0.3386, imag: -1.5682, type: 3,
        orbits: [{dr:0.3780, di:0.2838}, {dr:0.0203, di:0.3658}, {dr:-0.3341, di:0.2716}, {dr:0.6591, di:-0.0036}] },  // Burning Ship
-  4: { real: -1.2810, imag: -0.4794, type: 6,
-       orbits: [{dr:0.3687, di:0.2541}, {dr:-0.4120, di:0.3658}, {dr:-0.3442, di:0.0000}, {dr:0.0000, di:-0.3003}] },  // Celtic
-  5: { real: 0.3789, imag: 0.5193, type: 4,
-       orbits: [{dr:0.0395, di:0.0300}, {dr:0.0675, di:0.0413}, {dr:-0.0305, di:-0.0552}, {dr:-0.0331, di:-0.1026}] },  // Tricorn
+  4: { real: 0.1969, imag: 0.5382, type: 4,
+       orbits: [{dr:-0.0130, di:0.4822}, {dr:-0.0364, di:0.3081}, {dr:-0.1946, di:-0.1429}, {dr:-0.5589, di:-0.3168}] },  // Tricorn
+  5: { real: 0.3972, imag: 0.5086, type: 4,
+       orbits: [{dr:0.1357, di:-0.0154}, {dr:0.2352, di:-0.1154}, {dr:-0.0090, di:-0.0631}, {dr:0.0353, di:-0.1455}] },  // Tricorn
   6: { real: -1.0169, imag: -1.0135, type: 3,
        orbits: [{dr:0.0128, di:-0.2683}, {dr:-0.3061, di:0.2928}, {dr:-0.3486, di:0.0034}, {dr:0.3770, di:0.0085}] },  // Burning Ship
-  7: { real: -0.5409, imag: -0.9587, type: 9,
-       orbits: [{dr:0.3182, di:-0.0236}, {dr:-0.0152, di:0.2597}, {dr:0.3001, di:0.2507}, {dr:-0.3193, di:0.2747}] },  // Buffalo
+  7: { real: 0.2881, imag: 0.4126, type: 5,
+       orbits: [{dr:0.3182, di:-0.0236}, {dr:1.0254, di:-0.0038}, {dr:-0.0310, di:0.3267}, {dr:-0.3607, di:0.3102}] },  // Phoenix
 };
 
 const STORAGE_KEY = 'fractal-anchors';

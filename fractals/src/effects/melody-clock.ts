@@ -7,7 +7,7 @@
 // Arc trail along the edge shows recent sweep path.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES, semitoneOffset } from './effect-utils.ts';
+import { samplePaletteColor } from './effect-utils.ts';
 import { gsap } from '../animation.ts';
 
 interface ArcSegment {
@@ -38,9 +38,7 @@ export class MelodyClockEffect implements VisualEffect {
   private targetAngle = -Math.PI / 2;
   private handBrightness = 0;
   private key = 0;
-  private keyMode: 'major' | 'minor' = 'major';
   private keyRotation = 0;  // animated rotation offset for modulations
-  private lastPitchClass = -1;
   private lastMidiNote = -1;
   private colR = 200;
   private colG = 200;
@@ -80,7 +78,6 @@ export class MelodyClockEffect implements VisualEffect {
     this.time += dt;
     this.breathPhase += dt * 0.8;
     this.key = music.key;
-    this.keyMode = music.keyMode;
     this.keyRotation = music.keyRotation;
 
     if (music.kick) this.energy += 0.3;
@@ -103,8 +100,10 @@ export class MelodyClockEffect implements VisualEffect {
     if (music.melodyOnset && music.melodyPitchClass >= 0 && music.melodyVelocity > 0) {
       const pc = music.melodyPitchClass;
       const midiNote = music.melodyMidiNote;
-      // Use absolute pitch class position (keyRotation handles alignment)
-      const newAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2;
+      // Use universal coordinate system: pitch class + twist offset (keyRotation applied in render)
+      const fromRoot = ((pc - this.key + 12) % 12);
+      const twist = (fromRoot / 12) * 0.15;
+      const newAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2 + twist;
 
       // Use actual MIDI note to determine direction:
       // melody ascending → clockwise, melody descending → counter-clockwise
@@ -125,7 +124,6 @@ export class MelodyClockEffect implements VisualEffect {
       }
 
       this.targetAngle = this.handAngle + diff;
-      this.lastPitchClass = pc;
       this.lastMidiNote = midiNote;
 
       const c = samplePaletteColor(pc, 0.75);
@@ -198,8 +196,6 @@ export class MelodyClockEffect implements VisualEffect {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    const diatonicOffsets = this.keyMode === 'minor' ? MINOR_OFFSETS : MAJOR_OFFSETS;
-
     // --- Outer ring ---
     ctx.beginPath();
     ctx.arc(cx, cy, r * breath, 0, Math.PI * 2);
@@ -242,75 +238,6 @@ export class MelodyClockEffect implements VisualEffect {
         ctx.strokeStyle = `rgba(${wr},${wg},${wb},${(a * 0.5).toFixed(3)})`;
         ctx.lineWidth = 2 + a * 2;
         ctx.stroke();
-      }
-    }
-
-    // --- Roman numeral markers + tick marks ---
-    // Roman numeral markers
-    const degreeMap = this.keyMode === 'minor' ? MINOR_DEGREES : MAJOR_DEGREES;
-
-    for (let i = 0; i < 12; i++) {
-      const semitones = semitoneOffset(i, this.key);
-      // Use absolute pitch class position + keyRotation (like note-spiral)
-      const tickAngle = (i / 12) * Math.PI * 2 - Math.PI / 2 + this.keyRotation;
-      const inKey = diatonicOffsets.has(semitones);
-      const isCurrent = i === this.lastPitchClass;
-      const outerR = r * breath;
-      const tc = samplePaletteColor(i, 0.7);
-      const tickAlpha = isCurrent ? 0.6 + this.handBrightness * 0.4
-        : inKey ? 0.2 + this.energy * 0.1 : 0.08;
-
-      const numeral = degreeMap[semitones];
-      if (numeral) {
-        // Draw Roman numeral for diatonic scale degrees
-        const fontSize = Math.max(10, Math.round(r * 0.065));
-        const textR = outerR - r * 0.06;
-        const tx = cx + Math.cos(tickAngle) * textR;
-        const ty = cy + Math.sin(tickAngle) * textR;
-
-        ctx.save();
-        ctx.translate(tx, ty);
-        ctx.rotate(tickAngle + Math.PI / 2);
-        ctx.font = `${isCurrent ? 'bold ' : ''}${fontSize}px serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-
-        // Glow pass
-        if (isCurrent && this.handBrightness > 0.05) {
-          ctx.shadowColor = `rgba(${tc[0]},${tc[1]},${tc[2]},${(this.handBrightness * 0.6).toFixed(3)})`;
-          ctx.shadowBlur = 12;
-        }
-
-        ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
-        ctx.fillText(numeral, 0, 0);
-        ctx.shadowBlur = 0;
-        ctx.restore();
-      } else {
-        // Small tick for chromatic (non-diatonic) notes
-        const tickLen = r * 0.025;
-        const innerR = outerR - tickLen;
-        const ox = cx + Math.cos(tickAngle) * outerR;
-        const oy = cy + Math.sin(tickAngle) * outerR;
-        const ix = cx + Math.cos(tickAngle) * innerR;
-        const iy = cy + Math.sin(tickAngle) * innerR;
-
-        ctx.beginPath();
-        ctx.moveTo(ox, oy);
-        ctx.lineTo(ix, iy);
-        ctx.strokeStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
-        ctx.lineWidth = 0.8;
-        ctx.stroke();
-      }
-
-      if (isCurrent && this.handBrightness > 0.05) {
-        const glowR = r * 0.06;
-        const gx = cx + Math.cos(tickAngle) * (outerR - r * 0.05);
-        const gy = cy + Math.sin(tickAngle) * (outerR - r * 0.05);
-        const grd = ctx.createRadialGradient(gx, gy, 0, gx, gy, glowR);
-        grd.addColorStop(0, `rgba(${tc[0]},${tc[1]},${tc[2]},${(this.handBrightness * 0.4).toFixed(3)})`);
-        grd.addColorStop(1, `rgba(${tc[0]},${tc[1]},${tc[2]},0)`);
-        ctx.fillStyle = grd;
-        ctx.fillRect(gx - glowR, gy - glowR, glowR * 2, glowR * 2);
       }
     }
 

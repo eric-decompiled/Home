@@ -10,7 +10,13 @@ const projects = {
   'resonator': 'Real-time RLC resonator explorer for audio synthesis and visualization',
   'sound-synth': 'Interactive harmonics explorer for understanding sound and timbre',
   'karplus-strong': 'Explore the Karplus-Strong algorithm to synth plucked string sounds',
-  'fractals': 'Explore fractals. Some have animations',
+  'fractals': 'Music visualization with fractals, physics, and procedural graphics driven by MIDI',
+  'intervals': 'Ear training for musical intervals with adaptive difficulty and Lissajous visualization',
+};
+
+// Custom display titles (overrides auto-generated title from directory name)
+const titles = {
+  'fractals': 'The Fractured Jukebox',
 };
 
 // Base path for GitHub Pages deployment (set via environment variable or default to root)
@@ -54,11 +60,14 @@ async function build() {
 
   // Generate project links
   const projectLinks = Object.entries(projects)
-    .map(([name, description]) => `
+    .map(([name, description]) => {
+      const title = titles[name] || name.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+      return `
         <a href="${name}/index.html" class="project-link">
-          <h3>${name.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</h3>
+          <h3>${title}</h3>
           <p>${description}</p>
-        </a>`)
+        </a>`;
+    })
     .join('\n');
 
   // Inject the links into the special div using regex

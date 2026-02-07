@@ -83,7 +83,14 @@
       "WebFetch(domain:incompetech.com)",
       "WebFetch(domain:sampleswap.org)",
       "WebFetch(domain:archive.org)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(ipconfig getifaddr:*)",
+      "Bash(pkill:*)",
+      "WebFetch(domain:www.emu-land.net)",
+      "WebFetch(domain:netcavy.net)",
+      "WebFetch(domain:freemidi.org)",
+      "WebFetch(domain:www.midisite.co.uk)",
+      "WebFetch(domain:www.rpg-o-mania.com)"
     ]
   }
 }

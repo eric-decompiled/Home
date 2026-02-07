@@ -11,11 +11,8 @@ import { WaveInterferenceEffect } from './effects/wave-interference.ts';
 import { ChladniEffect } from './effects/chladni.ts';
 import { DomainWarpEffect } from './effects/domain-warp.ts';
 import { TonnetzEffect } from './effects/tonnetz.ts';
-import { LaserHockeyEffect } from './effects/laser-hockey.ts';
-import { SpirographEffect } from './effects/spirograph.ts';
 import { MelodyAuroraEffect } from './effects/melody-aurora.ts';
 import { MelodyWebEffect } from './effects/melody-web.ts';
-import { ChordWebEffect } from './effects/chord-web.ts';
 import { MelodyClockEffect } from './effects/melody-clock.ts';
 import { BassWebEffect } from './effects/bass-web.ts';
 import { BassClockEffect } from './effects/bass-clock.ts';
@@ -32,30 +29,22 @@ interface SongEntry {
 }
 
 const songs: SongEntry[] = [
-  { name: 'Circle of Fifths (Modulation Test)', file: 'circle-of-fifths.mid' },
-  { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },
-  { name: 'A Minor Scale Test', file: 'a-minor-test.mid' },
-  { name: 'A Major Scale Test', file: 'a-major-test.mid' },
-  { name: 'Chromatic Test', file: 'chromatic-test.mid' },
-  { name: 'Prelude (Final Fantasy)', file: 'ff1-prelude.mid' },
-  { name: "Schala's Theme (Chrono Trigger)", file: 'schala.mid' },
-  { name: "You're Not Alone (Final Fantasy IX)", file: 'ff9-youre-not-alone.mid' },
-  { name: "Frog's Theme (Chrono Trigger)", file: 'frog-theme.mid' },
-  { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },
-  { name: 'J-E-N-O-V-A (Final Fantasy VII)', file: 'ff7-jenova.mid' },
-  { name: 'Hallelujah (Leonard Cohen)', file: 'hallelujah.mid' },
-  { name: 'Stab the Sword of Justice (Star Ocean 2)', file: 'so2-battle.mid' },
-  { name: 'Incarnation of the Devil (Star Ocean 2)', file: 'so2-incarnation.mid' },
-  { name: 'Zeik Tuvai Battle (Wild Arms)', file: 'wa1-zeik-tuvai.mid' },
-  { name: "Hero's Theme (Final Fantasy Tactics)", file: 'fft-heros-theme.mid' },
-  { name: 'Decisive Battle (Final Fantasy Tactics)', file: 'fft-decisive-battle.mid' },
-  { name: 'Area 0 (The Guardian Legend)', file: 'guardian-legend-area0.mid' },
-  { name: 'Alien Sector Flight (The Guardian Legend)', file: 'guardian-legend-corridor.mid' },
-  // Classical pieces with expressive tempo changes (rubato)
-  { name: 'Nocturne Op.9 No.2 (Chopin)', file: 'chopin-nocturne.mid' },
-  { name: 'Clair de Lune (Debussy)', file: 'clair-de-lune.mid' },
-  { name: 'Prelude in C Major BWV 846 (Bach)', file: 'bach-prelude-c.mid' },
-  { name: 'Toccata and Fugue in D minor (Bach)', file: 'bach-toccata-fugue.mid' },
+  // --- Classical ---
+  { name: 'Toccata and Fugue in D minor (Bach)', file: 'bach-toccata-fugue.mid' },       // ~1708
+  // --- Games (1988-2001) ---
+  { name: 'Area 0 (The Guardian Legend)', file: 'guardian-legend-area0.mid' },           // 1988
+  { name: "Schala's Theme (Chrono Trigger)", file: 'schala.mid' },                       // 1995
+  { name: "Into the Wilderness (Wild Arms)", file: 'wa1-opening.mid' },                  // 1996
+  { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },                       // 1997
+  { name: "Hero's Theme (Final Fantasy Tactics)", file: 'fft-heros-theme.mid' },         // 1997
+  { name: 'Tank! (Cowboy Bebop)', file: 'cowboy-bebop-tank.mid' },                       // 1998
+  { name: 'Stab the Sword of Justice (Star Ocean 2)', file: 'so2-battle.mid' },          // 1998
+  { name: 'Liberi Fatali (Final Fantasy VIII)', file: 'ff8-liberi-fatali.mid' },         // 1999
+  { name: "Dart's Theme (Legend of Dragoon)", file: 'legend-of-dragoon-dart.mid' },      // 1999
+  { name: 'Hometown Domina (Legend of Mana)', file: 'legend-of-mana-domina.mid' },       // 1999
+  { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // 2001
+  // --- Coda ---
+  { name: "Aerith's Theme (Final Fantasy VII)", file: 'aeris-theme.mid' },               // 1997 ♡
 ];
 
 // --- State ---
@@ -91,11 +80,8 @@ const waveEffect = new WaveInterferenceEffect();
 const chladniEffect = new ChladniEffect();
 const domainWarpEffect = new DomainWarpEffect();
 const tonnetzEffect = new TonnetzEffect();
-const laserHockeyEffect = new LaserHockeyEffect();
-const spirographEffect = new SpirographEffect();
 const melodyAuroraEffect = new MelodyAuroraEffect();
 const melodyWebEffect = new MelodyWebEffect();
-const chordWebEffect = new ChordWebEffect();
 const melodyClockEffect = new MelodyClockEffect();
 const bassWebEffect = new BassWebEffect();
 const bassClockEffect = new BassClockEffect();
@@ -118,7 +104,7 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Foreground',
-    effects: [laserHockeyEffect, tonnetzEffect, fractalEffect, spirographEffect, noteSpiralEffect],
+    effects: [tonnetzEffect, fractalEffect, noteSpiralEffect],
     activeId: 'note-spiral',
   },
   {
@@ -128,7 +114,7 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Melody',
-    effects: [melodyAuroraEffect, melodyWebEffect, chordWebEffect, melodyClockEffect],
+    effects: [melodyAuroraEffect, melodyWebEffect, melodyClockEffect],
     activeId: null,
   },
   {
@@ -161,20 +147,25 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = `
   <div class="container">
     <header class="top-bar">
-      <h1>Fractured Jukebox</h1>
-      <div class="song-picker-wrap">
-        <select id="song-picker">
-          <option value="">-- Select a Song --</option>
-          ${songs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
-        </select>
+      <div class="top-row">
+        <h1>The Fractured Jukebox</h1>
+        <div class="song-picker-wrap">
+          <select id="song-picker">
+            <option value="">-- Select a Song --</option>
+            ${songs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
+          </select>
+        </div>
+        <button class="toggle-btn" id="layers-toggle">Animations</button>
+        <a href="config.html" target="_blank" class="toggle-btn">Fractal Config</a>
+        <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px;">
+          <button class="toggle-btn preset-btn" id="preset-spiral" title="Flow Field + Note Spiral + Bass Clock">Cosmic Spiral</button>
+          <button class="toggle-btn preset-btn" id="preset-fractal" title="Chladni + Fractal + 7-fold Kaleidoscope">Fractal Cathedral</button>
+        </div>
       </div>
-      <button class="toggle-btn" id="layers-toggle">Animations</button>
-      <a href="config.html" target="_blank" class="config-link">Config</a>
-      <div class="song-info">
-        <span class="info-badge" id="key-display">Key: --</span>
-        <span class="info-badge" id="bpm-display">BPM: --</span>
-        <span class="info-badge" id="chord-display">--</span>
-        <span class="info-badge" id="fps-display">-- fps</span>
+      <div class="transport">
+        <button class="transport-btn" id="play-btn" disabled>&#9654;</button>
+        <input type="range" id="seek-bar" min="0" max="100" step="0.1" value="0" disabled>
+        <span class="time-display" id="time-display">0:00 / 0:00</span>
       </div>
     </header>
 
@@ -188,11 +179,12 @@ app.innerHTML = `
       </div>
     </div>
 
-    <footer class="bottom-bar">
-      <div class="transport">
-        <button class="transport-btn" id="play-btn" disabled>&#9654;</button>
-        <input type="range" id="seek-bar" min="0" max="100" step="0.1" value="0" disabled>
-        <span class="time-display" id="time-display">0:00 / 0:00</span>
+    <footer class="bottom-bar" style="display: none;">
+      <div class="song-info">
+        <span class="info-badge" id="key-display">Key: --</span>
+        <span class="info-badge" id="bpm-display">BPM: --</span>
+        <span class="info-badge" id="chord-display">--</span>
+        <span class="info-badge" id="fps-display">-- fps</span>
       </div>
     </footer>
   </div>
@@ -228,9 +220,7 @@ canvas.addEventListener('mouseleave', () => {
 
 // --- Animations panel toggle ---
 
-let layerPanelOpen = true;
-layersToggle.classList.add('active');
-layerPanel.classList.add('open');
+let layerPanelOpen = false;
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
@@ -361,20 +351,63 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
 
 buildLayerPanel();
 
+// --- Preset buttons ---
+
+const presetSpiralBtn = document.getElementById('preset-spiral') as HTMLButtonElement;
+const presetFractalBtn = document.getElementById('preset-fractal') as HTMLButtonElement;
+
+function applyPreset(preset: 'spiral' | 'fractal'): void {
+  if (preset === 'spiral') {
+    // Cosmic Spiral: Flow Field + Note Spiral + Bass Clock
+    layerSlots[0].activeId = 'flowfield';    // Background
+    layerSlots[1].activeId = 'note-spiral';  // Foreground
+    layerSlots[2].activeId = null;           // Overlay
+    layerSlots[3].activeId = null;           // Melody
+    layerSlots[4].activeId = 'bass-clock';   // Bass
+  } else if (preset === 'fractal') {
+    // Fractal Cathedral: Chladni + Fractal + 7-fold Kaleidoscope
+    layerSlots[0].activeId = 'chladni';       // Background
+    layerSlots[1].activeId = 'fractal';       // Foreground
+    layerSlots[2].activeId = 'kaleidoscope';  // Overlay
+    layerSlots[3].activeId = null;            // Melody
+    layerSlots[4].activeId = null;            // Bass
+  }
+
+  applySlotSelections();
+  buildLayerPanel();
+  dirty = true;
+
+  // Update button active states
+  presetSpiralBtn.classList.toggle('active', preset === 'spiral');
+  presetFractalBtn.classList.toggle('active', preset === 'fractal');
+}
+
+presetSpiralBtn.addEventListener('click', () => applyPreset('spiral'));
+presetFractalBtn.addEventListener('click', () => applyPreset('fractal'));
+
+// Mark initial preset as active (Cosmic Spiral is the default)
+presetSpiralBtn.classList.add('active');
+
 // --- Canvas sizing ---
 
 function resizeCanvas(): void {
   const wrap = document.querySelector('.canvas-wrap')!;
   const rect = wrap.getBoundingClientRect();
-  const availW = rect.width - 16;
-  const availH = rect.height - 16;
+  const padding = window.innerWidth <= 480 ? 0 : 16;
+  const availW = rect.width - padding;
+  const availH = rect.height - padding;
 
-  if (availW / availH > 4 / 3) {
-    displayHeight = Math.floor(Math.max(240, availH));
-    displayWidth = Math.floor(displayHeight * 4 / 3);
+  // 16:9 landscape aspect ratio
+  const aspect = 16 / 9;
+
+  if (availW / availH > aspect) {
+    // Height-constrained
+    displayHeight = Math.floor(Math.max(180, availH));
+    displayWidth = Math.floor(displayHeight * aspect);
   } else {
+    // Width-constrained
     displayWidth = Math.floor(Math.max(320, availW));
-    displayHeight = Math.floor(displayWidth * 3 / 4);
+    displayHeight = Math.floor(displayWidth / aspect);
   }
 
   canvas.width = displayWidth;
@@ -449,6 +482,7 @@ async function loadSong(index: number) {
   chordDisplay.textContent = `${timeline.timeSignature[0]}/${timeline.timeSignature[1]}`;
 
   seekBar.max = String(timeline.duration);
+  seekBar.step = '0.016';
   seekBar.value = '0';
   seekBar.disabled = false;
   playBtn.disabled = false;
@@ -513,6 +547,7 @@ async function loadMidiFile(file: File) {
     songPicker.value = 'custom';
 
     seekBar.max = String(timeline.duration);
+    seekBar.step = '0.016';
     seekBar.value = '0';
     seekBar.disabled = false;
     playBtn.disabled = false;
@@ -528,10 +563,13 @@ async function loadMidiFile(file: File) {
 
 // --- Event listeners ---
 
-songPicker.addEventListener('change', () => {
+songPicker.addEventListener('change', async () => {
   if (songPicker.value === 'custom') return; // Already loaded
   const idx = parseInt(songPicker.value);
-  if (!isNaN(idx)) loadSong(idx);
+  if (!isNaN(idx)) {
+    await loadSong(idx);
+    if (!isPlaying) playBtn.click();
+  }
 });
 
 // --- Custom MIDI file input (drag & drop + file picker) ---
@@ -728,14 +766,28 @@ function loop(time: number): void {
     const currentTime = audioPlayer.getCurrentTime();
 
     if (currentTime > 0.5 && (audioPlayer.isFinished() || currentTime >= timeline.duration)) {
-      audioPlayer.pause();
-      isPlaying = false;
-      playBtn.textContent = '\u25B6';
-      audioPlayer.seek(0);
-      musicMapper.reset();
+      // Auto-play next song
+      const currentIdx = parseInt(songPicker.value);
+      if (!isNaN(currentIdx) && currentIdx < songs.length - 1) {
+        const nextIdx = currentIdx + 1;
+        songPicker.value = String(nextIdx);
+        loadSong(nextIdx).then(() => {
+          audioPlayer.play();
+          isPlaying = true;
+          playBtn.textContent = '\u275A\u275A';
+        });
+      } else {
+        // End of playlist
+        audioPlayer.pause();
+        isPlaying = false;
+        playBtn.textContent = '\u25B6';
+        audioPlayer.seek(0);
+        musicMapper.reset();
+      }
     } else {
       if (!seeking) {
         seekBar.value = String(currentTime);
+        seekBar.style.setProperty('--progress', String(currentTime / timeline.duration));
       }
       updateTimeDisplay(currentTime);
       updateChordDisplay(currentTime);
@@ -790,6 +842,6 @@ function loop(time: number): void {
 
 requestAnimationFrame(loop);
 
-// Auto-load default song (Toccata and Fugue in D minor)
-songPicker.value = '22';
-loadSong(22);
+// Auto-load default song
+songPicker.value = '0';
+loadSong(0);

@@ -16,11 +16,11 @@ export class KaleidoscopeEffect implements VisualEffect {
   private height = 600;
   private ready = false;
 
-  private foldCount = 6;
+  private foldCount = 7;
   private rotation = 0;
   private rotationVelocity = 0;
   private zoomPulse = 1.0;
-  private mirrorMode: 'reflect' | 'rotate' = 'reflect';
+  private mirrorMode: 'reflect' | 'rotate' = 'rotate';
   private rotationSpeed = 0.2;
   private centerOffsetX = 0;
   private centerOffsetY = 0;

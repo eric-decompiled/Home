@@ -236,6 +236,7 @@ Includes test MIDIs (A major/minor scales, chromatic test) plus game soundtracks
 - **Random direction music bumps**: Fixed directions (e.g., kick always pushes down) cause objects to get stuck at boundaries. Random angles distribute motion across the canvas.
 - **Groove curves (anticipation/arrival)**: Based on two-phase dopamine response from neuroscience. Anticipation builds before beat (caudate nucleus), arrival creates impact on beat (nucleus accumbens). Creates smoother, more musical animations than boolean triggers. Use `beatAnticipation` for glow buildup, `beatArrival` for pulse impact, `beatGroove` for continuous rhythm modulation.
 - **Bar-level groove for bass**: Bass/harmonic elements respond to `barAnticipation`/`barArrival` rather than beat-level. Creates weighty, grounded feel for low-frequency visualizations.
+- **CSS custom properties for smooth progress bars**: Native range input `value` updates look choppy on short tracks. Use a CSS variable (`--progress: 0-1`) to drive a `linear-gradient` background for subpixel-smooth rendering independent of the input's step value.
 
 ### What Doesn't Work
 - **Solid-fill clock silhouettes**: Details invisible

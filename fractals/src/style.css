@@ -28,18 +28,34 @@ body {
 
 .top-bar {
   display: flex;
-  align-items: center;
-  gap: 20px;
+  flex-direction: column;
+  gap: 8px;
   padding: 12px 24px;
   background: rgba(15, 52, 96, 0.3);
   border-bottom: 1px solid #0f3460;
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;
 }
 
-.top-bar h1 {
+.top-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.top-row h1 {
   font-size: 18px;
   color: #16c79a;
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.title-icon {
+  width: 24px;
+  height: 24px;
 }
 
 .song-picker-wrap select {
@@ -74,6 +90,10 @@ body {
 
 .toggle-btn:hover {
   background: rgba(22, 199, 154, 0.15);
+}
+
+a.toggle-btn {
+  text-decoration: none;
 }
 
 .toggle-btn.active {
@@ -253,6 +273,7 @@ canvas {
   background: #000;
   border: 1px solid #1a1a2e;
   border-radius: 4px;
+  touch-action: pan-y;
 }
 
 /* --- Bottom bar --- */
@@ -262,12 +283,16 @@ canvas {
   background: rgba(15, 52, 96, 0.3);
   border-top: 1px solid #0f3460;
   flex-shrink: 0;
+  position: relative;
+  z-index: 10;
 }
 
 .transport {
   display: flex;
   align-items: center;
   gap: 12px;
+  border-top: 1px solid #0f3460;
+  padding-top: 8px;
 }
 
 .transport-btn {
@@ -297,6 +322,13 @@ canvas {
 
 .transport input[type="range"] {
   flex: 1;
+  touch-action: manipulation;
+}
+
+.transport-btn,
+.toggle-btn,
+select {
+  touch-action: manipulation;
 }
 
 .time-display {
@@ -311,8 +343,13 @@ canvas {
 /* --- Range inputs --- */
 
 input[type="range"] {
+  --progress: 0;
   height: 6px;
-  background: #1a1a2e;
+  background: linear-gradient(to right,
+    rgba(22, 199, 154, 0.4) 0%,
+    rgba(22, 199, 154, 0.4) calc(var(--progress) * 100%),
+    #1a1a2e calc(var(--progress) * 100%),
+    #1a1a2e 100%);
   border-radius: 5px;
   outline: none;
   border: 1px solid #0f3460;
@@ -350,12 +387,16 @@ input[type="range"]::-moz-range-thumb {
 
 @media (max-width: 700px) {
   .top-bar {
-    flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
     padding: 6px 10px;
   }
 
-  .top-bar h1 {
+  .top-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .top-row h1 {
     font-size: 14px;
     width: 100%;
     text-align: center;
@@ -429,13 +470,13 @@ input[type="range"]::-moz-range-thumb {
 
 /* Even smaller screens */
 @media (max-width: 480px) {
-  .top-bar h1 {
+  .top-row h1 {
     display: none;
   }
 
   .top-bar {
     padding: 4px 6px;
-    gap: 6px;
+    gap: 4px;
   }
 
   .bottom-bar {
@@ -449,5 +490,51 @@ input[type="range"]::-moz-range-thumb {
 
   .canvas-wrap {
     padding: 0;
+  }
+
+  .config-link {
+    display: none;
+  }
+}
+
+/* Portrait mobile - maximize canvas */
+@media (max-width: 480px) and (orientation: portrait) {
+  .bottom-bar {
+    display: none;
+  }
+
+  .top-bar {
+    padding: 4px;
+    gap: 2px;
+  }
+
+  .top-row {
+    gap: 4px;
+  }
+
+  .transport {
+    padding-top: 4px;
+    gap: 6px;
+  }
+
+  .transport-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .time-display {
+    font-size: 10px;
+    min-width: 60px;
+  }
+
+  .toggle-btn {
+    padding: 2px 6px;
+    font-size: 10px;
+  }
+
+  .song-picker-wrap select {
+    padding: 4px 6px;
+    font-size: 12px;
   }
 }

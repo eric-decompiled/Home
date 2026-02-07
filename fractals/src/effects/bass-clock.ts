@@ -4,7 +4,10 @@
 // Sturdy design with counterweight - like a station clock or industrial gauge.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES, semitoneOffset } from './effect-utils.ts';
+import {
+  samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES, semitoneOffset,
+  SPIRAL_RADIUS_SCALE, spiralPos
+} from './effect-utils.ts';
 import { gsap } from '../animation.ts';
 
 interface ArcSegment {
@@ -100,8 +103,11 @@ export class BassClockEffect implements VisualEffect {
     const pc = music.chordRoot >= 0 ? music.chordRoot : -1;
 
     if (pc >= 0) {
-      // Use absolute pitch class position (keyRotation handles alignment)
-      const newAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2;
+      // Use spiral coordinate system with twist (keyRotation added at render time)
+      const baseAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2;
+      const fromRoot = ((pc - this.key + 12) % 12);
+      const twist = (fromRoot / 12) * 0.15;
+      const newAngle = baseAngle + twist;
 
       // Use shortest path
       let diff = newAngle - this.handAngle;
@@ -167,7 +173,7 @@ export class BassClockEffect implements VisualEffect {
     const cy = h / 2;
     const minDim = Math.min(cx, cy);
     const maxR = minDim * 0.85; // Max reach for hand (outer octave)
-    const numeralR = minDim * 0.92; // Fixed radius for numerals - just outside note spiral
+    const numeralR = minDim * 0.95; // Radius for numeral ring
     const breath = 1 + Math.sin(this.breathPhase) * 0.02;
     const handLen = maxR * this.handLength * breath;
     const r = numeralR; // Ring/numerals at fixed outer radius
@@ -231,26 +237,26 @@ export class BassClockEffect implements VisualEffect {
     }
 
     // --- Roman numeral markers + tick marks ---
+    // Use shared spiral coordinate system - place as imaginary outer octave
     const degreeMap = this.keyMode === 'minor' ? MINOR_DEGREES : MAJOR_DEGREES;
+    const spiralMaxR = minDim * SPIRAL_RADIUS_SCALE;
 
     for (let i = 0; i < 12; i++) {
       const semitones = semitoneOffset(i, this.key);
-      // Use absolute pitch class position + keyRotation (like note-spiral)
-      const tickAngle = (i / 12) * Math.PI * 2 - Math.PI / 2 + this.keyRotation;
       const inKey = diatonicOffsets.has(semitones);
       const isCurrent = i === this.lastPitchClass;
-      const outerR = r * breath;
       const tc = samplePaletteColor(i, 0.6);
       const tickAlpha = isCurrent ? 0.7 + this.handBrightness * 0.3
         : inKey ? 0.25 : 0.1;
 
+      // Position using shared spiralPos for imaginary octave (MIDI 113 = 107 + 6)
+      const pos = spiralPos(113, i, this.key, this.keyRotation, cx, cy, spiralMaxR * breath);
+      const { x: tx, y: ty, radius, angle: tickAngle } = pos;
+
       const numeral = degreeMap[semitones];
       if (numeral) {
         // Draw Roman numeral for diatonic scale degrees
-        const fontSize = Math.max(11, Math.round(r * 0.08));
-        const textR = outerR - r * 0.08;
-        const tx = cx + Math.cos(tickAngle) * textR;
-        const ty = cy + Math.sin(tickAngle) * textR;
+        const fontSize = Math.max(11, Math.round(radius * 0.1));
 
         ctx.save();
         ctx.translate(tx, ty);
@@ -271,26 +277,20 @@ export class BassClockEffect implements VisualEffect {
         ctx.restore();
       } else {
         // Small dot for chromatic (non-diatonic) notes
-        const dotR = outerR - r * 0.04;
-        const dx = cx + Math.cos(tickAngle) * dotR;
-        const dy = cy + Math.sin(tickAngle) * dotR;
-
         ctx.beginPath();
-        ctx.arc(dx, dy, isCurrent ? 3 : 2, 0, Math.PI * 2);
+        ctx.arc(tx, ty, isCurrent ? 3 : 2, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
         ctx.fill();
       }
 
       // Glow on current
       if (isCurrent && this.handBrightness > 0.05) {
-        const glowR = r * 0.1;
-        const gx = cx + Math.cos(tickAngle) * (outerR - r * 0.06);
-        const gy = cy + Math.sin(tickAngle) * (outerR - r * 0.06);
-        const grd = ctx.createRadialGradient(gx, gy, 0, gx, gy, glowR);
+        const glowR = radius * 0.08;
+        const grd = ctx.createRadialGradient(tx, ty, 0, tx, ty, glowR);
         grd.addColorStop(0, `rgba(${tc[0]},${tc[1]},${tc[2]},${(this.handBrightness * 0.6).toFixed(3)})`);
         grd.addColorStop(1, `rgba(${tc[0]},${tc[1]},${tc[2]},0)`);
         ctx.fillStyle = grd;
-        ctx.fillRect(gx - glowR, gy - glowR, glowR * 2, glowR * 2);
+        ctx.fillRect(tx - glowR, ty - glowR, glowR * 2, glowR * 2);
       }
     }
 
@@ -352,8 +352,11 @@ export class BassClockEffect implements VisualEffect {
     const tailLen = handLen * 0.25;
     const tAng = angle + Math.PI;
     const tdx = Math.cos(tAng), tdy = Math.sin(tAng);
-    const cwCenter = { x: cx + tdx * tailLen * 0.6, y: cy + tdy * tailLen * 0.6 };
     const cwRadius = 10 * sc;
+    // Tail shaft ends here
+    const tailEnd = { x: cx + tdx * tailLen * 0.6, y: cy + tdy * tailLen * 0.6 };
+    // Counterweight center offset so inner edge touches tail end
+    const cwCenter = { x: tailEnd.x + tdx * cwRadius, y: tailEnd.y + tdy * cwRadius };
 
     const counterweight = new Path2D();
     counterweight.arc(cwCenter.x, cwCenter.y, cwRadius, 0, Math.PI * 2);
@@ -370,8 +373,8 @@ export class BassClockEffect implements VisualEffect {
     const tailShaft = new Path2D();
     const tsW = 4 * sc;
     tailShaft.moveTo(cx + perpX * tsW, cy + perpY * tsW);
-    tailShaft.lineTo(cwCenter.x + perpX * tsW * 0.7, cwCenter.y + perpY * tsW * 0.7);
-    tailShaft.lineTo(cwCenter.x - perpX * tsW * 0.7, cwCenter.y - perpY * tsW * 0.7);
+    tailShaft.lineTo(tailEnd.x + perpX * tsW * 0.7, tailEnd.y + perpY * tsW * 0.7);
+    tailShaft.lineTo(tailEnd.x - perpX * tsW * 0.7, tailEnd.y - perpY * tsW * 0.7);
     tailShaft.lineTo(cx - perpX * tsW, cy - perpY * tsW);
     tailShaft.closePath();
     fillP(tailShaft);

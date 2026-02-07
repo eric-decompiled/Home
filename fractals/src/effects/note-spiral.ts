@@ -4,12 +4,16 @@
 // and trail connections build a glowing web of musical motion.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { samplePaletteColor, semitoneOffset, MAJOR_OFFSETS, MINOR_OFFSETS } from './effect-utils.ts';
+import {
+  samplePaletteColor, semitoneOffset, MAJOR_OFFSETS, MINOR_OFFSETS,
+  SPIRAL_MIDI_LO, SPIRAL_MIDI_HI, SPIRAL_MIDI_RANGE, SPIRAL_RADIUS_SCALE, spiralPos
+} from './effect-utils.ts';
+import { gsap } from '../animation.ts';
 
-// MIDI range we visualize: full piano range A0 (21) to C8 (108)
-const MIDI_LO = 21;  // A0 (lowest piano key)
-const MIDI_HI = 108; // C8 (highest piano key)
-const MIDI_RANGE = MIDI_HI - MIDI_LO; // 87 semitones, ~7.25 octaves
+// Alias for local use
+const MIDI_LO = SPIRAL_MIDI_LO;
+const MIDI_HI = SPIRAL_MIDI_HI;
+const MIDI_RANGE = SPIRAL_MIDI_RANGE;
 
 interface SpiralNode {
   brightness: number;
@@ -18,6 +22,10 @@ interface SpiralNode {
   r: number;
   g: number;
   b: number;
+  // GSAP-tweened beam properties
+  beamIntensity: number;
+  beamLength: number;
+  beamSpread: number;
 }
 
 interface Trail {
@@ -79,6 +87,9 @@ export class NoteSpiralEffect implements VisualEffect {
         velocity: 0,
         lastHitTime: -10,
         r: c[0], g: c[1], b: c[2],
+        beamIntensity: 0,
+        beamLength: 0,
+        beamSpread: 0,
       });
     }
   }
@@ -102,28 +113,10 @@ export class NoteSpiralEffect implements VisualEffect {
     this.glowCanvas.height = height;
   }
 
-  // Map MIDI note to spiral position
-  // Lower notes → smaller radius (center), higher notes → outer rim
-  // Angle: pitch class maps to clock position, keyRotation animates during modulations
-  private notePos(midi: number, cx: number, cy: number, maxR: number): { x: number; y: number; r: number } {
-    const t = (midi - MIDI_LO) / MIDI_RANGE; // 0 (low) to 1 (high)
-    // Radius: center for bass, outer rim for melody
-    // Square root curve — more even visual spacing across octaves
-    const radius = maxR * (0.02 + 0.98 * Math.sqrt(t));
-
-    // Angle: each pitch class is 1/12 of a revolution
-    // keyRotation is animated to keep current key's tonic at 12 o'clock
-    const pc = midi % 12;
-    const baseAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2; // C at top before rotation
-    // Small twist for spiral effect
-    const fromRoot = ((pc - this.key + 12) % 12);
-    const twist = (fromRoot / 12) * 0.15;
-    const finalAngle = baseAngle + this.keyRotation + twist;
-    return {
-      x: cx + Math.cos(finalAngle) * radius,
-      y: cy + Math.sin(finalAngle) * radius,
-      r: radius,
-    };
+  // Map MIDI note to spiral position - delegates to shared spiralPos utility
+  private notePos(midi: number, cx: number, cy: number, maxR: number): { x: number; y: number; r: number; scale: number } {
+    const pos = spiralPos(midi, midi % 12, this.key, this.keyRotation, cx, cy, maxR);
+    return { x: pos.x, y: pos.y, r: pos.radius, scale: pos.scale };
   }
 
   update(dt: number, music: MusicParams): void {
@@ -154,6 +147,36 @@ export class NoteSpiralEffect implements VisualEffect {
 
         const c = samplePaletteColor(voice.pitchClass, 0.75);
         node.r = c[0]; node.g = c[1]; node.b = c[2];
+
+        // GSAP beam animation - sharpness/intensity concentrated in outer octave
+        const pitch01 = (voice.midi - MIDI_LO) / MIDI_RANGE;
+        // Outer octave factor: 0 until ~85%, then ramps to 1
+        const outerFactor = Math.max(0, (pitch01 - 0.85) / 0.15);
+        const outerCurve = outerFactor * outerFactor; // quadratic ramp
+
+        // Duration: mostly slow (2.1s), snappy only in outer octave (0.75s)
+        const beamDuration = 2.1 - outerCurve * 1.35;
+        // Spread: mostly wide (0.6), sharp only in outer octave (0.08)
+        const targetSpread = 0.6 - outerCurve * 0.52;
+        // Length: mostly short (0.35), long only in outer octave (1.2)
+        const targetLength = 0.35 + outerCurve * 0.85;
+        // Intensity: base velocity with attack boost, extra boost in outer octave
+        const attackBoost = 1.8;  // stronger initial flash
+        const intensityBoost = attackBoost + outerCurve * 0.7;
+
+        // Set initial values and tween to zero
+        node.beamIntensity = voice.velocity * intensityBoost;
+        node.beamLength = targetLength;
+        node.beamSpread = targetSpread;
+
+        gsap.to(node, {
+          beamIntensity: 0,
+          beamLength: 0,
+          beamSpread: 0,
+          duration: beamDuration,
+          ease: 'power2.out',
+          overwrite: true,
+        });
 
         // Trail from previous note on same track
         const lastMidi = this.lastMidiByTrack.get(voice.track) ?? -1;
@@ -196,8 +219,8 @@ export class NoteSpiralEffect implements VisualEffect {
       }
     }
 
-    // Decay nodes (faster decay at high tension = more nervous/transient)
-    const nodeDecay = 2.5 + music.tension * 1.5;
+    // Decay nodes - shorter TTL for snappier response
+    const nodeDecay = 4.0 + music.tension * 2.0;
     for (const node of this.nodes) {
       node.brightness *= Math.exp(-nodeDecay * dt);
     }
@@ -221,22 +244,59 @@ export class NoteSpiralEffect implements VisualEffect {
 
     const cx = w / 2;
     const cy = h / 2;
-    const maxR = Math.min(w, h) / 2 * 0.9;
+    const maxR = Math.min(w, h) / 2 * SPIRAL_RADIUS_SCALE;
     const breath = 1 + Math.sin(this.breathPhase) * 0.01;
 
-    // --- Dark backdrop with box-shadow effect ---
+    // --- Dark backdrop with depth gradient ---
     if (this.darkBackdrop) {
       ctx.save();
-      // Big obvious shadow
       ctx.shadowColor = 'rgba(0,0,0,1)';
       ctx.shadowBlur = 60;
       ctx.shadowOffsetX = 12;
       ctx.shadowOffsetY = 12;
 
-      // Semi-translucent dark disc
+      // Gradient backdrop: lifted at top, descends into true black
+      const discCy = cy - maxR * 0.04;
+      const discTop = discCy - maxR;
+      const discBottom = discCy + maxR;
+
+      // Vertical gradient - warm gray at top, cool black at bottom
+      const depthGrad = ctx.createLinearGradient(cx, discTop, cx, discBottom);
+      depthGrad.addColorStop(0, 'rgba(38,36,42,0.5)');    // warm gray, lifted
+      depthGrad.addColorStop(0.35, 'rgba(22,22,28,0.5)'); // transition
+      depthGrad.addColorStop(0.65, 'rgba(10,12,18,0.5)'); // cool dark blue
+      depthGrad.addColorStop(1, 'rgba(0,0,5,0.5)');       // deep blue-black
+
       ctx.beginPath();
-      ctx.arc(cx, cy, maxR * 0.98, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.arc(cx, discCy, maxR * 0.98, 0, Math.PI * 2);
+      ctx.fillStyle = depthGrad;
+      ctx.fill();
+
+      // Ambient occlusion - darker at bottom center for depth
+      const aoGrad = ctx.createRadialGradient(
+        cx, discCy + maxR * 0.4, 0,
+        cx, discCy + maxR * 0.4, maxR * 0.8
+      );
+      aoGrad.addColorStop(0, 'rgba(0,0,0,0.3)');
+      aoGrad.addColorStop(0.5, 'rgba(0,0,0,0.15)');
+      aoGrad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = aoGrad;
+      ctx.fill();
+      ctx.restore();
+
+      // --- Box light from above ---
+      // Gentle vertical gradient - more evenly distributed
+      ctx.save();
+      ctx.globalCompositeOperation = 'screen';
+      const lightGrad = ctx.createLinearGradient(cx, discTop, cx, discBottom);
+      lightGrad.addColorStop(0, 'rgba(220,230,255,0.06)');
+      lightGrad.addColorStop(0.3, 'rgba(200,215,240,0.04)');
+      lightGrad.addColorStop(0.6, 'rgba(180,200,230,0.025)');
+      lightGrad.addColorStop(1, 'rgba(150,170,200,0.01)');
+
+      ctx.beginPath();
+      ctx.arc(cx, discCy, maxR * 0.98, 0, Math.PI * 2);
+      ctx.fillStyle = lightGrad;
       ctx.fill();
       ctx.restore();
     }
@@ -365,10 +425,13 @@ export class NoteSpiralEffect implements VisualEffect {
         }
       };
 
+      // Average scale for trail thickness
+      const avgScale = (p0.scale + p1.scale) / 2;
+
       // Outer glow
       drawPath();
       ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(s * 0.08 * this.intensity).toFixed(3)})`;
-      ctx.lineWidth = 8 + s * 6;
+      ctx.lineWidth = (8 + s * 6) * avgScale;
       ctx.stroke();
 
       // Core
@@ -378,11 +441,16 @@ export class NoteSpiralEffect implements VisualEffect {
       const wg = Math.min(255, mg + Math.round((255 - mg) * bright * 0.4));
       const wb = Math.min(255, mb + Math.round((255 - mb) * bright * 0.4));
       ctx.strokeStyle = `rgba(${wr},${wg},${wb},${(s * 0.35 * this.intensity).toFixed(3)})`;
-      ctx.lineWidth = 1.5 + s * 2;
+      ctx.lineWidth = (1.5 + s * 2) * avgScale;
       ctx.stroke();
     }
 
     // --- Draw nodes ---
+    // Light factor: nodes higher on screen receive slightly more light
+    const lightTop = cy - maxR;
+    const lightBottom = cy + maxR;
+    const lightRange = lightBottom - lightTop;
+
     for (let i = 0; i < MIDI_RANGE; i++) {
       const midi = MIDI_LO + i;
       const node = this.nodes[i];
@@ -393,37 +461,37 @@ export class NoteSpiralEffect implements VisualEffect {
 
       const timeSinceHit = this.time - node.lastHitTime;
 
-      // Smooth fade using sqrt curve - keeps low values visible longer
-      const alpha = Math.sqrt(node.brightness);
+      // Light factor: 1.0 at top, 0.8 at bottom (gentle gradient)
+      const lightT = Math.max(0, Math.min(1, (pos.y - lightTop) / lightRange));
+      const lightFactor = 1.0 - lightT * 0.2;
 
-      // Flashlight beam projecting outward from center through the note
-      // t: 0 = bass (inner), 1 = treble (outer)
-      // Bass: wide, short, dim.  Treble: narrow, long, bright.
-      if (alpha > 0.03) {
+      // Smooth fade using sqrt curve - keeps low values visible longer
+      const alpha = Math.sqrt(node.brightness) * lightFactor;
+
+      // Flashlight beam - uses GSAP-tweened properties for smooth decay
+      // Bass: wide, diffuse, slow decay.  Treble: sharp, focused, quick decay.
+      if (node.beamIntensity > 0.01) {
         const dx = pos.x - cx;
         const dy = pos.y - cy;
         const dist = Math.sqrt(dx * dx + dy * dy);
         if (dist > 1) {
-          const pitch01 = (midi - MIDI_LO) / MIDI_RANGE; // 0=low, 1=high
           const beamAngle = Math.atan2(dy, dx);
-          const fullBeamLen = maxR * 1.3 - dist;
-          // Length: bass 40%, treble 100%
-          const beamLen = fullBeamLen * (0.4 + 0.6 * pitch01);
-          // Spread: bass wide (0.5 rad), treble narrow (0.15 rad)
-          const spread = 0.5 - 0.35 * pitch01 + alpha * 0.08;
-          // Brightness: bass dim (0.08), treble bright (0.35)
-          const brightMix = 0.08 + 0.27 * pitch01;
+          const fullBeamLen = maxR * 3.0 - dist;
+          // Use tweened length and spread
+          const beamLen = fullBeamLen * node.beamLength;
+          const spread = node.beamSpread;
 
           if (beamLen > 0) {
             // Beam tip
             const tipX = pos.x + Math.cos(beamAngle) * beamLen;
             const tipY = pos.y + Math.sin(beamAngle) * beamLen;
 
-            // Gradient along beam direction
+            // Gradient along beam direction - soft but visible
             const grad = ctx.createLinearGradient(pos.x, pos.y, tipX, tipY);
-            const beamAlpha = alpha * brightMix * node.velocity * this.intensity;
-            grad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${beamAlpha.toFixed(3)})`);
-            grad.addColorStop(0.4, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.3).toFixed(3)})`);
+            const beamAlpha = node.beamIntensity * this.intensity * lightFactor * 0.7;
+            grad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.5).toFixed(3)})`);
+            grad.addColorStop(0.25, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.2).toFixed(3)})`);
+            grad.addColorStop(0.6, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.06).toFixed(3)})`);
             grad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
 
             // Draw cone as a triangle fan
@@ -443,46 +511,49 @@ export class NoteSpiralEffect implements VisualEffect {
             ctx.fillStyle = grad;
             ctx.fill(conePath);
 
-            // Stamp beam onto glow canvas (absorbed light)
+            // Stamp beam onto glow canvas (soft absorbed light)
             const glowGrad = gctx.createLinearGradient(pos.x, pos.y, tipX, tipY);
-            const stampAlpha = alpha * (0.02 + 0.04 * pitch01) * node.velocity;
-            glowGrad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${stampAlpha.toFixed(3)})`);
-            glowGrad.addColorStop(0.5, `rgba(${node.r},${node.g},${node.b},${(stampAlpha * 0.3).toFixed(3)})`);
+            const stampAlpha = node.beamIntensity * 0.025;
+            glowGrad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(stampAlpha * 0.4).toFixed(3)})`);
+            glowGrad.addColorStop(0.4, `rgba(${node.r},${node.g},${node.b},${(stampAlpha * 0.1).toFixed(3)})`);
             glowGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
             gctx.fillStyle = glowGrad;
             gctx.fill(conePath);
           }
         }
 
-        // Point glow at note position (larger and brighter at high tension)
-        const tensionGlow = 1.0 + this.currentTension * 0.5;
-        const glowR = (8 + alpha * 25 + node.velocity * 10) * tensionGlow;
-        const glowIntensity = this.intensity * (1.0 + this.currentTension * 0.3);
+        // Point glow at note position - soft but visible halo
+        const tensionGlow = 1.0 + this.currentTension * 0.4;
+        const glowR = (10 + alpha * 22 + node.velocity * 10) * tensionGlow * pos.scale;
+        const glowIntensity = this.intensity * 0.8 * (1.0 + this.currentTension * 0.25);
         const glow = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowR);
-        glow.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(alpha * 0.6 * glowIntensity).toFixed(3)})`);
-        glow.addColorStop(0.4, `rgba(${node.r},${node.g},${node.b},${(alpha * 0.2 * glowIntensity).toFixed(3)})`);
+        glow.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(alpha * 0.45 * glowIntensity).toFixed(3)})`);
+        glow.addColorStop(0.25, `rgba(${node.r},${node.g},${node.b},${(alpha * 0.18 * glowIntensity).toFixed(3)})`);
+        glow.addColorStop(0.6, `rgba(${node.r},${node.g},${node.b},${(alpha * 0.05 * glowIntensity).toFixed(3)})`);
         glow.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
         ctx.fillStyle = glow;
         ctx.fillRect(pos.x - glowR, pos.y - glowR, glowR * 2, glowR * 2);
       }
 
       // Dot: diatonic notes brighter, chromatic visible
+      // Scale dot by depth (higher notes = larger = closer)
       const baseAlpha = inKey ? 0.3 : 0.12;
       const dotAlpha = baseAlpha + alpha * 0.75;
       if (dotAlpha < 0.005) continue;
 
-      const dotR = inKey ? (4.5 + alpha * 6) : (2.5 + alpha * 4);
+      const baseDotR = inKey ? (4.5 + alpha * 6) : (2.5 + alpha * 4);
+      const dotR = baseDotR * pos.scale;
       const wt = alpha * alpha;
       const cr = Math.min(255, node.r + Math.round((255 - node.r) * wt * 0.5));
       const cg = Math.min(255, node.g + Math.round((255 - node.g) * wt * 0.5));
       const cb = Math.min(255, node.b + Math.round((255 - node.b) * wt * 0.5));
 
-      // Glow outline around dot for contrast
-      if (this.glowOutlines && dotAlpha > 0.1) {
+      // Soft glow outline around dot (scaled by depth)
+      if (this.glowOutlines && dotAlpha > 0.12) {
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, dotR + 3, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255,255,255,${(dotAlpha * 0.4 * this.intensity).toFixed(3)})`;
-        ctx.lineWidth = 2;
+        ctx.arc(pos.x, pos.y, dotR + 3 * pos.scale, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(255,255,255,${(dotAlpha * 0.25 * this.intensity).toFixed(3)})`;
+        ctx.lineWidth = 2.5 * pos.scale;
         ctx.stroke();
       }
 
@@ -491,11 +562,21 @@ export class NoteSpiralEffect implements VisualEffect {
       ctx.fillStyle = `rgba(${cr},${cg},${cb},${Math.min(1, dotAlpha * this.intensity).toFixed(3)})`;
       ctx.fill();
 
-      // Pulse ring on hit
-      if (timeSinceHit < 0.6) {
-        const pulseT = timeSinceHit / 0.6;
-        const pulseR = 6 + pulseT * 30;
-        const pulseAlpha = (1 - pulseT * pulseT) * 0.25 * node.velocity;
+      // Soft top highlight - subtle rim light
+      if (alpha > 0.18) {
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y - dotR * 0.3, dotR * 0.6, Math.PI, 0);
+        const highlightAlpha = alpha * lightFactor * 0.2 * this.intensity;
+        ctx.strokeStyle = `rgba(255,255,255,${highlightAlpha.toFixed(3)})`;
+        ctx.lineWidth = 1.4 * pos.scale;
+        ctx.stroke();
+      }
+
+      // Soft pulse ring on hit
+      if (timeSinceHit < 0.7) {
+        const pulseT = timeSinceHit / 0.7;
+        const pulseR = (7 + pulseT * 28) * pos.scale;
+        const pulseAlpha = (1 - pulseT) * (1 - pulseT) * 0.18 * node.velocity;
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, pulseR, 0, Math.PI * 2);
         ctx.strokeStyle = `rgba(${node.r},${node.g},${node.b},${pulseAlpha.toFixed(3)})`;
