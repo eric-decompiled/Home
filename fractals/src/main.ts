@@ -160,6 +160,7 @@ app.innerHTML = `
         <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px;">
           <button class="toggle-btn preset-btn" id="preset-spiral" title="Flow Field + Note Spiral + Bass Clock">Cosmic Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-fractal" title="Chladni + Fractal + 7-fold Kaleidoscope">Fractal Cathedral</button>
+          <button class="toggle-btn preset-btn" id="preset-warp" title="Domain Warp + Note Spiral + Kaleidoscope + Bass Clock">Warp Prism</button>
         </div>
       </div>
       <div class="transport">
@@ -355,8 +356,9 @@ buildLayerPanel();
 
 const presetSpiralBtn = document.getElementById('preset-spiral') as HTMLButtonElement;
 const presetFractalBtn = document.getElementById('preset-fractal') as HTMLButtonElement;
+const presetWarpBtn = document.getElementById('preset-warp') as HTMLButtonElement;
 
-function applyPreset(preset: 'spiral' | 'fractal'): void {
+function applyPreset(preset: 'spiral' | 'fractal' | 'warp'): void {
   if (preset === 'spiral') {
     // Cosmic Spiral: Flow Field + Note Spiral + Bass Clock
     layerSlots[0].activeId = 'flowfield';    // Background
@@ -371,6 +373,13 @@ function applyPreset(preset: 'spiral' | 'fractal'): void {
     layerSlots[2].activeId = 'kaleidoscope';  // Overlay
     layerSlots[3].activeId = null;            // Melody
     layerSlots[4].activeId = null;            // Bass
+  } else if (preset === 'warp') {
+    // Warp Prism: Domain Warp + Note Spiral + Kaleidoscope + Bass Clock
+    layerSlots[0].activeId = 'domain-warp';   // Background
+    layerSlots[1].activeId = 'note-spiral';   // Foreground
+    layerSlots[2].activeId = 'kaleidoscope';  // Overlay
+    layerSlots[3].activeId = null;            // Melody
+    layerSlots[4].activeId = 'bass-clock';    // Bass
   }
 
   applySlotSelections();
@@ -380,10 +389,12 @@ function applyPreset(preset: 'spiral' | 'fractal'): void {
   // Update button active states
   presetSpiralBtn.classList.toggle('active', preset === 'spiral');
   presetFractalBtn.classList.toggle('active', preset === 'fractal');
+  presetWarpBtn.classList.toggle('active', preset === 'warp');
 }
 
 presetSpiralBtn.addEventListener('click', () => applyPreset('spiral'));
 presetFractalBtn.addEventListener('click', () => applyPreset('fractal'));
+presetWarpBtn.addEventListener('click', () => applyPreset('warp'));
 
 // Mark initial preset as active (Cosmic Spiral is the default)
 presetSpiralBtn.classList.add('active');

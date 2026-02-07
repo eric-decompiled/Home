@@ -17,8 +17,9 @@ function generateTonnetzPositions(): Map<number, HexCoord[]> {
   for (let pc = 0; pc < 12; pc++) {
     positions.set(pc, []);
   }
-  for (let q = -4; q <= 6; q++) {
-    for (let r = -3; r <= 4; r++) {
+  // Symmetric ranges for centered grid
+  for (let q = -5; q <= 5; q++) {
+    for (let r = -4; r <= 4; r++) {
       const pc = ((7 * q + 4 * r) % 12 + 12) % 12;
       positions.get(pc)!.push({ q, r });
     }
