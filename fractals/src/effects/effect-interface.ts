@@ -93,7 +93,7 @@ export interface MusicParams {
 export interface EffectConfig {
   key: string;
   label: string;
-  type: 'range' | 'select' | 'toggle';
+  type: 'range' | 'select' | 'toggle' | 'buttons' | 'multi-toggle';
   value: number | string | boolean;
   min?: number;
   max?: number;

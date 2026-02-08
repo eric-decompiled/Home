@@ -229,6 +229,22 @@ a.toggle-btn {
   border-color: #16c79a;
 }
 
+.slot-config-link {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 10px;
+  color: #16c79a;
+  text-decoration: none;
+  border: 1px solid #16c79a;
+  border-radius: 3px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.slot-config-link:hover {
+  background: #16c79a;
+  color: #0a0a14;
+}
+
 .slot-config {
   padding: 8px 0 2px 0;
 }
@@ -263,6 +279,34 @@ a.toggle-btn {
 
 .config-row input[type="checkbox"] {
   accent-color: #16c79a;
+}
+
+.config-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.config-btn {
+  padding: 3px 7px;
+  font-size: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid #0f3460;
+  border-radius: 3px;
+  color: #8899aa;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.config-btn:hover {
+  background: rgba(22, 199, 154, 0.15);
+  border-color: #16c79a;
+}
+
+.config-btn.active {
+  background: rgba(22, 199, 154, 0.3);
+  border-color: #16c79a;
+  color: #16c79a;
 }
 
 .config-value {

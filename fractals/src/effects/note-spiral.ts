@@ -68,6 +68,9 @@ export class NoteSpiralEffect implements VisualEffect {
   private glowOutlines = true;
   private spiralTightness = 1.25;  // power curve: lower = more bass space, higher = tighter
   private currentTension = 0;  // for tension-driven visuals
+  private activeShapes: Set<string> = new Set(['firefly']);
+  private glowFade = 0.008;  // threshold cut for glow decay
+  private static readonly SHAPES = ['firefly', 'starburst', 'ring', 'spark'];
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -302,11 +305,25 @@ export class NoteSpiralEffect implements VisualEffect {
       ctx.restore();
     }
 
-    // --- Fade glow canvas toward black (absorbed light persists) ---
+    // --- Diffuse glow canvas: spread outward and fade ---
     const gctx = this.glowCtx;
+
+    // Copy current glow to temp, then redraw scaled up (diffusion)
+    const diffuseScale = 1.003; // 0.3% expansion each frame
+    const offsetX = (w * (1 - diffuseScale)) / 2;
+    const offsetY = (h * (1 - diffuseScale)) / 2;
+
+    // Draw scaled-up version (spreads the glow outward)
+    gctx.globalCompositeOperation = 'copy';
+    gctx.globalAlpha = 0.992; // slow fade for rich color
+    gctx.drawImage(this.glowCanvas, offsetX, offsetY, w * diffuseScale, h * diffuseScale);
+    gctx.globalAlpha = 1.0;
+
+    // Clear dim pixels below threshold to prevent lingering
     gctx.globalCompositeOperation = 'destination-out';
-    gctx.fillStyle = 'rgba(0,0,0,0.008)'; // very slow fade
+    gctx.fillStyle = `rgba(0,0,0,${this.glowFade})`; // threshold cut
     gctx.fillRect(0, 0, w, h);
+
     gctx.globalCompositeOperation = 'screen';
 
     // Draw glow layer behind everything
@@ -470,8 +487,8 @@ export class NoteSpiralEffect implements VisualEffect {
       // Smooth fade using sqrt curve - keeps low values visible longer
       const alpha = Math.sqrt(node.brightness) * lightFactor;
 
-      // Flashlight beam - uses GSAP-tweened properties for smooth decay
-      // Bass: wide, diffuse, slow decay.  Treble: sharp, focused, quick decay.
+      // Beam effect - uses GSAP-tweened properties for smooth decay
+      // Shape varies based on beamShape config
       if (node.beamIntensity > 0.01) {
         const dx = pos.x - cx;
         const dy = pos.y - cy;
@@ -479,48 +496,328 @@ export class NoteSpiralEffect implements VisualEffect {
         if (dist > 1) {
           const beamAngle = Math.atan2(dy, dx);
           const fullBeamLen = maxR * 3.0 - dist;
-          // Use tweened length and spread
           const beamLen = fullBeamLen * node.beamLength;
           const spread = node.beamSpread;
+          const beamAlpha = node.beamIntensity * this.intensity * lightFactor * 0.7;
 
           if (beamLen > 0) {
-            // Beam tip
             const tipX = pos.x + Math.cos(beamAngle) * beamLen;
             const tipY = pos.y + Math.sin(beamAngle) * beamLen;
 
-            // Gradient along beam direction - soft but visible
-            const grad = ctx.createLinearGradient(pos.x, pos.y, tipX, tipY);
-            const beamAlpha = node.beamIntensity * this.intensity * lightFactor * 0.7;
-            grad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.5).toFixed(3)})`);
-            grad.addColorStop(0.25, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.2).toFixed(3)})`);
-            grad.addColorStop(0.6, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.06).toFixed(3)})`);
-            grad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+            // Render all active shapes
+            for (const shape of this.activeShapes) {
+            switch (shape) {
+              case 'cone': {
+                // Triangular flashlight beam
+                const grad = ctx.createLinearGradient(pos.x, pos.y, tipX, tipY);
+                grad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.5).toFixed(3)})`);
+                grad.addColorStop(0.25, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.2).toFixed(3)})`);
+                grad.addColorStop(0.6, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.06).toFixed(3)})`);
+                grad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                const edgeL = beamLen * 0.7;
+                const conePath = new Path2D();
+                conePath.moveTo(pos.x, pos.y);
+                conePath.lineTo(pos.x + Math.cos(beamAngle - spread) * edgeL, pos.y + Math.sin(beamAngle - spread) * edgeL);
+                conePath.lineTo(tipX, tipY);
+                conePath.lineTo(pos.x + Math.cos(beamAngle + spread) * edgeL, pos.y + Math.sin(beamAngle + spread) * edgeL);
+                conePath.closePath();
+                ctx.fillStyle = grad;
+                ctx.fill(conePath);
+                break;
+              }
+              case 'ray': {
+                // Thin laser beam with glow
+                ctx.save();
+                ctx.lineCap = 'round';
+                // Outer glow
+                ctx.beginPath();
+                ctx.moveTo(pos.x, pos.y);
+                ctx.lineTo(tipX, tipY);
+                ctx.strokeStyle = `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.15).toFixed(3)})`;
+                ctx.lineWidth = 12 * pos.scale;
+                ctx.stroke();
+                // Mid glow
+                ctx.strokeStyle = `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.4).toFixed(3)})`;
+                ctx.lineWidth = 4 * pos.scale;
+                ctx.stroke();
+                // Core
+                ctx.strokeStyle = `rgba(255,255,255,${(beamAlpha * 0.7).toFixed(3)})`;
+                ctx.lineWidth = 1.5 * pos.scale;
+                ctx.stroke();
+                ctx.restore();
+                break;
+              }
+              case 'starburst': {
+                // Multiple spokes radiating out
+                const spokes = 5;
+                for (let s = 0; s < spokes; s++) {
+                  const spokeAngle = beamAngle + (s - (spokes - 1) / 2) * spread * 0.8;
+                  const spokeLen = beamLen * (0.6 + Math.random() * 0.4);
+                  const sTipX = pos.x + Math.cos(spokeAngle) * spokeLen;
+                  const sTipY = pos.y + Math.sin(spokeAngle) * spokeLen;
+                  const grad = ctx.createLinearGradient(pos.x, pos.y, sTipX, sTipY);
+                  grad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.5).toFixed(3)})`);
+                  grad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                  ctx.beginPath();
+                  ctx.moveTo(pos.x, pos.y);
+                  ctx.lineTo(sTipX, sTipY);
+                  ctx.strokeStyle = grad;
+                  ctx.lineWidth = 3 * pos.scale;
+                  ctx.stroke();
+                }
+                break;
+              }
+              case 'ring': {
+                // Expanding circular ripples
+                const rings = 3;
+                for (let r = 0; r < rings; r++) {
+                  const ringR = beamLen * 0.3 * (r + 1);
+                  const ringAlpha = beamAlpha * (1 - r / rings) * 0.4;
+                  ctx.beginPath();
+                  ctx.arc(pos.x, pos.y, ringR, 0, Math.PI * 2);
+                  ctx.strokeStyle = `rgba(${node.r},${node.g},${node.b},${ringAlpha.toFixed(3)})`;
+                  ctx.lineWidth = (3 - r) * pos.scale;
+                  ctx.stroke();
+                }
+                break;
+              }
+              case 'teardrop': {
+                // Rounded blob that trails off
+                const tearLen = beamLen * 0.6;
+                const tearWidth = tearLen * spread * 1.5;
+                ctx.save();
+                ctx.translate(pos.x, pos.y);
+                ctx.rotate(beamAngle);
+                const grad = ctx.createRadialGradient(tearLen * 0.3, 0, 0, tearLen * 0.3, 0, tearLen * 0.7);
+                grad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.6).toFixed(3)})`);
+                grad.addColorStop(0.5, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.25).toFixed(3)})`);
+                grad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.quadraticCurveTo(tearLen * 0.5, -tearWidth, tearLen, 0);
+                ctx.quadraticCurveTo(tearLen * 0.5, tearWidth, 0, 0);
+                ctx.fillStyle = grad;
+                ctx.fill();
+                ctx.restore();
+                break;
+              }
+              case 'nebula': {
+                // Soft diffuse cloud
+                const cloudR = beamLen * 0.5;
+                const cloudX = pos.x + Math.cos(beamAngle) * cloudR * 0.5;
+                const cloudY = pos.y + Math.sin(beamAngle) * cloudR * 0.5;
+                for (let c = 0; c < 4; c++) {
+                  const offsetAngle = beamAngle + (c - 1.5) * spread * 0.5;
+                  const offsetDist = cloudR * 0.3 * c;
+                  const cx2 = cloudX + Math.cos(offsetAngle) * offsetDist;
+                  const cy2 = cloudY + Math.sin(offsetAngle) * offsetDist;
+                  const cR = cloudR * (0.4 + c * 0.15);
+                  const grad = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, cR);
+                  grad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.2).toFixed(3)})`);
+                  grad.addColorStop(0.4, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.08).toFixed(3)})`);
+                  grad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                  ctx.fillStyle = grad;
+                  ctx.beginPath();
+                  ctx.arc(cx2, cy2, cR, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+                break;
+              }
+              case 'comet': {
+                // Head with trailing tail
+                const headR = 8 * pos.scale;
+                const tailLen = beamLen * 0.8;
+                // Tail gradient
+                ctx.save();
+                ctx.translate(pos.x, pos.y);
+                ctx.rotate(beamAngle + Math.PI); // tail trails behind
+                const tailGrad = ctx.createLinearGradient(0, 0, tailLen, 0);
+                tailGrad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.5).toFixed(3)})`);
+                tailGrad.addColorStop(0.3, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.2).toFixed(3)})`);
+                tailGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                ctx.beginPath();
+                ctx.moveTo(0, -headR * 0.5);
+                ctx.quadraticCurveTo(tailLen * 0.5, 0, tailLen, 0);
+                ctx.quadraticCurveTo(tailLen * 0.5, 0, 0, headR * 0.5);
+                ctx.fillStyle = tailGrad;
+                ctx.fill();
+                ctx.restore();
+                // Bright head
+                const headGrad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, headR);
+                headGrad.addColorStop(0, `rgba(255,255,255,${(beamAlpha * 0.8).toFixed(3)})`);
+                headGrad.addColorStop(0.3, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.6).toFixed(3)})`);
+                headGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                ctx.fillStyle = headGrad;
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, headR, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+              }
+              case 'spark': {
+                // Electric crackling lines
+                const numSparks = 6;
+                ctx.save();
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                for (let s = 0; s < numSparks; s++) {
+                  const sparkAngle = beamAngle + (Math.random() - 0.5) * spread * 3;
+                  const sparkLen = beamLen * (0.3 + Math.random() * 0.5);
+                  ctx.beginPath();
+                  ctx.moveTo(pos.x, pos.y);
+                  // Jagged path
+                  let cx = pos.x, cy = pos.y;
+                  const segs = 3 + Math.floor(Math.random() * 3);
+                  for (let j = 0; j < segs; j++) {
+                    const t = (j + 1) / segs;
+                    const jitter = (Math.random() - 0.5) * 20 * pos.scale;
+                    cx = pos.x + Math.cos(sparkAngle) * sparkLen * t + Math.cos(sparkAngle + Math.PI/2) * jitter;
+                    cy = pos.y + Math.sin(sparkAngle) * sparkLen * t + Math.sin(sparkAngle + Math.PI/2) * jitter;
+                    ctx.lineTo(cx, cy);
+                  }
+                  ctx.strokeStyle = `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.4).toFixed(3)})`;
+                  ctx.lineWidth = 2 * pos.scale;
+                  ctx.stroke();
+                }
+                ctx.restore();
+                break;
+              }
+              case 'bloom': {
+                // Flower-like petals
+                const petals = 6;
+                const petalLen = beamLen * 0.5;
+                for (let p = 0; p < petals; p++) {
+                  const petalAngle = beamAngle + (p / petals) * Math.PI * 2;
+                  const px = pos.x + Math.cos(petalAngle) * petalLen * 0.5;
+                  const py = pos.y + Math.sin(petalAngle) * petalLen * 0.5;
+                  const grad = ctx.createRadialGradient(px, py, 0, px, py, petalLen * 0.4);
+                  grad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.4).toFixed(3)})`);
+                  grad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                  ctx.fillStyle = grad;
+                  ctx.beginPath();
+                  ctx.ellipse(px, py, petalLen * 0.15, petalLen * 0.4, petalAngle, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+                // Center
+                const centerGrad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 6 * pos.scale);
+                centerGrad.addColorStop(0, `rgba(255,255,255,${(beamAlpha * 0.6).toFixed(3)})`);
+                centerGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                ctx.fillStyle = centerGrad;
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 6 * pos.scale, 0, Math.PI * 2);
+                ctx.fill();
+                break;
+              }
+              case 'wave': {
+                // Sinusoidal ripple
+                ctx.save();
+                ctx.translate(pos.x, pos.y);
+                ctx.rotate(beamAngle);
+                const waveLen = beamLen * 0.7;
+                const amplitude = 15 * pos.scale * spread;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                for (let w = 0; w <= 20; w++) {
+                  const t = w / 20;
+                  const wx = t * waveLen;
+                  const wy = Math.sin(t * Math.PI * 3) * amplitude * (1 - t);
+                  ctx.lineTo(wx, wy);
+                }
+                for (let w = 20; w >= 0; w--) {
+                  const t = w / 20;
+                  const wx = t * waveLen;
+                  const wy = Math.sin(t * Math.PI * 3) * amplitude * (1 - t) * 0.3;
+                  ctx.lineTo(wx, wy);
+                }
+                ctx.closePath();
+                const waveGrad = ctx.createLinearGradient(0, 0, waveLen, 0);
+                waveGrad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.5).toFixed(3)})`);
+                waveGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                ctx.fillStyle = waveGrad;
+                ctx.fill();
+                ctx.restore();
+                break;
+              }
+              case 'crystal': {
+                // Geometric faceted shape
+                ctx.save();
+                ctx.translate(pos.x, pos.y);
+                ctx.rotate(beamAngle);
+                const crystalLen = beamLen * 0.5;
+                const crystalW = crystalLen * 0.3;
+                // Main crystal body
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(crystalLen * 0.4, -crystalW);
+                ctx.lineTo(crystalLen, 0);
+                ctx.lineTo(crystalLen * 0.4, crystalW);
+                ctx.closePath();
+                const crystalGrad = ctx.createLinearGradient(0, 0, crystalLen, 0);
+                crystalGrad.addColorStop(0, `rgba(255,255,255,${(beamAlpha * 0.6).toFixed(3)})`);
+                crystalGrad.addColorStop(0.5, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.4).toFixed(3)})`);
+                crystalGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.1).toFixed(3)})`);
+                ctx.fillStyle = crystalGrad;
+                ctx.fill();
+                // Highlight edge
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(crystalLen * 0.4, -crystalW);
+                ctx.lineTo(crystalLen, 0);
+                ctx.strokeStyle = `rgba(255,255,255,${(beamAlpha * 0.3).toFixed(3)})`;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                ctx.restore();
+                break;
+              }
+              case 'firefly': {
+                // Dancing particles - converge inward toward note with randomness
+                const minFlies = 1;
+                const maxFlies = 3;
+                const numFlies = minFlies + Math.floor(((midi * 7) % 100) / 100 * (maxFlies - minFlies + 1));
+                const maxFlyDist = fullBeamLen * 0.7;
+                for (let f = 0; f < numFlies; f++) {
+                  // Seeded randomness per particle (stable across frames)
+                  const seed = (midi * 7 + f * 13) % 100 / 100;
+                  const seed2 = (midi * 11 + f * 17) % 100 / 100;
+                  const seed3 = (midi * 19 + f * 23) % 100 / 100;
 
-            // Draw cone as a triangle fan
-            const edgeL = beamLen * 0.7;
-            const conePath = new Path2D();
-            conePath.moveTo(pos.x, pos.y);
-            conePath.lineTo(
-              pos.x + Math.cos(beamAngle - spread) * edgeL,
-              pos.y + Math.sin(beamAngle - spread) * edgeL
-            );
-            conePath.lineTo(tipX, tipY);
-            conePath.lineTo(
-              pos.x + Math.cos(beamAngle + spread) * edgeL,
-              pos.y + Math.sin(beamAngle + spread) * edgeL
-            );
-            conePath.closePath();
-            ctx.fillStyle = grad;
-            ctx.fill(conePath);
+                  // Start far, come inward as beamLength decays
+                  const progress = 1 - node.beamLength;
+                  const baseDist = maxFlyDist * (0.15 + seed * 0.5) * (1 - progress);
+                  const wobbleAmt = (8 + seed2 * 12) * pos.scale;
+                  const wobbleSpeed = 6 + seed3 * 8;
+                  const wobble = Math.sin(this.time * wobbleSpeed + f * 2 + seed * 10) * wobbleAmt;
+                  const flyAngle = beamAngle + (seed - 0.5) * Math.PI * 0.8; // wide cone ~145 degrees
+                  const flyDist = baseDist + Math.sin(this.time * 4 + seed * 20) * 5 * pos.scale;
+                  const fx = pos.x + Math.cos(flyAngle) * flyDist + Math.cos(flyAngle + Math.PI/2) * wobble;
+                  const fy = pos.y + Math.sin(flyAngle) * flyDist + Math.sin(flyAngle + Math.PI/2) * wobble;
+                  const flyR = (3 + seed2 * 4 + Math.sin(this.time * (10 + seed3 * 8) + f) * 2) * pos.scale;
+                  const flyGrad = ctx.createRadialGradient(fx, fy, 0, fx, fy, flyR);
+                  flyGrad.addColorStop(0, `rgba(255,255,200,${(beamAlpha * 0.7).toFixed(3)})`);
+                  flyGrad.addColorStop(0.5, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.3).toFixed(3)})`);
+                  flyGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                  ctx.fillStyle = flyGrad;
+                  ctx.beginPath();
+                  ctx.arc(fx, fy, flyR, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+                break;
+              }
+            }
+            } // end for each active shape
 
-            // Stamp beam onto glow canvas (soft absorbed light)
-            const glowGrad = gctx.createLinearGradient(pos.x, pos.y, tipX, tipY);
-            const stampAlpha = node.beamIntensity * 0.025;
-            glowGrad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(stampAlpha * 0.4).toFixed(3)})`);
-            glowGrad.addColorStop(0.4, `rgba(${node.r},${node.g},${node.b},${(stampAlpha * 0.1).toFixed(3)})`);
-            glowGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
-            gctx.fillStyle = glowGrad;
-            gctx.fill(conePath);
+            // Stamp radial glow onto glow canvas for persistent light
+            // Scale with velocity - soft notes are gentle, loud notes punch through
+            const stampR = beamLen * 0.5;
+            const velocityCurve = node.velocity * node.velocity; // squared for more dynamic range
+            const stampAlpha = node.beamIntensity * 0.04 * (0.3 + velocityCurve * 0.7);
+            const stampGrad = gctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, stampR);
+            stampGrad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${Math.min(1, stampAlpha * 0.8).toFixed(3)})`);
+            stampGrad.addColorStop(0.4, `rgba(${node.r},${node.g},${node.b},${Math.min(1, stampAlpha * 0.4).toFixed(3)})`);
+            stampGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+            gctx.fillStyle = stampGrad;
+            gctx.beginPath();
+            gctx.arc(pos.x, pos.y, stampR, 0, Math.PI * 2);
+            gctx.fill();
           }
         }
 
@@ -616,6 +913,7 @@ export class NoteSpiralEffect implements VisualEffect {
 
   getConfig(): EffectConfig[] {
     return [
+      { key: 'activeShapes', label: 'Shapes', type: 'multi-toggle', value: Array.from(this.activeShapes).join(','), options: NoteSpiralEffect.SHAPES },
       { key: 'spiralTightness', label: 'Tightness', type: 'range', value: this.spiralTightness, min: 0.5, max: 1.5, step: 0.05 },
       { key: 'intensity', label: 'Intensity', type: 'range', value: this.intensity, min: 0.3, max: 2.0, step: 0.1 },
       { key: 'trailMax', label: 'Trail Length', type: 'range', value: this.trailMax, min: 6, max: 48, step: 6 },
@@ -625,6 +923,21 @@ export class NoteSpiralEffect implements VisualEffect {
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
+    if (key === 'activeShapes') {
+      // Toggle the shape on/off
+      const shape = value as string;
+      if (this.activeShapes.has(shape)) {
+        this.activeShapes.delete(shape);
+      } else {
+        this.activeShapes.add(shape);
+      }
+    }
+    if (key === 'setShapes') {
+      // Set shapes directly (comma-separated list)
+      this.activeShapes.clear();
+      const shapes = (value as string).split(',').filter(s => s);
+      for (const s of shapes) this.activeShapes.add(s);
+    }
     if (key === 'spiralTightness') this.spiralTightness = value as number;
     if (key === 'intensity') this.intensity = value as number;
     if (key === 'trailMax') this.trailMax = value as number;

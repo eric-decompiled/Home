@@ -30,9 +30,7 @@ interface SongEntry {
 }
 
 const songs: SongEntry[] = [
-  // --- Classical ---
-  { name: 'Toccata and Fugue in D minor (Bach)', file: 'bach-toccata-fugue.mid' },       // ~1708
-  // --- Games (1988-2001) ---
+  { name: 'Toccata & Fugue in D minor (Bach)', file: 'bach-toccata-fugue.mid' },         // ~1708
   { name: 'Area 0 (The Guardian Legend)', file: 'guardian-legend-area0.mid' },           // 1988
   { name: "Schala's Theme (Chrono Trigger)", file: 'schala.mid' },                       // 1995
   { name: "Into the Wilderness (Wild Arms)", file: 'wa1-opening.mid' },                  // 1996
@@ -44,7 +42,6 @@ const songs: SongEntry[] = [
   { name: "Dart's Theme (Legend of Dragoon)", file: 'legend-of-dragoon-dart.mid' },      // 1999
   { name: 'Hometown Domina (Legend of Mana)', file: 'legend-of-mana-domina.mid' },       // 1999
   { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // 2001
-  // --- Coda ---
   { name: "Aerith's Theme (Final Fantasy VII)", file: 'aeris-theme.mid' },               // 1997 ♡
 ];
 
@@ -102,27 +99,27 @@ const layerSlots: LayerSlot[] = [
   {
     name: 'Background',
     effects: [domainWarpEffect, waveEffect, chladniEffect, flowFieldEffect],
-    activeId: 'chladni',  // Warp Prism default
+    activeId: 'flowfield',  // Cosmic Spiral default
   },
   {
     name: 'Foreground',
     effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect],
-    activeId: 'note-spiral',  // Warp Prism default
+    activeId: 'note-spiral',  // Cosmic Spiral default
   },
   {
     name: 'Overlay',
     effects: [grooveWaveEffect, pitchHistogramEffect, kaleidoscopeEffect],
-    activeId: 'kaleidoscope',  // Warp Prism default
+    activeId: null,  // Cosmic Spiral default
   },
   {
     name: 'Melody',
     effects: [melodyAuroraEffect, melodyWebEffect, melodyClockEffect],
-    activeId: null,  // Warp Prism default
+    activeId: null,  // Cosmic Spiral default
   },
   {
     name: 'Bass',
     effects: [bassWebEffect, bassClockEffect],
-    activeId: 'bass-clock',  // Warp Prism default
+    activeId: 'bass-clock',  // Cosmic Spiral default
   },
 ];
 
@@ -158,12 +155,11 @@ app.innerHTML = `
           </select>
         </div>
         <button class="toggle-btn" id="layers-toggle">Animations</button>
-        <a href="config.html" target="_blank" class="toggle-btn">Fractal Config</a>
         <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
           <span style="color: #888; font-size: 12px; margin-right: 4px;">Presets:</span>
-          <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope + Bass Clock">Warp Prism</button>
           <button class="toggle-btn preset-btn" id="preset-spiral" title="Flow Field + Note Spiral + Bass Clock">Cosmic Spiral</button>
-          <button class="toggle-btn preset-btn" id="preset-fractal" title="Chladni + Fractal + Kaleidoscope + Melody Web">Fractal Cathedral</button>
+          <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope + Bass Clock">Warp Prism</button>
+          <button class="toggle-btn preset-btn" id="preset-fractal" title="Domain Warp + Fractal + Groove Wave">Fractal Dance</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
         </div>
       </div>
@@ -367,7 +363,9 @@ canvas.addEventListener('mouseleave', () => {
 
 // --- Animations panel toggle ---
 
-let layerPanelOpen = false;
+let layerPanelOpen = true;
+layerPanel.classList.add('open');
+layersToggle.classList.add('active');
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
@@ -417,16 +415,32 @@ function buildLayerPanel(): void {
       select.appendChild(opt);
     }
 
+    // Config link for fractal effect (only in Foreground slot)
+    let configLink: HTMLAnchorElement | null = null;
+    if (slot.name === 'Foreground') {
+      configLink = document.createElement('a');
+      configLink.href = 'config.html';
+      configLink.target = '_blank';
+      configLink.className = 'slot-config-link';
+      configLink.textContent = 'Config';
+      configLink.style.display = slot.activeId === 'fractal' ? 'inline-block' : 'none';
+    }
+
     select.addEventListener('change', () => {
       slot.activeId = select.value || null;
       applySlotSelections();
       buildConfigSection(slotDiv, slot);
       clearPresetHighlights();
       dirty = true;
+      // Show/hide fractal config link
+      if (configLink) {
+        configLink.style.display = slot.activeId === 'fractal' ? 'inline-block' : 'none';
+      }
     });
 
     header.appendChild(label);
     header.appendChild(select);
+    if (configLink) header.appendChild(configLink);
     slotDiv.appendChild(header);
 
     // Config section for active effect
@@ -491,6 +505,39 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
         clearPresetHighlights();
       });
       row.appendChild(sel);
+    } else if (cfg.type === 'buttons') {
+      const btnWrap = document.createElement('div');
+      btnWrap.className = 'config-buttons';
+      for (const opt of cfg.options ?? []) {
+        const btn = document.createElement('button');
+        btn.className = 'config-btn' + (opt === cfg.value ? ' active' : '');
+        btn.textContent = opt;
+        btn.addEventListener('click', () => {
+          effect.setConfigValue(cfg.key, opt);
+          btnWrap.querySelectorAll('.config-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          clearPresetHighlights();
+        });
+        btnWrap.appendChild(btn);
+      }
+      row.appendChild(btnWrap);
+    } else if (cfg.type === 'multi-toggle') {
+      // Multiple selections allowed - buttons toggle independently
+      const activeSet = new Set((cfg.value as string).split(',').filter(s => s));
+      const btnWrap = document.createElement('div');
+      btnWrap.className = 'config-buttons';
+      for (const opt of cfg.options ?? []) {
+        const btn = document.createElement('button');
+        btn.className = 'config-btn' + (activeSet.has(opt) ? ' active' : '');
+        btn.textContent = opt;
+        btn.addEventListener('click', () => {
+          effect.setConfigValue(cfg.key, opt);
+          btn.classList.toggle('active');
+          clearPresetHighlights();
+        });
+        btnWrap.appendChild(btn);
+      }
+      row.appendChild(btnWrap);
     } else if (cfg.type === 'toggle') {
       const input = document.createElement('input');
       input.type = 'checkbox';
@@ -508,6 +555,9 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
   container.appendChild(configDiv);
 }
 
+// Default preset is Cosmic Spiral - set config before building panel
+flowFieldEffect.setConfigValue('useWhite', true);
+
 buildLayerPanel();
 
 // --- Preset buttons ---
@@ -517,8 +567,8 @@ const presetSpiralBtn = document.getElementById('preset-spiral') as HTMLButtonEl
 const presetFractalBtn = document.getElementById('preset-fractal') as HTMLButtonElement;
 const presetWarpBtn = document.getElementById('preset-warp') as HTMLButtonElement;
 
-// Default preset is Warp Prism
-presetWarpBtn.classList.add('active');
+// Default preset is Cosmic Spiral
+presetSpiralBtn.classList.add('active');
 
 function applyPreset(preset: 'piano' | 'spiral' | 'fractal' | 'warp'): void {
   if (preset === 'piano') {
@@ -529,26 +579,28 @@ function applyPreset(preset: 'piano' | 'spiral' | 'fractal' | 'warp'): void {
     layerSlots[3].activeId = null;            // Melody
     layerSlots[4].activeId = null;            // Bass
   } else if (preset === 'spiral') {
-    // Cosmic Spiral: Flow Field + Note Spiral + Bass Clock
+    // Cosmic Spiral: Flow Field (white) + Note Spiral + Bass Clock
     layerSlots[0].activeId = 'flowfield';    // Background
     layerSlots[1].activeId = 'note-spiral';  // Foreground
     layerSlots[2].activeId = null;           // Overlay
     layerSlots[3].activeId = null;           // Melody
     layerSlots[4].activeId = 'bass-clock';   // Bass
+    flowFieldEffect.setConfigValue('useWhite', true);
   } else if (preset === 'fractal') {
-    // Fractal Cathedral: Chladni + Fractal + Kaleidoscope + Melody Web
-    layerSlots[0].activeId = 'chladni';       // Background
+    // Fractal Dance: Domain Warp + Fractal + Groove Wave
+    layerSlots[0].activeId = 'domain-warp';   // Background
     layerSlots[1].activeId = 'fractal';       // Foreground
-    layerSlots[2].activeId = 'kaleidoscope';  // Overlay
-    layerSlots[3].activeId = 'melody-web';    // Melody
+    layerSlots[2].activeId = 'groove-wave';   // Overlay
+    layerSlots[3].activeId = null;            // Melody
     layerSlots[4].activeId = null;            // Bass
   } else if (preset === 'warp') {
-    // Warp Prism: Chladni + Note Spiral + Kaleidoscope + Bass Clock
+    // Warp Prism: Chladni + Note Spiral (ring) + Kaleidoscope + Bass Clock
     layerSlots[0].activeId = 'chladni';       // Background
     layerSlots[1].activeId = 'note-spiral';   // Foreground
     layerSlots[2].activeId = 'kaleidoscope';  // Overlay
     layerSlots[3].activeId = null;            // Melody
     layerSlots[4].activeId = 'bass-clock';    // Bass
+    noteSpiralEffect.setConfigValue('setShapes', 'ring');
   }
 
   applySlotSelections();
