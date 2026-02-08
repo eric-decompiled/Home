@@ -218,23 +218,28 @@ const fullscreenBtn = document.getElementById('fullscreen-btn') as HTMLButtonEle
 // --- Fullscreen toggle ---
 const appContainer = document.getElementById('app') as HTMLElement;
 
-// Check if fullscreen is supported (not on iOS Safari)
-const fullscreenSupported = document.documentElement.requestFullscreen !== undefined;
-if (!fullscreenSupported) {
+// Check for fullscreen support (including vendor prefixes)
+const docEl = document.documentElement as any;
+const requestFS = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+const exitFS = (document as any).exitFullscreen || (document as any).webkitExitFullscreen || (document as any).mozCancelFullScreen || (document as any).msExitFullscreen;
+const getFullscreenEl = () => (document as any).fullscreenElement || (document as any).webkitFullscreenElement || (document as any).mozFullScreenElement || (document as any).msFullscreenElement;
+
+if (!requestFS) {
   fullscreenBtn.style.display = 'none';
 }
 
 fullscreenBtn.addEventListener('click', () => {
-  if (!document.fullscreenElement) {
-    appContainer.requestFullscreen().catch(() => {});
+  if (!getFullscreenEl()) {
+    const req = (appContainer as any).requestFullscreen || (appContainer as any).webkitRequestFullscreen || (appContainer as any).mozRequestFullScreen || (appContainer as any).msRequestFullscreen;
+    if (req) req.call(appContainer);
   } else {
-    document.exitFullscreen();
+    if (exitFS) exitFS.call(document);
   }
 });
 
-document.addEventListener('fullscreenchange', () => {
+function onFullscreenChange() {
   const topBar = document.querySelector('.top-bar') as HTMLElement;
-  if (document.fullscreenElement) {
+  if (getFullscreenEl()) {
     fullscreenBtn.innerHTML = '&#x2716;'; // ✖ exit
     fullscreenBtn.title = 'Exit fullscreen (Esc)';
   } else {
@@ -243,7 +248,12 @@ document.addEventListener('fullscreenchange', () => {
     canvas.classList.remove('cursor-hidden');
     topBar.classList.remove('visible');
   }
-});
+}
+
+document.addEventListener('fullscreenchange', onFullscreenChange);
+document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+document.addEventListener('mozfullscreenchange', onFullscreenChange);
+document.addEventListener('MSFullscreenChange', onFullscreenChange);
 
 // Hide cursor after inactivity in fullscreen
 let cursorTimeout: number | null = null;
@@ -252,7 +262,7 @@ const CURSOR_HIDE_DELAY = 2500;
 function showCursor() {
   canvas.classList.remove('cursor-hidden');
   if (cursorTimeout) clearTimeout(cursorTimeout);
-  if (document.fullscreenElement) {
+  if (getFullscreenEl()) {
     cursorTimeout = window.setTimeout(() => {
       canvas.classList.add('cursor-hidden');
     }, CURSOR_HIDE_DELAY);
@@ -268,7 +278,7 @@ const TOP_REVEAL_ZONE = 80; // pixels from top to trigger reveal
 let controlsTimeout: number | null = null;
 
 function handleFullscreenMouse(e: MouseEvent) {
-  if (!document.fullscreenElement) return;
+  if (!getFullscreenEl()) return;
 
   showCursor();
 
@@ -291,7 +301,7 @@ topBar.addEventListener('mouseenter', () => {
 });
 
 topBar.addEventListener('mouseleave', () => {
-  if (document.fullscreenElement) {
+  if (getFullscreenEl()) {
     controlsTimeout = window.setTimeout(() => {
       topBar.classList.remove('visible');
     }, 1000);
@@ -306,14 +316,14 @@ let touchStartY = 0;
 canvas.addEventListener('touchstart', (e) => {
   touchStartY = e.touches[0].clientY;
   // Tap near top reveals controls
-  if (document.fullscreenElement && touchStartY < TOP_REVEAL_ZONE) {
+  if (getFullscreenEl() && touchStartY < TOP_REVEAL_ZONE) {
     topBar.classList.add('visible');
   }
 }, { passive: true });
 
 canvas.addEventListener('touchend', () => {
   // Hide controls after delay if shown by touch
-  if (document.fullscreenElement && topBar.classList.contains('visible')) {
+  if (getFullscreenEl() && topBar.classList.contains('visible')) {
     if (controlsTimeout) clearTimeout(controlsTimeout);
     controlsTimeout = window.setTimeout(() => {
       topBar.classList.remove('visible');
@@ -322,7 +332,7 @@ canvas.addEventListener('touchend', () => {
 }, { passive: true });
 
 canvas.addEventListener('touchmove', (e) => {
-  if (!document.fullscreenElement) return;
+  if (!getFullscreenEl()) return;
   const deltaY = e.touches[0].clientY - touchStartY;
   // Swipe down from top edge reveals controls
   if (touchStartY < 50 && deltaY > 30) {
@@ -810,7 +820,7 @@ document.addEventListener('keydown', (e) => {
 
 // Click/tap canvas to play/pause in fullscreen
 canvas.addEventListener('click', (e) => {
-  if (document.fullscreenElement && timeline) {
+  if (getFullscreenEl() && timeline) {
     // Don't toggle if tapping near top (that's for controls)
     if (e.clientY > 100) {
       playBtn.click();

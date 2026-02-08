@@ -90,7 +90,8 @@
       "WebFetch(domain:netcavy.net)",
       "WebFetch(domain:freemidi.org)",
       "WebFetch(domain:www.midisite.co.uk)",
-      "WebFetch(domain:www.rpg-o-mania.com)"
+      "WebFetch(domain:www.rpg-o-mania.com)",
+      "Bash(qlmanage:*)"
     ]
   }
 }
