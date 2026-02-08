@@ -1,6 +1,6 @@
 const ctx = self as unknown as { onmessage: ((e: MessageEvent) => void) | null; postMessage: (msg: unknown, transfer: Transferable[]) => void };
 
-const BASE_RANGE = 4.8;
+const BASE_RANGE = 5.8;
 const LUT_SIZE = 2048;
 
 ctx.onmessage = (e: MessageEvent) => {

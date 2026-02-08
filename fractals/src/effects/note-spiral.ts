@@ -63,9 +63,10 @@ export class NoteSpiralEffect implements VisualEffect {
 
   // Config
   private intensity = 1.0;
-  private trailMax = 24;
+  private trailMax = 48;
   private darkBackdrop = true;
   private glowOutlines = true;
+  private spiralTightness = 1.25;  // power curve: lower = more bass space, higher = tighter
   private currentTension = 0;  // for tension-driven visuals
 
   constructor() {
@@ -115,7 +116,7 @@ export class NoteSpiralEffect implements VisualEffect {
 
   // Map MIDI note to spiral position - delegates to shared spiralPos utility
   private notePos(midi: number, cx: number, cy: number, maxR: number): { x: number; y: number; r: number; scale: number } {
-    const pos = spiralPos(midi, midi % 12, this.key, this.keyRotation, cx, cy, maxR);
+    const pos = spiralPos(midi, midi % 12, this.key, this.keyRotation, cx, cy, maxR, this.spiralTightness);
     return { x: pos.x, y: pos.y, r: pos.radius, scale: pos.scale };
   }
 
@@ -226,7 +227,7 @@ export class NoteSpiralEffect implements VisualEffect {
     }
 
     // Decay trails (faster at high tension for more frantic feel)
-    const trailDecay = 0.15 + music.tension * 0.2;
+    const trailDecay = 0.08 + music.tension * 0.15;
     for (let i = this.trails.length - 1; i >= 0; i--) {
       this.trails[i].strength *= Math.exp(-trailDecay * dt);
       this.trails[i].age += dt;
@@ -243,7 +244,7 @@ export class NoteSpiralEffect implements VisualEffect {
     ctx.clearRect(0, 0, w, h);
 
     const cx = w / 2;
-    const cy = h / 2;
+    const cy = h / 2 + h * 0.04;  // shifted down slightly for balance
     const maxR = Math.min(w, h) / 2 * SPIRAL_RADIUS_SCALE;
     const breath = 1 + Math.sin(this.breathPhase) * 0.01;
 
@@ -319,59 +320,60 @@ export class NoteSpiralEffect implements VisualEffect {
 
     const diatonicOffsets = this.keyMode === 'minor' ? MINOR_OFFSETS : MAJOR_OFFSETS;
 
-    // --- Draw spiral spine with colored segments ---
-    // Draw per-octave so each revolution gets a smooth 12-stop color gradient
-    const totalOctaves = Math.floor(MIDI_RANGE / 12);
-    for (let oct = 0; oct < totalOctaves; oct++) {
-      const octStart = MIDI_LO + oct * 12;
-      const octEnd = Math.min(octStart + 12, MIDI_HI);
+    // --- Draw spiral spine as smooth curves through note positions ---
+    // Get positions for each integer MIDI note
+    const notePositions: { x: number; y: number }[] = [];
+    for (let midi = MIDI_LO; midi < MIDI_HI; midi++) {
+      const pos = this.notePos(midi, cx, cy, maxR * breath);
+      notePositions.push({ x: pos.x, y: pos.y });
+    }
 
-      // Build positions for this octave
-      const positions: { x: number; y: number }[] = [];
-      for (let midi = octStart; midi <= octEnd && midi < MIDI_HI; midi++) {
-        positions.push(this.notePos(midi, cx, cy, maxR * breath));
-      }
-      if (positions.length < 2) continue;
+    // Draw smooth curves between consecutive notes
+    for (let i = 0; i < notePositions.length - 1; i++) {
+      const midi = MIDI_LO + i;
+      const pc = midi % 12;
+      const nextPc = (midi + 1) % 12;
 
-      // Measure total arc length for this octave
-      let totalLen = 0;
-      const segLens: number[] = [0];
-      for (let j = 1; j < positions.length; j++) {
-        const dx = positions[j].x - positions[j - 1].x;
-        const dy = positions[j].y - positions[j - 1].y;
-        totalLen += Math.sqrt(dx * dx + dy * dy);
-        segLens.push(totalLen);
-      }
+      // Get colors for gradient
+      const c0 = samplePaletteColor(pc, 0.65);
+      const c1 = samplePaletteColor(nextPc, 0.65);
 
-      // Draw each segment with a gradient spanning from its note color to the next
-      for (let j = 1; j < positions.length; j++) {
-        const midi = octStart + j;
-        const prevMidi = midi - 1;
-        const p0 = positions[j - 1];
-        const p1 = positions[j];
+      // Check if in key for line weight/alpha
+      const semi = semitoneOffset(pc, this.key);
+      const nextSemi = semitoneOffset(nextPc, this.key);
+      const inKey = diatonicOffsets.has(semi) || diatonicOffsets.has(nextSemi);
+      const baseAlpha = inKey ? 0.4 : 0.15;
+      const lw = inKey ? 2.0 : 1.0;
 
-        const pc0 = prevMidi % 12;
-        const pc1 = midi % 12;
-        const c0 = samplePaletteColor(pc0, 0.65);
-        const c1 = samplePaletteColor(pc1, 0.65);
+      const p0 = notePositions[i];
+      const p1 = notePositions[i + 1];
 
-        const semi = semitoneOffset(midi % 12, this.key);
-        const prevSemi = semitoneOffset(prevMidi % 12, this.key);
-        const inKey = diatonicOffsets.has(semi) || diatonicOffsets.has(prevSemi);
-        const baseAlpha = inKey ? 0.4 : 0.15;
-        const lw = inKey ? 2.0 : 1.0;
+      // Calculate tangent directions for smooth curves
+      const prev = notePositions[Math.max(0, i - 1)];
+      const next = notePositions[Math.min(notePositions.length - 1, i + 2)];
 
-        const grad = ctx.createLinearGradient(p0.x, p0.y, p1.x, p1.y);
-        grad.addColorStop(0, `rgba(${c0[0]},${c0[1]},${c0[2]},${baseAlpha})`);
-        grad.addColorStop(1, `rgba(${c1[0]},${c1[1]},${c1[2]},${baseAlpha})`);
+      const tangentStrength = 0.18;
+      const t0x = (p1.x - prev.x) * tangentStrength;
+      const t0y = (p1.y - prev.y) * tangentStrength;
+      const t1x = (next.x - p0.x) * tangentStrength;
+      const t1y = (next.y - p0.y) * tangentStrength;
 
-        ctx.beginPath();
-        ctx.moveTo(p0.x, p0.y);
-        ctx.lineTo(p1.x, p1.y);
-        ctx.strokeStyle = grad;
-        ctx.lineWidth = lw;
-        ctx.stroke();
-      }
+      const cp1x = p0.x + t0x;
+      const cp1y = p0.y + t0y;
+      const cp2x = p1.x - t1x;
+      const cp2y = p1.y - t1y;
+
+      // Create gradient from note color to next note color
+      const grad = ctx.createLinearGradient(p0.x, p0.y, p1.x, p1.y);
+      grad.addColorStop(0, `rgba(${c0[0]},${c0[1]},${c0[2]},${baseAlpha})`);
+      grad.addColorStop(1, `rgba(${c1[0]},${c1[1]},${c1[2]},${baseAlpha})`);
+
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p1.x, p1.y);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = lw;
+      ctx.stroke();
     }
 
     // --- Draw trails (stepwise follows curve, leaps are straight) ---
@@ -614,6 +616,7 @@ export class NoteSpiralEffect implements VisualEffect {
 
   getConfig(): EffectConfig[] {
     return [
+      { key: 'spiralTightness', label: 'Tightness', type: 'range', value: this.spiralTightness, min: 0.5, max: 1.5, step: 0.05 },
       { key: 'intensity', label: 'Intensity', type: 'range', value: this.intensity, min: 0.3, max: 2.0, step: 0.1 },
       { key: 'trailMax', label: 'Trail Length', type: 'range', value: this.trailMax, min: 6, max: 48, step: 6 },
       { key: 'darkBackdrop', label: 'Dark Backdrop', type: 'toggle', value: this.darkBackdrop },
@@ -622,6 +625,7 @@ export class NoteSpiralEffect implements VisualEffect {
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
+    if (key === 'spiralTightness') this.spiralTightness = value as number;
     if (key === 'intensity') this.intensity = value as number;
     if (key === 'trailMax') this.trailMax = value as number;
     if (key === 'darkBackdrop') this.darkBackdrop = value as boolean;

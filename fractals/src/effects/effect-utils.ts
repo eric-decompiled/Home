@@ -92,17 +92,20 @@ export function spiralPos(
   keyRotation: number,
   cx: number,
   cy: number,
-  maxR: number
+  maxR: number,
+  tightness = 0.8  // power curve exponent: lower = more space for bass, higher = tighter spiral
 ): SpiralPos {
   const t = (midi - SPIRAL_MIDI_LO) / SPIRAL_MIDI_RANGE;
 
-  // Radius: sqrt curve for even visual spacing
-  const radius = maxR * (0.02 + 0.98 * Math.sqrt(Math.max(0, t)));
+  // Radius: power curve for balanced visual spacing
+  // 0.10 minimum keeps lowest notes from being too far at the edge
+  const radius = maxR * (0.10 + 0.90 * Math.pow(Math.max(0, t), tightness));
 
   // Angle: pitch class position + key rotation + spiral twist
   const baseAngle = (pitchClass / 12) * Math.PI * 2 - Math.PI / 2;
   const fromRoot = ((pitchClass - key + 12) % 12);
-  const twist = (fromRoot / 12) * 0.15;
+  // Use sine wave for smooth twist - no discontinuity
+  const twist = Math.sin(fromRoot / 12 * Math.PI * 2) * 0.05;
   const angle = baseAngle + keyRotation + twist;
 
   // Position with perspective rise

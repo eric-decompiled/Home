@@ -324,6 +324,11 @@ export class PianoRollEffect implements VisualEffect {
       // timeUntil > 0 means note is still falling
       // timeUntil < 0 means note started in the past
       const timeUntil = note.timeUntil + this.latencyOffset;
+      const endTime = -note.duration;
+      const fadeOutDuration = 0.06; // seconds to fade after note ends
+
+      // Skip notes that have fully faded out
+      if (timeUntil < endTime - fadeOutDuration) continue;
 
       // Note bottom position: at keyboard (fallHeight) when timeUntil = 0
       const noteBottom = fallHeight - (timeUntil / this.fallDuration) * fallHeight;
@@ -340,10 +345,16 @@ export class PianoRollEffect implements VisualEffect {
 
       if (drawHeight <= 0) continue;
 
+      // Fade out after note ends
+      let fadeMultiplier = 1.0;
+      if (timeUntil < endTime) {
+        fadeMultiplier = 1 - (endTime - timeUntil) / fadeOutDuration;
+      }
+
       // Get base color RGB for effects (octave-aware)
       const baseColor = this.getNoteColorRGB(note.midi);
       const [r, g, b] = baseColor;
-      const intensity = 0.7 + note.velocity * 0.3;
+      const intensity = (0.7 + note.velocity * 0.3) * fadeMultiplier;
 
       const radius = Math.min(4, noteWidth / 4, drawHeight / 4);
 
@@ -351,8 +362,8 @@ export class PianoRollEffect implements VisualEffect {
       const proximity = Math.max(0, 1 - timeUntil / this.fallDuration);
 
       // === LAYER 1: Outer glow (no shadow blur - use layered fills instead) ===
-      const glowMod = 0.9 + grooveMod * 0.2;
-      if (proximity > 0.5) {
+      const glowMod = (0.9 + grooveMod * 0.2) * fadeMultiplier;
+      if (proximity > 0.5 && fadeMultiplier > 0.1) {
         const glowIntensity = (proximity - 0.5) / 0.5;
         // Fake glow with expanding translucent rectangles
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.08 * glowMod * glowIntensity})`;

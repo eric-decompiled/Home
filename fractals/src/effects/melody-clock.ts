@@ -170,7 +170,7 @@ export class MelodyClockEffect implements VisualEffect {
     ctx.clearRect(0, 0, w, h);
 
     const cx = w / 2;
-    const cy = h / 2;
+    const cy = h / 2 + h * 0.04;  // shifted down to match note spiral
     const minDim = Math.min(cx, cy);
     const r = minDim * this.radius;
     const breath = 1 + Math.sin(this.breathPhase) * 0.015;

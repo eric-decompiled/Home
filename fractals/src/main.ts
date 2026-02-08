@@ -228,7 +228,7 @@ canvas.addEventListener('mouseleave', () => {
 
 // --- Animations panel toggle ---
 
-let layerPanelOpen = false;
+let layerPanelOpen = true;
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
@@ -282,6 +282,7 @@ function buildLayerPanel(): void {
       slot.activeId = select.value || null;
       applySlotSelections();
       buildConfigSection(slotDiv, slot);
+      clearPresetHighlights();
       dirty = true;
     });
 
@@ -333,6 +334,7 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
         const v = parseFloat(input.value);
         effect.setConfigValue(cfg.key, v);
         valDisplay.textContent = String(v);
+        clearPresetHighlights();
       });
       row.appendChild(input);
       row.appendChild(valDisplay);
@@ -347,6 +349,7 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
       }
       sel.addEventListener('change', () => {
         effect.setConfigValue(cfg.key, sel.value);
+        clearPresetHighlights();
       });
       row.appendChild(sel);
     } else if (cfg.type === 'toggle') {
@@ -355,6 +358,7 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
       input.checked = cfg.value as boolean;
       input.addEventListener('change', () => {
         effect.setConfigValue(cfg.key, input.checked);
+        clearPresetHighlights();
       });
       row.appendChild(input);
     }
@@ -366,6 +370,10 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
 }
 
 buildLayerPanel();
+
+// Initialize layer panel as open
+layerPanel.classList.add('open');
+layersToggle.classList.add('active');
 
 // --- Preset buttons ---
 
@@ -423,6 +431,14 @@ presetPianoBtn.addEventListener('click', () => applyPreset('piano'));
 presetSpiralBtn.addEventListener('click', () => applyPreset('spiral'));
 presetFractalBtn.addEventListener('click', () => applyPreset('fractal'));
 presetWarpBtn.addEventListener('click', () => applyPreset('warp'));
+
+// Clear preset highlights when manual changes are made
+function clearPresetHighlights(): void {
+  presetPianoBtn.classList.remove('active');
+  presetSpiralBtn.classList.remove('active');
+  presetFractalBtn.classList.remove('active');
+  presetWarpBtn.classList.remove('active');
+}
 
 // --- Canvas sizing ---
 

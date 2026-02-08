@@ -19,7 +19,7 @@ interface ArcSegment {
 }
 
 const ARC_TRAIL_MAX = 30;
-const ARC_TRAIL_LIFETIME = 2.5;
+const ARC_TRAIL_LIFETIME = 3.1;
 
 export class BassClockEffect implements VisualEffect {
   readonly id = 'bass-clock';
@@ -103,10 +103,10 @@ export class BassClockEffect implements VisualEffect {
     const pc = music.chordRoot >= 0 ? music.chordRoot : -1;
 
     if (pc >= 0) {
-      // Use spiral coordinate system with twist (keyRotation added at render time)
+      // Use spiral coordinate system with twist (must match spiralPos formula)
       const baseAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2;
       const fromRoot = ((pc - this.key + 12) % 12);
-      const twist = (fromRoot / 12) * 0.15;
+      const twist = Math.sin(fromRoot / 12 * Math.PI * 2) * 0.05;
       const newAngle = baseAngle + twist;
 
       // Use shortest path
@@ -170,13 +170,15 @@ export class BassClockEffect implements VisualEffect {
     ctx.clearRect(0, 0, w, h);
 
     const cx = w / 2;
-    const cy = h / 2;
+    const cy = h / 2 + h * 0.04;  // shifted down to match note spiral
     const minDim = Math.min(cx, cy);
-    const maxR = minDim * 0.85; // Max reach for hand (outer octave)
-    const numeralR = minDim * 0.95; // Radius for numeral ring
     const breath = 1 + Math.sin(this.breathPhase) * 0.02;
-    const handLen = maxR * this.handLength * breath;
-    const r = numeralR; // Ring/numerals at fixed outer radius
+
+    // Use spiralPos to get consistent radius for outer ring (imaginary octave MIDI 113)
+    const spiralMaxR = minDim * SPIRAL_RADIUS_SCALE;
+    const outerPos = spiralPos(113, 0, this.key, this.keyRotation, cx, cy, spiralMaxR * breath);
+    const r = outerPos.radius;  // Trail and numerals share this radius
+    const handLen = r * this.handLength;
     const angle = this.handAngle + this.keyRotation;  // Apply modulation rotation
     const R = this.colR, G = this.colG, B = this.colB;
     const brt = 0.5 + this.handBrightness * 0.4 + this.energy * 0.15;
@@ -206,40 +208,88 @@ export class BassClockEffect implements VisualEffect {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // --- Arc trail (thicker for bass) ---
+    // --- Arc trail with comet tail gradient ---
     if (this.arcTrail.length >= 2) {
-      for (let i = 0; i < this.arcTrail.length - 1; i++) {
-        const seg = this.arcTrail[i];
-        const next = this.arcTrail[i + 1];
-        const age = (this.time - seg.time) / ARC_TRAIL_LIFETIME;
-        if (age >= 1) continue;
-        const a = (1 - age) * (1 - age);
-        const trailR = r * breath;
-        let startA = seg.angle + this.keyRotation;
-        let arcDiff = next.angle - seg.angle;
-        while (arcDiff > Math.PI) arcDiff -= Math.PI * 2;
-        while (arcDiff < -Math.PI) arcDiff += Math.PI * 2;
+      const trailR = r * breath;
+      const groovePulse = 1.0 + this.anticipation * 0.3;
 
-        // Outer glow
-        ctx.beginPath();
-        ctx.arc(cx, cy, trailR, startA, startA + arcDiff, arcDiff < 0);
-        ctx.strokeStyle = `rgba(${seg.r},${seg.g},${seg.b},${(a * 0.15).toFixed(3)})`;
-        ctx.lineWidth = 10 + a * 6;
-        ctx.stroke();
+      // Find valid trail segments
+      let startIdx = 0;
+      for (let i = 0; i < this.arcTrail.length; i++) {
+        const age = (this.time - this.arcTrail[i].time) / ARC_TRAIL_LIFETIME;
+        if (age < 1) {
+          startIdx = i;
+          break;
+        }
+      }
 
-        // Core
-        ctx.beginPath();
-        ctx.arc(cx, cy, trailR, startA, startA + arcDiff, arcDiff < 0);
-        ctx.strokeStyle = `rgba(${seg.r},${seg.g},${seg.b},${(a * 0.4).toFixed(3)})`;
-        ctx.lineWidth = 3 + a * 3;
-        ctx.stroke();
+      const validTrail = this.arcTrail.slice(startIdx);
+      if (validTrail.length >= 2) {
+        ctx.lineCap = 'round';
+
+        // Draw segments with gradient opacity (comet tail effect)
+        for (let i = 0; i < validTrail.length - 1; i++) {
+          const seg = validTrail[i];
+          const next = validTrail[i + 1];
+
+          // Position along trail: 0 = tail (oldest), 1 = head (newest)
+          const t = i / (validTrail.length - 1);
+
+          // Age-based fade
+          const age = (this.time - seg.time) / ARC_TRAIL_LIFETIME;
+          const ageFade = Math.pow(1 - age, 1.5);
+
+          // Comet gradient: faint at tail, bright at head
+          const cometFade = Math.pow(t, 0.5);
+
+          let startA = seg.angle + this.keyRotation;
+          let arcDiff = next.angle - seg.angle;
+          while (arcDiff > Math.PI) arcDiff -= Math.PI * 2;
+          while (arcDiff < -Math.PI) arcDiff += Math.PI * 2;
+
+          // Blend colors along trail
+          const segR = Math.round(seg.r * 0.7 + next.r * 0.3);
+          const segG = Math.round(seg.g * 0.7 + next.g * 0.3);
+          const segB = Math.round(seg.b * 0.7 + next.b * 0.3);
+
+          // Width grows toward head
+          const baseWidth = 2 + t * 8;
+
+          // Outer glow
+          const glowAlpha = ageFade * cometFade * 0.15 * groovePulse;
+          ctx.beginPath();
+          ctx.arc(cx, cy, trailR, startA, startA + arcDiff, arcDiff < 0);
+          ctx.strokeStyle = `rgba(${segR},${segG},${segB},${glowAlpha.toFixed(3)})`;
+          ctx.lineWidth = baseWidth * 2.5;
+          ctx.stroke();
+
+          // Core with brightness increasing toward head
+          const coreAlpha = ageFade * cometFade * 0.5 * groovePulse;
+          ctx.beginPath();
+          ctx.arc(cx, cy, trailR, startA, startA + arcDiff, arcDiff < 0);
+          ctx.strokeStyle = `rgba(${segR},${segG},${segB},${coreAlpha.toFixed(3)})`;
+          ctx.lineWidth = baseWidth;
+          ctx.stroke();
+
+          // Hot inner core near head
+          if (t > 0.6) {
+            const hotAlpha = ageFade * Math.pow((t - 0.6) / 0.4, 2) * 0.4 * groovePulse;
+            const hotR = Math.min(255, segR + 60);
+            const hotG = Math.min(255, segG + 60);
+            const hotB = Math.min(255, segB + 60);
+            ctx.beginPath();
+            ctx.arc(cx, cy, trailR, startA, startA + arcDiff, arcDiff < 0);
+            ctx.strokeStyle = `rgba(${hotR},${hotG},${hotB},${hotAlpha.toFixed(3)})`;
+            ctx.lineWidth = baseWidth * 0.4;
+            ctx.stroke();
+          }
+        }
       }
     }
 
     // --- Roman numeral markers + tick marks ---
-    // Use shared spiral coordinate system - place as imaginary outer octave
+    // Use shared spiral coordinate system - place at same radius as trail
     const degreeMap = this.keyMode === 'minor' ? MINOR_DEGREES : MAJOR_DEGREES;
-    const spiralMaxR = minDim * SPIRAL_RADIUS_SCALE;
 
     for (let i = 0; i < 12; i++) {
       const semitones = semitoneOffset(i, this.key);
@@ -249,14 +299,14 @@ export class BassClockEffect implements VisualEffect {
       const tickAlpha = isCurrent ? 0.7 + this.handBrightness * 0.3
         : inKey ? 0.25 : 0.1;
 
-      // Position using shared spiralPos for imaginary octave (MIDI 113 = 107 + 6)
+      // Position using shared spiralPos - same radius as trail (r)
       const pos = spiralPos(113, i, this.key, this.keyRotation, cx, cy, spiralMaxR * breath);
-      const { x: tx, y: ty, radius, angle: tickAngle } = pos;
+      const { x: tx, y: ty, angle: tickAngle } = pos;
 
       const numeral = degreeMap[semitones];
       if (numeral) {
         // Draw Roman numeral for diatonic scale degrees
-        const fontSize = Math.max(11, Math.round(radius * 0.1));
+        const fontSize = Math.max(11, Math.round(r * 0.1));
 
         ctx.save();
         ctx.translate(tx, ty);
@@ -285,7 +335,7 @@ export class BassClockEffect implements VisualEffect {
 
       // Glow on current
       if (isCurrent && this.handBrightness > 0.05) {
-        const glowR = radius * 0.08;
+        const glowR = r * 0.08;
         const grd = ctx.createRadialGradient(tx, ty, 0, tx, ty, glowR);
         grd.addColorStop(0, `rgba(${tc[0]},${tc[1]},${tc[2]},${(this.handBrightness * 0.6).toFixed(3)})`);
         grd.addColorStop(1, `rgba(${tc[0]},${tc[1]},${tc[2]},0)`);
