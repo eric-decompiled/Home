@@ -284,6 +284,58 @@ a.toggle-btn {
   min-height: 0;
 }
 
+/* Fullscreen mode */
+#app:fullscreen {
+  background: #000;
+}
+
+#app:fullscreen .top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  transform: translateY(-100%);
+  transition: transform 0.3s ease;
+  background: rgba(10, 10, 20, 0.95);
+  backdrop-filter: blur(8px);
+}
+
+#app:fullscreen .top-bar.visible {
+  transform: translateY(0);
+}
+
+#app:fullscreen .transport {
+  border-top: none;
+  padding-top: 0;
+}
+
+#app:fullscreen .main-area {
+  height: 100vh;
+}
+
+#app:fullscreen .layer-panel {
+  display: none;
+}
+
+#app:fullscreen .canvas-wrap {
+  padding: 0;
+}
+
+#app:fullscreen canvas {
+  border: none;
+  border-radius: 0;
+  max-width: none;
+  max-height: none;
+  width: 100vw;
+  height: 100vh;
+  cursor: pointer;
+}
+
+#app:fullscreen canvas.cursor-hidden {
+  cursor: none;
+}
+
 canvas {
   display: block;
   max-width: 100%;

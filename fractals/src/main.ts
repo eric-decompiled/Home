@@ -171,6 +171,7 @@ app.innerHTML = `
         <button class="transport-btn" id="play-btn" disabled>&#9654;</button>
         <input type="range" id="seek-bar" min="0" max="100" step="0.1" value="0" disabled>
         <span class="time-display" id="time-display">0:00 / 0:00</span>
+        <button class="transport-btn" id="fullscreen-btn" title="Toggle fullscreen">&#x26F6;</button>
       </div>
     </header>
 
@@ -212,6 +213,122 @@ const fpsDisplay = document.getElementById('fps-display')!;
 const layersToggle = document.getElementById('layers-toggle') as HTMLButtonElement;
 const layerPanel = document.getElementById('layer-panel')!;
 const layerList = document.getElementById('layer-list')!;
+const fullscreenBtn = document.getElementById('fullscreen-btn') as HTMLButtonElement;
+
+// --- Fullscreen toggle ---
+const appContainer = document.getElementById('app') as HTMLElement;
+
+// Check if fullscreen is supported (not on iOS Safari)
+const fullscreenSupported = document.documentElement.requestFullscreen !== undefined;
+if (!fullscreenSupported) {
+  fullscreenBtn.style.display = 'none';
+}
+
+fullscreenBtn.addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    appContainer.requestFullscreen().catch(() => {});
+  } else {
+    document.exitFullscreen();
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  const topBar = document.querySelector('.top-bar') as HTMLElement;
+  if (document.fullscreenElement) {
+    fullscreenBtn.innerHTML = '&#x2716;'; // ✖ exit
+    fullscreenBtn.title = 'Exit fullscreen (Esc)';
+  } else {
+    fullscreenBtn.innerHTML = '&#x26F6;'; // ⛶ expand
+    fullscreenBtn.title = 'Fullscreen';
+    canvas.classList.remove('cursor-hidden');
+    topBar.classList.remove('visible');
+  }
+});
+
+// Hide cursor after inactivity in fullscreen
+let cursorTimeout: number | null = null;
+const CURSOR_HIDE_DELAY = 2500;
+
+function showCursor() {
+  canvas.classList.remove('cursor-hidden');
+  if (cursorTimeout) clearTimeout(cursorTimeout);
+  if (document.fullscreenElement) {
+    cursorTimeout = window.setTimeout(() => {
+      canvas.classList.add('cursor-hidden');
+    }, CURSOR_HIDE_DELAY);
+  }
+}
+
+canvas.addEventListener('mousemove', showCursor);
+canvas.addEventListener('mousedown', showCursor);
+
+// Show controls when mouse near top in fullscreen
+const topBar = document.querySelector('.top-bar') as HTMLElement;
+const TOP_REVEAL_ZONE = 80; // pixels from top to trigger reveal
+let controlsTimeout: number | null = null;
+
+function handleFullscreenMouse(e: MouseEvent) {
+  if (!document.fullscreenElement) return;
+
+  showCursor();
+
+  if (e.clientY < TOP_REVEAL_ZONE) {
+    topBar.classList.add('visible');
+    if (controlsTimeout) clearTimeout(controlsTimeout);
+  } else if (!topBar.matches(':hover')) {
+    // Hide after delay when mouse leaves top zone (and not hovering controls)
+    if (controlsTimeout) clearTimeout(controlsTimeout);
+    controlsTimeout = window.setTimeout(() => {
+      topBar.classList.remove('visible');
+    }, 1500);
+  }
+}
+
+// Keep controls visible while interacting with them
+topBar.addEventListener('mouseenter', () => {
+  if (controlsTimeout) clearTimeout(controlsTimeout);
+  topBar.classList.add('visible');
+});
+
+topBar.addEventListener('mouseleave', () => {
+  if (document.fullscreenElement) {
+    controlsTimeout = window.setTimeout(() => {
+      topBar.classList.remove('visible');
+    }, 1000);
+  }
+});
+
+document.addEventListener('mousemove', handleFullscreenMouse);
+
+// Touch support: tap near top or swipe down to reveal controls
+let touchStartY = 0;
+
+canvas.addEventListener('touchstart', (e) => {
+  touchStartY = e.touches[0].clientY;
+  // Tap near top reveals controls
+  if (document.fullscreenElement && touchStartY < TOP_REVEAL_ZONE) {
+    topBar.classList.add('visible');
+  }
+}, { passive: true });
+
+canvas.addEventListener('touchend', () => {
+  // Hide controls after delay if shown by touch
+  if (document.fullscreenElement && topBar.classList.contains('visible')) {
+    if (controlsTimeout) clearTimeout(controlsTimeout);
+    controlsTimeout = window.setTimeout(() => {
+      topBar.classList.remove('visible');
+    }, 3000);
+  }
+}, { passive: true });
+
+canvas.addEventListener('touchmove', (e) => {
+  if (!document.fullscreenElement) return;
+  const deltaY = e.touches[0].clientY - touchStartY;
+  // Swipe down from top edge reveals controls
+  if (touchStartY < 50 && deltaY > 30) {
+    topBar.classList.add('visible');
+  }
+}, { passive: true });
 
 // --- Mouse tracking for interactive effects ---
 
@@ -228,7 +345,7 @@ canvas.addEventListener('mouseleave', () => {
 
 // --- Animations panel toggle ---
 
-let layerPanelOpen = true;
+let layerPanelOpen = false;
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
@@ -371,10 +488,6 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
 
 buildLayerPanel();
 
-// Initialize layer panel as open
-layerPanel.classList.add('open');
-layersToggle.classList.add('active');
-
 // --- Preset buttons ---
 
 const presetPianoBtn = document.getElementById('preset-piano') as HTMLButtonElement;
@@ -472,6 +585,10 @@ function resizeCanvas(): void {
 
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
+// Also resize on fullscreen change (after a brief delay for the transition)
+document.addEventListener('fullscreenchange', () => {
+  setTimeout(resizeCanvas, 50);
+});
 
 // --- Time formatting ---
 
@@ -688,6 +805,16 @@ document.addEventListener('keydown', (e) => {
   if (e.code === 'Space' && timeline) {
     e.preventDefault();  // prevent page scroll
     playBtn.click();
+  }
+});
+
+// Click/tap canvas to play/pause in fullscreen
+canvas.addEventListener('click', (e) => {
+  if (document.fullscreenElement && timeline) {
+    // Don't toggle if tapping near top (that's for controls)
+    if (e.clientY > 100) {
+      playBtn.click();
+    }
   }
 });
 
