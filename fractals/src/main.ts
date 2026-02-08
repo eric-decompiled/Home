@@ -162,7 +162,7 @@ app.innerHTML = `
         <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
           <span style="color: #888; font-size: 12px; margin-right: 4px;">Presets:</span>
           <button class="toggle-btn preset-btn" id="preset-spiral" title="Flow Field + Note Spiral + Bass Clock">Cosmic Spiral</button>
-          <button class="toggle-btn preset-btn" id="preset-fractal" title="Chladni + Fractal + 7-fold Kaleidoscope">Fractal Cathedral</button>
+          <button class="toggle-btn preset-btn" id="preset-fractal" title="Chladni + Fractal + Kaleidoscope + Melody Web">Fractal Cathedral</button>
           <button class="toggle-btn preset-btn" id="preset-warp" title="Domain Warp + Note Spiral + Kaleidoscope + Bass Clock">Warp Prism</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
         </div>
@@ -393,11 +393,11 @@ function applyPreset(preset: 'piano' | 'spiral' | 'fractal' | 'warp'): void {
     layerSlots[3].activeId = null;           // Melody
     layerSlots[4].activeId = 'bass-clock';   // Bass
   } else if (preset === 'fractal') {
-    // Fractal Cathedral: Chladni + Fractal + 7-fold Kaleidoscope
+    // Fractal Cathedral: Chladni + Fractal + Kaleidoscope + Melody Web
     layerSlots[0].activeId = 'chladni';       // Background
     layerSlots[1].activeId = 'fractal';       // Foreground
     layerSlots[2].activeId = 'kaleidoscope';  // Overlay
-    layerSlots[3].activeId = null;            // Melody
+    layerSlots[3].activeId = 'melody-web';    // Melody
     layerSlots[4].activeId = null;            // Bass
   } else if (preset === 'warp') {
     // Warp Prism: Domain Warp + Note Spiral + Kaleidoscope + Bass Clock
