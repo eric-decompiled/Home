@@ -3,7 +3,11 @@ import type { TempoEvent, TimeSignatureEvent } from './beat-sync.ts';
 
 // --- Types ---
 
-export type ChordQuality = 'major' | 'minor' | 'dom7' | 'min7' | 'dim' | 'aug' | 'unknown';
+export type ChordQuality =
+  | 'major' | 'minor' | 'dim' | 'aug'           // triads
+  | 'maj7' | 'dom7' | 'min7' | 'hdim7' | 'dim7' // 7ths
+  | 'sus4' | 'sus2'                             // suspended
+  | 'unknown';
 
 export interface ChordEvent {
   time: number;       // seconds
@@ -12,6 +16,9 @@ export interface ChordEvent {
   degree: number;     // scale degree 1-7 relative to key (0 if chromatic)
   tension: number;    // 0-1 harmonic tension (pre-computed from degree + quality)
   nextDegree: number; // degree of the following chord (0 if last/unknown)
+  isSecondary: boolean;          // true if this is a secondary dominant (V/x or viio/x)
+  secondaryTarget: number;       // target degree being tonicized (2-7), 0 if not secondary
+  isChromatic: boolean;          // true if root or quality doesn't fit current key
 }
 
 export interface DrumHit {
@@ -44,6 +51,7 @@ export interface KeyRegion {
   key: number;           // pitch class 0-11
   mode: 'major' | 'minor';
   confidence: number;    // correlation coefficient 0-1
+  ambiguity: number;     // 0 = clear, 1 = ambiguous (1st vs 2nd best close)
 }
 
 export interface MusicTimeline {
@@ -65,14 +73,42 @@ export interface MusicTimeline {
 // --- Chord detection ---
 
 // Chord templates: intervals from root as pitch class sets
+// Ordered by preference (simpler chords first for disambiguation)
 const chordTemplates: { quality: ChordQuality; intervals: number[] }[] = [
+  // Triads (most common, prefer these)
   { quality: 'major',  intervals: [0, 4, 7] },
   { quality: 'minor',  intervals: [0, 3, 7] },
-  { quality: 'dom7',   intervals: [0, 4, 7, 10] },
-  { quality: 'min7',   intervals: [0, 3, 7, 10] },
   { quality: 'dim',    intervals: [0, 3, 6] },
   { quality: 'aug',    intervals: [0, 4, 8] },
+
+  // Suspended (ambiguous, no 3rd)
+  { quality: 'sus4',   intervals: [0, 5, 7] },
+  { quality: 'sus2',   intervals: [0, 2, 7] },
+
+  // Seventh chords (more complex, need strong evidence)
+  { quality: 'maj7',   intervals: [0, 4, 7, 11] },   // Major 7th (Cmaj7)
+  { quality: 'dom7',   intervals: [0, 4, 7, 10] },   // Dominant 7th (C7)
+  { quality: 'min7',   intervals: [0, 3, 7, 10] },   // Minor 7th (Cm7)
+  { quality: 'hdim7',  intervals: [0, 3, 6, 10] },   // Half-diminished (Cø7)
+  { quality: 'dim7',   intervals: [0, 3, 6, 9] },    // Fully diminished (Co7)
 ];
+
+// Quality preference adjustments for disambiguation
+// Positive = penalty (less preferred), Negative = bonus (more preferred)
+const QUALITY_PREFERENCE: Record<ChordQuality, number> = {
+  major: 0,
+  minor: 0,
+  dim: 0,
+  aug: 0.02,        // Slightly rare
+  sus4: 0.02,       // Ambiguous (no 3rd)
+  sus2: 0.02,       // Ambiguous (no 3rd)
+  maj7: 0.01,       // Common in jazz/pop
+  dom7: -0.02,      // Very common, distinctive tritone
+  min7: -0.01,      // Common
+  hdim7: 0.02,      // Less common
+  dim7: 0.02,       // Less common
+  unknown: 0,
+};
 
 // Diatonic pitch classes for major and minor keys (semitones from root)
 const majorScale = [0, 2, 4, 5, 7, 9, 11];
@@ -88,6 +124,100 @@ function getScaleDegree(root: number, key: number, mode: 'major' | 'minor'): num
   const interval = ((root - key) % 12 + 12) % 12;
   const idx = scale.indexOf(interval);
   return idx >= 0 ? idx + 1 : 0; // 1-7 or 0 if chromatic
+}
+
+// Expected chord qualities for each scale degree
+// See research/music-analysis-improvements.md for theory
+const DIATONIC_QUALITIES: Record<'major' | 'minor', Record<number, ChordQuality[]>> = {
+  major: {
+    1: ['major', 'maj7'],           // I, Imaj7
+    2: ['minor', 'min7'],           // ii, ii7
+    3: ['minor', 'min7'],           // iii, iii7
+    4: ['major', 'maj7'],           // IV, IVmaj7
+    5: ['major', 'dom7'],           // V, V7
+    6: ['minor', 'min7'],           // vi, vi7
+    7: ['dim', 'hdim7'],            // viio, viiø7
+  },
+  minor: {
+    1: ['minor', 'min7'],           // i, i7
+    2: ['dim', 'hdim7'],            // iio, iiø7
+    3: ['major', 'maj7', 'aug'],    // III (or III+)
+    4: ['minor', 'min7'],           // iv, iv7
+    5: ['minor', 'min7', 'major', 'dom7'], // v or V (harmonic minor)
+    6: ['major', 'maj7'],           // VI, VImaj7
+    7: ['major', 'dom7', 'dim', 'dim7'],   // VII or viio
+  },
+};
+
+function isDiatonicQuality(
+  degree: number,
+  quality: ChordQuality,
+  mode: 'major' | 'minor'
+): boolean {
+  const expected = DIATONIC_QUALITIES[mode][degree];
+  return expected?.includes(quality) ?? false;
+}
+
+function isChromatic(
+  root: number,
+  quality: ChordQuality,
+  key: number,
+  mode: 'major' | 'minor'
+): boolean {
+  const degree = getScaleDegree(root, key, mode);
+  if (degree === 0) return true; // chromatic root
+  return !isDiatonicQuality(degree, quality, mode);
+}
+
+interface SecondaryDominantInfo {
+  isSecondary: boolean;
+  target: number;  // Scale degree being tonicized (2-7), 0 if not secondary
+}
+
+/**
+ * Detect if a chord is a secondary dominant (V/x or viio/x)
+ * Secondary dominants are chromatic chords that resolve by fifth to a diatonic chord
+ */
+function detectSecondaryDominant(
+  current: { root: number; quality: ChordQuality },
+  next: { root: number; degree: number } | null,
+  key: number,
+  mode: 'major' | 'minor'
+): SecondaryDominantInfo {
+  if (!next || next.degree === 0) {
+    return { isSecondary: false, target: 0 };
+  }
+
+  // Calculate interval of resolution
+  const interval = ((next.root - current.root) % 12 + 12) % 12;
+
+  // V/x: Major or dom7 chord resolving down by 5th (= up by P4 = 5 semitones)
+  const resolvesByFifth = interval === 5;
+  const isSecDomQuality = current.quality === 'major' || current.quality === 'dom7';
+
+  // viio/x: Diminished chord resolving up by half step
+  const isSecLeadingTone = (current.quality === 'dim' || current.quality === 'dim7' || current.quality === 'hdim7') && interval === 1;
+
+  if (isSecDomQuality && resolvesByFifth) {
+    // Target must be a diatonic chord (not the tonic - that's just V)
+    if (next.degree > 1 && next.degree <= 7) {
+      // Verify the current chord is NOT diatonic (would be regular V, not V/x)
+      const currentDegree = getScaleDegree(current.root, key, mode);
+      const currentIsDiatonic = currentDegree > 0 && isDiatonicQuality(currentDegree, current.quality, mode);
+
+      if (!currentIsDiatonic) {
+        return { isSecondary: true, target: next.degree };
+      }
+    }
+  }
+
+  if (isSecLeadingTone) {
+    if (next.degree > 1 && next.degree <= 7) {
+      return { isSecondary: true, target: next.degree };
+    }
+  }
+
+  return { isSecondary: false, target: 0 };
 }
 
 function detectChordWeighted(
@@ -117,8 +247,11 @@ function detectChordWeighted(
       for (let pc = 0; pc < 12; pc++) {
         if (!chordTones.has(pc)) nonChordWeight += weights[pc];
       }
-      // Score: proportion of total weight explained by chord tones + diatonic bias
-      const score = (matchWeight / totalWeight) - 0.3 * (nonChordWeight / totalWeight) + diatonicBonus;
+      // Quality preference adjustment (bonus for common, penalty for rare)
+      const qualityPref = QUALITY_PREFERENCE[tmpl.quality] ?? 0;
+
+      // Score: proportion of total weight explained by chord tones + diatonic bias - quality preference
+      const score = (matchWeight / totalWeight) - 0.3 * (nonChordWeight / totalWeight) + diatonicBonus - qualityPref;
 
       if (score > bestScore) {
         bestScore = score;
@@ -148,23 +281,62 @@ function classifyDrum(noteNumber: number): 'kick' | 'snare' | 'hihat' | null {
 
 // --- Key detection via Krumhansl-Schmuckler ---
 
-const majorProfile = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
-const minorProfile = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+// Multiple key profiles from MIR research
+// See research/music-analysis-improvements.md for sources
+export type KeyProfile = 'krumhansl' | 'temperley' | 'shaath';
 
-function detectKeyWithConfidence(pitchHistogram: number[]): { key: number; mode: 'major' | 'minor'; confidence: number } {
-  let bestCorr = -Infinity;
-  let bestKey = 0;
-  let bestMode: 'major' | 'minor' = 'major';
+const KEY_PROFILES: Record<KeyProfile, { major: number[]; minor: number[] }> = {
+  // Krumhansl (1990) - Cognitive experiments with listeners
+  // Best for: General use, pop
+  krumhansl: {
+    major: [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88],
+    minor: [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17],
+  },
+  // Temperley (1999) - Corpus analysis, equalized major/minor weights
+  // Best for: Classical, removes minor key bias
+  temperley: {
+    major: [5.0, 2.0, 3.5, 2.0, 4.5, 4.0, 2.0, 4.5, 2.0, 3.5, 1.5, 4.0],
+    minor: [5.0, 2.0, 3.5, 4.5, 2.0, 4.0, 2.0, 4.5, 3.5, 2.0, 1.5, 4.0],
+  },
+  // Shaath (2011) - Retuned for popular/electronic music
+  // Best for: Pop, rock, electronic
+  shaath: {
+    major: [6.6, 2.0, 3.5, 2.3, 4.6, 4.0, 2.5, 5.2, 2.4, 3.8, 2.3, 3.4],
+    minor: [6.5, 2.8, 3.5, 5.4, 2.7, 3.5, 2.5, 5.1, 4.0, 2.7, 4.3, 3.2],
+  },
+};
+
+// Default profile for backwards compatibility
+const DEFAULT_KEY_PROFILE: KeyProfile = 'krumhansl';
+
+interface KeyDetectionResult {
+  key: number;
+  mode: 'major' | 'minor';
+  confidence: number;
+  ambiguity: number;  // 0 = clear winner, 1 = very ambiguous
+  secondBest: {
+    key: number;
+    mode: 'major' | 'minor';
+    confidence: number;
+  };
+}
+
+function detectKeyWithConfidence(
+  pitchHistogram: number[],
+  profile: KeyProfile = DEFAULT_KEY_PROFILE
+): KeyDetectionResult {
+  const profiles = KEY_PROFILES[profile];
+  const scores: Array<{ key: number; mode: 'major' | 'minor'; corr: number }> = [];
 
   for (let shift = 0; shift < 12; shift++) {
-    const profiles: ['major' | 'minor', number[]][] = [['major', majorProfile], ['minor', minorProfile]];
-    for (const [mode, profile] of profiles) {
+    for (const mode of ['major', 'minor'] as const) {
+      const profileData = profiles[mode];
       let sum = 0;
       let sumH = 0, sumP = 0;
       let sumH2 = 0, sumP2 = 0;
       for (let i = 0; i < 12; i++) {
         const h = pitchHistogram[(i + shift) % 12];
-        const p = profile[i];
+        const p = profileData[i];
         sumH += h; sumP += p;
         sumH2 += h * h; sumP2 += p * p;
         sum += h * p;
@@ -174,21 +346,42 @@ function detectKeyWithConfidence(pitchHistogram: number[]): { key: number; mode:
         (Math.sqrt(sumH2 / 12 - meanH * meanH) * Math.sqrt(sumP2 / 12 - meanP * meanP) + 1e-10);
       // Small bias toward major keys (most songs are major, helps with ambiguous cases like C maj vs A min)
       const adjustedCorr = mode === 'major' ? corr + 0.02 : corr;
-      if (adjustedCorr > bestCorr) {
-        bestCorr = adjustedCorr;
-        bestKey = shift;
-        bestMode = mode;
-      }
+      scores.push({ key: shift, mode, corr: adjustedCorr });
     }
   }
 
+  // Sort by correlation descending
+  scores.sort((a, b) => b.corr - a.corr);
+  const best = scores[0];
+  const second = scores[1];
+
+  // Compute ambiguity: how close is 2nd best to 1st?
+  // relativeStrength approaches 0 when they're equal, high when 1st is clearly better
+  const relativeStrength = (best.corr - second.corr) / (Math.abs(best.corr) + 0.001);
+  const ambiguity = 1 - Math.min(1, relativeStrength * 2);
+
   // Normalize correlation to 0-1 (correlations are typically 0.3-0.9)
-  const confidence = Math.max(0, Math.min(1, (bestCorr + 1) / 2));
-  return { key: bestKey, mode: bestMode, confidence };
+  const confidence = Math.max(0, Math.min(1, (best.corr + 1) / 2));
+  const secondConfidence = Math.max(0, Math.min(1, (second.corr + 1) / 2));
+
+  return {
+    key: best.key,
+    mode: best.mode,
+    confidence,
+    ambiguity,
+    secondBest: {
+      key: second.key,
+      mode: second.mode,
+      confidence: secondConfidence,
+    },
+  };
 }
 
-function detectKey(pitchHistogram: number[]): { key: number; mode: 'major' | 'minor' } {
-  const { key, mode } = detectKeyWithConfidence(pitchHistogram);
+function detectKey(
+  pitchHistogram: number[],
+  profile: KeyProfile = DEFAULT_KEY_PROFILE
+): { key: number; mode: 'major' | 'minor' } {
+  const { key, mode } = detectKeyWithConfidence(pitchHistogram, profile);
   return { key, mode };
 }
 
@@ -208,7 +401,8 @@ function detectKeyRegions(
   windowBars: number = 2,
   hopBars: number = 0.5,
   minStableWindows: number = 2,
-  confidenceThreshold: number = 0.1
+  confidenceThreshold: number = 0.1,
+  profile: KeyProfile = DEFAULT_KEY_PROFILE
 ): KeyRegion[] {
   const windowSeconds = barDuration * windowBars;
   const hopSeconds = barDuration * hopBars;
@@ -223,6 +417,7 @@ function detectKeyRegions(
     key: number;
     mode: 'major' | 'minor';
     confidence: number;
+    ambiguity: number;
   }
 
   const windowResults: WindowResult[] = [];
@@ -244,12 +439,13 @@ function detectKeyRegions(
       }
     }
 
-    const result = detectKeyWithConfidence(histogram);
+    const result = detectKeyWithConfidence(histogram, profile);
     windowResults.push({
       time: t + windowSeconds / 2, // center of window
       key: result.key,
       mode: result.mode,
       confidence: result.confidence,
+      ambiguity: result.ambiguity,
     });
   }
 
@@ -285,11 +481,13 @@ function detectKeyRegions(
       if (candidateCount >= minStableCount && avgConfidence > confidenceThreshold) {
         // Commit previous region
         if (regions.length > 0 || regionStart < w.time - hopSeconds) {
-          const lastConfidences = windowResults
-            .filter(r => r.time >= regionStart && r.time < w.time - hopSeconds * candidateCount)
-            .map(r => r.confidence);
-          const regionConfidence = lastConfidences.length > 0
-            ? lastConfidences.reduce((a, b) => a + b, 0) / lastConfidences.length
+          const regionWindows = windowResults
+            .filter(r => r.time >= regionStart && r.time < w.time - hopSeconds * candidateCount);
+          const regionConfidence = regionWindows.length > 0
+            ? regionWindows.reduce((a, b) => a + b.confidence, 0) / regionWindows.length
+            : 0.5;
+          const regionAmbiguity = regionWindows.length > 0
+            ? regionWindows.reduce((a, b) => a + b.ambiguity, 0) / regionWindows.length
             : 0.5;
 
           regions.push({
@@ -298,6 +496,7 @@ function detectKeyRegions(
             key: currentKey,
             mode: currentMode,
             confidence: regionConfidence,
+            ambiguity: regionAmbiguity,
           });
         }
 
@@ -318,11 +517,12 @@ function detectKeyRegions(
   }
 
   // Close final region
-  const finalConfidences = windowResults
-    .filter(r => r.time >= regionStart)
-    .map(r => r.confidence);
-  const finalConfidence = finalConfidences.length > 0
-    ? finalConfidences.reduce((a, b) => a + b, 0) / finalConfidences.length
+  const finalWindows = windowResults.filter(r => r.time >= regionStart);
+  const finalConfidence = finalWindows.length > 0
+    ? finalWindows.reduce((a, b) => a + b.confidence, 0) / finalWindows.length
+    : 0.5;
+  const finalAmbiguity = finalWindows.length > 0
+    ? finalWindows.reduce((a, b) => a + b.ambiguity, 0) / finalWindows.length
     : 0.5;
 
   regions.push({
@@ -331,6 +531,7 @@ function detectKeyRegions(
     key: currentKey,
     mode: currentMode,
     confidence: finalConfidence,
+    ambiguity: finalAmbiguity,
   });
 
   // Filter out very short regions (less than 4 bars) - likely tonicizations, not true modulations
@@ -504,13 +705,17 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
     if (!prev || prev.quality !== chord.quality || prev.root !== chord.root) {
       // Use earliest note onset as chord time (not beat boundary)
       const chordTime = earliestOnset < tEnd ? earliestOnset : tStart;
+      const chordIsChromatic = isChromatic(chord.root, chord.quality, key, keyMode);
       chords.push({
         time: chordTime,
         quality: chord.quality,
         root: chord.root,
         degree,
-        tension: 0,    // computed in post-pass
-        nextDegree: 0,  // computed in post-pass
+        tension: 0,           // computed in post-pass
+        nextDegree: 0,        // computed in post-pass
+        isSecondary: false,   // computed in post-pass
+        secondaryTarget: 0,   // computed in post-pass
+        isChromatic: chordIsChromatic,
       });
     }
   }
@@ -543,10 +748,15 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
   const qualityDissonance: Record<ChordQuality, number> = {
     major: 0.0,    // M3 + P5: consonant
     minor: 0.08,   // m3 + P5: slightly darker
-    dom7: 0.25,    // contains tritone (3-7)
-    min7: 0.15,    // m3 + m7: moderate
     dim: 0.35,     // two m3s + tritone: high dissonance
     aug: 0.30,     // whole-tone, ambiguous: high
+    sus4: 0.12,    // unresolved 4th
+    sus2: 0.10,    // unresolved 2nd
+    maj7: 0.05,    // rich but stable
+    dom7: 0.25,    // contains tritone (3-7)
+    min7: 0.15,    // m3 + m7: moderate
+    hdim7: 0.38,   // half-diminished: high
+    dim7: 0.40,    // fully diminished: highest
     unknown: 0.1,
   };
 
@@ -587,18 +797,36 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
   let prevRoot = -1;
   for (let i = 0; i < chords.length; i++) {
     const c = chords[i];
+    const nextChord = i + 1 < chords.length ? chords[i + 1] : null;
+
+    // Detect secondary dominants (V/x, viio/x)
+    const secDom = detectSecondaryDominant(
+      { root: c.root, quality: c.quality },
+      nextChord ? { root: nextChord.root, degree: nextChord.degree } : null,
+      key,
+      keyMode
+    );
+    c.isSecondary = secDom.isSecondary;
+    c.secondaryTarget = secDom.target;
+
+    // Compute tension components
     const hier = hierarchicalTension(c.degree);
     const diss = qualityDissonance[c.quality] ?? 0;
     const motion = rootMotionTension(prevRoot, c.root);
     const tendency = tendencyTension[c.degree] ?? 0;
 
-    c.tension = Math.min(1,
-      hier * 0.40 +
-      diss * 0.25 +
-      motion * 0.20 +
-      tendency * 0.15
-    );
-    c.nextDegree = i + 1 < chords.length ? chords[i + 1].degree : 0;
+    // Base tension from Lerdahl model
+    let tension = hier * 0.40 + diss * 0.25 + motion * 0.20 + tendency * 0.15;
+
+    // Secondary dominants add chromatic tension
+    if (secDom.isSecondary) {
+      tension += 0.15;
+      // V/V is very common, slightly less surprising
+      if (secDom.target === 5) tension -= 0.05;
+    }
+
+    c.tension = Math.min(1, tension);
+    c.nextDegree = nextChord?.degree ?? 0;
     prevRoot = c.root;
   }
 

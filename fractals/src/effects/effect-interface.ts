@@ -22,6 +22,15 @@ export interface UpcomingNote {
   track: number;       // track index
 }
 
+export interface UpcomingChord {
+  time: number;        // absolute start time in seconds
+  root: number;        // pitch class 0-11
+  quality: string;     // chord quality
+  degree: number;      // scale degree 1-7
+  numeral: string;     // roman numeral representation
+  timeUntil: number;   // seconds until chord starts (negative = current/past)
+}
+
 export interface MusicParams {
   currentTime: number;
   dt: number;
@@ -88,6 +97,12 @@ export interface MusicParams {
 
   // Lookahead for piano roll / falling notes visualization
   upcomingNotes: UpcomingNote[];  // notes within lookahead window (default 4 seconds)
+
+  // Chord lookahead - full fidelity for animations
+  upcomingChords: UpcomingChord[];  // chords around current time
+
+  // Simplified per-bar chords for Theory Bar display (first chord of each bar)
+  barChords: UpcomingChord[];  // [prev bar, current bar, next bar, next-next bar]
 }
 
 export interface EffectConfig {

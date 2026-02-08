@@ -23,6 +23,45 @@ export function samplePaletteColor(paletteIdx: number, pos: number): [number, nu
   ];
 }
 
+/** Calculate relative luminance (0-1) using sRGB coefficients */
+export function luminance(r: number, g: number, b: number): number {
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
+/**
+ * Sample a color with perceptual brightness equalization.
+ * Dark colors (purple, blue) sample from brighter positions,
+ * bright colors (yellow, orange) can sample from darker positions.
+ * @param paletteIdx - pitch class (0-11)
+ * @param targetLuminance - desired luminance (0-1), e.g. 0.3 for "dark but visible"
+ */
+export function samplePaletteEqualized(paletteIdx: number, targetLuminance: number): [number, number, number] {
+  // Binary search for position that achieves target luminance
+  let lo = 0, hi = 1;
+  let bestPos = 0.5;
+  let bestDiff = Infinity;
+
+  for (let i = 0; i < 10; i++) {
+    const mid = (lo + hi) / 2;
+    const color = samplePaletteColor(paletteIdx, mid);
+    const lum = luminance(color[0], color[1], color[2]);
+    const diff = Math.abs(lum - targetLuminance);
+
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      bestPos = mid;
+    }
+
+    if (lum < targetLuminance) {
+      lo = mid; // need brighter, go higher in palette
+    } else {
+      hi = mid; // need darker, go lower in palette
+    }
+  }
+
+  return samplePaletteColor(paletteIdx, bestPos);
+}
+
 /** Diatonic scale degree offsets (semitones from root) */
 export const MAJOR_OFFSETS = new Set([0, 2, 4, 5, 7, 9, 11]);
 export const MINOR_OFFSETS = new Set([0, 2, 3, 5, 7, 8, 10]);

@@ -92,7 +92,9 @@
       "WebFetch(domain:www.midisite.co.uk)",
       "WebFetch(domain:www.rpg-o-mania.com)",
       "Bash(qlmanage:*)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(timeout 5 npm run dev:*)",
+      "WebFetch(domain:tonaljs.github.io)"
     ]
   }
 }

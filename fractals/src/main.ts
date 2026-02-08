@@ -17,10 +17,32 @@ import { MelodyClockEffect } from './effects/melody-clock.ts';
 import { BassWebEffect } from './effects/bass-web.ts';
 import { BassClockEffect } from './effects/bass-clock.ts';
 import { NoteSpiralEffect } from './effects/note-spiral.ts';
-import { PitchHistogramEffect } from './effects/pitch-histogram.ts';
-import { GrooveWaveEffect } from './effects/groove-wave.ts';
 import { PianoRollEffect } from './effects/piano-roll.ts';
+import { TheoryBarEffect } from './effects/theory-bar.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
+import {
+  type VisualizerState,
+  type CustomPreset,
+  PRESET_LAYERS,
+  DEFAULT_CONFIGS,
+  getCurrentState,
+  applyState,
+  getPresetState,
+  urlToState,
+  updateBrowserURL as updateURL,
+  getCustomPresets,
+  saveCustomPreset,
+  deleteCustomPreset,
+  deleteAllCustomPresets,
+  getFullState,
+  applyFullState,
+  validateStateSchema,
+  migrateState,
+  isFullExport,
+  setCustomPresets,
+  type FullExport,
+} from './state.ts';
+import { FractalConfigPanel } from './fractal-config.ts';
 
 // --- Song list ---
 
@@ -55,6 +77,8 @@ let displayHeight = 600;
 let isPlaying = false;
 let idlePhase = 0;
 
+// --- URL Query Parameter System (uses state.ts) ---
+
 // --- Adaptive fidelity ---
 const MAX_FIDELITY = 0.45;
 let renderFidelity = 0.45;
@@ -73,7 +97,6 @@ const compositor = new Compositor();
 const fractalEffect = new FractalEffect();
 const flowFieldEffect = new FlowFieldEffect();
 const kaleidoscopeEffect = new KaleidoscopeEffect();
-const pitchHistogramEffect = new PitchHistogramEffect();
 const waveEffect = new WaveInterferenceEffect();
 const chladniEffect = new ChladniEffect();
 const domainWarpEffect = new DomainWarpEffect();
@@ -85,7 +108,7 @@ const bassWebEffect = new BassWebEffect();
 const bassClockEffect = new BassClockEffect();
 const noteSpiralEffect = new NoteSpiralEffect();
 const pianoRollEffect = new PianoRollEffect();
-const grooveWaveEffect = new GrooveWaveEffect();
+const theoryBarEffect = new TheoryBarEffect();
 
 // --- Layer slot definitions (mutually exclusive within each slot) ---
 
@@ -108,8 +131,8 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Overlay',
-    effects: [grooveWaveEffect, pitchHistogramEffect, kaleidoscopeEffect],
-    activeId: null,  // Cosmic Spiral default
+    effects: [kaleidoscopeEffect, theoryBarEffect],
+    activeId: null,  // Cosmic Spiral default: no overlay
   },
   {
     name: 'Melody',
@@ -138,7 +161,44 @@ function applySlotSelections(): void {
     }
   }
 }
-applySlotSelections();
+
+// Get all effects as a map for state management
+function getAllEffects(): Map<string, VisualEffect> {
+  const map = new Map<string, VisualEffect>();
+  for (const slot of layerSlots) {
+    for (const effect of slot.effects) {
+      map.set(effect.id, effect);
+    }
+  }
+  return map;
+}
+
+// Apply URL settings using state module
+function applyURLSettings(): { presetApplied?: string } {
+  const urlState = urlToState(window.location.search);
+  const result: { presetApplied?: string } = {};
+
+  // If no URL params, apply default Cosmic Spiral preset
+  if (!urlState) {
+    applySlotSelections();
+    return result;
+  }
+
+  // Check if a preset was specified
+  const params = new URLSearchParams(window.location.search);
+  const preset = params.get('preset');
+  if (preset && PRESET_LAYERS[preset]) {
+    result.presetApplied = preset;
+  }
+
+  // Apply state from URL
+  applyState(urlState as VisualizerState, layerSlots, getAllEffects());
+  applySlotSelections();
+  return result;
+}
+
+// Store URL settings result for use after DOM is ready
+const urlSettingsResult = applyURLSettings();
 
 // --- HTML ---
 
@@ -155,12 +215,15 @@ app.innerHTML = `
           </select>
         </div>
         <button class="toggle-btn" id="layers-toggle">Animations</button>
-        <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
+        <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
           <span style="color: #888; font-size: 12px; margin-right: 4px;">Presets:</span>
           <button class="toggle-btn preset-btn" id="preset-spiral" title="Flow Field + Note Spiral + Bass Clock">Cosmic Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope + Bass Clock">Warp Prism</button>
-          <button class="toggle-btn preset-btn" id="preset-fractal" title="Domain Warp + Fractal + Groove Wave">Fractal Dance</button>
+          <button class="toggle-btn preset-btn" id="preset-fractal" title="Domain Warp + Fractal + Theory Bar">Fractal Dance</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
+          <span style="color: #444; margin: 0 4px;">|</span>
+          <div class="custom-presets-wrap" id="custom-presets"></div>
+          <button class="reset-presets-btn" id="reset-presets-btn" title="Delete all custom presets">Reset</button>
         </div>
       </div>
       <div class="transport">
@@ -178,20 +241,79 @@ app.innerHTML = `
           <button class="panel-close-btn" id="panel-close-btn">&times;</button>
         </div>
         <div id="layer-list"></div>
+        <div class="layer-panel-footer">
+          <button class="save-preset-btn" id="save-preset-btn" title="Save current configuration as a preset">+ Save Preset</button>
+          <div class="export-import-row">
+            <div class="export-split-btn">
+              <button class="export-file-btn" id="export-file-btn" title="Download as file">Export</button>
+              <button class="export-copy-btn" id="export-copy-btn" title="Copy to clipboard">📋</button>
+            </div>
+            <button class="import-btn" id="import-btn" title="Import configuration from JSON">Import</button>
+          </div>
+          <div class="export-import-warning">Alpha – configs may break across versions</div>
+        </div>
       </div>
       <div class="canvas-wrap">
         <canvas id="canvas"></canvas>
       </div>
     </div>
 
-    <footer class="bottom-bar" style="display: none;">
-      <div class="song-info">
-        <span class="info-badge" id="key-display">Key: --</span>
-        <span class="info-badge" id="bpm-display">BPM: --</span>
-        <span class="info-badge" id="chord-display">--</span>
-        <span class="info-badge" id="fps-display">-- fps</span>
+    <div class="debug-overlay" id="debug-overlay">
+      <div class="debug-row">
+        <span class="debug-label">Key</span>
+        <span class="debug-value" id="key-display">--</span>
       </div>
-    </footer>
+      <div class="debug-row">
+        <span class="debug-label">BPM</span>
+        <span class="debug-value" id="bpm-display">--</span>
+      </div>
+      <div class="debug-row">
+        <span class="debug-label">Chord</span>
+        <span class="debug-value" id="chord-display">--</span>
+      </div>
+      <div class="debug-row">
+        <span class="debug-label">Perf</span>
+        <span class="debug-value" id="fps-display">--</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal overlay -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-title" id="modal-title">Modal Title</div>
+      <div class="modal-message" id="modal-message"></div>
+      <input type="text" class="modal-input" id="modal-input" style="display: none;" placeholder="Preset name...">
+      <div class="modal-buttons">
+        <button class="modal-btn modal-btn-cancel" id="modal-cancel">Cancel</button>
+        <button class="modal-btn modal-btn-primary" id="modal-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import modal -->
+  <div class="modal-overlay" id="import-modal-overlay">
+    <div class="modal-box import-modal-box">
+      <div class="modal-title">Import Configuration</div>
+      <div class="import-tabs">
+        <button class="import-tab active" data-tab="paste">Paste JSON</button>
+        <button class="import-tab" data-tab="file">Upload File</button>
+      </div>
+      <div class="import-tab-content" id="import-paste-tab">
+        <textarea class="import-textarea" id="import-textarea" placeholder="Paste JSON configuration here..."></textarea>
+      </div>
+      <div class="import-tab-content" id="import-file-tab" style="display: none;">
+        <label class="import-file-label" id="import-file-label">
+          <input type="file" id="import-file-input" accept=".json,application/json" style="display: none;">
+          <span class="import-file-text">Click to select a JSON file</span>
+        </label>
+      </div>
+      <div class="import-error" id="import-error"></div>
+      <div class="modal-buttons">
+        <button class="modal-btn modal-btn-cancel" id="import-cancel">Cancel</button>
+        <button class="modal-btn modal-btn-primary" id="import-confirm">Import</button>
+      </div>
+    </div>
   </div>
 `;
 
@@ -210,6 +332,17 @@ const layersToggle = document.getElementById('layers-toggle') as HTMLButtonEleme
 const layerPanel = document.getElementById('layer-panel')!;
 const layerList = document.getElementById('layer-list')!;
 const fullscreenBtn = document.getElementById('fullscreen-btn') as HTMLButtonElement;
+const debugOverlay = document.getElementById('debug-overlay') as HTMLElement;
+
+// Debug overlay visibility state
+let debugOverlayVisible = false;
+
+// --- Update URL to reflect current settings (using state module) ---
+
+function updateBrowserURL(): void {
+  const state = getCurrentState(layerSlots);
+  updateURL(state);
+}
 
 // --- Fullscreen toggle ---
 const appContainer = document.getElementById('app') as HTMLElement;
@@ -363,9 +496,7 @@ canvas.addEventListener('mouseleave', () => {
 
 // --- Animations panel toggle ---
 
-let layerPanelOpen = true;
-layerPanel.classList.add('open');
-layersToggle.classList.add('active');
+let layerPanelOpen = false;
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
@@ -379,6 +510,15 @@ panelCloseBtn.addEventListener('click', () => {
   layersToggle.classList.remove('active');
   layerPanel.classList.remove('open');
 });
+
+// --- Fractal Config Panel (created early for use in layer panel) ---
+
+const fractalConfigPanel = new FractalConfigPanel();
+
+// Refresh visuals when fractal config is saved
+fractalConfigPanel.onSave = () => {
+  dirty = true;
+};
 
 // --- Build layer panel UI ---
 
@@ -415,15 +555,16 @@ function buildLayerPanel(): void {
       select.appendChild(opt);
     }
 
-    // Config link for fractal effect (only in Foreground slot)
-    let configLink: HTMLAnchorElement | null = null;
+    // Config button for fractal effect (only in Foreground slot)
+    let configBtn: HTMLButtonElement | null = null;
     if (slot.name === 'Foreground') {
-      configLink = document.createElement('a');
-      configLink.href = 'config.html';
-      configLink.target = '_blank';
-      configLink.className = 'slot-config-link';
-      configLink.textContent = 'Config';
-      configLink.style.display = slot.activeId === 'fractal' ? 'inline-block' : 'none';
+      configBtn = document.createElement('button');
+      configBtn.className = 'slot-config-link';
+      configBtn.textContent = 'Config';
+      configBtn.style.display = slot.activeId === 'fractal' ? 'block' : 'none';
+      configBtn.addEventListener('click', () => {
+        fractalConfigPanel.show();
+      });
     }
 
     select.addEventListener('change', () => {
@@ -432,16 +573,22 @@ function buildLayerPanel(): void {
       buildConfigSection(slotDiv, slot);
       clearPresetHighlights();
       dirty = true;
-      // Show/hide fractal config link
-      if (configLink) {
-        configLink.style.display = slot.activeId === 'fractal' ? 'inline-block' : 'none';
+      markUnsavedChanges();
+      updateBrowserURL();
+      // Show/hide fractal config button
+      if (configBtn) {
+        configBtn.style.display = slot.activeId === 'fractal' ? 'block' : 'none';
       }
     });
 
     header.appendChild(label);
     header.appendChild(select);
-    if (configLink) header.appendChild(configLink);
     slotDiv.appendChild(header);
+
+    // Config button on its own line (for fractal effect)
+    if (configBtn) {
+      slotDiv.appendChild(configBtn);
+    }
 
     // Config section for active effect
     buildConfigSection(slotDiv, slot);
@@ -488,6 +635,8 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
         effect.setConfigValue(cfg.key, v);
         valDisplay.textContent = String(v);
         clearPresetHighlights();
+        markUnsavedChanges();
+        updateBrowserURL();
       });
       row.appendChild(input);
       row.appendChild(valDisplay);
@@ -503,6 +652,8 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
       sel.addEventListener('change', () => {
         effect.setConfigValue(cfg.key, sel.value);
         clearPresetHighlights();
+        markUnsavedChanges();
+        updateBrowserURL();
       });
       row.appendChild(sel);
     } else if (cfg.type === 'buttons') {
@@ -517,6 +668,8 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
           btnWrap.querySelectorAll('.config-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           clearPresetHighlights();
+          markUnsavedChanges();
+          updateBrowserURL();
         });
         btnWrap.appendChild(btn);
       }
@@ -534,6 +687,8 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
           effect.setConfigValue(cfg.key, opt);
           btn.classList.toggle('active');
           clearPresetHighlights();
+          markUnsavedChanges();
+          updateBrowserURL();
         });
         btnWrap.appendChild(btn);
       }
@@ -545,6 +700,8 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
       input.addEventListener('change', () => {
         effect.setConfigValue(cfg.key, input.checked);
         clearPresetHighlights();
+        markUnsavedChanges();
+        updateBrowserURL();
       });
       row.appendChild(input);
     }
@@ -555,9 +712,6 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
   container.appendChild(configDiv);
 }
 
-// Default preset is Cosmic Spiral - set config before building panel
-flowFieldEffect.setConfigValue('useWhite', true);
-
 buildLayerPanel();
 
 // --- Preset buttons ---
@@ -567,51 +721,49 @@ const presetSpiralBtn = document.getElementById('preset-spiral') as HTMLButtonEl
 const presetFractalBtn = document.getElementById('preset-fractal') as HTMLButtonElement;
 const presetWarpBtn = document.getElementById('preset-warp') as HTMLButtonElement;
 
-// Default preset is Cosmic Spiral
-presetSpiralBtn.classList.add('active');
+// Highlight preset button based on URL settings or default to Cosmic Spiral
+if (urlSettingsResult.presetApplied) {
+  const btn = {
+    piano: presetPianoBtn,
+    spiral: presetSpiralBtn,
+    fractal: presetFractalBtn,
+    warp: presetWarpBtn,
+  }[urlSettingsResult.presetApplied];
+  if (btn) btn.classList.add('active');
+} else if (!urlToState(window.location.search)) {
+  // Default to Cosmic Spiral if no URL params
+  presetSpiralBtn.classList.add('active');
+}
 
 function applyPreset(preset: 'piano' | 'spiral' | 'fractal' | 'warp'): void {
-  if (preset === 'piano') {
-    // Piano: Flow Field + Piano Roll
-    layerSlots[0].activeId = 'flowfield';     // Background
-    layerSlots[1].activeId = 'piano-roll';    // Foreground
-    layerSlots[2].activeId = null;            // Overlay
-    layerSlots[3].activeId = null;            // Melody
-    layerSlots[4].activeId = null;            // Bass
-  } else if (preset === 'spiral') {
-    // Cosmic Spiral: Flow Field (white) + Note Spiral + Bass Clock
-    layerSlots[0].activeId = 'flowfield';    // Background
-    layerSlots[1].activeId = 'note-spiral';  // Foreground
-    layerSlots[2].activeId = null;           // Overlay
-    layerSlots[3].activeId = null;           // Melody
-    layerSlots[4].activeId = 'bass-clock';   // Bass
-    flowFieldEffect.setConfigValue('useWhite', true);
-  } else if (preset === 'fractal') {
-    // Fractal Dance: Domain Warp + Fractal + Groove Wave
-    layerSlots[0].activeId = 'domain-warp';   // Background
-    layerSlots[1].activeId = 'fractal';       // Foreground
-    layerSlots[2].activeId = 'groove-wave';   // Overlay
-    layerSlots[3].activeId = null;            // Melody
-    layerSlots[4].activeId = null;            // Bass
-  } else if (preset === 'warp') {
-    // Warp Prism: Chladni + Note Spiral (ring) + Kaleidoscope + Bass Clock
-    layerSlots[0].activeId = 'chladni';       // Background
-    layerSlots[1].activeId = 'note-spiral';   // Foreground
-    layerSlots[2].activeId = 'kaleidoscope';  // Overlay
-    layerSlots[3].activeId = null;            // Melody
-    layerSlots[4].activeId = 'bass-clock';    // Bass
-    noteSpiralEffect.setConfigValue('setShapes', 'ring');
+  // Reset all effect configs to defaults first
+  for (const [effectId, defaults] of Object.entries(DEFAULT_CONFIGS)) {
+    const effect = getAllEffects().get(effectId);
+    if (effect) {
+      for (const [key, value] of Object.entries(defaults)) {
+        effect.setConfigValue(key, value as string | number | boolean);
+      }
+    }
+  }
+
+  // Get preset state and apply it
+  const presetState = getPresetState(preset);
+  if (presetState) {
+    applyState(presetState, layerSlots, getAllEffects());
   }
 
   applySlotSelections();
   buildLayerPanel();
   dirty = true;
+  clearUnsavedChanges();
 
   // Update button active states
   presetPianoBtn.classList.toggle('active', preset === 'piano');
   presetSpiralBtn.classList.toggle('active', preset === 'spiral');
   presetFractalBtn.classList.toggle('active', preset === 'fractal');
   presetWarpBtn.classList.toggle('active', preset === 'warp');
+
+  updateBrowserURL();
 }
 
 presetPianoBtn.addEventListener('click', () => applyPreset('piano'));
@@ -625,7 +777,393 @@ function clearPresetHighlights(): void {
   presetSpiralBtn.classList.remove('active');
   presetFractalBtn.classList.remove('active');
   presetWarpBtn.classList.remove('active');
+  // Also clear custom preset highlights
+  document.querySelectorAll('.custom-preset-btn').forEach(btn => btn.classList.remove('active'));
 }
+
+// --- Modal helpers ---
+
+const modalOverlay = document.getElementById('modal-overlay')!;
+const modalTitle = document.getElementById('modal-title')!;
+const modalMessage = document.getElementById('modal-message')!;
+const modalInput = document.getElementById('modal-input') as HTMLInputElement;
+const modalCancel = document.getElementById('modal-cancel')!;
+const modalConfirm = document.getElementById('modal-confirm')!;
+
+let modalResolve: ((value: string | null) => void) | null = null;
+
+function showModal(options: {
+  title: string;
+  message?: string;
+  showInput?: boolean;
+  inputValue?: string;
+  confirmText?: string;
+  confirmClass?: 'primary' | 'danger';
+}): Promise<string | null> {
+  modalTitle.textContent = options.title;
+  modalMessage.textContent = options.message || '';
+  modalMessage.style.display = options.message ? 'block' : 'none';
+
+  if (options.showInput) {
+    modalInput.style.display = 'block';
+    modalInput.value = options.inputValue || '';
+    setTimeout(() => modalInput.focus(), 50);
+  } else {
+    modalInput.style.display = 'none';
+  }
+
+  modalConfirm.textContent = options.confirmText || 'Confirm';
+  modalConfirm.className = 'modal-btn modal-btn-' + (options.confirmClass || 'primary');
+
+  modalOverlay.classList.add('visible');
+
+  return new Promise(resolve => {
+    modalResolve = resolve;
+  });
+}
+
+function hideModal(result: string | null): void {
+  modalOverlay.classList.remove('visible');
+  if (modalResolve) {
+    modalResolve(result);
+    modalResolve = null;
+  }
+}
+
+modalCancel.addEventListener('click', () => hideModal(null));
+modalConfirm.addEventListener('click', () => {
+  const value = modalInput.style.display !== 'none' ? modalInput.value : 'confirmed';
+  hideModal(value);
+});
+modalOverlay.addEventListener('click', (e) => {
+  if (e.target === modalOverlay) hideModal(null);
+});
+modalInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    hideModal(modalInput.value);
+  } else if (e.key === 'Escape') {
+    hideModal(null);
+  }
+});
+
+// --- Custom Presets UI ---
+
+const customPresetsWrap = document.getElementById('custom-presets')!;
+const savePresetBtn = document.getElementById('save-preset-btn')!;
+const resetPresetsBtn = document.getElementById('reset-presets-btn')!;
+
+let activeCustomPresetId: string | null = null;
+let hasUnsavedChanges = false;
+
+function markUnsavedChanges(): void {
+  if (!hasUnsavedChanges) {
+    hasUnsavedChanges = true;
+    savePresetBtn.classList.add('has-changes');
+  }
+}
+
+function clearUnsavedChanges(): void {
+  hasUnsavedChanges = false;
+  savePresetBtn.classList.remove('has-changes');
+}
+
+function renderCustomPresets(): void {
+  const presets = getCustomPresets();
+  customPresetsWrap.innerHTML = '';
+
+  for (const preset of presets) {
+    const btn = document.createElement('button');
+    btn.className = 'custom-preset-btn' + (preset.id === activeCustomPresetId ? ' active' : '');
+    btn.title = `Load "${preset.name}"`;
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = preset.name;
+    btn.appendChild(nameSpan);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'custom-preset-delete';
+    deleteBtn.innerHTML = '&times;';
+    deleteBtn.title = 'Delete preset';
+    deleteBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const result = await showModal({
+        title: 'Delete Preset',
+        message: `Delete "${preset.name}"? This cannot be undone.`,
+        confirmText: 'Delete',
+        confirmClass: 'danger',
+      });
+      if (result) {
+        deleteCustomPreset(preset.id);
+        if (activeCustomPresetId === preset.id) {
+          activeCustomPresetId = null;
+        }
+        renderCustomPresets();
+      }
+    });
+    btn.appendChild(deleteBtn);
+
+    btn.addEventListener('click', () => {
+      applyCustomPreset(preset);
+    });
+
+    customPresetsWrap.appendChild(btn);
+  }
+
+  // Show/hide reset button based on whether there are presets
+  resetPresetsBtn.style.display = presets.length > 0 ? 'block' : 'none';
+}
+
+function applyCustomPreset(preset: CustomPreset): void {
+  // Reset to defaults first
+  for (const [effectId, defaults] of Object.entries(DEFAULT_CONFIGS)) {
+    const effect = getAllEffects().get(effectId);
+    if (effect) {
+      for (const [key, value] of Object.entries(defaults)) {
+        effect.setConfigValue(key, value as string | number | boolean);
+      }
+    }
+  }
+
+  // Apply the preset state (including fractal anchors if present)
+  applyFullState(preset.state, layerSlots, getAllEffects());
+  applySlotSelections();
+  buildLayerPanel();
+  dirty = true;
+  clearUnsavedChanges();
+
+  // Update highlights
+  clearPresetHighlights();
+  activeCustomPresetId = preset.id;
+  renderCustomPresets();
+
+  updateBrowserURL();
+}
+
+savePresetBtn.addEventListener('click', async () => {
+  const result = await showModal({
+    title: 'Save Preset',
+    message: 'Enter a name for this preset:',
+    showInput: true,
+    inputValue: '',
+    confirmText: 'Save',
+  });
+  if (result && result.trim()) {
+    const state = getFullState(layerSlots);
+    const preset = saveCustomPreset(result.trim(), state);
+    activeCustomPresetId = preset.id;
+    clearPresetHighlights();
+    clearUnsavedChanges();
+    renderCustomPresets();
+  }
+});
+
+resetPresetsBtn.addEventListener('click', async () => {
+  const presets = getCustomPresets();
+  const result = await showModal({
+    title: 'Reset All Custom Presets',
+    message: `This will permanently delete all ${presets.length} custom preset${presets.length === 1 ? '' : 's'}. This action cannot be undone.`,
+    confirmText: 'Delete All',
+    confirmClass: 'danger',
+  });
+  if (result) {
+    deleteAllCustomPresets();
+    activeCustomPresetId = null;
+    renderCustomPresets();
+  }
+});
+
+// --- Export/Import ---
+
+const exportFileBtn = document.getElementById('export-file-btn')!;
+const exportCopyBtn = document.getElementById('export-copy-btn')!;
+const importBtn = document.getElementById('import-btn')!;
+const importModalOverlay = document.getElementById('import-modal-overlay')!;
+const importTextarea = document.getElementById('import-textarea') as HTMLTextAreaElement;
+const importFileInput = document.getElementById('import-file-input') as HTMLInputElement;
+const importFileLabel = document.getElementById('import-file-label')!;
+const importError = document.getElementById('import-error')!;
+const importCancel = document.getElementById('import-cancel')!;
+const importConfirm = document.getElementById('import-confirm')!;
+const importTabs = document.querySelectorAll('.import-tab');
+const importPasteTab = document.getElementById('import-paste-tab')!;
+const importFileTab = document.getElementById('import-file-tab')!;
+
+let importedFileContent: string | null = null;
+
+// Create full export data
+function createExportData(): FullExport {
+  return {
+    exportVersion: 1,
+    currentState: getFullState(layerSlots),
+    customPresets: getCustomPresets(),
+    exportedAt: Date.now(),
+  };
+}
+
+// Export file - download JSON
+exportFileBtn.addEventListener('click', () => {
+  const exportData = createExportData();
+  const json = JSON.stringify(exportData, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `fractured-jukebox-config-${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+});
+
+// Export copy - copy JSON to clipboard
+exportCopyBtn.addEventListener('click', async () => {
+  const exportData = createExportData();
+  const json = JSON.stringify(exportData, null, 2);
+  try {
+    await navigator.clipboard.writeText(json);
+  } catch {
+    // Fallback for older browsers
+    const textarea = document.createElement('textarea');
+    textarea.value = json;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+  }
+  exportCopyBtn.classList.add('copied');
+  exportCopyBtn.textContent = '✓';
+  setTimeout(() => {
+    exportCopyBtn.classList.remove('copied');
+    exportCopyBtn.textContent = '📋';
+  }, 1000);
+});
+
+// Import button - show modal
+importBtn.addEventListener('click', () => {
+  importTextarea.value = '';
+  importFileInput.value = '';
+  importedFileContent = null;
+  importError.textContent = '';
+  importFileLabel.classList.remove('has-file');
+  importFileLabel.querySelector('.import-file-text')!.textContent = 'Click to select a JSON file';
+  // Reset to paste tab
+  importTabs.forEach(t => t.classList.remove('active'));
+  importTabs[0].classList.add('active');
+  importPasteTab.style.display = 'block';
+  importFileTab.style.display = 'none';
+  importModalOverlay.classList.add('visible');
+});
+
+// Tab switching
+importTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    const tabName = tab.getAttribute('data-tab');
+    importTabs.forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    importPasteTab.style.display = tabName === 'paste' ? 'block' : 'none';
+    importFileTab.style.display = tabName === 'file' ? 'block' : 'none';
+    importError.textContent = '';
+  });
+});
+
+// File input change
+importFileInput.addEventListener('change', () => {
+  const file = importFileInput.files?.[0];
+  if (file) {
+    importFileLabel.classList.add('has-file');
+    importFileLabel.querySelector('.import-file-text')!.textContent = file.name;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      importedFileContent = e.target?.result as string;
+      importError.textContent = '';
+    };
+    reader.onerror = () => {
+      importError.textContent = 'Failed to read file';
+      importedFileContent = null;
+    };
+    reader.readAsText(file);
+  }
+});
+
+// Cancel import
+importCancel.addEventListener('click', () => {
+  importModalOverlay.classList.remove('visible');
+});
+
+// Click outside to close
+importModalOverlay.addEventListener('click', (e) => {
+  if (e.target === importModalOverlay) {
+    importModalOverlay.classList.remove('visible');
+  }
+});
+
+// Confirm import
+importConfirm.addEventListener('click', () => {
+  const activeTab = document.querySelector('.import-tab.active')?.getAttribute('data-tab');
+  let jsonString: string;
+
+  if (activeTab === 'paste') {
+    jsonString = importTextarea.value.trim();
+  } else {
+    if (!importedFileContent) {
+      importError.textContent = 'Please select a file first';
+      return;
+    }
+    jsonString = importedFileContent;
+  }
+
+  if (!jsonString) {
+    importError.textContent = 'Please enter or upload JSON configuration';
+    return;
+  }
+
+  // Try to parse JSON
+  let data: unknown;
+  try {
+    data = JSON.parse(jsonString);
+  } catch {
+    importError.textContent = 'Invalid JSON format';
+    return;
+  }
+
+  // Validate schema
+  const validationError = validateStateSchema(data);
+  if (validationError) {
+    importError.textContent = validationError;
+    return;
+  }
+
+  // Apply the state - handle both FullExport and legacy VisualizerState formats
+  if (isFullExport(data)) {
+    // New format with presets
+    const state = migrateState(data.currentState);
+    applyFullState(state, layerSlots, getAllEffects());
+
+    // Import custom presets
+    if (data.customPresets && data.customPresets.length > 0) {
+      setCustomPresets(data.customPresets);
+    }
+  } else {
+    // Legacy format - just state
+    const state = migrateState(data as VisualizerState);
+    applyFullState(state, layerSlots, getAllEffects());
+  }
+
+  applySlotSelections();
+  buildLayerPanel();
+  dirty = true;
+  clearUnsavedChanges();
+  clearPresetHighlights();
+  activeCustomPresetId = null;
+  renderCustomPresets();
+  updateBrowserURL();
+
+  // Close modal
+  importModalOverlay.classList.remove('visible');
+});
+
+// Initial render
+renderCustomPresets();
 
 // --- Canvas sizing ---
 
@@ -717,6 +1255,7 @@ async function loadSong(index: number) {
   musicMapper.setKey(timeline.key, timeline.keyMode);
   musicMapper.setKeyRegions(timeline.keyRegions);
   musicMapper.setTracks(timeline.tracks);
+  musicMapper.setSongDuration(timeline.duration, timeline.chords);
   audioPlayer.loadMidi(midiBuffer);
 
   const modeLabel = timeline.keyMode === 'minor' ? 'm' : '';
@@ -874,11 +1413,21 @@ playBtn.addEventListener('click', async () => {
   }
 });
 
-// Space bar to toggle play/pause
+// Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
+  // Ignore if typing in an input
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+  // Space bar to toggle play/pause
   if (e.code === 'Space' && timeline) {
     e.preventDefault();  // prevent page scroll
     playBtn.click();
+  }
+
+  // 'D' to toggle debug overlay
+  if (e.code === 'KeyD') {
+    debugOverlayVisible = !debugOverlayVisible;
+    debugOverlay.classList.toggle('visible', debugOverlayVisible);
   }
 });
 
@@ -923,6 +1472,13 @@ seekBar.addEventListener('touchend', () => { seeking = false; });
 
 const romanNumerals = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
 
+const qualityLabels: Record<string, string> = {
+  major: '', minor: 'm', dim: 'dim', aug: 'aug',
+  sus4: 'sus4', sus2: 'sus2',
+  maj7: 'maj7', dom7: '7', min7: 'm7', hdim7: 'ø7', dim7: 'o7',
+  unknown: '?',
+};
+
 function updateChordDisplay(currentTime: number) {
   if (!timeline) return;
 
@@ -936,20 +1492,46 @@ function updateChordDisplay(currentTime: number) {
 
   if (currentChord) {
     const root = noteNames[currentChord.root];
-    const qualityLabels: Record<string, string> = {
-      major: '', minor: 'm', dom7: '7', min7: 'm7',
-      dim: 'dim', aug: 'aug', unknown: '?',
-    };
-    const chordName = `${root}${qualityLabels[currentChord.quality]}`;
+    const chordName = `${root}${qualityLabels[currentChord.quality] ?? ''}`;
     const degree = currentChord.degree;
+
+    // Build Roman numeral with quality indicators
+    let display = chordName;
     if (degree > 0) {
-      const isMinorQuality = currentChord.quality === 'minor' || currentChord.quality === 'min7' || currentChord.quality === 'dim';
-      const numeral = isMinorQuality ? romanNumerals[degree].toLowerCase() : romanNumerals[degree];
-      chordDisplay.textContent = `${chordName}  ${numeral}`;
-    } else {
-      chordDisplay.textContent = chordName;
+      const isMinorQuality = ['minor', 'min7', 'dim', 'hdim7', 'dim7'].includes(currentChord.quality);
+      let numeral = isMinorQuality ? romanNumerals[degree].toLowerCase() : romanNumerals[degree];
+
+      // Add quality suffix to numeral
+      if (currentChord.quality === 'dim') numeral += '°';
+      else if (currentChord.quality === 'hdim7') numeral += 'ø7';
+      else if (currentChord.quality === 'dim7') numeral += '°7';
+      else if (currentChord.quality === 'dom7') numeral += '7';
+      else if (currentChord.quality === 'min7') numeral += '7';
+      else if (currentChord.quality === 'maj7') numeral += 'maj7';
+
+      // Secondary dominant: show as V/x
+      if (currentChord.isSecondary && currentChord.secondaryTarget > 0) {
+        const targetNumeral = romanNumerals[currentChord.secondaryTarget];
+        display = `${chordName}  V/${targetNumeral}`;
+      } else {
+        display = `${chordName}  ${numeral}`;
+      }
     }
+
+    // Add tension bar (visual indicator)
+    const tensionBar = getTensionBar(currentChord.tension);
+
+    // Chromatic indicator
+    const chromaticMark = currentChord.isChromatic ? ' *' : '';
+
+    chordDisplay.textContent = `${display}${chromaticMark} ${tensionBar}`;
   }
+}
+
+// Visual tension indicator using block characters
+function getTensionBar(tension: number): string {
+  const filled = Math.round(tension * 5);
+  return '▪'.repeat(filled) + '▫'.repeat(5 - filled);
 }
 
 // --- Key display update (shows modulations) ---
@@ -975,13 +1557,16 @@ function updateKeyDisplay(currentTime: number) {
     const modeLabel = region.mode === 'minor' ? 'm' : '';
     const keyName = noteNames[region.key];
 
+    // Ambiguity indicator: ? for high ambiguity
+    const ambiguityMark = region.ambiguity > 0.6 ? '?' : '';
+
     // Show if this is a modulation (not the first region)
     if (regionIndex > 0) {
-      keyDisplay.textContent = `Key: ${keyName}${modeLabel} \u2192`; // arrow indicates modulation
+      keyDisplay.textContent = `Key: ${keyName}${modeLabel}${ambiguityMark} →`;
       keyDisplay.style.color = '#ffcc00'; // highlight modulation
     } else {
-      keyDisplay.textContent = `Key: ${keyName}${modeLabel}`;
-      keyDisplay.style.color = '';
+      keyDisplay.textContent = `Key: ${keyName}${modeLabel}${ambiguityMark}`;
+      keyDisplay.style.color = region.ambiguity > 0.6 ? '#888' : '';
     }
   }
 }
@@ -1064,7 +1649,7 @@ function loop(time: number): void {
       dirty = true;
     }
   } else {
-    // Idle
+    // Idle (paused or no song)
     const idle = musicMapper.getIdleAnchor();
     idlePhase += 0.3 * dt;
     const t = Math.sin(Math.PI * idlePhase);
@@ -1078,7 +1663,14 @@ function loop(time: number): void {
       timeline ? timeline.key : 0  // Default to C (tonic) when no song loaded
     );
 
-    const idleMusic = musicMapper.getIdleMusicParams(dt);
+    // When paused with a timeline, still show chord/key data at current position
+    let idleMusic;
+    if (timeline) {
+      const pausedTime = parseFloat(seekBar.value) || 0;
+      idleMusic = musicMapper.getMusicParams(dt, pausedTime);
+    } else {
+      idleMusic = musicMapper.getIdleMusicParams(dt);
+    }
 
     compositor.update(dt, idleMusic);
 

@@ -1,5 +1,5 @@
 import type { ChordEvent, DrumHit, NoteEvent, TrackInfo, KeyRegion } from './midi-analyzer.ts';
-import type { MusicParams, ActiveVoice, UpcomingNote } from './effects/effect-interface.ts';
+import type { MusicParams, ActiveVoice, UpcomingNote, UpcomingChord } from './effects/effect-interface.ts';
 import { createMidiBeatSync, createIdleBeatSync, type BeatSync, type TempoEvent, type TimeSignatureEvent } from './beat-sync.ts';
 import { gsap } from './animation.ts';
 
@@ -200,6 +200,157 @@ let currentTracks: TrackInfo[] = [];
 let allNotes: NoteEvent[] = [];
 const LOOKAHEAD_SECONDS = 4.0;  // how far ahead to look for upcoming notes
 
+// All chords for theory bar lookahead
+let allChords: ChordEvent[] = [];
+
+// Simplified per-bar chords (one chord per bar, first chord wins)
+let simplifiedBarChords: ChordEvent[] = [];
+let totalBars = 0;
+let songBarDuration = 2.0; // cached bar duration for the song
+
+const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+
+function buildChordNumeral(chord: ChordEvent): string {
+  if (chord.isSecondary && chord.secondaryTarget > 0) {
+    return `V/${ROMAN_NUMERALS[chord.secondaryTarget]}`;
+  }
+  if (chord.degree > 0 && chord.degree <= 7) {
+    const isMinor = ['minor', 'min7', 'dim', 'hdim7', 'dim7'].includes(chord.quality);
+    let numeral = isMinor ? ROMAN_NUMERALS[chord.degree].toLowerCase() : ROMAN_NUMERALS[chord.degree];
+    if (chord.quality === 'dim') numeral += '°';
+    else if (chord.quality === 'hdim7') numeral += 'ø7';
+    else if (chord.quality === 'dim7') numeral += '°7';
+    else if (chord.quality === 'dom7' || chord.quality === 'min7') numeral += '7';
+    else if (chord.quality === 'maj7') numeral += 'Δ7';
+    return numeral;
+  }
+  return '';
+}
+
+// Build simplified bar chords - one chord per bar, first chord in bar wins
+function buildSimplifiedBarChords(duration: number): void {
+  if (songBarDuration <= 0 || allChords.length === 0) {
+    simplifiedBarChords = [];
+    totalBars = 0;
+    return;
+  }
+
+  totalBars = Math.ceil(duration / songBarDuration);
+  simplifiedBarChords = [];
+
+  for (let bar = 0; bar < totalBars; bar++) {
+    const barStart = bar * songBarDuration;
+    const barEnd = barStart + songBarDuration;
+
+    // Find first chord that starts in this bar, or the active chord at bar start
+    let barChord: ChordEvent | null = null;
+
+    // First, try to find a chord that starts within this bar
+    for (const chord of allChords) {
+      if (chord.time >= barStart && chord.time < barEnd) {
+        barChord = chord;
+        break; // first chord in bar
+      }
+    }
+
+    // If no chord starts in this bar, find the chord active at bar start
+    if (!barChord) {
+      for (let i = allChords.length - 1; i >= 0; i--) {
+        if (allChords[i].time <= barStart) {
+          barChord = allChords[i];
+          break;
+        }
+      }
+    }
+
+    if (barChord) {
+      // Create a copy with the bar start time
+      simplifiedBarChords.push({
+        ...barChord,
+        time: barStart,
+      });
+    }
+  }
+}
+
+// Get simplified bar chords for Theory Bar display
+function computeBarChords(currentTime: number): UpcomingChord[] {
+  if (simplifiedBarChords.length === 0 || songBarDuration <= 0) return [];
+
+  const currentBar = Math.floor(currentTime / songBarDuration);
+
+  const result: UpcomingChord[] = [];
+  for (let barOffset = -1; barOffset <= 2; barOffset++) {
+    const bar = currentBar + barOffset;
+    const barTime = bar * songBarDuration;
+
+    if (bar < 0 || bar >= simplifiedBarChords.length) {
+      result.push({ time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 });
+    } else {
+      const chord = simplifiedBarChords[bar];
+      result.push({
+        time: barTime,
+        root: chord.root,
+        quality: chord.quality,
+        degree: chord.degree,
+        numeral: buildChordNumeral(chord),
+        timeUntil: barTime - currentTime,
+      });
+    }
+  }
+
+  return result;
+}
+
+function computeUpcomingChords(currentTime: number): UpcomingChord[] {
+  if (allChords.length === 0) return [];
+
+  // Get bar duration from current tempo
+  const barDuration = beatDuration * beatsPerBar;
+  if (barDuration <= 0) return [];
+
+  // Calculate current bar number
+  const currentBar = Math.floor(currentTime / barDuration);
+
+  // Helper to find chord playing at a given time
+  const getChordAtTime = (time: number): UpcomingChord => {
+    if (time < 0) {
+      return { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 };
+    }
+
+    // Find the chord that's active at this time
+    let chord = null;
+    for (let i = allChords.length - 1; i >= 0; i--) {
+      if (allChords[i].time <= time) {
+        chord = allChords[i];
+        break;
+      }
+    }
+
+    if (!chord) {
+      return { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 };
+    }
+
+    return {
+      time: time,
+      root: chord.root,
+      quality: chord.quality,
+      degree: chord.degree,
+      numeral: buildChordNumeral(chord),
+      timeUntil: time - currentTime,
+    };
+  };
+
+  // Build array: [prev bar, current bar, next bar, next-next bar]
+  const result: UpcomingChord[] = [];
+  for (let barOffset = -1; barOffset <= 2; barOffset++) {
+    const barTime = (currentBar + barOffset) * barDuration;
+    result.push(getChordAtTime(barTime));
+  }
+
+  return result;
+}
+
 function computeUpcomingNotes(currentTime: number): UpcomingNote[] {
   const upcoming: UpcomingNote[] = [];
   const windowStart = currentTime - 0.1;  // include notes that just started
@@ -264,6 +415,13 @@ export const musicMapper = {
     currentKeyRegionIndex = -1;
   },
 
+  setSongDuration(duration: number, chords: ChordEvent[]) {
+    // Store chords and cache bar duration, then build simplified bar chords
+    allChords = chords;
+    songBarDuration = beatDuration * beatsPerBar;
+    buildSimplifiedBarChords(duration);
+  },
+
   getIdleAnchor(): CValue {
     return getDefaultAnchor();
   },
@@ -275,8 +433,9 @@ export const musicMapper = {
     drums: DrumHit[],
     notes: NoteEvent[]
   ): FractalParams {
-    // Store notes for lookahead (piano roll)
+    // Store notes and chords for lookahead
     allNotes = notes;
+    allChords = chords;
 
     // --- Find current chord ---
     let chordIdx = -1;
@@ -581,6 +740,8 @@ export const musicMapper = {
       activeVoices: currentActiveVoices,
       tracks: currentTracks,
       upcomingNotes: computeUpcomingNotes(currentTime),
+      upcomingChords: computeUpcomingChords(currentTime),
+      barChords: computeBarChords(currentTime),
     };
   },
 
@@ -632,6 +793,8 @@ export const musicMapper = {
       activeVoices: [],
       tracks: currentTracks,
       upcomingNotes: [],
+      upcomingChords: [],
+      barChords: [],
     };
   },
 

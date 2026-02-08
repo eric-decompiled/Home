@@ -2,7 +2,7 @@
 
 A layered music visualization system that transforms MIDI files into synchronized visual experiences. Combines fractal rendering, physics simulations, and procedural graphics—all driven by real-time harmonic analysis. Plays MIDI through a SoundFont synthesizer while mapping musical structure (key, chords, melody, bass, drums) to visual parameters across multiple composited effect layers.
 
-**Default preset**: Warp Prism (Chladni + Note Spiral + Kaleidoscope + Bass Clock)
+**Default preset**: Cosmic Spiral (Flow Field + Note Spiral + Bass Clock)
 
 ## Architecture
 
@@ -25,6 +25,8 @@ Fullscreen features:
 | File | Role |
 |------|------|
 | `src/main.ts` | App shell: HTML, event listeners, render loop, UI, layer compositor |
+| `src/state.ts` | State management: URL sharing, JSON export/import, localStorage persistence |
+| `src/fractal-config.ts` | Interactive fractal anchor editor panel (c-plane position + orbit offsets per degree) |
 | `src/midi-analyzer.ts` | MIDI parsing (@tonejs/midi), key detection, bar-level chord detection |
 | `src/music-mapper.ts` | Maps musical analysis → fractal parameters via orbit-based beat motion + beat-driven rotation |
 | `src/beat-sync.ts` | Generalized beat tracking abstraction with tempo change support |
@@ -45,7 +47,7 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 |------|---------|---------|
 | **Background** | Full-canvas animated backdrop | Chladni (default), Domain Warp, Waves, Flow Field |
 | **Foreground** | Main visual element | Note Spiral (default), Fractal, Piano Roll, Tonnetz |
-| **Overlay** | Post-process effects | Kaleidoscope (default), Groove Wave, Pitch Histogram |
+| **Overlay** | Post-process effects | Kaleidoscope, Theory Bar |
 | **Melody** | Melodic visualization | Melody Aurora, Melody Web, Melody Clock |
 | **Bass** | Bass note tracking | Bass Clock (default), Bass Web |
 
@@ -53,10 +55,189 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 
 | Preset | Background | Foreground | Overlay | Melody | Bass |
 |--------|------------|------------|---------|--------|------|
-| **Warp Prism** (default) | Chladni | Note Spiral | Kaleidoscope | — | Bass Clock |
-| **Cosmic Spiral** | Flow Field | Note Spiral | — | — | Bass Clock |
-| **Fractal Cathedral** | Chladni | Fractal | Kaleidoscope | Melody Web | — |
-| **Piano** | Flow Field | Piano Roll | — | — | — |
+| **Cosmic Spiral** (default) | Flow Field | Note Spiral | — | — | Bass Clock |
+| **Warp Prism** | Chladni | Note Spiral (ring) | Kaleidoscope | — | Bass Clock |
+| **Fractal Dance** | Domain Warp | Fractal | Theory Bar | — | — |
+| **Piano** | Flow Field | Piano Roll | Theory Bar | — | — |
+
+### URL Sharing System
+
+The browser URL updates automatically to reflect the current visual configuration. Users can copy the URL directly from the address bar to share. Song selection is not included (URLs are for visual presets only).
+
+**Parameters:**
+| Param | Example | Description |
+|-------|---------|-------------|
+| `preset` | `?preset=warp` | Apply a preset (spiral, warp, fractal, piano) |
+| `bg` | `?bg=chladni` | Background layer (omit for none) |
+| `fg` | `?fg=spiral` | Foreground layer (omit for none) |
+| `overlay` | `?overlay=kaleido` | Overlay layer (omit for none) |
+| `melody` | `?melody=clock` | Melody layer (omit for none) |
+| `bass` | `?bass=clock` | Bass layer (omit for none) |
+| `{prefix}.{key}` | `?ff.w=1` | Effect config (see below) |
+
+**URL compression:** Layer values and config params use short names.
+
+| Effect ID | Layer Name | Config Prefix | Config Keys |
+|-----------|------------|---------------|-------------|
+| flowfield | `flow` | `ff` | `w`=useWhite |
+| note-spiral | `spiral` | `ns` | `t`=tightness, `s`=shapes |
+| piano-roll | `piano` | `pr` | `p`=pianoSound |
+| domainwarp | `warp` | `dw` | |
+| chladni | `chladni` | `ch` | |
+| kaleidoscope | `kaleido` | `ks` | |
+| fractal | `fractal` | `fr` | |
+| theory-bar | `theory` | `tb` | `h`=barHeight |
+| bass-clock | `clock` | `bc` | |
+| melody-clock | `clock` | `mc` | |
+| tonnetz | `tonnetz` | `tn` | |
+| wave-interference | `waves` | `wi` | |
+
+Booleans: `1`/`0`. Example: `?bg=flow&fg=spiral&ff.w=1`
+
+**URL behavior:**
+- Initial page load: Clean URL (default Cosmic Spiral applied)
+- Click any preset: `?preset=spiral`, `?preset=warp`, etc.
+- Custom configs: `?bg=chladni&fg=note-spiral&ns.s=ring`
+
+**Fallback:** Unrecognized params are ignored; defaults to Cosmic Spiral preset.
+
+### Custom Presets
+
+Users can save their own presets via the **+ Save** button. Custom presets:
+- Store full state (layers, effect configs, fractal anchors)
+- Appear as gold buttons next to built-in presets
+- Can be deleted individually (x button) or all at once (Reset button)
+- Persist in localStorage across sessions
+
+**UI Elements:**
+- **+ Save**: Opens modal to name and save current configuration
+- **Custom preset buttons**: Click to apply, hover x to delete
+- **Reset**: Deletes all custom presets (with warning modal)
+
+**Warning Modals:** Destructive actions (delete preset, reset all) show a styled confirmation modal with cancel/confirm buttons.
+
+### Fractal Config Panel (`src/fractal-config.ts`)
+
+Interactive editor for fractal anchor points. Each harmonic degree (I-VII) maps to a c-plane position in one of 6 fractal families, with 4 orbit offsets for beat-synchronized motion.
+
+**Access:** Click "Fractal Config" button in the top bar.
+
+**Features:**
+- **Family dropdown**: Switch between Burning Ship, Buffalo, Celtic, Phoenix, Tricorn, PerpBurn
+- **Degree buttons**: Select which degree (I-VII) to edit
+- **Click to place**: Click on locus to set anchor position for selected degree
+- **Drag orbits**: Drag numbered dots (1-4) to shape beat motion
+- **Pan/zoom**: Drag to pan, Ctrl+wheel to zoom, double-click to reset view
+- **Live preview**: Animated Julia set preview with configurable BPM
+- **Palette selector**: Choose color palette for preview
+- **Surprise**: Generate random boundary-seeking anchors
+- **Save**: Persist to localStorage and close panel
+
+**Data flow:**
+- Anchors stored in `localStorage['fractal-anchors']`
+- Custom presets include anchors via `getFullState()`
+- `music-mapper.ts` reads anchors to drive fractal visualization
+
+### State Management (`src/state.ts`)
+
+Centralized state management module for the visualizer. Handles multiple serialization formats:
+
+**Core Types:**
+```typescript
+interface VisualizerState {
+  version: number;       // Schema version for migrations
+  layers: {              // Effect assignments by slot
+    bg: string | null;
+    fg: string | null;
+    overlay: string | null;
+    melody: string | null;
+    bass: string | null;
+  };
+  configs: {             // Effect-specific settings (only non-defaults)
+    [effectId: string]: { [key: string]: string | number | boolean };
+  };
+  anchors?: FractalAnchors;  // Fractal config (JSON/localStorage only, never in URL)
+}
+
+interface CustomPreset {
+  id: string;
+  name: string;
+  state: VisualizerState;
+  created: number;  // timestamp
+}
+```
+
+**Functions:**
+
+| Function | Purpose |
+|----------|---------|
+| `getCurrentState(layerSlots)` | Extract current state (layers + effect configs) |
+| `getFullState(layerSlots)` | Extract full state including fractal anchors |
+| `applyState(state, ...)` | Apply layers and effect configs |
+| `applyFullState(state, ...)` | Apply full state including fractal anchors |
+| `stateToURL(state)` | Encode to compressed URL (no anchors) |
+| `urlToState(queryString)` | Decode URL to state |
+| `stateToJSON(state)` | Export to JSON (full fidelity) |
+| `jsonToState(json)` | Import from JSON |
+| `getCustomPresets()` | Get all user-saved presets |
+| `saveCustomPreset(name, state)` | Save current state as named preset |
+| `deleteCustomPreset(id)` | Delete a custom preset |
+| `deleteAllCustomPresets()` | Clear all custom presets |
+
+**Storage Keys:**
+- `fractured-jukebox-presets` — Array of custom presets (JSON)
+- `fractal-anchors` — Current fractal anchor configuration
+
+**URL vs Full State:**
+- URL: Layers + effect configs only (shareable, compact)
+- JSON/localStorage: Everything including fractal anchors (for custom presets)
+
+This separation keeps URLs clean while allowing full configuration persistence.
+
+### State Schema Change Procedure
+
+All state mappings live in `src/state.ts`. The schema uses a single integer version (`CURRENT_VERSION`).
+
+**Additions (OK to proceed without asking):**
+| Change | Update in `state.ts` |
+|--------|---------------------|
+| New effect | `EFFECT_SHORT_NAMES`, `EFFECT_PREFIXES` |
+| New config key | `CONFIG_SHORTS`, `DEFAULT_CONFIGS` |
+| New preset | `PRESET_LAYERS`, `PRESET_CONFIGS` |
+| New layer slot | `SLOT_KEYS`, `VisualizerState.layers` interface |
+
+Also update the effect's `getConfig()` / `setConfigValue()` methods.
+
+**Breaking Changes (ASK USER FIRST):**
+- Rename effect ID
+- Rename config key
+- Remove effect or config
+- Change value semantics (e.g., range 0-1 → 0-100)
+
+For breaking changes:
+1. Get user approval
+2. Bump `CURRENT_VERSION` in `state.ts`
+3. Add migration to `MIGRATIONS` object:
+```typescript
+const MIGRATIONS: Record<number, Migrator> = {
+  2: (state) => {
+    // Example: rename effect
+    if (state.layers.bg === 'old-name') state.layers.bg = 'new-name';
+    return { ...state, version: 2 };
+  },
+};
+```
+
+**Defensive Parsing (always enforced):**
+- Missing fields → use defaults
+- Unknown fields → ignore silently
+- Invalid values → use default for that field
+- No version field → assume version 1, migrate forward
+
+**Auto-migration entry points:**
+- `urlToState()` — parses URL, migrates
+- `jsonToState()` — parses JSON, migrates
+- `loadFromLocalStorage()` — loads stored state, migrates
 
 ### Effect Catalog
 
@@ -81,13 +262,13 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 
 **Spirograph** (`src/effects/spirograph.ts`): Parametric curve drawing with music-reactive parameters.
 
-**Note Spiral** (`src/effects/note-spiral.ts`): All active MIDI voices rendered as glowing orbs on a spiral covering full piano range (MIDI 21-108, A0 to C8). Pitch class determines angle (root at 12 o'clock), with **configurable tightness** (power curve, default 1.25) for visual spacing. Shows polyphonic voicing with **Bezier curve trails** between consecutive notes—tangent-based control points create smooth curves. Trail behavior: **stepwise motion** (1-3 semitones) follows the spiral curve, larger intervals draw straight lines. Trail TTL configurable (default 48 segments, decay 0.08). Sine wave twist (`0.05 * sin(fromRoot)`) prevents angular discontinuity at key boundaries. Flashlight beams project outward—bass notes get wide/short/dim beams, treble notes get narrow/long/bright beams. Center shifted down 4% for better screen balance.
+**Note Spiral** (`src/effects/note-spiral.ts`): All active MIDI voices rendered as glowing orbs on a spiral covering full piano range (MIDI 21-108, A0 to C8). Pitch class determines angle (root at 12 o'clock), with **configurable tightness** (power curve, default 1.25) for visual spacing. Shows polyphonic voicing with **Bezier curve trails** between consecutive notes—tangent-based control points create smooth curves. Trail behavior: **stepwise motion** (1-3 semitones) follows the spiral curve, larger intervals draw straight lines. Trail TTL configurable (default 48 segments, decay 0.08). Sine wave twist (`0.05 * sin(fromRoot)`) prevents angular discontinuity at key boundaries. **Firefly particles** (default shape) dance around active notes. **Long note visibility**: decay rate 0.4-0.7 gives ~2 second half-life so notes linger on spiral. Center shifted down 4% for better screen balance.
 
 **Melody Web** (`src/effects/melody-web.ts`): Network graph of 12 pitch classes arranged in a circle as dots. Larger dots for diatonic scale degrees, smaller for chromatic. Edges connect recently-played notes, building a web of melodic relationships. Edge decay 0.9995 (~23s half-life at 60fps) with smoothstep alpha curve. Melody trail shows recent note sequence.
 
 **Melody Clock** (`src/effects/melody-clock.ts`): Openwork Breguet/pomme-style clock hand tracking individual melody notes. Drawn as stroked outlines with transparent interiors (filigree style). Features: volute scrollwork, open ellipse moon window, teardrop, fleur-de-lis tip with three petals, crescent tail. Roman numeral markers at diatonic positions. Hand direction tracks actual MIDI pitch—ascending melody goes clockwise, descending counter-clockwise. Uses GSAP with **0.5 beat duration** and power2.out ease for smooth motion with some heft. Arc trail shows recent sweep path.
 
-**Bass Clock** (`src/effects/bass-clock.ts`): Industrial station-clock style hand tracking **chord root** (not individual bass notes) for harmonic stability. Heavy tapered hand with circular counterweight. Roman numeral markers on outer ring (just outside note spiral radius). **Fixed hand length at 0.95** (outer layer). Uses GSAP with full beat duration and power2.inOut ease for slow, weighty motion.
+**Bass Clock** (`src/effects/bass-clock.ts`): Industrial station-clock style hand tracking **chord root** (not individual bass notes) for harmonic stability. Heavy tapered hand with circular counterweight. Roman numeral markers on outer ring (just outside note spiral radius). **Fixed hand length at 0.95** (outer layer). **Initializes to song key** (tonic position) before first chord is detected. Uses GSAP with full beat duration and power2.inOut ease for slow, weighty motion.
 
 **Piano Roll** (`src/effects/piano-roll.ts`): Falling notes visualization with piano keyboard at bottom. Notes fall from above and land on keys when they play. Features:
 - **Lookahead system**: Uses `upcomingNotes` from MusicParams for 4-second note preview
@@ -98,8 +279,6 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 - **Particle system**: Sparks emit on note impact, during sustain, and on release (capped at 50 particles)
 - **Piano sound mode**: Toggle to force all instruments to piano (via program change)
 - **Performance optimized**: No shadow blur (uses layered fills), particles are simple circles
-
-**Groove Wave** (`src/effects/groove-wave.ts`): Subtle overlay visualizing groove curves as animated waves at screen bottom. Two mirrored waves emanate from center: bar groove (slower, background) and beat groove (faster, main rhythm). Newest samples appear at center, oldest at edges—creates a scrolling "heartbeat monitor" effect. **Peak brightness boost**: wave segments glow 1.75× brighter at peaks (groove=1) while maintaining baseline brightness at troughs, avoiding the mistake of dimming non-peak regions too much.
 
 ### MusicParams Interface
 
@@ -136,14 +315,39 @@ Custom MIDIs get full analysis (key detection, chord detection, tempo tracking) 
 
 ## Music Analysis Pipeline
 
-`midi-analyzer.ts` processes MIDI files into a `MusicTimeline`:
+`midi-analyzer.ts` processes MIDI files into a `MusicTimeline`. See `research/harmonic-analysis-theory.md` for theoretical foundation.
+
+### Key Detection
 
 1. **Global key detection** — Krumhansl-Schmuckler algorithm on full pitch class histogram weighted by `duration * velocity`
-2. **Local key / modulation detection** — Windowed K-S with hysteresis. Tempo-based windows (2 bars window, 0.5 bar hop) for musically meaningful detection that scales with tempo. Returns `KeyRegion[]` with `{startTime, endTime, key, mode, confidence}`.
-3. **Bar-level chord detection** — weighted pitch class profiles per bar, matched against chord templates with diatonic bias. Chord timestamps use earliest actual note onset within the bar. Per-bar (not per-beat) prevents excessive chord thrashing.
-4. **Harmonic metadata** — each `ChordEvent` includes: root (pitch class 0-11), quality (major/minor/dom7/min7/dim/aug), degree (1-7 relative to key), pre-computed tension (0-1), and next degree (look-ahead)
+2. **Multiple profiles** — Supports `krumhansl` (default), `temperley` (classical), `shaath` (pop/electronic)
+3. **Ambiguity metric** — Tracks 2nd-best key candidate. `KeyRegion.ambiguity` (0=clear, 1=ambiguous) measures relative strength difference
+4. **Modulation detection** — Windowed K-S with hysteresis. Tempo-based windows (4 bars, 1 bar hop) with 3-window stability requirement
 
-Tension computed from harmonic function: `degreeTension[degree] + qualityTensionBoost[quality]`. Tonic (I) = 0, dominant (V) = 0.7, leading tone (vii) = 0.85.
+### Chord Detection
+
+1. **Extended templates** — Supports: major, minor, dim, aug, sus4, sus2, maj7, dom7, min7, hdim7, dim7
+2. **Diatonic bias** — Diatonic roots get +0.15 bonus; quality preference adjustments for disambiguation
+3. **Bar-level granularity** — Weighted pitch class profiles per bar matched against templates. Per-bar (not per-beat) prevents excessive chord thrashing
+4. **Onset-accurate timing** — Chord timestamps use earliest actual note onset within the bar
+
+### Harmonic Analysis
+
+Each `ChordEvent` includes:
+- `root` (0-11), `quality`, `degree` (1-7), `tension` (0-1)
+- `isSecondary` — true for secondary dominants (V/x, viio/x)
+- `secondaryTarget` — target degree being tonicized (2-7)
+- `isChromatic` — true if root or quality doesn't fit current key
+
+### Tension Model
+
+Based on Lerdahl & Krumhansl (2007), combining four components:
+- **Hierarchical** (40%) — Circle of fifths distance from tonic
+- **Dissonance** (25%) — Chord quality roughness (dim=0.35, dom7=0.25, major=0)
+- **Motion** (20%) — Root movement tension (tritone=0.4, step=0.25, fifth=0.05)
+- **Tendency** (15%) — Resolution pull (vii=0.3, V=0.2, I=0)
+
+Secondary dominants add +0.15 tension (V/V gets -0.05 as it's very common).
 
 **Test file**: `circle-of-fifths.mid` traverses all 12 keys (C→G→D→A→E→B→F#→Db→Ab→Eb→Bb→F→C) to verify modulation detection.
 
@@ -258,6 +462,43 @@ Includes test MIDIs (A major/minor scales, chromatic test) plus game soundtracks
 - **Config tool** (`public/config.html`): Multi-panel cross-family anchor picker with zoom/pan, orbit dot dragging, TypeScript export
 - **Shape atlas** (`public/shape-atlas.html`): Julia set thumbnail grid across parameter space
 
+## Research Documentation
+
+The `research/` folder contains in-depth technical documents synthesizing domain knowledge:
+
+| Document | Purpose |
+|----------|---------|
+| `research/PROCESS.md` | Meta-documentation of the research workflow (exploration → research doc → working theory → CLAUDE.md update). |
+| `research/harmonic-analysis-theory.md` | Working theory for harmony-aware visualization. Covers tension models, key detection algorithms, chord quality mappings, and practical harmony→visual parameter tables. |
+| `research/fractal-theory.md` | Working theory for fractal visualization. Covers family selection, parameter space navigation, animation principles, and music-to-fractal mappings. |
+| `research/fractal-families.md` | Comprehensive catalog of 15+ Julia set variants with TypeScript implementations, visual characteristics, and recommendations for music visualization. |
+| `research/music-analysis-improvements.md` | Deep dive into music analysis libraries (Essentia.js, Tonal.js) and improvement roadmap for the analyzer. |
+| `research/groove-and-visualizers.md` | Neuroscience of groove and its application to visualization (dopamine response, anticipation/arrival, motor engagement). |
+
+### Research Process
+
+Four-phase workflow documented in `research/PROCESS.md`:
+
+1. **Exploration** — Survey libraries, papers, implementations; save references
+2. **Research Document** — Comprehensive analysis with depth and alternatives
+3. **Working Theory** — Distilled, actionable framework with quick reference tables
+4. **CLAUDE.md Update** — Record in institutional memory
+
+**Working Theory Documents** (`*-theory.md`):
+- Synthesize raw research into actionable frameworks
+- Include quick reference tables and code snippets
+- Focus on practical implementation guidance
+- Updated as understanding evolves
+
+**Research Documents** (other `.md` files):
+- In-depth explorations of specific topics
+- Academic depth with references
+- May include experimental ideas not yet implemented
+
+**Reference Materials** (`research/references/`):
+- Saved web pages, images, papers
+- Source material for research synthesis
+
 ## Key Learnings
 
 ### What Works
@@ -305,6 +546,10 @@ Includes test MIDIs (A major/minor scales, chromatic test) plus game soundtracks
 - **Orange for G#**: Bridges green (G) and red (A) naturally on color wheel. Gold was too similar to fire yellows.
 - **Fullscreen with PWA fallback**: Fullscreen API doesn't work on iOS Safari. Provide "Add to Home Screen" for true fullscreen PWA experience.
 - **Hide controls in fullscreen**: Slide controls up, reveal on mouse-to-top (desktop) or tap-near-top (mobile). Auto-hide after timeout.
+- **Animation panel closed by default**: Less visual clutter on first load. Click "Animations" button to open.
+- **URL query params for sharing**: Encode layer slots as short keys (bg, fg, overlay, melody, bass), effect configs as `effectId.configKey=value`. Use `history.replaceState()` to update URL on every setting change. Detect preset matches for compact URLs (`?preset=warp`). Default preset = clean URL (no params). Omit layer params set to none. Song not included (visual presets only).
+- **Preset-aware URL encoding**: When layers match a preset, skip encoding configs that match PRESET_CONFIGS for that preset. Prevents URLs like `?preset=warp&ns.s=ring` when 'ring' is the expected shape for warp.
+- **DEFAULT_CONFIGS for all effects**: Register default values for every effect config key. Prevents non-default configs from polluting URLs when switching presets.
 
 ### What Doesn't Work
 - **Solid-fill clock silhouettes**: Details invisible
@@ -459,3 +704,29 @@ const detailActivity = trebleEnergy * 0.3;
 - **Shader-based effects**: Move more computation to GPU
 - **Syncopation detection**: Compute syncopation index from MIDI to modulate visual complexity (research shows medium syncopation = maximum groove)
 - **Anticipation layer**: Dedicated visual layer that builds before beats land, exploiting the caudate-nucleus accumbens dissociation
+
+### Fractal Family Expansion (research complete, implementation pending)
+
+Comprehensive research document at `research/fractal-families.md` covers 15+ fractal families with iteration formulas, music mapping, and implementation details.
+
+**Priority 1 - High impact, easy implementation:**
+- **Newton (z³-1)**: Different visual vocabulary from Julia sets, basin coloring by root convergence
+- **Nova**: Newton + Julia hybrid (`z = z - (z^n-1)/(n*z^{n-1}) + c`), very beautiful layered structures
+- **Sine**: `z = c * sin(z)`, periodic structure maps naturally to rhythm
+
+**Priority 2 - Moderate effort:**
+- **Magnet Type I**: From statistical mechanics, unique flame structures
+- **Barnsley**: Organic, fern-like growth patterns (Types 1, 2, 3)
+- **Multicorn-3**: 4-fold symmetry variant of Tricorn
+
+**Exploration workflow:**
+1. Shape Atlas (`public/shape-atlas.html`): Survey parameter space, find interesting regions
+2. Config Tool (`public/config.html`): Place anchors, design beat-synchronized orbits
+3. Export TypeScript to `src/fractal-config.ts`
+
+**Interesting regions to explore:**
+- Celtic: real -2.2 to -0.8, imag -1.6 to -0.4
+- Burning Ship: real -1.8 to 0.4, imag -1.6 to -0.2
+- Buffalo: compact space with intricate boundary filaments
+
+**Suggested type numbers:** Newton=10, Nova=12, Magnet=13, Sine=14, Barnsley=16

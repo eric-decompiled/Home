@@ -76,7 +76,7 @@ export class FlowFieldEffect implements VisualEffect {
   private ready = false;
 
   private particles: FlowParticle[] = [];
-  private particleCount = 1500;
+  private particleCount = 800;  // Reduced for performance
   private flowSpeed = 0.4; // Gentle base flow
   private turbulence = 1.0;
   private noiseScale = 0.003;

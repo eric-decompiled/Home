@@ -41,6 +41,7 @@ export class BassClockEffect implements VisualEffect {
   private keyMode: 'major' | 'minor' = 'major';
   private keyRotation = 0;  // animated rotation offset for modulations
   private lastPitchClass = -1;
+  private initializedToKey = false;  // Track if we've set initial position to song key
   private handLength = 0.95; // Fixed at outer layer
   private colR = 150;
   private colG = 100;
@@ -101,6 +102,20 @@ export class BassClockEffect implements VisualEffect {
 
     // Follow chord root for stability (not random bass notes)
     const pc = music.chordRoot >= 0 ? music.chordRoot : -1;
+
+    // Initialize hand to tonic position on first update (before any chord changes)
+    if (!this.initializedToKey) {
+      const tonicAngle = (this.key / 12) * Math.PI * 2 - Math.PI / 2;
+      this.handAngle = tonicAngle;
+      this.targetAngle = this.handAngle;
+      this.lastTrailAngle = this.handAngle;
+      // Set color to tonic
+      const c = samplePaletteColor(this.key, 0.6);
+      this.colR = c[0];
+      this.colG = c[1];
+      this.colB = c[2];
+      this.initializedToKey = true;
+    }
 
     if (pc >= 0) {
       // Use spiral coordinate system with twist (must match spiralPos formula)
@@ -470,6 +485,8 @@ export class BassClockEffect implements VisualEffect {
     this.ready = false;
     this.handBrightness = 0;
     this.arcTrail.length = 0;
+    this.initializedToKey = false;
+    this.lastPitchClass = -1;
   }
 
   getConfig(): EffectConfig[] {

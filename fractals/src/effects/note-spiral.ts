@@ -44,8 +44,11 @@ export class NoteSpiralEffect implements VisualEffect {
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private glowCanvas: HTMLCanvasElement;
-  private glowCtx: CanvasRenderingContext2D;
+  private spineCanvas: HTMLCanvasElement;  // Cached spiral spine
+  private spineCtx: CanvasRenderingContext2D;
+  private backdropCanvas: HTMLCanvasElement;  // Cached dark backdrop
+  private backdropCtx: CanvasRenderingContext2D;
+  private backdropDirty = true;
   private width = 800;
   private height = 600;
   private ready = false;
@@ -61,6 +64,14 @@ export class NoteSpiralEffect implements VisualEffect {
   private breathPhase = 0;
   private awake = false;
 
+  // Spine cache invalidation
+  private cachedSpineKey = -1;
+  private cachedSpineRotation = -999;
+  private cachedSpineMode: 'major' | 'minor' = 'major';
+
+  // Pre-computed positions (updated once per frame)
+  private notePositions: { x: number; y: number; r: number; scale: number }[] = [];
+
   // Config
   private intensity = 1.0;
   private trailMax = 48;
@@ -69,14 +80,15 @@ export class NoteSpiralEffect implements VisualEffect {
   private spiralTightness = 1.25;  // power curve: lower = more bass space, higher = tighter
   private currentTension = 0;  // for tension-driven visuals
   private activeShapes: Set<string> = new Set(['firefly']);
-  private glowFade = 0.008;  // threshold cut for glow decay
   private static readonly SHAPES = ['firefly', 'starburst', 'ring', 'spark'];
 
   constructor() {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d')!;
-    this.glowCanvas = document.createElement('canvas');
-    this.glowCtx = this.glowCanvas.getContext('2d')!;
+    this.spineCanvas = document.createElement('canvas');
+    this.spineCtx = this.spineCanvas.getContext('2d')!;
+    this.backdropCanvas = document.createElement('canvas');
+    this.backdropCtx = this.backdropCanvas.getContext('2d')!;
     this.initNodes();
   }
 
@@ -103,8 +115,12 @@ export class NoteSpiralEffect implements VisualEffect {
     this.height = height;
     this.canvas.width = width;
     this.canvas.height = height;
-    this.glowCanvas.width = width;
-    this.glowCanvas.height = height;
+    this.spineCanvas.width = width;
+    this.spineCanvas.height = height;
+    this.backdropCanvas.width = width;
+    this.backdropCanvas.height = height;
+    this.cachedSpineKey = -1; // invalidate cache
+    this.backdropDirty = true;
     this.ready = true;
   }
 
@@ -113,14 +129,147 @@ export class NoteSpiralEffect implements VisualEffect {
     this.height = height;
     this.canvas.width = width;
     this.canvas.height = height;
-    this.glowCanvas.width = width;
-    this.glowCanvas.height = height;
+    this.spineCanvas.width = width;
+    this.spineCanvas.height = height;
+    this.backdropCanvas.width = width;
+    this.backdropCanvas.height = height;
+    this.cachedSpineKey = -1; // invalidate cache
+    this.backdropDirty = true;
   }
 
   // Map MIDI note to spiral position - delegates to shared spiralPos utility
   private notePos(midi: number, cx: number, cy: number, maxR: number): { x: number; y: number; r: number; scale: number } {
     const pos = spiralPos(midi, midi % 12, this.key, this.keyRotation, cx, cy, maxR, this.spiralTightness);
     return { x: pos.x, y: pos.y, r: pos.radius, scale: pos.scale };
+  }
+
+  // Pre-compute all note positions for the frame (call once at start of render)
+  private computeNotePositions(cx: number, cy: number, maxR: number): void {
+    this.notePositions.length = 0;
+    for (let midi = MIDI_LO; midi < MIDI_HI; midi++) {
+      this.notePositions.push(this.notePos(midi, cx, cy, maxR));
+    }
+  }
+
+  // Render spine to cache if key/rotation changed significantly
+  private updateSpineCache(): void {
+    const rotationThreshold = 0.02; // ~1 degree
+    const needsUpdate = this.cachedSpineKey !== this.key ||
+                        this.cachedSpineMode !== this.keyMode ||
+                        Math.abs(this.cachedSpineRotation - this.keyRotation) > rotationThreshold;
+
+    if (!needsUpdate) return;
+
+    this.cachedSpineKey = this.key;
+    this.cachedSpineRotation = this.keyRotation;
+    this.cachedSpineMode = this.keyMode;
+
+    const sctx = this.spineCtx;
+    sctx.clearRect(0, 0, this.width, this.height);
+    sctx.globalCompositeOperation = 'screen';
+
+    const diatonicOffsets = this.keyMode === 'minor' ? MINOR_OFFSETS : MAJOR_OFFSETS;
+
+    // Draw smooth curves between consecutive notes
+    for (let i = 0; i < this.notePositions.length - 1; i++) {
+      const midi = MIDI_LO + i;
+      const pc = midi % 12;
+      const nextPc = (midi + 1) % 12;
+
+      // Get colors for gradient
+      const c0 = samplePaletteColor(pc, 0.65);
+      const c1 = samplePaletteColor(nextPc, 0.65);
+
+      // Check if in key for line weight/alpha
+      const semi = semitoneOffset(pc, this.key);
+      const nextSemi = semitoneOffset(nextPc, this.key);
+      const inKey = diatonicOffsets.has(semi) || diatonicOffsets.has(nextSemi);
+      const baseAlpha = inKey ? 0.4 : 0.15;
+      const lw = inKey ? 2.0 : 1.0;
+
+      const p0 = this.notePositions[i];
+      const p1 = this.notePositions[i + 1];
+
+      // Calculate tangent directions for smooth curves
+      const prev = this.notePositions[Math.max(0, i - 1)];
+      const next = this.notePositions[Math.min(this.notePositions.length - 1, i + 2)];
+
+      const tangentStrength = 0.18;
+      const t0x = (p1.x - prev.x) * tangentStrength;
+      const t0y = (p1.y - prev.y) * tangentStrength;
+      const t1x = (next.x - p0.x) * tangentStrength;
+      const t1y = (next.y - p0.y) * tangentStrength;
+
+      const cp1x = p0.x + t0x;
+      const cp1y = p0.y + t0y;
+      const cp2x = p1.x - t1x;
+      const cp2y = p1.y - t1y;
+
+      // Create gradient from note color to next note color
+      const grad = sctx.createLinearGradient(p0.x, p0.y, p1.x, p1.y);
+      grad.addColorStop(0, `rgba(${c0[0]},${c0[1]},${c0[2]},${baseAlpha})`);
+      grad.addColorStop(1, `rgba(${c1[0]},${c1[1]},${c1[2]},${baseAlpha})`);
+
+      sctx.beginPath();
+      sctx.moveTo(p0.x, p0.y);
+      sctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p1.x, p1.y);
+      sctx.strokeStyle = grad;
+      sctx.lineWidth = lw;
+      sctx.stroke();
+    }
+  }
+
+  // Render backdrop to cache (only when size changes)
+  private renderBackdropCache(cx: number, cy: number, maxR: number): void {
+    const bctx = this.backdropCtx;
+    bctx.clearRect(0, 0, this.width, this.height);
+
+    const discCy = cy - maxR * 0.04;
+    const discTop = discCy - maxR;
+    const discBottom = discCy + maxR;
+
+    // Fake shadow using offset darker circle
+    bctx.beginPath();
+    bctx.arc(cx + 8, discCy + 8, maxR * 0.98, 0, Math.PI * 2);
+    bctx.fillStyle = 'rgba(0,0,0,0.4)';
+    bctx.fill();
+
+    // Vertical gradient - warm gray at top, cool black at bottom
+    const depthGrad = bctx.createLinearGradient(cx, discTop, cx, discBottom);
+    depthGrad.addColorStop(0, 'rgba(38,36,42,0.5)');
+    depthGrad.addColorStop(0.35, 'rgba(22,22,28,0.5)');
+    depthGrad.addColorStop(0.65, 'rgba(10,12,18,0.5)');
+    depthGrad.addColorStop(1, 'rgba(0,0,5,0.5)');
+
+    bctx.beginPath();
+    bctx.arc(cx, discCy, maxR * 0.98, 0, Math.PI * 2);
+    bctx.fillStyle = depthGrad;
+    bctx.fill();
+
+    // Ambient occlusion
+    const aoGrad = bctx.createRadialGradient(
+      cx, discCy + maxR * 0.4, 0,
+      cx, discCy + maxR * 0.4, maxR * 0.8
+    );
+    aoGrad.addColorStop(0, 'rgba(0,0,0,0.3)');
+    aoGrad.addColorStop(0.5, 'rgba(0,0,0,0.15)');
+    aoGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    bctx.fillStyle = aoGrad;
+    bctx.fill();
+
+    // Box light from above
+    bctx.globalCompositeOperation = 'screen';
+    const lightGrad = bctx.createLinearGradient(cx, discTop, cx, discBottom);
+    lightGrad.addColorStop(0, 'rgba(220,230,255,0.06)');
+    lightGrad.addColorStop(0.3, 'rgba(200,215,240,0.04)');
+    lightGrad.addColorStop(0.6, 'rgba(180,200,230,0.025)');
+    lightGrad.addColorStop(1, 'rgba(150,170,200,0.01)');
+
+    bctx.beginPath();
+    bctx.arc(cx, discCy, maxR * 0.98, 0, Math.PI * 2);
+    bctx.fillStyle = lightGrad;
+    bctx.fill();
+    bctx.globalCompositeOperation = 'source-over';
   }
 
   update(dt: number, music: MusicParams): void {
@@ -223,8 +372,8 @@ export class NoteSpiralEffect implements VisualEffect {
       }
     }
 
-    // Decay nodes - shorter TTL for snappier response
-    const nodeDecay = 4.0 + music.tension * 2.0;
+    // Decay nodes - long TTL so notes linger on spiral
+    const nodeDecay = 0.4 + music.tension * 0.3;
     for (const node of this.nodes) {
       node.brightness *= Math.exp(-nodeDecay * dt);
     }
@@ -251,155 +400,35 @@ export class NoteSpiralEffect implements VisualEffect {
     const maxR = Math.min(w, h) / 2 * SPIRAL_RADIUS_SCALE;
     const breath = 1 + Math.sin(this.breathPhase) * 0.01;
 
-    // --- Dark backdrop with depth gradient ---
+    // --- Dark backdrop (cached for performance) ---
     if (this.darkBackdrop) {
-      ctx.save();
-      ctx.shadowColor = 'rgba(0,0,0,1)';
-      ctx.shadowBlur = 60;
-      ctx.shadowOffsetX = 12;
-      ctx.shadowOffsetY = 12;
-
-      // Gradient backdrop: lifted at top, descends into true black
-      const discCy = cy - maxR * 0.04;
-      const discTop = discCy - maxR;
-      const discBottom = discCy + maxR;
-
-      // Vertical gradient - warm gray at top, cool black at bottom
-      const depthGrad = ctx.createLinearGradient(cx, discTop, cx, discBottom);
-      depthGrad.addColorStop(0, 'rgba(38,36,42,0.5)');    // warm gray, lifted
-      depthGrad.addColorStop(0.35, 'rgba(22,22,28,0.5)'); // transition
-      depthGrad.addColorStop(0.65, 'rgba(10,12,18,0.5)'); // cool dark blue
-      depthGrad.addColorStop(1, 'rgba(0,0,5,0.5)');       // deep blue-black
-
-      ctx.beginPath();
-      ctx.arc(cx, discCy, maxR * 0.98, 0, Math.PI * 2);
-      ctx.fillStyle = depthGrad;
-      ctx.fill();
-
-      // Ambient occlusion - darker at bottom center for depth
-      const aoGrad = ctx.createRadialGradient(
-        cx, discCy + maxR * 0.4, 0,
-        cx, discCy + maxR * 0.4, maxR * 0.8
-      );
-      aoGrad.addColorStop(0, 'rgba(0,0,0,0.3)');
-      aoGrad.addColorStop(0.5, 'rgba(0,0,0,0.15)');
-      aoGrad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = aoGrad;
-      ctx.fill();
-      ctx.restore();
-
-      // --- Box light from above ---
-      // Gentle vertical gradient - more evenly distributed
-      ctx.save();
-      ctx.globalCompositeOperation = 'screen';
-      const lightGrad = ctx.createLinearGradient(cx, discTop, cx, discBottom);
-      lightGrad.addColorStop(0, 'rgba(220,230,255,0.06)');
-      lightGrad.addColorStop(0.3, 'rgba(200,215,240,0.04)');
-      lightGrad.addColorStop(0.6, 'rgba(180,200,230,0.025)');
-      lightGrad.addColorStop(1, 'rgba(150,170,200,0.01)');
-
-      ctx.beginPath();
-      ctx.arc(cx, discCy, maxR * 0.98, 0, Math.PI * 2);
-      ctx.fillStyle = lightGrad;
-      ctx.fill();
-      ctx.restore();
+      if (this.backdropDirty) {
+        this.renderBackdropCache(cx, cy, maxR);
+        this.backdropDirty = false;
+      }
+      ctx.drawImage(this.backdropCanvas, 0, 0);
     }
-
-    // --- Diffuse glow canvas: spread outward and fade ---
-    const gctx = this.glowCtx;
-
-    // Copy current glow to temp, then redraw scaled up (diffusion)
-    const diffuseScale = 1.003; // 0.3% expansion each frame
-    const offsetX = (w * (1 - diffuseScale)) / 2;
-    const offsetY = (h * (1 - diffuseScale)) / 2;
-
-    // Draw scaled-up version (spreads the glow outward)
-    gctx.globalCompositeOperation = 'copy';
-    gctx.globalAlpha = 0.992; // slow fade for rich color
-    gctx.drawImage(this.glowCanvas, offsetX, offsetY, w * diffuseScale, h * diffuseScale);
-    gctx.globalAlpha = 1.0;
-
-    // Clear dim pixels below threshold to prevent lingering
-    gctx.globalCompositeOperation = 'destination-out';
-    gctx.fillStyle = `rgba(0,0,0,${this.glowFade})`; // threshold cut
-    gctx.fillRect(0, 0, w, h);
-
-    gctx.globalCompositeOperation = 'screen';
-
-    // Draw glow layer behind everything
-    ctx.save();
-    ctx.globalAlpha = 0.6;
-    ctx.drawImage(this.glowCanvas, 0, 0);
-    ctx.restore();
 
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
 
     const diatonicOffsets = this.keyMode === 'minor' ? MINOR_OFFSETS : MAJOR_OFFSETS;
 
-    // --- Draw spiral spine as smooth curves through note positions ---
-    // Get positions for each integer MIDI note
-    const notePositions: { x: number; y: number }[] = [];
-    for (let midi = MIDI_LO; midi < MIDI_HI; midi++) {
-      const pos = this.notePos(midi, cx, cy, maxR * breath);
-      notePositions.push({ x: pos.x, y: pos.y });
-    }
+    // --- Pre-compute note positions for this frame ---
+    this.computeNotePositions(cx, cy, maxR * breath);
 
-    // Draw smooth curves between consecutive notes
-    for (let i = 0; i < notePositions.length - 1; i++) {
-      const midi = MIDI_LO + i;
-      const pc = midi % 12;
-      const nextPc = (midi + 1) % 12;
-
-      // Get colors for gradient
-      const c0 = samplePaletteColor(pc, 0.65);
-      const c1 = samplePaletteColor(nextPc, 0.65);
-
-      // Check if in key for line weight/alpha
-      const semi = semitoneOffset(pc, this.key);
-      const nextSemi = semitoneOffset(nextPc, this.key);
-      const inKey = diatonicOffsets.has(semi) || diatonicOffsets.has(nextSemi);
-      const baseAlpha = inKey ? 0.4 : 0.15;
-      const lw = inKey ? 2.0 : 1.0;
-
-      const p0 = notePositions[i];
-      const p1 = notePositions[i + 1];
-
-      // Calculate tangent directions for smooth curves
-      const prev = notePositions[Math.max(0, i - 1)];
-      const next = notePositions[Math.min(notePositions.length - 1, i + 2)];
-
-      const tangentStrength = 0.18;
-      const t0x = (p1.x - prev.x) * tangentStrength;
-      const t0y = (p1.y - prev.y) * tangentStrength;
-      const t1x = (next.x - p0.x) * tangentStrength;
-      const t1y = (next.y - p0.y) * tangentStrength;
-
-      const cp1x = p0.x + t0x;
-      const cp1y = p0.y + t0y;
-      const cp2x = p1.x - t1x;
-      const cp2y = p1.y - t1y;
-
-      // Create gradient from note color to next note color
-      const grad = ctx.createLinearGradient(p0.x, p0.y, p1.x, p1.y);
-      grad.addColorStop(0, `rgba(${c0[0]},${c0[1]},${c0[2]},${baseAlpha})`);
-      grad.addColorStop(1, `rgba(${c1[0]},${c1[1]},${c1[2]},${baseAlpha})`);
-
-      ctx.beginPath();
-      ctx.moveTo(p0.x, p0.y);
-      ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p1.x, p1.y);
-      ctx.strokeStyle = grad;
-      ctx.lineWidth = lw;
-      ctx.stroke();
-    }
+    // --- Draw cached spiral spine ---
+    this.updateSpineCache();
+    ctx.drawImage(this.spineCanvas, 0, 0);
 
     // --- Draw trails (stepwise follows curve, leaps are straight) ---
     for (const trail of this.trails) {
       if (trail.from < MIDI_LO || trail.from >= MIDI_HI) continue;
       if (trail.to < MIDI_LO || trail.to >= MIDI_HI) continue;
 
-      const p0 = this.notePos(trail.from, cx, cy, maxR * breath);
-      const p1 = this.notePos(trail.to, cx, cy, maxR * breath);
+      // Use pre-computed positions
+      const p0 = this.notePositions[trail.from - MIDI_LO];
+      const p1 = this.notePositions[trail.to - MIDI_LO];
 
       const n0 = this.nodes[trail.from - MIDI_LO];
       const n1 = this.nodes[trail.to - MIDI_LO];
@@ -418,24 +447,21 @@ export class NoteSpiralEffect implements VisualEffect {
         ctx.beginPath();
 
         if (isStepwise && interval > 0) {
-          // Follow spiral curve for stepwise motion
-          const steps = interval * 4;  // smooth curve
-          const minMidi = Math.min(trail.from, trail.to);
-          const maxMidi = Math.max(trail.from, trail.to);
+          // Follow spiral curve for stepwise motion using pre-computed positions
+          const minIdx = Math.min(trail.from, trail.to) - MIDI_LO;
+          const maxIdx = Math.max(trail.from, trail.to) - MIDI_LO;
           const goingUp = trail.to > trail.from;
 
-          const firstPos = goingUp
-            ? this.notePos(minMidi, cx, cy, maxR * breath)
-            : this.notePos(maxMidi, cx, cy, maxR * breath);
-          ctx.moveTo(firstPos.x, firstPos.y);
-
-          for (let i = 1; i <= steps; i++) {
-            const t = i / steps;
-            const midi = goingUp
-              ? minMidi + t * (maxMidi - minMidi)
-              : maxMidi - t * (maxMidi - minMidi);
-            const pos = this.notePos(midi, cx, cy, maxR * breath);
-            ctx.lineTo(pos.x, pos.y);
+          if (goingUp) {
+            ctx.moveTo(this.notePositions[minIdx].x, this.notePositions[minIdx].y);
+            for (let idx = minIdx + 1; idx <= maxIdx; idx++) {
+              ctx.lineTo(this.notePositions[idx].x, this.notePositions[idx].y);
+            }
+          } else {
+            ctx.moveTo(this.notePositions[maxIdx].x, this.notePositions[maxIdx].y);
+            for (let idx = maxIdx - 1; idx >= minIdx; idx--) {
+              ctx.lineTo(this.notePositions[idx].x, this.notePositions[idx].y);
+            }
           }
         } else {
           // Straight line for leaps
@@ -473,10 +499,13 @@ export class NoteSpiralEffect implements VisualEffect {
     for (let i = 0; i < MIDI_RANGE; i++) {
       const midi = MIDI_LO + i;
       const node = this.nodes[i];
-      const pos = this.notePos(midi, cx, cy, maxR * breath);
+      const pos = this.notePositions[i]; // Use pre-computed position
       const pc = midi % 12;
       const semitones = semitoneOffset(pc, this.key);
       const inKey = diatonicOffsets.has(semitones);
+
+      // Early skip for completely invisible nodes
+      if (node.brightness < 0.001 && node.beamIntensity < 0.01) continue;
 
       const timeSinceHit = this.time - node.lastHitTime;
 
@@ -769,10 +798,8 @@ export class NoteSpiralEffect implements VisualEffect {
                 break;
               }
               case 'firefly': {
-                // Dancing particles - converge inward toward note with randomness
-                const minFlies = 1;
-                const maxFlies = 3;
-                const numFlies = minFlies + Math.floor(((midi * 7) % 100) / 100 * (maxFlies - minFlies + 1));
+                // Dancing particles - simplified for performance
+                const numFlies = 2; // Fixed count for performance
                 const maxFlyDist = fullBeamLen * 0.7;
                 for (let f = 0; f < numFlies; f++) {
                   // Seeded randomness per particle (stable across frames)
@@ -784,40 +811,31 @@ export class NoteSpiralEffect implements VisualEffect {
                   const progress = 1 - node.beamLength;
                   const baseDist = maxFlyDist * (0.15 + seed * 0.5) * (1 - progress);
                   const wobbleAmt = (8 + seed2 * 12) * pos.scale;
-                  const wobbleSpeed = 6 + seed3 * 8;
-                  const wobble = Math.sin(this.time * wobbleSpeed + f * 2 + seed * 10) * wobbleAmt;
-                  const flyAngle = beamAngle + (seed - 0.5) * Math.PI * 0.8; // wide cone ~145 degrees
+                  const wobble = Math.sin(this.time * (6 + seed3 * 8) + f * 2 + seed * 10) * wobbleAmt;
+                  const flyAngle = beamAngle + (seed - 0.5) * Math.PI * 0.8;
                   const flyDist = baseDist + Math.sin(this.time * 4 + seed * 20) * 5 * pos.scale;
                   const fx = pos.x + Math.cos(flyAngle) * flyDist + Math.cos(flyAngle + Math.PI/2) * wobble;
                   const fy = pos.y + Math.sin(flyAngle) * flyDist + Math.sin(flyAngle + Math.PI/2) * wobble;
-                  const flyR = (3 + seed2 * 4 + Math.sin(this.time * (10 + seed3 * 8) + f) * 2) * pos.scale;
-                  const flyGrad = ctx.createRadialGradient(fx, fy, 0, fx, fy, flyR);
-                  flyGrad.addColorStop(0, `rgba(255,255,200,${(beamAlpha * 0.7).toFixed(3)})`);
-                  flyGrad.addColorStop(0.5, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.3).toFixed(3)})`);
-                  flyGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
-                  ctx.fillStyle = flyGrad;
+                  const flyR = (3 + seed2 * 4) * pos.scale;
+
+                  // Simple layered fills instead of gradient (much faster)
+                  const coreAlpha = beamAlpha * 0.7;
+                  const outerAlpha = beamAlpha * 0.25;
+                  // Outer glow
+                  ctx.fillStyle = `rgba(${node.r},${node.g},${node.b},${outerAlpha.toFixed(3)})`;
                   ctx.beginPath();
-                  ctx.arc(fx, fy, flyR, 0, Math.PI * 2);
+                  ctx.arc(fx, fy, flyR * 1.5, 0, Math.PI * 2);
+                  ctx.fill();
+                  // Core
+                  ctx.fillStyle = `rgba(255,255,200,${coreAlpha.toFixed(3)})`;
+                  ctx.beginPath();
+                  ctx.arc(fx, fy, flyR * 0.5, 0, Math.PI * 2);
                   ctx.fill();
                 }
                 break;
               }
             }
             } // end for each active shape
-
-            // Stamp radial glow onto glow canvas for persistent light
-            // Scale with velocity - soft notes are gentle, loud notes punch through
-            const stampR = beamLen * 0.5;
-            const velocityCurve = node.velocity * node.velocity; // squared for more dynamic range
-            const stampAlpha = node.beamIntensity * 0.04 * (0.3 + velocityCurve * 0.7);
-            const stampGrad = gctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, stampR);
-            stampGrad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${Math.min(1, stampAlpha * 0.8).toFixed(3)})`);
-            stampGrad.addColorStop(0.4, `rgba(${node.r},${node.g},${node.b},${Math.min(1, stampAlpha * 0.4).toFixed(3)})`);
-            stampGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
-            gctx.fillStyle = stampGrad;
-            gctx.beginPath();
-            gctx.arc(pos.x, pos.y, stampR, 0, Math.PI * 2);
-            gctx.fill();
           }
         }
 
