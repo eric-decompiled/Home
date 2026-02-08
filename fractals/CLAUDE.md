@@ -2,9 +2,25 @@
 
 A layered music visualization system that transforms MIDI files into synchronized visual experiences. Combines fractal rendering, physics simulations, and procedural graphics—all driven by real-time harmonic analysis. Plays MIDI through a SoundFont synthesizer while mapping musical structure (key, chords, melody, bass, drums) to visual parameters across multiple composited effect layers.
 
+**Default preset**: Warp Prism (Chladni + Note Spiral + Kaleidoscope + Bass Clock)
+
 ## Architecture
 
 Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, resonator, sound-synth).
+
+### PWA Support
+
+The app is installable as a Progressive Web App for fullscreen experience on mobile:
+- **manifest.json**: Configures standalone display mode, icons, theme colors
+- **iOS**: "Add to Home Screen" from Safari for true fullscreen (Fullscreen API not supported)
+- **Android**: Native install prompt or "Add to Home Screen"
+- **Desktop**: Fullscreen button in transport bar (⛶)
+
+Fullscreen features:
+- **Mouse to top**: Reveals controls overlay with blur backdrop
+- **Cursor auto-hide**: Hides after 2.5s inactivity, pointer cursor indicates click-to-play
+- **Touch support**: Tap near top or swipe down to reveal controls
+- **Click/tap canvas**: Play/pause in fullscreen mode
 
 | File | Role |
 |------|------|
@@ -27,11 +43,20 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 
 | Slot | Purpose | Effects |
 |------|---------|---------|
-| **Background** | Full-canvas animated backdrop | Flow Field (default), Domain Warp, Waves, Chladni |
-| **Foreground** | Main visual element | Fractal (default), Piano Roll, Laser Hockey, Tonnetz, Spirograph, Note Spiral |
-| **Overlay** | Post-process effects | Groove Wave (default), Pitch Histogram, Kaleidoscope |
-| **Melody** | Melodic visualization | Melody Aurora, Melody Web, Chord Web, Melody Clock |
-| **Bass** | Bass note tracking | Bass Web, Bass Clock |
+| **Background** | Full-canvas animated backdrop | Chladni (default), Domain Warp, Waves, Flow Field |
+| **Foreground** | Main visual element | Note Spiral (default), Fractal, Piano Roll, Tonnetz |
+| **Overlay** | Post-process effects | Kaleidoscope (default), Groove Wave, Pitch Histogram |
+| **Melody** | Melodic visualization | Melody Aurora, Melody Web, Melody Clock |
+| **Bass** | Bass note tracking | Bass Clock (default), Bass Web |
+
+### Presets
+
+| Preset | Background | Foreground | Overlay | Melody | Bass |
+|--------|------------|------------|---------|--------|------|
+| **Warp Prism** (default) | Chladni | Note Spiral | Kaleidoscope | — | Bass Clock |
+| **Cosmic Spiral** | Flow Field | Note Spiral | — | — | Bass Clock |
+| **Fractal Cathedral** | Chladni | Fractal | Kaleidoscope | Melody Web | — |
+| **Piano** | Flow Field | Piano Roll | — | — | — |
 
 ### Effect Catalog
 
@@ -56,7 +81,7 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 
 **Spirograph** (`src/effects/spirograph.ts`): Parametric curve drawing with music-reactive parameters.
 
-**Note Spiral** (`src/effects/note-spiral.ts`): All active MIDI voices rendered as glowing orbs on a spiral covering full piano range (MIDI 21-108, A0 to C8). Pitch class determines angle (root at 12 o'clock), with **sqrt radius curve** for even visual spacing across octaves (low notes center, high notes outer). Shows polyphonic voicing with connecting trails between consecutive notes. Trail behavior: **stepwise motion** (1-3 semitones) follows the spiral curve, while larger intervals draw straight lines. Longer trail TTL (decay 0.15) keeps connections visible. Flashlight beams project outward from active notes — bass notes get wide/short/dim beams, treble notes get narrow/long/bright beams.
+**Note Spiral** (`src/effects/note-spiral.ts`): All active MIDI voices rendered as glowing orbs on a spiral covering full piano range (MIDI 21-108, A0 to C8). Pitch class determines angle (root at 12 o'clock), with **configurable tightness** (power curve, default 1.25) for visual spacing. Shows polyphonic voicing with **Bezier curve trails** between consecutive notes—tangent-based control points create smooth curves. Trail behavior: **stepwise motion** (1-3 semitones) follows the spiral curve, larger intervals draw straight lines. Trail TTL configurable (default 48 segments, decay 0.08). Sine wave twist (`0.05 * sin(fromRoot)`) prevents angular discontinuity at key boundaries. Flashlight beams project outward—bass notes get wide/short/dim beams, treble notes get narrow/long/bright beams. Center shifted down 4% for better screen balance.
 
 **Melody Web** (`src/effects/melody-web.ts`): Network graph of 12 pitch classes arranged in a circle as dots. Larger dots for diatonic scale degrees, smaller for chromatic. Edges connect recently-played notes, building a web of melodic relationships. Edge decay 0.9995 (~23s half-life at 60fps) with smoothstep alpha curve. Melody trail shows recent note sequence.
 
@@ -97,7 +122,7 @@ Uses `spessasynth_lib` with `WorkletSynthesizer` + `Sequencer`. SoundFont: `publ
 
 Key design decisions:
 - **Deferred init**: AudioContext and SoundFont loading happen on first `play()` click (user gesture required). `loadMidi()` just stashes the buffer.
-- **Time sync**: Uses `sequencer.currentHighResolutionTime` for smooth visualization sync.
+- **Time sync**: Uses `sequencer.currentHighResolutionTime` with **interpolation** for smooth seek bar. Sequencer may update in chunks; we interpolate using `audioContext.currentTime` delta between updates.
 - Do NOT pass `oneOutput` config to WorkletSynthesizer (causes channel count errors).
 - Worklet module path must be absolute: `new URL('/spessasynth_processor.min.js', import.meta.url).href`
 
@@ -202,7 +227,23 @@ Beat-grid impulses (CW/CCW alternating) plus drum impulses (kick CCW, snare CW, 
 - **Chord root → palette**: 12 chromatic palettes, peak brightness at 0.85, loop to saturated mid-tone
 - **Song key vignette**: Radial gradient overlay using key color
 
-Rendering: multi-worker band-split, offscreen canvas at `displaySize * fidelity` (default 0.45x), `BASE_RANGE = 4.8`.
+**Chromatic palette assignments** (pitch class → color):
+| PC | Note | Color | Notes |
+|----|------|-------|-------|
+| 0 | C | Silver Grey | Neutral anchor |
+| 1 | C# | Warm Violet | Accidental, shifted warm |
+| 2 | D | Deep Purple | |
+| 3 | D# | Slate Blue | Accidental, cool |
+| 4 | E | Ocean Blue | 0/G/B structure, no red |
+| 5 | F | Aqua/Cyan | Green-leaning |
+| 6 | F# | Warm Teal | Accidental |
+| 7 | G | Emerald Green | Anchor |
+| 8 | G# | Orange | Bridges green→red |
+| 9 | A | Fire | Red→orange→yellow, anchor |
+| 10 | A# | Dusty Mauve | Accidental, purple-shifted |
+| 11 | B | Fuchsia | |
+
+Rendering: multi-worker band-split, offscreen canvas at `displaySize * fidelity` (default 0.45x), `BASE_RANGE = 5.8`.
 
 ## Song Library
 
@@ -255,6 +296,15 @@ Includes test MIDIs (A major/minor scales, chromatic test) plus game soundtracks
 - **Particle system caps**: Cap total particles (50 max), use simple circles with white core instead of radial gradients, reduce emission counts (2-4 per impact). Essential for performance on note-heavy songs.
 - **Two-palette-stop gradients for keys**: Pick two actual palette colors for key gradients (top/bottom) rather than darkening/lightening one color. Looks richer and more natural.
 - **Piano mode with immediate effect**: Stop all notes (`synth.stopAll`) before applying program changes so sound switches instantly, not on next note.
+- **Bezier curves for spiral trails**: Use cubic Bezier with tangent-based control points (tangentStrength ~0.18) for smooth spiral connections. Simple line segments look jagged.
+- **Configurable spiral tightness**: Power curve exponent (default 1.25) controls how tightly notes pack. Range 0.5-1.5, adjustable via UI slider.
+- **Sine wave twist for spiral**: Avoid angular discontinuity at key boundaries by using `Math.sin(fromRoot / 12 * Math.PI * 2) * 0.05` instead of linear ramp.
+- **Asymmetric animation response**: Fast attack (rate 8.0), slow decay (rate 1.5) feels punchy but smooth. Use for zoom pulses, brightness, etc.
+- **Time interpolation for smooth seek bar**: Sequencer time updates may be chunky. Interpolate using `audioContext.currentTime` delta between sequencer updates for smooth progress bar.
+- **Neutral grey for C**: Makes a good "home base" color that doesn't compete with chromatic colors.
+- **Orange for G#**: Bridges green (G) and red (A) naturally on color wheel. Gold was too similar to fire yellows.
+- **Fullscreen with PWA fallback**: Fullscreen API doesn't work on iOS Safari. Provide "Add to Home Screen" for true fullscreen PWA experience.
+- **Hide controls in fullscreen**: Slide controls up, reveal on mouse-to-top (desktop) or tap-near-top (mobile). Auto-hide after timeout.
 
 ### What Doesn't Work
 - **Solid-fill clock silhouettes**: Details invisible
@@ -403,6 +453,7 @@ const detailActivity = trebleEnergy * 0.3;
 
 ## Future Ideas
 
+- **iOS fullscreen UX**: Currently hidden on iOS Safari. Could show a toast/modal prompting "Add to Home Screen" with visual instructions. The PWA works great once installed.
 - **Microphone pitch detection**: Attempted autocorrelation-based detection for live input. Issues with octave errors and jitter. Consider `crepe.js` (neural network) for better accuracy.
 - **More physics simulations**: Particle systems, fluid dynamics, string vibration
 - **Shader-based effects**: Move more computation to GPU

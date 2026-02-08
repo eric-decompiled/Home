@@ -102,27 +102,27 @@ const layerSlots: LayerSlot[] = [
   {
     name: 'Background',
     effects: [domainWarpEffect, waveEffect, chladniEffect, flowFieldEffect],
-    activeId: 'flowfield',  // Cosmic Spiral default
+    activeId: 'chladni',  // Warp Prism default
   },
   {
     name: 'Foreground',
     effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect],
-    activeId: 'note-spiral',  // Cosmic Spiral default
+    activeId: 'note-spiral',  // Warp Prism default
   },
   {
     name: 'Overlay',
     effects: [grooveWaveEffect, pitchHistogramEffect, kaleidoscopeEffect],
-    activeId: null,
+    activeId: 'kaleidoscope',  // Warp Prism default
   },
   {
     name: 'Melody',
     effects: [melodyAuroraEffect, melodyWebEffect, melodyClockEffect],
-    activeId: null,
+    activeId: null,  // Warp Prism default
   },
   {
     name: 'Bass',
     effects: [bassWebEffect, bassClockEffect],
-    activeId: 'bass-clock',  // Cosmic Spiral default
+    activeId: 'bass-clock',  // Warp Prism default
   },
 ];
 
@@ -161,8 +161,8 @@ app.innerHTML = `
         <a href="config.html" target="_blank" class="toggle-btn">Fractal Config</a>
         <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
           <span style="color: #888; font-size: 12px; margin-right: 4px;">Presets:</span>
-          <button class="toggle-btn preset-btn" id="preset-spiral" title="Flow Field + Note Spiral + Bass Clock">Cosmic Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope + Bass Clock">Warp Prism</button>
+          <button class="toggle-btn preset-btn" id="preset-spiral" title="Flow Field + Note Spiral + Bass Clock">Cosmic Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-fractal" title="Chladni + Fractal + Kaleidoscope + Melody Web">Fractal Cathedral</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
         </div>
@@ -517,8 +517,8 @@ const presetSpiralBtn = document.getElementById('preset-spiral') as HTMLButtonEl
 const presetFractalBtn = document.getElementById('preset-fractal') as HTMLButtonElement;
 const presetWarpBtn = document.getElementById('preset-warp') as HTMLButtonElement;
 
-// Default preset is Cosmic Spiral
-presetSpiralBtn.classList.add('active');
+// Default preset is Warp Prism
+presetWarpBtn.classList.add('active');
 
 function applyPreset(preset: 'piano' | 'spiral' | 'fractal' | 'warp'): void {
   if (preset === 'piano') {

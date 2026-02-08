@@ -12,15 +12,15 @@ interface PaletteDef {
 // Anchors: A=red(Fire), E=blue(Ocean), G=green(Emerald)
 // Intermediate hues interpolated around the color wheel
 export const palettes: PaletteDef[] = [
-  { // 0 - C - Magenta
+  { // 0 - C - Silver Grey
     name: 'C',
     stops: [
-      { pos: 0.0,  color: [4, 0, 3] },
-      { pos: 0.15, color: [55, 0, 42] },
-      { pos: 0.4,  color: [170, 20, 130] },
-      { pos: 0.65, color: [220, 60, 175] },
-      { pos: 0.85, color: [240, 120, 200] },
-      { pos: 1.0,  color: [200, 80, 165] },
+      { pos: 0.0,  color: [3, 3, 4] },
+      { pos: 0.15, color: [35, 38, 45] },
+      { pos: 0.4,  color: [100, 108, 120] },
+      { pos: 0.65, color: [150, 160, 175] },
+      { pos: 0.85, color: [200, 210, 225] },
+      { pos: 1.0,  color: [130, 140, 155] },
     ],
   },
   { // 1 - C# - Warm Violet (shifted warmer from C/D)
@@ -100,15 +100,15 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [55, 195, 155] },
     ],
   },
-  { // 8 - G# - Gold (muted accidental)
+  { // 8 - G# - Orange (between green and red)
     name: 'G\u266F',
     stops: [
-      { pos: 0.0,  color: [2, 1, 0] },
-      { pos: 0.15, color: [35, 25, 0] },
-      { pos: 0.4,  color: [115, 90, 0] },
-      { pos: 0.65, color: [150, 125, 12] },
-      { pos: 0.85, color: [170, 145, 30] },
-      { pos: 1.0,  color: [140, 115, 10] },
+      { pos: 0.0,  color: [4, 1, 0] },
+      { pos: 0.15, color: [50, 20, 0] },
+      { pos: 0.4,  color: [160, 70, 0] },
+      { pos: 0.65, color: [210, 100, 10] },
+      { pos: 0.85, color: [240, 140, 30] },
+      { pos: 1.0,  color: [180, 80, 5] },
     ],
   },
   { // 9 - A - Red (Fire)

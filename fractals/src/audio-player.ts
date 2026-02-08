@@ -30,6 +30,12 @@ let lastSeqTime = 0;
 let lastRealTime = 0;
 let smoothTime = 0;
 
+function resetTimeTracking() {
+  lastSeqTime = 0;
+  lastRealTime = audioCtx?.currentTime ?? 0;
+  smoothTime = 0;
+}
+
 async function init(): Promise<void> {
   if (synth) return;
 
@@ -77,6 +83,7 @@ export const audioPlayer = {
 
   _loadSequencer(midiBuffer: ArrayBuffer) {
     if (!synth) return;
+    resetTimeTracking();
     if (sequencer) {
       sequencer.pause();
       synth.stopAll(true);
@@ -108,6 +115,7 @@ export const audioPlayer = {
       await audioCtx.resume();
     }
 
+    resetTimeTracking();
     sequencer.play();
   },
 
@@ -116,6 +124,7 @@ export const audioPlayer = {
   },
 
   stop() {
+    resetTimeTracking();
     if (sequencer) {
       sequencer.pause();
       sequencer.currentTime = 0;
@@ -126,6 +135,7 @@ export const audioPlayer = {
   },
 
   seek(time: number) {
+    resetTimeTracking();
     if (sequencer) {
       sequencer.currentTime = Math.max(0, time);
     }
@@ -138,23 +148,24 @@ export const audioPlayer = {
     const seqTime = sequencer.currentHighResolutionTime;
     const realTime = audioCtx.currentTime;
 
-    // If sequencer time jumped (seek, new chunk), reset tracking
-    if (Math.abs(seqTime - lastSeqTime) > 0.1 || seqTime < lastSeqTime) {
+    // Backward jump = seek or song change, reset tracking
+    if (seqTime < lastSeqTime - 0.01) {
       lastSeqTime = seqTime;
       lastRealTime = realTime;
       smoothTime = seqTime;
       return seqTime;
     }
 
-    // Interpolate: use real time delta since last sequencer update
+    // Sequencer time updated - sync to it
     if (seqTime !== lastSeqTime) {
-      // Sequencer updated - sync
       lastSeqTime = seqTime;
       lastRealTime = realTime;
       smoothTime = seqTime;
     } else if (!sequencer.paused) {
       // Sequencer hasn't updated yet - interpolate using audio context time
-      smoothTime = lastSeqTime + (realTime - lastRealTime);
+      const delta = realTime - lastRealTime;
+      // Cap interpolation to prevent runaway (max 0.5s ahead)
+      smoothTime = lastSeqTime + Math.min(delta, 0.5);
     }
 
     return smoothTime;
