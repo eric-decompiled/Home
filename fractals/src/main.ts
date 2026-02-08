@@ -150,7 +150,7 @@ app.innerHTML = `
   <div class="container">
     <header class="top-bar">
       <div class="top-row">
-        <h1>The Fractured Jukebox</h1>
+        <h1>Fractured Jukebox</h1>
         <div class="song-picker-wrap">
           <select id="song-picker">
             <option value="">-- Select a Song --</option>
@@ -171,7 +171,7 @@ app.innerHTML = `
         <button class="transport-btn" id="play-btn" disabled>&#9654;</button>
         <input type="range" id="seek-bar" min="0" max="100" step="0.1" value="0" disabled>
         <span class="time-display" id="time-display">0:00 / 0:00</span>
-        <button class="transport-btn" id="fullscreen-btn" title="Toggle fullscreen">&#x26F6;</button>
+        <button class="transport-btn" id="fullscreen-btn" title="Fullscreen">&#x26F6;</button>
       </div>
     </header>
 
@@ -224,11 +224,23 @@ const requestFS = docEl.requestFullscreen || docEl.webkitRequestFullscreen || do
 const exitFS = (document as any).exitFullscreen || (document as any).webkitExitFullscreen || (document as any).mozCancelFullScreen || (document as any).msExitFullscreen;
 const getFullscreenEl = () => (document as any).fullscreenElement || (document as any).webkitFullscreenElement || (document as any).mozFullScreenElement || (document as any).msFullscreenElement;
 
-if (!requestFS) {
+// Check if running as installed PWA (already fullscreen)
+const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
+
+// TODO: iOS web fullscreen - PWA works but need better UX for prompting "Add to Home Screen"
+// Hide fullscreen button on iOS Safari (no fullscreen API support)
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+if (!requestFS && isIOS && !isStandalone) {
+  fullscreenBtn.style.display = 'none';
+}
+
+// In standalone mode, hide button (already fullscreen)
+if (isStandalone) {
   fullscreenBtn.style.display = 'none';
 }
 
 fullscreenBtn.addEventListener('click', () => {
+
   if (!getFullscreenEl()) {
     const req = (appContainer as any).requestFullscreen || (appContainer as any).webkitRequestFullscreen || (appContainer as any).mozRequestFullScreen || (appContainer as any).msRequestFullscreen;
     if (req) req.call(appContainer);
@@ -240,7 +252,7 @@ fullscreenBtn.addEventListener('click', () => {
 function onFullscreenChange() {
   const topBar = document.querySelector('.top-bar') as HTMLElement;
   if (getFullscreenEl()) {
-    fullscreenBtn.innerHTML = '&#x2716;'; // ✖ exit
+    fullscreenBtn.innerHTML = '&#x2715;'; // ✕ exit
     fullscreenBtn.title = 'Exit fullscreen (Esc)';
   } else {
     fullscreenBtn.innerHTML = '&#x26F6;'; // ⛶ expand

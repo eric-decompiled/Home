@@ -127,6 +127,29 @@
       color: var(--bg-primary);
     }
 
+    /* Featured project */
+    .project-link.featured {
+      grid-column: 1 / -1;
+      background: linear-gradient(135deg, var(--bg-tertiary) 0%, #1a3a4a 100%);
+      border: 2px solid #ff6b6b;
+      box-shadow: 0 4px 20px rgba(255, 107, 107, 0.3);
+    }
+
+    .project-link.featured h3 {
+      color: #ff6b6b;
+      font-size: 1.4rem;
+    }
+
+    .project-link.featured:hover {
+      background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%);
+      border-color: #ff6b6b;
+      box-shadow: 0 8px 32px rgba(255, 107, 107, 0.5);
+    }
+
+    .project-link.featured:hover h3 {
+      color: var(--bg-primary);
+    }
+
     /* Resources Section */
     .resources-section {
       background: linear-gradient(135deg, var(--bg-secondary) 0%, #0f1419 100%);

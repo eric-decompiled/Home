@@ -6,18 +6,21 @@ const rootDir = __dirname;
 const distDir = path.join(rootDir, 'dist');
 
 const projects = {
+  'fractals': 'Music visualization with fractals, physics, and procedural graphics driven by MIDI',
   'lissajous': 'Visualize Lissajous curves and their relationship to musical intervals',
   'resonator': 'Real-time RLC resonator explorer for audio synthesis and visualization',
   'sound-synth': 'Interactive harmonics explorer for understanding sound and timbre',
   'karplus-strong': 'Explore the Karplus-Strong algorithm to synth plucked string sounds',
-  'fractals': 'Music visualization with fractals, physics, and procedural graphics driven by MIDI',
   'intervals': 'Ear training for musical intervals with adaptive difficulty and Lissajous visualization',
 };
 
 // Custom display titles (overrides auto-generated title from directory name)
 const titles = {
-  'fractals': 'The Fractured Jukebox',
+  'fractals': 'Fractured Jukebox',
 };
+
+// Featured project gets special styling
+const featuredProject = 'fractals';
 
 // Base path for GitHub Pages deployment (set via environment variable or default to root)
 const basePath = process.env.BASE_PATH || '';
@@ -62,8 +65,10 @@ async function build() {
   const projectLinks = Object.entries(projects)
     .map(([name, description]) => {
       const title = titles[name] || name.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+      const isFeatured = name === featuredProject;
+      const classes = isFeatured ? 'project-link featured' : 'project-link';
       return `
-        <a href="${name}/index.html" class="project-link">
+        <a href="${name}/index.html" class="${classes}">
           <h3>${title}</h3>
           <p>${description}</p>
         </a>`;
