@@ -20,6 +20,7 @@ export class KaleidoscopeEffect implements VisualEffect {
   private rotation = 0;
   private rotationVelocity = 0;
   private zoomPulse = 1.0;
+  private zoomTarget = 1.0;
   private mirrorMode: 'reflect' | 'rotate' = 'rotate';
   private rotationSpeed = 0.2;
   private centerOffsetX = 0;
@@ -63,23 +64,32 @@ export class KaleidoscopeEffect implements VisualEffect {
     const targetFolds = 3 + (music.chordDegree % 5) * 2; // 3,5,7,9,11
     this.foldCount = targetFolds;
 
-    // Beat → rotation impulse - arrival adds impact
-    if (music.kick) this.rotationVelocity += 0.3;
-    if (music.snare) this.rotationVelocity -= 0.25;
-    // Groove curve impulses
-    this.rotationVelocity += beatArrival * 0.15 - barArrival * 0.1;
+    // Beat → rotation impulse - arrival adds impact (subtle)
+    if (music.kick) this.rotationVelocity += 0.12;
+    if (music.snare) this.rotationVelocity -= 0.10;
+    // Groove curve impulses (toned down)
+    this.rotationVelocity += beatArrival * 0.05 - barArrival * 0.03;
 
-    // Melody pitch → rotation offset
+    // Melody pitch → rotation offset (subtle)
     if (music.melodyOnset) {
-      this.rotationVelocity += ((music.melodyPitchClass % 12) / 12 - 0.5) * 0.2;
+      this.rotationVelocity += ((music.melodyPitchClass % 12) / 12 - 0.5) * 0.08;
     }
 
-    // Tension → zoom pulse - anticipation adds subtle buildup
-    this.zoomPulse = 1.0 + music.tension * 0.15 + beatAnticipation * 0.05;
-    if (music.kick) this.zoomPulse += 0.05;
-    // Arrival adds zoom punch
-    this.zoomPulse += beatArrival * 0.08 + barArrival * 0.1;
-    this.zoomPulse = Math.min(1.3, this.zoomPulse);
+    // Tension → zoom pulse target - anticipation adds subtle buildup
+    this.zoomTarget = 1.0 + music.tension * 0.06 + beatAnticipation * 0.02;
+    if (music.kick) this.zoomTarget += 0.03;
+    // Arrival adds zoom punch (subtle)
+    this.zoomTarget += beatArrival * 0.04 + barArrival * 0.05;
+    this.zoomTarget = Math.min(1.15, this.zoomTarget);
+
+    // Zoom pulse with asymmetric response: fast attack, slow decay
+    if (this.zoomTarget > this.zoomPulse) {
+      // Fast attack - quickly reach the target
+      this.zoomPulse += (this.zoomTarget - this.zoomPulse) * (1 - Math.exp(-8.0 * dt));
+    } else {
+      // Slow decay - settle back gradually
+      this.zoomPulse += (this.zoomTarget - this.zoomPulse) * (1 - Math.exp(-1.5 * dt));
+    }
 
     // Rotation dynamics
     this.rotationVelocity *= Math.exp(-2.0 * dt);

@@ -25,6 +25,11 @@ let initPromise: Promise<void> | null = null;
 let pendingMidiBuffer: ArrayBuffer | null = null;
 let pianoMode = false;
 
+// Smooth time tracking (interpolate between sequencer updates)
+let lastSeqTime = 0;
+let lastRealTime = 0;
+let smoothTime = 0;
+
 async function init(): Promise<void> {
   if (synth) return;
 
@@ -127,8 +132,32 @@ export const audioPlayer = {
   },
 
   getCurrentTime(): number {
-    if (!sequencer) return 0;
-    return sequencer.currentHighResolutionTime;
+    if (!sequencer || !audioCtx) return 0;
+
+    // Get sequencer's reported time
+    const seqTime = sequencer.currentHighResolutionTime;
+    const realTime = audioCtx.currentTime;
+
+    // If sequencer time jumped (seek, new chunk), reset tracking
+    if (Math.abs(seqTime - lastSeqTime) > 0.1 || seqTime < lastSeqTime) {
+      lastSeqTime = seqTime;
+      lastRealTime = realTime;
+      smoothTime = seqTime;
+      return seqTime;
+    }
+
+    // Interpolate: use real time delta since last sequencer update
+    if (seqTime !== lastSeqTime) {
+      // Sequencer updated - sync
+      lastSeqTime = seqTime;
+      lastRealTime = realTime;
+      smoothTime = seqTime;
+    } else if (!sequencer.paused) {
+      // Sequencer hasn't updated yet - interpolate using audio context time
+      smoothTime = lastSeqTime + (realTime - lastRealTime);
+    }
+
+    return smoothTime;
   },
 
   getDuration(): number {
