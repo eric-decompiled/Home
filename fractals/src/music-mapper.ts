@@ -825,4 +825,16 @@ export const musicMapper = {
     melodicTensionAccum = 0;
     beatSync.reset();
   },
+
+  /** Reload anchors from localStorage (call after preset change) */
+  reloadAnchors(): void {
+    loadAnchorsFromStorage();
+    // Update current state to use new anchors
+    const def = getDefaultAnchor();
+    currentCenter = { ...def };
+    targetCenter = { ...def };
+    currentFractalType = def.type;
+    currentOrbits = (def.orbits ?? DEFAULT_ORBITS).map(o => ({ ...o }));
+    targetOrbits = currentOrbits.map(o => ({ ...o }));
+  },
 };

@@ -195,7 +195,9 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
   warp: {
     'note-spiral': { setShapes: 'ring' },
   },
-  fractal: {},
+  fractal: {
+    'domainwarp': { colorByChord: false },
+  },
   piano: {},
 };
 
@@ -727,6 +729,232 @@ export function saveFractalAnchors(anchors: FractalAnchors): void {
   } catch (e) {
     console.warn('Failed to save fractal anchors:', e);
   }
+}
+
+// --- Anchor Presets ---
+
+const ANCHOR_PRESETS_KEY = 'fractured-jukebox-anchor-presets';
+
+export interface AnchorPreset {
+  id: string;
+  name: string;
+  anchors: FractalAnchors;
+  builtIn?: boolean;
+}
+
+// Orbit patterns by family type (based on boundary sensitivity)
+// See research/fractal-theory.md "Orbit Design Theory" for rationale
+
+// Small circular - for sensitive families (Burning Ship, Magnet, Barnsley)
+const ORBIT_SMALL: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
+  { dr: 0.025, di: 0 },
+  { dr: 0, di: 0.025 },
+  { dr: -0.025, di: 0 },
+  { dr: 0, di: -0.025 },
+];
+
+// Medium circular - default for most families
+const ORBIT_MEDIUM: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
+  { dr: 0.05, di: 0 },
+  { dr: 0, di: 0.05 },
+  { dr: -0.05, di: 0 },
+  { dr: 0, di: -0.05 },
+];
+
+// Large circular - for stable families (Newton, Sine)
+const ORBIT_LARGE: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
+  { dr: 0.10, di: 0 },
+  { dr: 0, di: 0.10 },
+  { dr: -0.10, di: 0 },
+  { dr: 0, di: -0.10 },
+];
+
+// Pendulum (horizontal) - good for Sine's periodic structure
+const ORBIT_PENDULUM: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
+  { dr: 0.12, di: 0 },
+  { dr: -0.12, di: 0 },
+  { dr: 0.12, di: 0 },
+  { dr: -0.12, di: 0 },
+];
+
+// Breathing (expand/contract) - good for Magnet convergence
+const ORBIT_BREATHING: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
+  { dr: 0.03, di: 0.03 },
+  { dr: 0, di: 0 },
+  { dr: 0.03, di: 0.03 },
+  { dr: 0, di: 0 },
+];
+
+// Asymmetric (emphasis on beat 1) - good for angular families
+const ORBIT_ASYMMETRIC: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
+  { dr: 0.06, di: 0 },
+  { dr: 0, di: 0.03 },
+  { dr: -0.04, di: 0 },
+  { dr: 0, di: -0.03 },
+];
+
+// Built-in anchor presets showcasing different families
+// Each uses family-appropriate orbit patterns based on boundary sensitivity
+export const BUILTIN_ANCHOR_PRESETS: AnchorPreset[] = [
+  {
+    id: 'classic-mix',
+    name: 'Classic Mix',
+    builtIn: true,
+    anchors: {
+      0: { real: -0.4, imag: 0.6, type: 6, orbits: ORBIT_MEDIUM },     // Celtic - medium
+      1: { real: -0.4, imag: 0.6, type: 6, orbits: ORBIT_MEDIUM },     // Celtic
+      2: { real: -1.75, imag: -0.02, type: 3, orbits: ORBIT_SMALL },   // Burning Ship - sensitive
+      3: { real: 0.285, imag: 0.01, type: 5, orbits: ORBIT_MEDIUM },   // Phoenix
+      4: { real: -0.8, imag: 0.156, type: 6, orbits: ORBIT_MEDIUM },   // Celtic
+      5: { real: -1.75, imag: 0.0, type: 8, orbits: ORBIT_SMALL },     // PerpBurn - sensitive
+      6: { real: 0.285, imag: 0.53, type: 5, orbits: ORBIT_MEDIUM },   // Phoenix
+      7: { real: -1.75, imag: -0.05, type: 3, orbits: ORBIT_SMALL },   // Burning Ship
+    },
+  },
+  {
+    id: 'newton-basins',
+    name: 'Newton Basins',
+    builtIn: true,
+    anchors: {
+      // Newton is very stable - use large orbits for visible motion
+      0: { real: 0.5, imag: 0.5, type: 10, orbits: ORBIT_LARGE },
+      1: { real: 0.5, imag: 0.5, type: 10, orbits: ORBIT_LARGE },
+      2: { real: -0.3, imag: 0.8, type: 10, orbits: ORBIT_LARGE },
+      3: { real: 0.7, imag: -0.2, type: 10, orbits: ORBIT_LARGE },
+      4: { real: 0.0, imag: 1.0, type: 10, orbits: ORBIT_LARGE },
+      5: { real: -0.5, imag: 0.5, type: 10, orbits: ORBIT_LARGE },
+      6: { real: 0.3, imag: 0.7, type: 10, orbits: ORBIT_LARGE },
+      7: { real: -0.7, imag: 0.3, type: 10, orbits: ORBIT_LARGE },
+    },
+  },
+  {
+    id: 'nova-layers',
+    name: 'Nova Layers',
+    builtIn: true,
+    anchors: {
+      // Nova is Julia-like, medium sensitivity
+      0: { real: 0.3, imag: 0.0, type: 11, orbits: ORBIT_MEDIUM },
+      1: { real: 0.3, imag: 0.0, type: 11, orbits: ORBIT_MEDIUM },
+      2: { real: 0.4, imag: 0.1, type: 11, orbits: ORBIT_MEDIUM },
+      3: { real: 0.2, imag: -0.2, type: 11, orbits: ORBIT_MEDIUM },
+      4: { real: 0.35, imag: 0.15, type: 11, orbits: ORBIT_MEDIUM },
+      5: { real: 0.5, imag: 0.0, type: 11, orbits: ORBIT_MEDIUM },
+      6: { real: 0.25, imag: 0.25, type: 11, orbits: ORBIT_MEDIUM },
+      7: { real: 0.45, imag: -0.1, type: 11, orbits: ORBIT_MEDIUM },
+    },
+  },
+  {
+    id: 'sine-waves',
+    name: 'Sine Waves',
+    builtIn: true,
+    anchors: {
+      // Sine is periodic - use pendulum motion along real axis
+      0: { real: 1.0, imag: 0.0, type: 12, orbits: ORBIT_PENDULUM },
+      1: { real: 1.0, imag: 0.0, type: 12, orbits: ORBIT_PENDULUM },
+      2: { real: 1.2, imag: 0.3, type: 12, orbits: ORBIT_PENDULUM },
+      3: { real: 0.8, imag: -0.4, type: 12, orbits: ORBIT_LARGE },
+      4: { real: 1.1, imag: 0.2, type: 12, orbits: ORBIT_PENDULUM },
+      5: { real: 1.3, imag: 0.0, type: 12, orbits: ORBIT_PENDULUM },
+      6: { real: 0.9, imag: 0.5, type: 12, orbits: ORBIT_LARGE },
+      7: { real: 1.4, imag: -0.2, type: 12, orbits: ORBIT_PENDULUM },
+    },
+  },
+  {
+    id: 'magnet-flames',
+    name: 'Magnet Flames',
+    builtIn: true,
+    anchors: {
+      // Magnet converges to z=1 - use breathing pattern, small radius
+      0: { real: 0.0, imag: 0.0, type: 13, orbits: ORBIT_BREATHING },
+      1: { real: 0.0, imag: 0.0, type: 13, orbits: ORBIT_BREATHING },
+      2: { real: 0.5, imag: 0.5, type: 13, orbits: ORBIT_BREATHING },
+      3: { real: -0.5, imag: 0.5, type: 13, orbits: ORBIT_SMALL },
+      4: { real: 0.3, imag: -0.3, type: 13, orbits: ORBIT_BREATHING },
+      5: { real: 1.0, imag: 0.0, type: 13, orbits: ORBIT_SMALL },
+      6: { real: -0.3, imag: 0.6, type: 13, orbits: ORBIT_BREATHING },
+      7: { real: 0.7, imag: 0.4, type: 13, orbits: ORBIT_SMALL },
+    },
+  },
+  {
+    id: 'organic-ferns',
+    name: 'Organic Ferns',
+    builtIn: true,
+    anchors: {
+      // Barnsley has conditional branching - use small/asymmetric orbits
+      0: { real: 0.6, imag: 1.1, type: 14, orbits: ORBIT_SMALL },
+      1: { real: 0.6, imag: 1.1, type: 14, orbits: ORBIT_SMALL },
+      2: { real: 0.5, imag: 1.0, type: 15, orbits: ORBIT_ASYMMETRIC },
+      3: { real: 0.7, imag: 0.9, type: 14, orbits: ORBIT_SMALL },
+      4: { real: 0.55, imag: 1.05, type: 16, orbits: ORBIT_ASYMMETRIC },
+      5: { real: 0.65, imag: 1.15, type: 14, orbits: ORBIT_SMALL },
+      6: { real: 0.45, imag: 0.95, type: 15, orbits: ORBIT_ASYMMETRIC },
+      7: { real: 0.75, imag: 1.2, type: 16, orbits: ORBIT_SMALL },
+    },
+  },
+  {
+    id: 'angular-mix',
+    name: 'Angular Mix',
+    builtIn: true,
+    anchors: {
+      // Angular families (Tricorn, Multicorn, Burning Ship) - asymmetric emphasis
+      0: { real: -0.4, imag: 0.6, type: 4, orbits: ORBIT_ASYMMETRIC },
+      1: { real: -0.4, imag: 0.6, type: 4, orbits: ORBIT_ASYMMETRIC },
+      2: { real: -0.5, imag: 0.5, type: 17, orbits: ORBIT_MEDIUM },
+      3: { real: -1.75, imag: -0.02, type: 3, orbits: ORBIT_SMALL },
+      4: { real: -0.3, imag: 0.7, type: 4, orbits: ORBIT_ASYMMETRIC },
+      5: { real: -0.6, imag: 0.4, type: 17, orbits: ORBIT_MEDIUM },
+      6: { real: -1.7, imag: 0.05, type: 3, orbits: ORBIT_SMALL },
+      7: { real: -0.45, imag: 0.55, type: 4, orbits: ORBIT_ASYMMETRIC },
+    },
+  },
+];
+
+/**
+ * Get all anchor presets (built-in + custom)
+ */
+export function getAnchorPresets(): AnchorPreset[] {
+  const custom = getCustomAnchorPresets();
+  return [...BUILTIN_ANCHOR_PRESETS, ...custom];
+}
+
+/**
+ * Get custom anchor presets from localStorage
+ */
+export function getCustomAnchorPresets(): AnchorPreset[] {
+  try {
+    const json = localStorage.getItem(ANCHOR_PRESETS_KEY);
+    if (!json) return [];
+    return JSON.parse(json) as AnchorPreset[];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Save a custom anchor preset
+ */
+export function saveAnchorPreset(name: string, anchors: FractalAnchors): AnchorPreset {
+  const presets = getCustomAnchorPresets();
+  const id = `custom-${Date.now()}`;
+  const preset: AnchorPreset = { id, name, anchors };
+  presets.push(preset);
+  localStorage.setItem(ANCHOR_PRESETS_KEY, JSON.stringify(presets));
+  return preset;
+}
+
+/**
+ * Delete a custom anchor preset
+ */
+export function deleteAnchorPreset(id: string): void {
+  const presets = getCustomAnchorPresets().filter(p => p.id !== id);
+  localStorage.setItem(ANCHOR_PRESETS_KEY, JSON.stringify(presets));
+}
+
+/**
+ * Apply an anchor preset (saves to current anchors)
+ */
+export function applyAnchorPreset(preset: AnchorPreset): void {
+  saveFractalAnchors(preset.anchors);
 }
 
 /**

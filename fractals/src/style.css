@@ -1137,10 +1137,7 @@ input[type="range"]::-moz-range-thumb {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.85);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: #0a0a14;
   z-index: 3000;
   opacity: 0;
   pointer-events: none;
@@ -1154,14 +1151,11 @@ input[type="range"]::-moz-range-thumb {
 
 .fc-panel {
   background: #0a0a14;
-  border: 1px solid #0f3460;
-  border-radius: 12px;
-  max-width: 95vw;
-  max-height: 95vh;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 48px rgba(0, 0, 0, 0.8);
 }
 
 .fc-header {
@@ -1230,8 +1224,9 @@ input[type="range"]::-moz-range-thumb {
 
 .fc-grid-row {
   display: flex;
-  gap: 2px;
-  align-items: center;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
 }
 
 .fc-grid-header-row {
@@ -1277,9 +1272,213 @@ input[type="range"]::-moz-range-thumb {
   background: #16c79a33;
 }
 
-.fc-grid-cell {
-  flex: 1;
+.fc-lock-header {
+  width: 24px;
+  min-width: 24px;
+}
+
+.fc-row-lock-btn {
+  width: 24px;
   height: 24px;
+  padding: 0;
+  border: none;
+  background: #3a1a1a;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.15s;
+  border-radius: 3px;
+}
+
+.fc-row-lock-btn:hover {
+  background: #4a2a2a;
+}
+
+.fc-row-lock-btn.locked {
+  background: #1a3a1a;
+}
+
+.fc-row-lock-btn.locked:hover {
+  background: #2a4a2a;
+}
+
+.fc-row-lock-btn.partial {
+  background: #3a3a1a;
+}
+
+.fc-row-lock-btn.partial:hover {
+  background: #4a4a2a;
+}
+
+/* Toolbar lock buttons */
+.fc-lock-toolbar {
+  background: #3a1a1a !important;
+}
+
+.fc-lock-toolbar:hover {
+  background: #4a2a2a !important;
+}
+
+.fc-lock-toolbar.locked {
+  background: #1a3a1a !important;
+}
+
+.fc-lock-toolbar.locked:hover {
+  background: #2a4a2a !important;
+}
+
+.fc-grid-cell-wrap {
+  display: flex;
+  gap: 2px;
+}
+
+.fc-cell-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 22px;
+  flex-shrink: 0;
+}
+
+.fc-cell-lock {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: #3a1a1a;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 22px;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.fc-cell-lock:hover {
+  background: #4a2a2a;
+}
+
+.fc-cell-lock.locked {
+  background: #1a3a1a;
+}
+
+.fc-cell-lock.locked:hover {
+  background: #2a4a2a;
+}
+
+.fc-derive-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  background: #1a2a1a;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 22px;
+  text-align: center;
+  transition: background 0.15s;
+}
+
+.fc-derive-btn:hover {
+  background: #2a4a2a;
+}
+
+.fc-grid-spacer {
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.fc-degree-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: #111;
+  border-radius: 6px;
+  border: 1px solid #222;
+}
+
+.fc-degree-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Temperature slider per degree */
+.fc-temp-label {
+  font-size: 10px;
+  margin-left: 6px;
+  opacity: 0.7;
+}
+
+.fc-deg-temp {
+  width: 80px;
+  height: 14px;
+  margin-left: 2px;
+  cursor: pointer;
+  accent-color: #16c79a;
+}
+
+.fc-degree-cells {
+  display: grid;
+  grid-template-columns: repeat(6, auto auto);
+  gap: 2px;
+  align-items: center;
+}
+
+/* Progression controls (inline in toolbar) */
+.fc-progression-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fc-progression-select {
+  background: #1a1a2e;
+  border: 1px solid #0f3460;
+  color: #fff;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.fc-progression-display {
+  font-size: 12px;
+  color: #16c79a;
+  font-weight: 600;
+  min-width: 60px;
+}
+
+/* Playing state highlight - bright glow */
+.fc-grid-cell.playing {
+  border-color: #00ffaa;
+  background: rgba(0, 255, 170, 0.25);
+  box-shadow:
+    0 0 20px rgba(0, 255, 170, 0.8),
+    0 0 40px rgba(0, 255, 170, 0.5),
+    inset 0 0 15px rgba(0, 255, 170, 0.3);
+  animation: pulse-glow 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes pulse-glow {
+  from {
+    box-shadow:
+      0 0 15px rgba(0, 255, 170, 0.6),
+      0 0 30px rgba(0, 255, 170, 0.4),
+      inset 0 0 10px rgba(0, 255, 170, 0.2);
+  }
+  to {
+    box-shadow:
+      0 0 30px rgba(0, 255, 170, 1),
+      0 0 60px rgba(0, 255, 170, 0.7),
+      inset 0 0 20px rgba(0, 255, 170, 0.4);
+  }
+}
+
+.fc-grid-cell {
+  width: 48px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1288,6 +1487,8 @@ input[type="range"]::-moz-range-thumb {
   border-radius: 3px;
   cursor: pointer;
   transition: all 0.15s;
+  padding: 2px;
+  flex-shrink: 0;
 }
 
 .fc-grid-cell:hover {
@@ -1314,6 +1515,17 @@ input[type="range"]::-moz-range-thumb {
 
 .fc-grid-cell.active .fc-cell-dot {
   opacity: 1;
+}
+
+.fc-cell-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 3px;
+  image-rendering: pixelated;
+}
+
+.fc-grid-cell.active .fc-cell-thumb {
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
 }
 
 .fc-deg-dot {
@@ -1362,13 +1574,18 @@ input[type="range"]::-moz-range-thumb {
 
 .fc-main {
   display: flex;
-  gap: 16px;
-  padding: 16px;
+  gap: 20px;
+  padding: 20px;
   overflow: auto;
+  flex: 1;
+  min-height: 0;
 }
 
 .fc-locus-wrap {
-  flex-shrink: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .fc-locus-wrap canvas {
@@ -1376,8 +1593,10 @@ input[type="range"]::-moz-range-thumb {
   border: 1px solid #0f3460;
   border-radius: 6px;
   cursor: crosshair;
-  max-width: 100%;
-  height: auto;
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .fc-locus-status {
@@ -1385,13 +1604,15 @@ input[type="range"]::-moz-range-thumb {
   color: #666;
   margin-top: 6px;
   font-family: monospace;
+  flex-shrink: 0;
 }
 
 .fc-preview-wrap {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  min-width: 280px;
+  width: 320px;
+  flex-shrink: 0;
 }
 
 .fc-preview-header {

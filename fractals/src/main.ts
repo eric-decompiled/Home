@@ -95,6 +95,10 @@ const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', '
 
 const compositor = new Compositor();
 const fractalEffect = new FractalEffect();
+// Notify musicMapper when fractal anchor preset changes
+fractalEffect.setPresetChangeCallback(() => {
+  musicMapper.reloadAnchors();
+});
 const flowFieldEffect = new FlowFieldEffect();
 const kaleidoscopeEffect = new KaleidoscopeEffect();
 const waveEffect = new WaveInterferenceEffect();
@@ -122,27 +126,27 @@ const layerSlots: LayerSlot[] = [
   {
     name: 'Background',
     effects: [domainWarpEffect, waveEffect, chladniEffect, flowFieldEffect],
-    activeId: 'flowfield',  // Cosmic Spiral default
+    activeId: 'domainwarp',  // Fractal Dance default
   },
   {
     name: 'Foreground',
     effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect],
-    activeId: 'note-spiral',  // Cosmic Spiral default
+    activeId: 'fractal',  // Fractal Dance default
   },
   {
     name: 'Overlay',
     effects: [kaleidoscopeEffect, theoryBarEffect],
-    activeId: null,  // Cosmic Spiral default: no overlay
+    activeId: 'theory-bar',  // Fractal Dance default
   },
   {
     name: 'Melody',
     effects: [melodyAuroraEffect, melodyWebEffect, melodyClockEffect],
-    activeId: null,  // Cosmic Spiral default
+    activeId: null,  // Fractal Dance default
   },
   {
     name: 'Bass',
     effects: [bassWebEffect, bassClockEffect],
-    activeId: 'bass-clock',  // Cosmic Spiral default
+    activeId: null,  // Fractal Dance default
   },
 ];
 
@@ -496,7 +500,9 @@ canvas.addEventListener('mouseleave', () => {
 
 // --- Animations panel toggle ---
 
-let layerPanelOpen = false;
+let layerPanelOpen = true;  // Open by default for Fractal Dance
+layerPanel.classList.add('open');
+layersToggle.classList.add('active');
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
@@ -731,8 +737,8 @@ if (urlSettingsResult.presetApplied) {
   }[urlSettingsResult.presetApplied];
   if (btn) btn.classList.add('active');
 } else if (!urlToState(window.location.search)) {
-  // Default to Cosmic Spiral if no URL params
-  presetSpiralBtn.classList.add('active');
+  // Default to Fractal Dance if no URL params
+  presetFractalBtn.classList.add('active');
 }
 
 function applyPreset(preset: 'piano' | 'spiral' | 'fractal' | 'warp'): void {
@@ -1687,6 +1693,7 @@ function loop(time: number): void {
 
 requestAnimationFrame(loop);
 
-// Auto-load default song
-songPicker.value = '0';
-loadSong(0);
+// Auto-load default song (To Zanarkand)
+const defaultSongIdx = songs.findIndex(s => s.file === 'to-zanarkand.mid');
+songPicker.value = String(defaultSongIdx >= 0 ? defaultSongIdx : 0);
+loadSong(defaultSongIdx >= 0 ? defaultSongIdx : 0);

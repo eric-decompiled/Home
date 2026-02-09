@@ -2,7 +2,7 @@
 
 A layered music visualization system that transforms MIDI files into synchronized visual experiences. Combines fractal rendering, physics simulations, and procedural graphics—all driven by real-time harmonic analysis. Plays MIDI through a SoundFont synthesizer while mapping musical structure (key, chords, melody, bass, drums) to visual parameters across multiple composited effect layers.
 
-**Default preset**: Cosmic Spiral (Flow Field + Note Spiral + Bass Clock)
+**Default preset**: Fractal Dance (Domain Warp + Fractal + Theory Bar)
 
 ## Architecture
 
@@ -118,19 +118,26 @@ Users can save their own presets via the **+ Save** button. Custom presets:
 
 ### Fractal Config Panel (`src/fractal-config.ts`)
 
-Interactive editor for fractal anchor points. Each harmonic degree (I-VII) maps to a c-plane position in one of 6 fractal families, with 4 orbit offsets for beat-synchronized motion.
+Interactive editor for fractal anchor points. Each harmonic degree (I-VII) maps to a c-plane position in one of 18 fractal families, with 4 orbit offsets for beat-synchronized motion.
 
 **Access:** Click "Fractal Config" button in the top bar.
 
 **Features:**
-- **Family dropdown**: Switch between Burning Ship, Buffalo, Celtic, Phoenix, Tricorn, PerpBurn
+- **Family dropdown**: All 18 types (Standard through Multicorn-3). Includes Newton, Nova, Sine, Magnet, Barnsley variants
 - **Degree buttons**: Select which degree (I-VII) to edit
+- **Quality buttons**: Select chord quality (M, m, 7, m7, °, +) per degree
 - **Click to place**: Click on locus to set anchor position for selected degree
-- **Drag orbits**: Drag numbered dots (1-4) to shape beat motion
-- **Pan/zoom**: Drag to pan, Ctrl+wheel to zoom, double-click to reset view
+- **Drag orbits**: Drag numbered dots (1-4) to shape beat motion. Shift+drag snaps to axis
+- **Pan/zoom**: Drag to pan, Ctrl+wheel to zoom (debounced with scaled preview), double-click to reset view
 - **Live preview**: Animated Julia set preview with configurable BPM
 - **Palette selector**: Choose color palette for preview
-- **Surprise**: Generate random boundary-seeking anchors
+- **🎲 Surprise**: Generate random boundary-seeking anchors for unlocked cells
+- **🔒 Lock/Unlock**: Per-cell and per-degree locking preserves anchors during Surprise
+- **🎲🔥 Temperature**: Per-degree slider controls reroll variation (low=refine nearby, high=explore widely)
+- **↩ Recall**: Reset current anchor's orbits to NESW cardinal pattern
+- **🗺️ Atlas**: Toggle 8x8 Julia set thumbnail grid overlay on locus
+- **📋 Copy**: Export anchors as TypeScript code
+- **▶ Progression**: Play chord progressions with audio to audition anchors
 - **Save**: Persist to localStorage and close panel
 
 **Data flow:**
@@ -418,7 +425,35 @@ All visual effects now use groove curves for rhythm-aware animation.
 
 ## Fractal Engine
 
-10 supported Julia set iteration types. Music mapping uses mixed cross-family anchors: Celtic (0, 1, 5), PerpBurn (2, 7), Phoenix (3, 6), Buffalo (4).
+18 supported Julia set iteration types. Music mapping uses mixed cross-family anchors stored in localStorage (editable via config tool). See `research/fractal-theory.md` for implementation details, coloring strategies, and music mappings.
+
+### Fractal Types
+
+| Type | Name | Formula | Coloring |
+|------|------|---------|----------|
+| 0 | Standard | `z² + c` | Escape |
+| 1 | Cubic | `z³ + c` | Escape |
+| 2 | Quartic | `z⁴ + c` | Escape |
+| 3 | Burning Ship | `(\|Re\|+i\|Im\|)² + c` | Escape |
+| 4 | Tricorn | `conj(z)² + c` | Escape |
+| 5 | Phoenix | `z² + c + p·z_{n-1}` | Escape |
+| 6 | Celtic | `\|Re(z²)\| + i·Im(z²) + c` | Escape |
+| 7 | Lambda | `c·z·(1-z)` | Escape |
+| 8 | PerpBurn | `(Re + i\|Im\|)² + c` | Escape |
+| 9 | Buffalo | `\|z\|² - \|z\| + c` | Escape |
+| 10 | Newton-3 | `z - (z³-1)/(3z²)` | Convergence |
+| 11 | Nova | `z - (z³-1)/(3z²) + c` | Hybrid |
+| 12 | Sine | `c·sin(z)` | Escape |
+| 13 | Magnet-I | `((z²+c-1)/(2z+c-2))²` | Convergence |
+| 14 | Barnsley-1 | `(z±1)·c` | Escape |
+| 15 | Barnsley-2 | `(z±1)·c` | Escape |
+| 16 | Barnsley-3 | Quadratic conditional | Escape |
+| 17 | Multicorn-3 | `conj(z)³ + c` | Escape |
+
+**Coloring modes:**
+- **Escape**: Color by iteration count (standard smooth coloring)
+- **Convergence**: Color by which root point converges to (Newton: 3 roots, Magnet: z=1)
+- **Hybrid**: Check both escape and convergence (Nova)
 
 ### Movement System
 Each harmonic degree defines a **center** and **4 orbit offsets** in c-space. The c-value moves between orbit points synchronized to the beat grid using sinusoidal interpolation. Exponential snap rate 8.0 (~0.12s to 90%) for chord transitions.
@@ -428,6 +463,7 @@ Beat-grid impulses (CW/CCW alternating) plus drum impulses (kick CCW, snare CW, 
 
 ### Color System
 - **Smooth escape coloring**: `sqrt(smoothed / maxIter)` → 2048-entry palette LUT, black interior
+- **Root-based coloring** (Newton/Magnet): Root index → hue, iteration count → brightness
 - **Chord root → palette**: 12 chromatic palettes, peak brightness at 0.85, loop to saturated mid-tone
 - **Song key vignette**: Radial gradient overlay using key color
 
@@ -470,8 +506,8 @@ The `research/` folder contains in-depth technical documents synthesizing domain
 |----------|---------|
 | `research/PROCESS.md` | Meta-documentation of the research workflow (exploration → research doc → working theory → CLAUDE.md update). |
 | `research/harmonic-analysis-theory.md` | Working theory for harmony-aware visualization. Covers tension models, key detection algorithms, chord quality mappings, and practical harmony→visual parameter tables. |
-| `research/fractal-theory.md` | Working theory for fractal visualization. Covers family selection, parameter space navigation, animation principles, and music-to-fractal mappings. |
-| `research/fractal-families.md` | Comprehensive catalog of 15+ Julia set variants with TypeScript implementations, visual characteristics, and recommendations for music visualization. |
+| `research/fractal-theory.md` | **Primary reference for fractal implementation.** Working theory with ready-to-use code for all 18 types, coloring strategies (escape vs convergence), animation patterns, bailout conditions, and music-to-fractal mappings. Start here when adding or modifying fractals. |
+| `research/fractal-families.md` | Comprehensive catalog of 15+ Julia set variants with academic background, visual characteristics, and recommendations. Reference for understanding why each family behaves as it does. |
 | `research/music-analysis-improvements.md` | Deep dive into music analysis libraries (Essentia.js, Tonal.js) and improvement roadmap for the analyzer. |
 | `research/groove-and-visualizers.md` | Neuroscience of groove and its application to visualization (dopamine response, anticipation/arrival, motor engagement). |
 
@@ -550,6 +586,14 @@ Four-phase workflow documented in `research/PROCESS.md`:
 - **URL query params for sharing**: Encode layer slots as short keys (bg, fg, overlay, melody, bass), effect configs as `effectId.configKey=value`. Use `history.replaceState()` to update URL on every setting change. Detect preset matches for compact URLs (`?preset=warp`). Default preset = clean URL (no params). Omit layer params set to none. Song not included (visual presets only).
 - **Preset-aware URL encoding**: When layers match a preset, skip encoding configs that match PRESET_CONFIGS for that preset. Prevents URLs like `?preset=warp&ns.s=ring` when 'ring' is the expected shape for warp.
 - **DEFAULT_CONFIGS for all effects**: Register default values for every effect config key. Prevents non-default configs from polluting URLs when switching presets.
+- **Zoom debounce with scaled preview**: During zoom, immediately show scaled/blurry preview of existing render, debounce expensive re-render (150ms). Feels responsive while saving CPU.
+- **Drag debounce with requestAnimationFrame**: Limit drag redraws to screen refresh rate (~60fps). Prevents CPU burn during rapid mouse movement.
+- **Object-fit: contain coordinate correction**: When canvas uses `object-fit: contain`, `getBoundingClientRect()` includes letterbox/pillarbox padding. Calculate actual rendered size and offset for accurate click coordinates.
+- **Larger hit radius for small targets**: 14px hit radius for orbit dots (drawn at 5px) makes grabbing much easier, especially on touch devices.
+- **NESW default orbit pattern**: Beat points at North/East/South/West (cardinal directions) is intuitive and looks clean. Use as default for new anchors.
+- **Temperature slider for reroll variation**: Per-degree slider (0-1) controls how far from existing position new anchors are placed. Low temp = refine nearby, high temp = explore widely.
+- **Algebraic form for Newton fractals**: Nova fractal using `sqrt`/`atan2`/`cos`/`sin` is slow. Pure algebraic complex division is much faster with same results.
+- **Atlas grid toggle**: 8x8 grid of Julia set thumbnails overlaid on Mandelbrot locus helps visualize parameter space. Toggle on/off to avoid visual clutter.
 
 ### What Doesn't Work
 - **Solid-fill clock silhouettes**: Details invisible
@@ -705,28 +749,21 @@ const detailActivity = trebleEnergy * 0.3;
 - **Syncopation detection**: Compute syncopation index from MIDI to modulate visual complexity (research shows medium syncopation = maximum groove)
 - **Anticipation layer**: Dedicated visual layer that builds before beats land, exploiting the caudate-nucleus accumbens dissociation
 
-### Fractal Family Expansion (research complete, implementation pending)
+### Fractal Exploration (types 10-17 now implemented)
 
-Comprehensive research document at `research/fractal-families.md` covers 15+ fractal families with iteration formulas, music mapping, and implementation details.
-
-**Priority 1 - High impact, easy implementation:**
-- **Newton (z³-1)**: Different visual vocabulary from Julia sets, basin coloring by root convergence
-- **Nova**: Newton + Julia hybrid (`z = z - (z^n-1)/(n*z^{n-1}) + c`), very beautiful layered structures
-- **Sine**: `z = c * sin(z)`, periodic structure maps naturally to rhythm
-
-**Priority 2 - Moderate effort:**
-- **Magnet Type I**: From statistical mechanics, unique flame structures
-- **Barnsley**: Organic, fern-like growth patterns (Types 1, 2, 3)
-- **Multicorn-3**: 4-fold symmetry variant of Tricorn
+New fractal families are implemented in `fractal-worker.ts`. Explore them via the config tool or Shape Atlas.
 
 **Exploration workflow:**
 1. Shape Atlas (`public/shape-atlas.html`): Survey parameter space, find interesting regions
 2. Config Tool (`public/config.html`): Place anchors, design beat-synchronized orbits
-3. Export TypeScript to `src/fractal-config.ts`
+3. Save anchors to localStorage for music visualization
 
 **Interesting regions to explore:**
-- Celtic: real -2.2 to -0.8, imag -1.6 to -0.4
-- Burning Ship: real -1.8 to 0.4, imag -1.6 to -0.2
-- Buffalo: compact space with intricate boundary filaments
+- **Newton (10)**: Basin boundaries create high-contrast visuals, root-colored
+- **Nova (11)**: Newton + Julia hybrid, extremely detailed layered structures
+- **Sine (12)**: Periodic lattice, maps to rhythmic patterns
+- **Magnet (13)**: Flame tendrils converging to z=1
+- **Barnsley (14-16)**: Fern-like organic growth patterns
+- **Multicorn-3 (17)**: 4-fold symmetric Tricorn variant
 
-**Suggested type numbers:** Newton=10, Nova=12, Magnet=13, Sine=14, Barnsley=16
+See `research/fractal-theory.md` for music mapping recommendations and coloring strategies.
