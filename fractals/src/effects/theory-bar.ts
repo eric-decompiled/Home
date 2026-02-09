@@ -54,15 +54,16 @@ export class TheoryBarEffect implements VisualEffect {
   // Groove wave history
   private beatHistory: number[] = [];
   private barHistory: number[] = [];
+  private colorHistory: [number, number, number][] = [];  // Rainbow color history
   private grooveWriteIndex = 0;
-  private grooveColor: [number, number, number] = [22, 199, 154];
+  private tensionColor: [number, number, number] = [120, 120, 120];  // I→V interpolated color
   private paletteIndex = 0;
   private keyPitchClass = 0;
   private keyMode: 'major' | 'minor' = 'major';
 
   // Pitch histogram
   private pitchHistogram: number[] = new Array(12).fill(0);
-  private histogramDecay = 0.8;
+  private histogramDecay = 0.4;  // Slower decay for smoother color bleed
 
   // Metronome
   private beatsPerBar = 4;
@@ -88,6 +89,7 @@ export class TheoryBarEffect implements VisualEffect {
     for (let i = 0; i < GROOVE_HISTORY_LENGTH; i++) {
       this.beatHistory.push(0.5);
       this.barHistory.push(0.5);
+      this.colorHistory.push([22, 199, 154]);  // Default teal
     }
   }
 
@@ -118,17 +120,13 @@ export class TheoryBarEffect implements VisualEffect {
       this.lastFpsTime = now;
     }
 
-    // Sample groove curves into history
-    const beatGroove = music.beatGroove ?? 0.5;
-    const barGroove = music.barGroove ?? 0.5;
-    this.beatHistory[this.grooveWriteIndex] = beatGroove;
-    this.barHistory[this.grooveWriteIndex] = barGroove;
-    this.grooveWriteIndex = (this.grooveWriteIndex + 1) % GROOVE_HISTORY_LENGTH;
-
     // Update pitch histogram from active voices
     for (const voice of music.activeVoices) {
       if (voice.onset) {
-        this.pitchHistogram[voice.pitchClass] = Math.min(1.0, this.pitchHistogram[voice.pitchClass] + 0.15);
+        this.pitchHistogram[voice.pitchClass] = Math.min(1.0, this.pitchHistogram[voice.pitchClass] + 0.08 * voice.velocity);  // Attack
+      } else {
+        // Sustain - held notes add based on velocity (quiet notes contribute less)
+        this.pitchHistogram[voice.pitchClass] = Math.min(1.0, this.pitchHistogram[voice.pitchClass] + 0.3 * voice.velocity * dt);
       }
     }
     // Decay histogram values
@@ -139,10 +137,13 @@ export class TheoryBarEffect implements VisualEffect {
     // Color from palette
     if (music.paletteIndex >= 0 && music.paletteIndex < palettes.length) {
       this.paletteIndex = music.paletteIndex;
-      const p = palettes[music.paletteIndex];
-      const c = p.stops[3]?.color ?? [22, 199, 154];
-      this.grooveColor = [c[0], c[1], c[2]];
     }
+
+    // Sample groove curves into history (color written after tension calculation)
+    const beatGroove = music.beatGroove ?? 0.5;
+    const barGroove = music.barGroove ?? 0.5;
+    this.beatHistory[this.grooveWriteIndex] = beatGroove;
+    this.barHistory[this.grooveWriteIndex] = barGroove;
 
     // Key display
     this.keyPitchClass = music.key ?? 0;
@@ -164,6 +165,13 @@ export class TheoryBarEffect implements VisualEffect {
     // Store chord lookahead data [prev, current, next, next-next]
     this.displayChords = music.barChords ?? [];
     this.currentTension = music.tension ?? 0;
+
+    // Use precomputed tension color from music-mapper (avoids duplicate calculation)
+    this.tensionColor = [...music.tensionColor] as [number, number, number];
+
+    // Store tension color in history for groove wave rainbow
+    this.colorHistory[this.grooveWriteIndex] = [...this.tensionColor];
+    this.grooveWriteIndex = (this.grooveWriteIndex + 1) % GROOVE_HISTORY_LENGTH;
 
     // Detect bar change and trigger slide animation (every bar, not just chord changes)
     const currentBarChord = this.displayChords[1]; // index 1 = current bar
@@ -230,117 +238,27 @@ export class TheoryBarEffect implements VisualEffect {
 
     let x = padding + 12 * scale;
 
+    // Key palette for coloring
+    const keyPalette = palettes[this.keyPitchClass];
+    const keyColor = keyPalette.stops[4]?.color ?? [180, 180, 180]; // Bright stop
+
     // --- Key ---
     ctx.fillStyle = '#666';
     ctx.textAlign = 'left';
     ctx.fillText('KEY', x, centerY);
     x += 38 * scale;
 
-    // Color key name with its own palette color (not chord palette)
-    const keyPalette = palettes[this.keyPitchClass];
-    const keyColor = keyPalette.stops[4]?.color ?? [180, 180, 180]; // Bright stop
+    // Color key name with its own palette color
     ctx.fillStyle = `rgb(${keyColor[0]}, ${keyColor[1]}, ${keyColor[2]})`;
     ctx.font = `bold ${fontMedium}px "SF Mono", Monaco, Consolas, monospace`;
     ctx.fillText(this.currentKey, x, centerY);
-    x += ctx.measureText(this.currentKey).width + 28 * scale;
-
-    // --- BPM ---
-    ctx.font = `${fontSmall}px "SF Mono", Monaco, Consolas, monospace`;
-    ctx.fillStyle = '#666';
-    ctx.fillText('BPM', x, centerY);
-    x += 40 * scale;
-
-    // Color BPM with key color - fixed width for 3 digits
-    ctx.fillStyle = `rgb(${keyColor[0]}, ${keyColor[1]}, ${keyColor[2]})`;
-    ctx.font = `bold ${fontMedium}px "SF Mono", Monaco, Consolas, monospace`;
-    const bpmWidth = ctx.measureText('000').width; // Reserve space for 3 digits
-    ctx.fillText(`${this.currentBpm}`, x, centerY);
-    x += bpmWidth + 12 * scale;
-
-    // --- Tension icon ---
-    ctx.font = `bold ${fontLarge}px "SF Mono", Monaco, Consolas, monospace`;
-    ctx.fillStyle = '#666';
-    ctx.fillText('⟺', x, centerY - 2 * scale); // nudge up to align with text
-    x += 48 * scale;
-
-    const tension = this.currentTension;
-    const tensionBarWidth = 80 * scale;
-    const tensionBarHeight = 10 * scale;
-    const tensionBarY = centerY - tensionBarHeight / 2;
-
-    // Background - use dim palette color
-    const palette = palettes[this.paletteIndex];
-    const dimColor = palette.stops[1]?.color ?? [30, 30, 30];
-    ctx.fillStyle = `rgba(${dimColor[0]}, ${dimColor[1]}, ${dimColor[2]}, 0.4)`;
-    ctx.beginPath();
-    ctx.roundRect(x, tensionBarY, tensionBarWidth, tensionBarHeight, 3 * scale);
-    ctx.fill();
-
-    // Filled portion with gradient: key color (I) → dominant color (V)
-    // Key color is 66% of gradient, V color fades in at 100% end (barely visible)
-    const fillWidth = Math.max(2 * scale, tension * tensionBarWidth);
-    if (tension > 0.01) {
-      const tensionGradient = ctx.createLinearGradient(x, 0, x + tensionBarWidth, 0);
-
-      // Key (I) color - use bright stop
-      const keyPalette2 = palettes[this.keyPitchClass];
-      const iColor = keyPalette2.stops[3]?.color ?? [120, 120, 120];
-
-      // Dominant (V) color - 7 semitones up from key
-      const vPitchClass = (this.keyPitchClass + 7) % 12;
-      const vPalette = palettes[vPitchClass];
-      const vColor = vPalette.stops[3]?.color ?? [120, 120, 120];
-
-      const alpha = 0.6 + tension * 0.4;
-      // 0% - 66%: key color
-      tensionGradient.addColorStop(0, `rgba(${iColor[0]}, ${iColor[1]}, ${iColor[2]}, ${alpha})`);
-      tensionGradient.addColorStop(0.66, `rgba(${iColor[0]}, ${iColor[1]}, ${iColor[2]}, ${alpha})`);
-      // 66% - 100%: blend to V color (barely visible at end)
-      tensionGradient.addColorStop(1, `rgba(${vColor[0]}, ${vColor[1]}, ${vColor[2]}, ${alpha * 0.4})`);
-
-      ctx.fillStyle = tensionGradient;
-      ctx.beginPath();
-      ctx.roundRect(x, tensionBarY, fillWidth, tensionBarHeight, 3 * scale);
-      ctx.fill();
-    }
-
-    x += tensionBarWidth + 10 * scale;
-
-    // Tension percentage - interpolate between I color and V color based on tension
-    const iColorText = keyPalette.stops[3]?.color ?? [120, 120, 120];
-    const vPitchClassText = (this.keyPitchClass + 7) % 12;
-    const vPaletteText = palettes[vPitchClassText];
-    const vColorText = vPaletteText.stops[3]?.color ?? [120, 120, 120];
-
-    // Interpolate color based on tension (0 = I color, 1 = V color)
-    const textColor = [
-      Math.round(iColorText[0] + (vColorText[0] - iColorText[0]) * tension),
-      Math.round(iColorText[1] + (vColorText[1] - iColorText[1]) * tension),
-      Math.round(iColorText[2] + (vColorText[2] - iColorText[2]) * tension),
-    ];
-    ctx.font = `${fontSmall}px "SF Mono", Monaco, Consolas, monospace`;
-    ctx.fillStyle = `rgb(${textColor[0]}, ${textColor[1]}, ${textColor[2]})`;
-    ctx.fillText(`${Math.round(tension * 100)}%`, x, centerY);
-    x += 42 * scale;
+    x += ctx.measureText(this.currentKey).width + 20 * scale;
 
     // --- Chord progression ---
-    // Show current chord's Roman numeral in chord's color, then separator, then chord grid
+    // Chord grid: [prev] → [current] → [next] → [next-next], then Roman numeral on right
     const currentChord = this.displayChords[1]; // index 1 = current bar
     const currentNumeral = (currentChord && currentChord.numeral) ? currentChord.numeral : (this.keyMode === 'minor' ? 'i' : 'I');
     const fontNumeral = Math.round(16 * scale);
-    ctx.font = `bold ${fontNumeral}px "SF Mono", Monaco, Consolas, monospace`;
-    // Use current chord's root color, fallback to key color (equalized for visibility)
-    const numeralPitchClass = (currentChord && currentChord.root >= 0) ? currentChord.root : this.keyPitchClass;
-    const numeralColor = getCachedEqualizedColor(numeralPitchClass, 0.45);
-    ctx.fillStyle = `rgb(${numeralColor[0]}, ${numeralColor[1]}, ${numeralColor[2]})`;
-    ctx.fillText(currentNumeral, x, centerY);
-    x += ctx.measureText('viio').width + 12 * scale; // fixed width for widest numeral
-
-    // Separator
-    ctx.font = `${fontNumeral}px "SF Mono", Monaco, Consolas, monospace`;
-    ctx.fillStyle = 'rgba(100, 100, 100, 0.5)';
-    ctx.fillText('|', x, centerY);
-    x += 16 * scale;
 
     // Fixed-width slots: [prev] → [current] → [next] → [next-next]
     const slotWidth = 44 * scale;       // Width for each chord slot
@@ -390,7 +308,7 @@ export class TheoryBarEffect implements VisualEffect {
         opacity = 1.0;
         ghostFactor = 0;
       } else if (isPast) {
-        opacity = 0.7;
+        opacity = 0.55;  // 15% more transparent than before
         ghostFactor = 0.5;
       } else {
         // Future chords: progressively dimmer
@@ -480,9 +398,82 @@ export class TheoryBarEffect implements VisualEffect {
     ctx.fillStyle = '#666';
     ctx.fill();
 
-    x = chordStartX + totalChordWidth + 16 * scale;
+    // Separator and Roman numeral (chord function) on right side of chord grid
+    const sepX = chordStartX + totalChordWidth + 8 * scale;
+    ctx.font = `${fontNumeral}px "SF Mono", Monaco, Consolas, monospace`;
+    ctx.fillStyle = 'rgba(100, 100, 100, 0.5)';
+    ctx.fillText('|', sepX, centerY);
 
-    // --- Calculate space for pitch histogram, metronome, and groove wave ---
+    const numeralX = sepX + 16 * scale;
+    ctx.font = `bold ${fontNumeral}px "SF Mono", Monaco, Consolas, monospace`;
+    ctx.fillStyle = '#666';
+    ctx.fillText(currentNumeral, numeralX, centerY);
+
+    x = numeralX + ctx.measureText('viio').width + 12 * scale;
+
+    // --- Tension (moved to left of histogram) ---
+    ctx.font = `bold ${fontLarge}px "SF Mono", Monaco, Consolas, monospace`;
+    ctx.fillStyle = '#666';
+    ctx.fillText('⟺', x, centerY - 2 * scale); // nudge up to align with text
+    x += 48 * scale;
+
+    const tension = this.currentTension;
+    const tensionBarWidth = 80 * scale;
+    const tensionBarHeight = 10 * scale;
+    const tensionBarY = centerY - tensionBarHeight / 2;
+
+    // Background - use dim palette color
+    const palette = palettes[this.paletteIndex];
+    const dimColor = palette.stops[1]?.color ?? [30, 30, 30];
+    ctx.fillStyle = `rgba(${dimColor[0]}, ${dimColor[1]}, ${dimColor[2]}, 0.4)`;
+    ctx.beginPath();
+    ctx.roundRect(x, tensionBarY, tensionBarWidth, tensionBarHeight, 3 * scale);
+    ctx.fill();
+
+    // Filled portion with gradient: key color (I) → dominant color (V)
+    const fillWidth = Math.max(2 * scale, tension * tensionBarWidth);
+    if (tension > 0.01) {
+      const tensionGradient = ctx.createLinearGradient(x, 0, x + tensionBarWidth, 0);
+
+      // Key (I) color - use bright stop
+      const keyPalette2 = palettes[this.keyPitchClass];
+      const iColor = keyPalette2.stops[3]?.color ?? [120, 120, 120];
+
+      // Dominant (V) color - 7 semitones up from key
+      const vPitchClass = (this.keyPitchClass + 7) % 12;
+      const vPalette = palettes[vPitchClass];
+      const vColor = vPalette.stops[3]?.color ?? [120, 120, 120];
+
+      const alpha = 0.6 + tension * 0.4;
+      tensionGradient.addColorStop(0, `rgba(${iColor[0]}, ${iColor[1]}, ${iColor[2]}, ${alpha})`);
+      tensionGradient.addColorStop(0.66, `rgba(${iColor[0]}, ${iColor[1]}, ${iColor[2]}, ${alpha})`);
+      tensionGradient.addColorStop(1, `rgba(${vColor[0]}, ${vColor[1]}, ${vColor[2]}, ${alpha * 0.4})`);
+
+      ctx.fillStyle = tensionGradient;
+      ctx.beginPath();
+      ctx.roundRect(x, tensionBarY, fillWidth, tensionBarHeight, 3 * scale);
+      ctx.fill();
+    }
+
+    x += tensionBarWidth + 10 * scale;
+
+    // Tension percentage - interpolate between I color and V color
+    const iColorText = keyPalette.stops[3]?.color ?? [120, 120, 120];
+    const vPitchClassText = (this.keyPitchClass + 7) % 12;
+    const vPaletteText = palettes[vPitchClassText];
+    const vColorText = vPaletteText.stops[3]?.color ?? [120, 120, 120];
+
+    const textColor = [
+      Math.round(iColorText[0] + (vColorText[0] - iColorText[0]) * tension),
+      Math.round(iColorText[1] + (vColorText[1] - iColorText[1]) * tension),
+      Math.round(iColorText[2] + (vColorText[2] - iColorText[2]) * tension),
+    ];
+    ctx.font = `${fontSmall}px "SF Mono", Monaco, Consolas, monospace`;
+    ctx.fillStyle = `rgb(${textColor[0]}, ${textColor[1]}, ${textColor[2]})`;
+    ctx.fillText(`${Math.round(tension * 100)}%`, x, centerY);
+    x += 42 * scale;
+
+    // --- Calculate space for histogram, metronome, and groove wave ---
     const visualStart = x + 10 * scale;
     const visualEnd = rightEdge - 10 * scale;
     const totalVisualWidth = visualEnd - visualStart;
@@ -499,7 +490,7 @@ export class TheoryBarEffect implements VisualEffect {
 
     // --- Metronome ---
     const metronomeStart = visualStart + histogramWidth + 8 * scale;
-    this.drawMetronome(ctx, metronomeStart, centerY, metronomeWidth, barHeight - 8 * scale);
+    this.drawMetronome(ctx, metronomeStart, centerY, metronomeWidth, barHeight - 8 * scale, keyColor);
 
     // --- Groove Wave (takes remaining space) ---
     const grooveStart = metronomeStart + metronomeWidth + 8 * scale;
@@ -529,64 +520,47 @@ export class TheoryBarEffect implements VisualEffect {
     height: number
   ): void {
     const scale = this.scale;
-    const [r, g, b] = this.grooveColor;
     const waveHeight = Math.min(height * 0.4, 10 * scale);
-    const sampleCount = Math.min(GROOVE_HISTORY_LENGTH, Math.floor(width / 2));
+    // Reduced sample count for performance (60 instead of 120)
+    const sampleCount = Math.min(60, Math.floor(width / 2));
     const stepX = width / sampleCount;
+    const sampleStep = GROOVE_HISTORY_LENGTH / sampleCount;
 
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Draw bar groove (background, slower) - very subtle
-    this.drawWaveLineInline(ctx, this.barHistory, startX, centerY, waveHeight * 0.4, stepX, sampleCount, r, g, b, 0.12, 2 * scale);
-
-    // Draw beat groove (foreground, main rhythm)
-    this.drawWaveLineInline(ctx, this.beatHistory, startX, centerY, waveHeight, stepX, sampleCount, r, g, b, 0.35, 1.5 * scale);
-  }
-
-  private drawWaveLineInline(
-    ctx: CanvasRenderingContext2D,
-    history: number[],
-    startX: number,
-    centerY: number,
-    height: number,
-    stepX: number,
-    sampleCount: number,
-    r: number, g: number, b: number,
-    baseAlpha: number,
-    lineWidth: number
-  ): void {
+    // Build single path for glow (batched)
     ctx.beginPath();
-    let started = false;
-
-    // Sample from history at appropriate intervals
-    const sampleStep = GROOVE_HISTORY_LENGTH / sampleCount;
-
     for (let i = 0; i < sampleCount; i++) {
-      // Read history in reverse (newest on left, oldest on right)
       const histIdx = Math.floor((sampleCount - 1 - i) * sampleStep);
       const idx = (this.grooveWriteIndex - GROOVE_HISTORY_LENGTH + histIdx + GROOVE_HISTORY_LENGTH) % GROOVE_HISTORY_LENGTH;
-      const val = history[idx];
+      const val = this.beatHistory[idx];
       const x = startX + i * stepX;
-      const displacement = (val - 0.5) * 2 * height;
+      const displacement = (val - 0.5) * 2 * waveHeight;
       const y = centerY - displacement;
-
-      if (!started) {
-        ctx.moveTo(x, y);
-        started = true;
-      } else {
-        ctx.lineTo(x, y);
-      }
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
     }
-
-    // Glow pass
-    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseAlpha * 0.25})`;
-    ctx.lineWidth = lineWidth * 2.5;
+    // Single glow stroke using current tension color
+    const [r, g, b] = this.tensionColor;
+    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.12)`;
+    ctx.lineWidth = 4 * scale;
     ctx.stroke();
 
-    // Core pass
-    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${baseAlpha})`;
-    ctx.lineWidth = lineWidth;
+    // Build single path for core
+    ctx.beginPath();
+    for (let i = 0; i < sampleCount; i++) {
+      const histIdx = Math.floor((sampleCount - 1 - i) * sampleStep);
+      const idx = (this.grooveWriteIndex - GROOVE_HISTORY_LENGTH + histIdx + GROOVE_HISTORY_LENGTH) % GROOVE_HISTORY_LENGTH;
+      const val = this.beatHistory[idx];
+      const x = startX + i * stepX;
+      const displacement = (val - 0.5) * 2 * waveHeight;
+      const y = centerY - displacement;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.4)`;
+    ctx.lineWidth = 1.5 * scale;
     ctx.stroke();
   }
 
@@ -658,75 +632,86 @@ export class TheoryBarEffect implements VisualEffect {
     startX: number,
     centerY: number,
     width: number,
-    _height: number
+    _height: number,
+    keyColor: [number, number, number]
   ): void {
     const scale = this.scale;
-    const beats = this.beatsPerBar;
+    // Clamp beats to reasonable range to prevent smearing
+    const beats = Math.max(2, Math.min(12, this.beatsPerBar));
     const dotSpacing = width / (beats + 1);
-    const dotRadius = 4 * scale;
 
-    const [r, g, b] = this.grooveColor;
+    // Scale dot radius down if spacing is tight to prevent overlap
+    const maxRadius = dotSpacing * 0.35;
+    const dotRadius = Math.min(4 * scale, maxRadius);
 
-    // Next beat index for anticipation effect
-    const nextBeat = (this.beatIndex + 1) % beats;
+    const [r, g, b] = this.tensionColor;  // I→V color based on harmonic tension
+
+    // Tension modulates the intensity - convolve with groove signals
+    const tension = this.currentTension;
+    const tensionBoost = 1 + tension * 0.5;  // 1.0 to 1.5x
+
+    // Ensure beatIndex is valid
+    const beatIndex = Math.max(0, Math.min(beats - 1, this.beatIndex));
+    const nextBeat = (beatIndex + 1) % beats;
 
     for (let i = 0; i < beats; i++) {
       const dotX = startX + dotSpacing * (i + 1);
-      const isCurrent = i === this.beatIndex;
+      const isCurrent = i === beatIndex;
       const isNext = i === nextBeat;
 
+      // Cap glow expansion based on available spacing
+      const maxGlow = Math.min(4 * scale, dotSpacing * 0.3);
+
       if (isCurrent) {
-        // Current beat - pulses with beatGroove (peaks AT beat, smooth cosine)
-        // beatGroove gives us the "landing" feel
-        const groovePulse = 1 + this.beatGroove * 0.3;
-        const arrivalBurst = this.beatArrival * 0.4; // Extra pop on impact
+        // Current beat - pulses with beatGroove, amplified by tension
+        const groovePulse = 1 + this.beatGroove * 0.3 * tensionBoost;
+        const arrivalBurst = this.beatArrival * 0.4 * tensionBoost;
         const r2 = dotRadius * (groovePulse + arrivalBurst);
 
-        // Outer glow - tied to arrival (impact flash)
+        // Outer glow - tied to arrival, stronger with tension
         if (this.beatArrival > 0.05) {
           ctx.beginPath();
-          ctx.arc(dotX, centerY, r2 + 4 * scale, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.25 * this.beatArrival})`;
+          ctx.arc(dotX, centerY, r2 + maxGlow * tensionBoost, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.25 * this.beatArrival * tensionBoost})`;
           ctx.fill();
         }
 
         // Middle glow - tied to groove
         ctx.beginPath();
-        ctx.arc(dotX, centerY, r2 + 2 * scale, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.2 + this.beatGroove * 0.15})`;
+        ctx.arc(dotX, centerY, r2 + maxGlow * 0.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${(0.2 + this.beatGroove * 0.15) * tensionBoost})`;
         ctx.fill();
 
-        // Core - brightness follows groove
+        // Core - brightness follows groove * tension
         ctx.beginPath();
         ctx.arc(dotX, centerY, r2, 0, Math.PI * 2);
-        const coreAlpha = 0.7 + this.beatGroove * 0.3;
+        const coreAlpha = Math.min(1, (0.7 + this.beatGroove * 0.3) * tensionBoost);
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${coreAlpha})`;
         ctx.fill();
 
       } else if (isNext) {
-        // Next beat - anticipation builds as we progress through current beat
-        // beatPosition: 0 = just hit current beat, 1 = about to hit next
-        const anticipation = this.beatPosition * this.beatPosition; // Accelerating toward next
-        const anticipateScale = 1 + anticipation * 0.08;
+        // Next beat - anticipation amplified by tension
+        const anticipation = this.beatPosition * this.beatPosition;
+        const anticipateScale = 1 + anticipation * 0.08 * tensionBoost;
         const r2 = dotRadius * anticipateScale;
 
-        // Anticipation glow - subtle, only in last half of beat
+        // Anticipation glow - stronger with tension
         if (anticipation > 0.25) {
           ctx.beginPath();
-          ctx.arc(dotX, centerY, r2 + 1.5 * scale, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${(anticipation - 0.25) * 0.2})`;
+          ctx.arc(dotX, centerY, r2 + maxGlow * 0.4 * tensionBoost, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${(anticipation - 0.25) * 0.2 * tensionBoost})`;
           ctx.fill();
         }
 
-        // Core with subtle anticipation brightness
+        // Core with anticipation * tension
         ctx.beginPath();
         ctx.arc(dotX, centerY, r2, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.2 + anticipation * 0.12})`;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${(0.2 + anticipation * 0.12) * tensionBoost})`;
         ctx.fill();
 
       } else {
-        // Other beats - subtle breathing with bar groove
-        const breathe = 1 + this.beatGroove * 0.05;
+        // Other beats - breathing modulated by tension
+        const breathe = 1 + this.beatGroove * 0.05 * tensionBoost;
         const r2 = dotRadius * breathe;
 
         ctx.beginPath();
@@ -735,6 +720,14 @@ export class TheoryBarEffect implements VisualEffect {
         ctx.fill();
       }
     }
+
+    // BPM number underneath metronome
+    const fontSmall = Math.round(10 * scale);
+    ctx.font = `bold ${fontSmall}px "SF Mono", Monaco, Consolas, monospace`;
+    ctx.fillStyle = `rgb(${keyColor[0]}, ${keyColor[1]}, ${keyColor[2]})`;
+    ctx.textAlign = 'center';
+    ctx.fillText(`${this.currentBpm}`, startX + width / 2, centerY + 16 * scale);
+    ctx.textAlign = 'left';
   }
 
   isReady(): boolean {

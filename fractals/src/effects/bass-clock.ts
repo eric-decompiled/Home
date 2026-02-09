@@ -42,6 +42,7 @@ export class BassClockEffect implements VisualEffect {
   private keyRotation = 0;  // animated rotation offset for modulations
   private lastPitchClass = -1;
   private initializedToKey = false;  // Track if we've set initial position to song key
+  private initializedKey = -1;  // The key we initialized to (detect song key changes)
   private handLength = 0.95; // Fixed at outer layer
   private colR = 150;
   private colG = 100;
@@ -55,6 +56,7 @@ export class BassClockEffect implements VisualEffect {
   private radius = 0.45; // Inner radius for bass
   private breathPhase = 0;
   private anticipation = 0;  // Builds before bar lands
+  private windupAngle = 0;   // Rotation offset during windup (lean back before strike)
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -88,7 +90,6 @@ export class BassClockEffect implements VisualEffect {
     this.energy *= Math.exp(-2.0 * dt);
 
     // === GROOVE CURVES ===
-    // Bass clock uses bar-level anticipation (chord changes often align with bars)
     const barAnticipation = music.barAnticipation ?? 0;
     const barArrival = music.barArrival ?? 0;
     const beatGroove = music.beatGroove ?? 0.5;
@@ -104,25 +105,53 @@ export class BassClockEffect implements VisualEffect {
     const pc = music.chordRoot >= 0 ? music.chordRoot : -1;
 
     // Initialize hand to tonic position on first update (before any chord changes)
-    if (!this.initializedToKey) {
+    // Also re-initialize when song key changes (e.g., when song loads and key is detected)
+    const shouldInit = !this.initializedToKey || (this.initializedKey !== this.key && this.initializedKey >= 0);
+    if (shouldInit) {
       const tonicAngle = (this.key / 12) * Math.PI * 2 - Math.PI / 2;
-      this.handAngle = tonicAngle;
-      this.targetAngle = this.handAngle;
-      this.lastTrailAngle = this.handAngle;
-      // Set color to tonic
+
+      if (!this.initializedToKey) {
+        // First init: snap immediately
+        this.handAngle = tonicAngle;
+        this.targetAngle = this.handAngle;
+        this.lastTrailAngle = this.handAngle;
+      } else {
+        // Key changed (song loaded): animate to new tonic
+        let diff = tonicAngle - this.handAngle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        this.targetAngle = this.handAngle + diff;
+
+        const beatDur = music.beatDuration || 0.5;
+        gsap.to(this, {
+          handAngle: this.targetAngle,
+          duration: beatDur * 1.5,
+          ease: 'power2.inOut',
+          overwrite: true,
+        });
+      }
+
+      // Set color to tonic and trigger brightness pulse
       const c = samplePaletteColor(this.key, 0.6);
       this.colR = c[0];
       this.colG = c[1];
       this.colB = c[2];
       this.initializedToKey = true;
-    }
+      this.initializedKey = this.key;
 
-    if (pc >= 0) {
-      // Use spiral coordinate system with twist (must match spiralPos formula)
-      const baseAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2;
-      const fromRoot = ((pc - this.key + 12) % 12);
-      const twist = Math.sin(fromRoot / 12 * Math.PI * 2) * 0.05;
-      const newAngle = baseAngle + twist;
+      // Update highlighted numeral and pulse brightness
+      this.lastPitchClass = this.key;
+      gsap.to(this, {
+        handBrightness: 0.8,
+        duration: 0.1,
+        onComplete: () => {
+          gsap.to(this, { handBrightness: 0, duration: 1.0, ease: 'power2.out' });
+        }
+      });
+    } else if (pc >= 0) {
+      // Respond to chord changes (skip on init frame)
+      // Point directly at numeral positions (no twist offset)
+      const newAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2;
 
       // Use shortest path
       let diff = newAngle - this.handAngle;
@@ -139,12 +168,26 @@ export class BassClockEffect implements VisualEffect {
         this.colG = c[1];
         this.colB = c[2];
 
-        // GSAP: Slow, weighty bass hand motion - full beat duration
         const beatDur = music.beatDuration || 0.5;
+
+        // GSAP: Windup then snap - lean back first, then swing through
+        // Windup in opposite direction of travel
+        const windupDir = diff > 0 ? -1 : 1;
+        this.windupAngle = windupDir * 0.08; // Immediate lean back
+
+        // Animate windup release (snaps forward as hand moves)
+        gsap.to(this, {
+          windupAngle: 0,
+          duration: beatDur * 1.2,
+          ease: 'power3.out',
+          overwrite: 'auto',
+        });
+
+        // GSAP: Hand motion with subtle overshoot - weighty
         gsap.to(this, {
           handAngle: this.targetAngle,
-          duration: beatDur * 1.0,
-          ease: 'power2.inOut',
+          duration: beatDur * 2.0,
+          ease: 'back.out(0.6)',
           overwrite: true,
         });
 
@@ -193,8 +236,12 @@ export class BassClockEffect implements VisualEffect {
     const spiralMaxR = minDim * SPIRAL_RADIUS_SCALE;
     const outerPos = spiralPos(113, 0, this.key, this.keyRotation, cx, cy, spiralMaxR * breath);
     const r = outerPos.radius;  // Trail and numerals share this radius
+
     const handLen = r * this.handLength;
-    const angle = this.handAngle + this.keyRotation;  // Apply modulation rotation
+
+    // Apply windup angle - subtle counter-rotation (pull back before striking)
+    // Negative offset creates "leaning back" effect
+    const angle = this.handAngle + this.keyRotation - this.windupAngle;
     const R = this.colR, G = this.colG, B = this.colB;
     const brt = 0.5 + this.handBrightness * 0.4 + this.energy * 0.15;
     const alpha = Math.min(1, brt);
@@ -405,12 +452,12 @@ export class BassClockEffect implements VisualEffect {
 
     // --- Center circle cutout (visual interest) ---
     const cutoutF = 0.35;
-    const cutoutR = 5 * sc;
+    const cutoutR = 3.5 * sc;
     const cc = ptAt(cutoutF, 0);
     const cutout = new Path2D();
     cutout.arc(cc.x, cc.y, cutoutR, 0, Math.PI * 2);
-    ctx.strokeStyle = colStr;
-    ctx.lineWidth = strokeW * 0.8;
+    ctx.strokeStyle = `rgba(${R},${G},${B},${(alpha * 0.7).toFixed(3)})`;
+    ctx.lineWidth = strokeW * 0.5;
     ctx.stroke(cutout);
 
     // --- Counterweight (heavy circle) ---
@@ -486,6 +533,7 @@ export class BassClockEffect implements VisualEffect {
     this.handBrightness = 0;
     this.arcTrail.length = 0;
     this.initializedToKey = false;
+    this.initializedKey = -1;
     this.lastPitchClass = -1;
   }
 

@@ -94,7 +94,15 @@
       "Bash(qlmanage:*)",
       "Bash(xargs:*)",
       "Bash(timeout 5 npm run dev:*)",
-      "WebFetch(domain:tonaljs.github.io)"
+      "WebFetch(domain:tonaljs.github.io)",
+      "WebFetch(domain:musical-artifacts.com)",
+      "WebFetch(domain:gamersoundtracks.com)",
+      "WebFetch(domain:www.cavesofnarshe.com)",
+      "WebFetch(domain:csd.varlew.net)",
+      "Bash(unzip:*)",
+      "WebFetch(domain:www.hooktheory.com)",
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)"
     ]
   }
 }

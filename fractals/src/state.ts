@@ -183,7 +183,7 @@ for (const [effectId, keys] of Object.entries(CONFIG_SHORTS)) {
 // --- Preset Definitions ---
 
 export const PRESET_LAYERS: Record<string, (string | null)[]> = {
-  spiral: ['flowfield', 'note-spiral', null, null, 'bass-clock'],
+  spiral: ['flowfield', 'note-spiral', 'theory-bar', null, 'bass-clock'],
   warp: ['chladni', 'note-spiral', 'kaleidoscope', null, 'bass-clock'],
   fractal: ['domainwarp', 'fractal', 'theory-bar', null, null],
   piano: ['flowfield', 'piano-roll', 'theory-bar', null, null],

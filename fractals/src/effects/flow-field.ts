@@ -2,7 +2,6 @@
 // Particles flowing through a Perlin-like noise vector field.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { palettes } from '../fractal-engine.ts';
 
 // Simple 2D noise (permutation-based, good enough for flow fields)
 const PERM = new Uint8Array(512);
@@ -181,13 +180,12 @@ export class FlowFieldEffect implements VisualEffect {
 
     this.perturbation *= Math.exp(-3.0 * dt);
 
-    // Color from palette
-    if (!this.useWhite && music.paletteIndex >= 0 && music.paletteIndex < palettes.length) {
-      const p = palettes[music.paletteIndex];
-      const c = p.stops[p.stops.length - 2]?.color ?? [255, 255, 255];
-      this.colorR = c[0];
-      this.colorG = c[1];
-      this.colorB = c[2];
+    // Color from tension (I→V interpolation based on harmonic tension)
+    if (!this.useWhite) {
+      const [r, g, b] = music.tensionColor;
+      this.colorR = r;
+      this.colorG = g;
+      this.colorB = b;
     }
 
     // Step particles

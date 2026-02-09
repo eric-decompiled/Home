@@ -56,6 +56,10 @@ export class KaleidoscopeEffect implements VisualEffect {
 
   update(dt: number, music: MusicParams): void {
     // === GROOVE CURVES ===
+    // Continuous curves (0-1, peak at beat/bar)
+    const beatGroove = music.beatGroove ?? 0.5;
+    const barGroove = music.barGroove ?? 0.5;
+    // Anticipation (0→1 before beat) and Arrival (peak then decay)
     const beatAnticipation = music.beatAnticipation ?? 0;
     const beatArrival = music.beatArrival ?? 0;
     const barArrival = music.barArrival ?? 0;
@@ -64,36 +68,52 @@ export class KaleidoscopeEffect implements VisualEffect {
     const targetFolds = 3 + (music.chordDegree % 5) * 2; // 3,5,7,9,11
     this.foldCount = targetFolds;
 
-    // Beat → rotation impulse - arrival adds impact (subtle)
-    if (music.kick) this.rotationVelocity += 0.12;
-    if (music.snare) this.rotationVelocity -= 0.10;
-    // Groove curve impulses (toned down)
-    this.rotationVelocity += beatArrival * 0.05 - barArrival * 0.03;
+    // === ROTATION: groove-driven breathing + impulses ===
+    // Continuous groove modulation: rotation "breathes" with the beat
+    // beatGroove peaks at 1 on the beat, so (beatGroove - 0.5) gives -0.5 to +0.5
+    // Groove curves drive the main rhythmic motion
+    const grooveRotation = (beatGroove - 0.5) * 0.18 + (barGroove - 0.5) * 0.10;
 
-    // Melody pitch → rotation offset (subtle)
+    // Discrete impulses from kicks/snares (noticeable accents)
+    if (music.kick) this.rotationVelocity += 0.045;
+    if (music.snare) this.rotationVelocity -= 0.03;
+    // Arrival adds small punch
+    this.rotationVelocity += beatArrival * 0.015;
+
+    // Melody pitch → rotation offset (subtle color)
     if (music.melodyOnset) {
-      this.rotationVelocity += ((music.melodyPitchClass % 12) / 12 - 0.5) * 0.08;
+      this.rotationVelocity += ((music.melodyPitchClass % 12) / 12 - 0.5) * 0.012;
     }
 
-    // Tension → zoom pulse target - anticipation adds subtle buildup
-    this.zoomTarget = 1.0 + music.tension * 0.06 + beatAnticipation * 0.02;
-    if (music.kick) this.zoomTarget += 0.03;
-    // Arrival adds zoom punch (subtle)
-    this.zoomTarget += beatArrival * 0.04 + barArrival * 0.05;
-    this.zoomTarget = Math.min(1.15, this.zoomTarget);
+    // === ZOOM: groove-driven breathing + anticipation ===
+    // Base zoom from tension
+    this.zoomTarget = 1.0 + music.tension * 0.025;
+    // Groove creates continuous zoom breathing (main driver)
+    this.zoomTarget += (beatGroove - 0.5) * 0.04;
+    // Anticipation adds buildup before the beat
+    this.zoomTarget += beatAnticipation * 0.02;
+    // Bar-level for bigger phrases
+    this.zoomTarget += (music.barAnticipation ?? 0) * 0.015;
+    // Arrival creates soft "hit"
+    this.zoomTarget += beatArrival * 0.02 + barArrival * 0.025;
+    // Kick/snare zoom accents
+    if (music.kick) this.zoomTarget += 0.02;
+    if (music.snare) this.zoomTarget += 0.012;
+    this.zoomTarget = Math.min(1.08, this.zoomTarget);
 
-    // Zoom pulse with asymmetric response: fast attack, slow decay
+    // Zoom pulse with asymmetric response: gentle attack, very slow decay
     if (this.zoomTarget > this.zoomPulse) {
-      // Fast attack - quickly reach the target
-      this.zoomPulse += (this.zoomTarget - this.zoomPulse) * (1 - Math.exp(-8.0 * dt));
+      // Gentle attack
+      this.zoomPulse += (this.zoomTarget - this.zoomPulse) * (1 - Math.exp(-4.0 * dt));
     } else {
-      // Slow decay - settle back gradually
-      this.zoomPulse += (this.zoomTarget - this.zoomPulse) * (1 - Math.exp(-1.5 * dt));
+      // Very slow decay - settle back gradually
+      this.zoomPulse += (this.zoomTarget - this.zoomPulse) * (1 - Math.exp(-0.8 * dt));
     }
 
-    // Rotation dynamics
-    this.rotationVelocity *= Math.exp(-2.0 * dt);
-    this.rotation += (this.rotationSpeed + this.rotationVelocity) * dt;
+    // Rotation dynamics: base speed + groove modulation + impulse velocity
+    // Lower damping lets momentum carry through
+    this.rotationVelocity *= Math.exp(-1.5 * dt);
+    this.rotation += (this.rotationSpeed + grooveRotation + this.rotationVelocity) * dt;
   }
 
   render(): HTMLCanvasElement {

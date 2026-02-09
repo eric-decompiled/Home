@@ -19,6 +19,7 @@ export interface ChordEvent {
   isSecondary: boolean;          // true if this is a secondary dominant (V/x or viio/x)
   secondaryTarget: number;       // target degree being tonicized (2-7), 0 if not secondary
   isChromatic: boolean;          // true if root or quality doesn't fit current key
+  numeral: string;    // precomputed roman numeral (e.g., "I", "V7", "ii", "V/V")
 }
 
 export interface DrumHit {
@@ -716,9 +717,29 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
         isSecondary: false,   // computed in post-pass
         secondaryTarget: 0,   // computed in post-pass
         isChromatic: chordIsChromatic,
+        numeral: '',          // computed in post-pass (after isSecondary)
       });
     }
   }
+
+  // --- Helper: build roman numeral for chord ---
+  const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+  const buildChordNumeral = (chord: { degree: number; quality: ChordQuality; isSecondary: boolean; secondaryTarget: number }): string => {
+    if (chord.isSecondary && chord.secondaryTarget > 0) {
+      return `V/${ROMAN_NUMERALS[chord.secondaryTarget]}`;
+    }
+    if (chord.degree > 0 && chord.degree <= 7) {
+      const isMinor = ['minor', 'min7', 'dim', 'hdim7', 'dim7'].includes(chord.quality);
+      let numeral = isMinor ? ROMAN_NUMERALS[chord.degree].toLowerCase() : ROMAN_NUMERALS[chord.degree];
+      if (chord.quality === 'dim') numeral += '°';
+      else if (chord.quality === 'hdim7') numeral += 'ø7';
+      else if (chord.quality === 'dim7') numeral += '°7';
+      else if (chord.quality === 'dom7' || chord.quality === 'min7') numeral += '7';
+      else if (chord.quality === 'maj7') numeral += 'Δ7';
+      return numeral;
+    }
+    return '';
+  };
 
   // --- Post-processing: compute tension using Lerdahl-inspired model ---
   // Based on: Lerdahl & Krumhansl "Modeling Tonal Tension" (2007)
@@ -827,6 +848,7 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
 
     c.tension = Math.min(1, tension);
     c.nextDegree = nextChord?.degree ?? 0;
+    c.numeral = buildChordNumeral(c);  // compute after isSecondary is set
     prevRoot = c.root;
   }
 

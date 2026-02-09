@@ -52,19 +52,19 @@ interface SongEntry {
 }
 
 const songs: SongEntry[] = [
-  { name: 'Toccata & Fugue in D minor (Bach)', file: 'bach-toccata-fugue.mid' },         // ~1708
-  { name: 'Area 0 (The Guardian Legend)', file: 'guardian-legend-area0.mid' },           // 1988
+  // Chronological order
+  { name: 'Dark World (Zelda: ALTTP)', file: 'zelda-alttp-dark-world.mid' },             // 1991
+  { name: "Terra's Theme (Final Fantasy VI)", file: 'ff6-terras-theme.mid' },            // 1994
   { name: "Schala's Theme (Chrono Trigger)", file: 'schala.mid' },                       // 1995
   { name: "Into the Wilderness (Wild Arms)", file: 'wa1-opening.mid' },                  // 1996
-  { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },                       // 1997
-  { name: "Hero's Theme (Final Fantasy Tactics)", file: 'fft-heros-theme.mid' },         // 1997
+  { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },                       // Jan 1997
+  { name: "Hero's Theme (Final Fantasy Tactics)", file: 'fft-heros-theme.mid' },         // Jun 1997
   { name: 'Tank! (Cowboy Bebop)', file: 'cowboy-bebop-tank.mid' },                       // 1998
-  { name: 'Stab the Sword of Justice (Star Ocean 2)', file: 'so2-battle.mid' },          // 1998
-  { name: 'Liberi Fatali (Final Fantasy VIII)', file: 'ff8-liberi-fatali.mid' },         // 1999
-  { name: "Dart's Theme (Legend of Dragoon)", file: 'legend-of-dragoon-dart.mid' },      // 1999
-  { name: 'Hometown Domina (Legend of Mana)', file: 'legend-of-mana-domina.mid' },       // 1999
+  { name: 'Drowning Valley (Chrono Cross)', file: 'cc-drowning_valley.mid' },            // 1999
+  { name: "Fisherman's Horizon (Final Fantasy VIII)", file: 'ff8-fishermans-horizon.mid' }, // 1999
+  { name: 'Battle Theme (Golden Sun)', file: 'golden-sun-battle.mid' },                  // 2001
   { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // 2001
-  { name: "Aerith's Theme (Final Fantasy VII)", file: 'aeris-theme.mid' },               // 1997 ♡
+  { name: "Aerith's Theme (Final Fantasy VII)", file: 'aeris-theme.mid' },               // ♡
 ];
 
 // --- State ---
@@ -136,7 +136,7 @@ const layerSlots: LayerSlot[] = [
   {
     name: 'Overlay',
     effects: [kaleidoscopeEffect, theoryBarEffect],
-    activeId: null,  // Cosmic Spiral default
+    activeId: 'theory-bar',  // Cosmic Spiral default
   },
   {
     name: 'Melody',
@@ -218,14 +218,14 @@ app.innerHTML = `
             ${songs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
           </select>
         </div>
-        <button class="toggle-btn" id="layers-toggle">Animations</button>
         <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-          <span style="color: #888; font-size: 12px; margin-right: 4px;">Presets:</span>
+          <span style="color: #aaa; font-size: 13px; font-weight: 500; margin-right: 6px;">Views:</span>
           <button class="toggle-btn preset-btn" id="preset-spiral" title="Flow Field + Note Spiral + Bass Clock">Cosmic Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope + Bass Clock">Warp Prism</button>
           <button class="toggle-btn preset-btn" id="preset-fractal" title="Domain Warp + Fractal + Theory Bar">Fractal Dance</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
           <span style="color: #444; margin: 0 4px;">|</span>
+          <button class="toggle-btn" id="layers-toggle">Custom</button>
           <div class="custom-presets-wrap" id="custom-presets"></div>
           <button class="reset-presets-btn" id="reset-presets-btn" title="Delete all custom presets">Reset</button>
         </div>
@@ -735,8 +735,8 @@ if (urlSettingsResult.presetApplied) {
   }[urlSettingsResult.presetApplied];
   if (btn) btn.classList.add('active');
 } else if (!urlToState(window.location.search)) {
-  // Default to Fractal Dance if no URL params
-  presetFractalBtn.classList.add('active');
+  // Default to Cosmic Spiral if no URL params
+  presetSpiralBtn.classList.add('active');
 }
 
 function applyPreset(preset: 'piano' | 'spiral' | 'fractal' | 'warp'): void {
@@ -1691,7 +1691,7 @@ function loop(time: number): void {
 
 requestAnimationFrame(loop);
 
-// Auto-load default song (To Zanarkand)
-const defaultSongIdx = songs.findIndex(s => s.file === 'to-zanarkand.mid');
+// Auto-load default song (Dark World - first chronologically)
+const defaultSongIdx = songs.findIndex(s => s.file === 'zelda-alttp-dark-world.mid');
 songPicker.value = String(defaultSongIdx >= 0 ? defaultSongIdx : 0);
 loadSong(defaultSongIdx >= 0 ? defaultSongIdx : 0);

@@ -69,8 +69,13 @@ export class NoteSpiralEffect implements VisualEffect {
   private cachedSpineRotation = -999;
   private cachedSpineMode: 'major' | 'minor' = 'major';
 
-  // Pre-computed positions (updated once per frame)
+  // Pre-computed positions (cached, updated only when key/rotation changes)
   private notePositions: { x: number; y: number; r: number; scale: number }[] = [];
+  private cachedPosKey = -1;
+  private cachedPosRotation = -999;
+  private cachedPosCx = 0;
+  private cachedPosCy = 0;
+  private cachedPosMaxR = 0;
 
   // Config
   private intensity = 1.0;
@@ -143,8 +148,29 @@ export class NoteSpiralEffect implements VisualEffect {
     return { x: pos.x, y: pos.y, r: pos.radius, scale: pos.scale };
   }
 
-  // Pre-compute all note positions for the frame (call once at start of render)
+  // Pre-compute all note positions (cached, only updates when inputs change)
   private computeNotePositions(cx: number, cy: number, maxR: number): void {
+    const rotationThreshold = 0.01;
+    const positionThreshold = 1; // pixels
+
+    // Skip if nothing changed
+    if (this.cachedPosKey === this.key &&
+        Math.abs(this.cachedPosRotation - this.keyRotation) < rotationThreshold &&
+        Math.abs(this.cachedPosCx - cx) < positionThreshold &&
+        Math.abs(this.cachedPosCy - cy) < positionThreshold &&
+        Math.abs(this.cachedPosMaxR - maxR) < positionThreshold &&
+        this.notePositions.length === MIDI_RANGE) {
+      return;
+    }
+
+    // Cache inputs
+    this.cachedPosKey = this.key;
+    this.cachedPosRotation = this.keyRotation;
+    this.cachedPosCx = cx;
+    this.cachedPosCy = cy;
+    this.cachedPosMaxR = maxR;
+
+    // Recompute positions
     this.notePositions.length = 0;
     for (let midi = MIDI_LO; midi < MIDI_HI; midi++) {
       this.notePositions.push(this.notePos(midi, cx, cy, maxR));
@@ -355,18 +381,17 @@ export class NoteSpiralEffect implements VisualEffect {
     // === GROOVE CURVES ===
     const beatArrival = music.beatArrival ?? 0;
 
-    // Beat pulse — brighten active nodes (stronger pulse at high tension)
-    // Use arrival curve for the "hit" impact
+    // Beat pulse — brighten active nodes (subtle pulse on kicks)
     if (music.kick) {
-      const pulseStrength = 0.15 + music.tension * 0.1;
+      const pulseStrength = 0.08 + music.tension * 0.05;
       for (const node of this.nodes) {
         if (node.brightness > 0.05) node.brightness = Math.min(1.0, node.brightness + pulseStrength);
       }
     }
 
-    // Groove-driven pulse on active nodes
+    // Groove-driven pulse on active nodes (subtle)
     if (beatArrival > 0.1) {
-      const arrivalPulse = beatArrival * 0.12;
+      const arrivalPulse = beatArrival * 0.06;
       for (const node of this.nodes) {
         if (node.brightness > 0.05) node.brightness = Math.min(1.0, node.brightness + arrivalPulse);
       }
@@ -515,6 +540,33 @@ export class NoteSpiralEffect implements VisualEffect {
 
       // Smooth fade using sqrt curve - keeps low values visible longer
       const alpha = Math.sqrt(node.brightness) * lightFactor;
+
+      // === ATTACK VS SUSTAIN COLORING ===
+      // Attack phase (first 0.25s): hot white flash
+      // Sustain phase: warm saturated color with amber tint
+      const attackDuration = 0.25;
+      const attackT = Math.min(1, timeSinceHit / attackDuration);
+      const inAttack = attackT < 1;
+
+      let glowR: number, glowG: number, glowB: number;
+      if (inAttack) {
+        // Attack: strong white shift (hot flash)
+        const whiteShift = (1 - attackT) * (1 - attackT); // quadratic ease-out
+        glowR = Math.min(255, node.r + Math.round((255 - node.r) * (0.7 + whiteShift * 0.3)));
+        glowG = Math.min(255, node.g + Math.round((255 - node.g) * (0.65 + whiteShift * 0.35)));
+        glowB = Math.min(255, node.b + Math.round((255 - node.b) * (0.6 + whiteShift * 0.4)));
+      } else {
+        // Sustain: warm saturated color (amber shift)
+        const warmth = 0.12;
+        const satBoost = 1.15;
+        const gray = (node.r + node.g + node.b) / 3;
+        const sr = gray + (node.r - gray) * satBoost;
+        const sg = gray + (node.g - gray) * satBoost;
+        const sb = gray + (node.b - gray) * satBoost;
+        glowR = Math.min(255, Math.max(0, Math.round(sr + warmth * 40)));
+        glowG = Math.min(255, Math.max(0, Math.round(sg + warmth * 10)));
+        glowB = Math.min(255, Math.max(0, Math.round(sb - warmth * 25)));
+      }
 
       // Beam effect - uses GSAP-tweened properties for smooth decay
       // Shape varies based on beamShape config
@@ -839,17 +891,32 @@ export class NoteSpiralEffect implements VisualEffect {
           }
         }
 
-        // Point glow at note position - soft but visible halo
+        // Point glow at note position - layered fills instead of gradient (faster)
         const tensionGlow = 1.0 + this.currentTension * 0.4;
-        const glowR = (10 + alpha * 22 + node.velocity * 10) * tensionGlow * pos.scale;
+        const glowRadius = (10 + alpha * 22 + node.velocity * 10) * tensionGlow * pos.scale;
         const glowIntensity = this.intensity * 0.8 * (1.0 + this.currentTension * 0.25);
-        const glow = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowR);
-        glow.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(alpha * 0.45 * glowIntensity).toFixed(3)})`);
-        glow.addColorStop(0.25, `rgba(${node.r},${node.g},${node.b},${(alpha * 0.18 * glowIntensity).toFixed(3)})`);
-        glow.addColorStop(0.6, `rgba(${node.r},${node.g},${node.b},${(alpha * 0.05 * glowIntensity).toFixed(3)})`);
-        glow.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
-        ctx.fillStyle = glow;
-        ctx.fillRect(pos.x - glowR, pos.y - glowR, glowR * 2, glowR * 2);
+
+        // Outer glow - use attack/sustain colors
+        ctx.fillStyle = `rgba(${glowR},${glowG},${glowB},${(alpha * 0.05 * glowIntensity).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, glowRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mid glow
+        ctx.fillStyle = `rgba(${glowR},${glowG},${glowB},${(alpha * 0.12 * glowIntensity).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, glowRadius * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Core glow - whiter during attack for hot center
+        const coreWhite = inAttack ? 0.4 : 0;
+        const coreR = Math.min(255, glowR + Math.round((255 - glowR) * coreWhite));
+        const coreG = Math.min(255, glowG + Math.round((255 - glowG) * coreWhite));
+        const coreB = Math.min(255, glowB + Math.round((255 - glowB) * coreWhite));
+        ctx.fillStyle = `rgba(${coreR},${coreG},${coreB},${(alpha * 0.35 * glowIntensity).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, glowRadius * 0.2, 0, Math.PI * 2);
+        ctx.fill();
       }
 
       // Dot: diatonic notes brighter, chromatic visible
@@ -860,10 +927,6 @@ export class NoteSpiralEffect implements VisualEffect {
 
       const baseDotR = inKey ? (4.5 + alpha * 6) : (2.5 + alpha * 4);
       const dotR = baseDotR * pos.scale;
-      const wt = alpha * alpha;
-      const cr = Math.min(255, node.r + Math.round((255 - node.r) * wt * 0.5));
-      const cg = Math.min(255, node.g + Math.round((255 - node.g) * wt * 0.5));
-      const cb = Math.min(255, node.b + Math.round((255 - node.b) * wt * 0.5));
 
       // Soft glow outline around dot (scaled by depth)
       if (this.glowOutlines && dotAlpha > 0.12) {
@@ -874,9 +937,10 @@ export class NoteSpiralEffect implements VisualEffect {
         ctx.stroke();
       }
 
+      // Use pre-computed attack/sustain colors (glowR, glowG, glowB)
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, dotR, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${cr},${cg},${cb},${Math.min(1, dotAlpha * this.intensity).toFixed(3)})`;
+      ctx.fillStyle = `rgba(${glowR},${glowG},${glowB},${Math.min(1, dotAlpha * this.intensity).toFixed(3)})`;
       ctx.fill();
 
       // Soft top highlight - subtle rim light
@@ -889,14 +953,14 @@ export class NoteSpiralEffect implements VisualEffect {
         ctx.stroke();
       }
 
-      // Soft pulse ring on hit
+      // Soft pulse ring on hit - use attack/sustain colors
       if (timeSinceHit < 0.7) {
         const pulseT = timeSinceHit / 0.7;
         const pulseR = (7 + pulseT * 28) * pos.scale;
         const pulseAlpha = (1 - pulseT) * (1 - pulseT) * 0.18 * node.velocity;
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, pulseR, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${node.r},${node.g},${node.b},${pulseAlpha.toFixed(3)})`;
+        ctx.strokeStyle = `rgba(${glowR},${glowG},${glowB},${pulseAlpha.toFixed(3)})`;
         ctx.lineWidth = 1.5 * (1 - pulseT);
         ctx.stroke();
       }

@@ -1,7 +1,8 @@
 import type { ChordEvent, DrumHit, NoteEvent, TrackInfo, KeyRegion } from './midi-analyzer.ts';
-import type { MusicParams, ActiveVoice, UpcomingNote, UpcomingChord } from './effects/effect-interface.ts';
+import type { MusicParams, ActiveVoice, UpcomingNote, UpcomingChord, RGB } from './effects/effect-interface.ts';
 import { createMidiBeatSync, createIdleBeatSync, type BeatSync, type TempoEvent, type TimeSignatureEvent } from './beat-sync.ts';
 import { gsap } from './animation.ts';
+import { palettes } from './fractal-engine.ts';
 
 // --- Julia set anchors by harmonic degree ---
 
@@ -184,6 +185,14 @@ let currentKey = 0;
 let currentKeyMode: 'major' | 'minor' = 'major';
 let currentBpm = 120;
 
+// Cached tension color endpoints (precomputed when key changes)
+let cachedKeyIColor: RGB = [120, 120, 120];  // Tonic color
+let cachedKeyVColor: RGB = [120, 120, 120];  // Dominant color
+
+// Tension color LUT: 256 entries for O(1) lookup (no per-frame interpolation)
+const TENSION_LUT_SIZE = 256;
+let tensionColorLUT: RGB[] = new Array(TENSION_LUT_SIZE).fill(null).map(() => [120, 120, 120] as RGB);
+
 // Key modulation tracking
 let keyRegions: KeyRegion[] = [];
 let currentKeyRegionIndex = -1;
@@ -208,26 +217,61 @@ let simplifiedBarChords: ChordEvent[] = [];
 let totalBars = 0;
 let songBarDuration = 2.0; // cached bar duration for the song
 
-const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
+// Precompute I/V colors and full tension LUT when key changes
+// This moves ALL color interpolation to song load time
+function updateCachedKeyColors(keyPitchClass: number): void {
+  cachedKeyIColor = palettes[keyPitchClass]?.stops[3]?.color ?? [120, 120, 120];
+  const vPitchClass = (keyPitchClass + 7) % 12;
+  cachedKeyVColor = palettes[vPitchClass]?.stops[3]?.color ?? [120, 120, 120];
 
-function buildChordNumeral(chord: ChordEvent): string {
-  if (chord.isSecondary && chord.secondaryTarget > 0) {
-    return `V/${ROMAN_NUMERALS[chord.secondaryTarget]}`;
+  // Build LUT: 256 precomputed colors from I (tension=0) to V (tension=1)
+  for (let i = 0; i < TENSION_LUT_SIZE; i++) {
+    const t = i / (TENSION_LUT_SIZE - 1);
+    tensionColorLUT[i] = [
+      Math.round(cachedKeyIColor[0] + (cachedKeyVColor[0] - cachedKeyIColor[0]) * t),
+      Math.round(cachedKeyIColor[1] + (cachedKeyVColor[1] - cachedKeyIColor[1]) * t),
+      Math.round(cachedKeyIColor[2] + (cachedKeyVColor[2] - cachedKeyIColor[2]) * t),
+    ];
   }
-  if (chord.degree > 0 && chord.degree <= 7) {
-    const isMinor = ['minor', 'min7', 'dim', 'hdim7', 'dim7'].includes(chord.quality);
-    let numeral = isMinor ? ROMAN_NUMERALS[chord.degree].toLowerCase() : ROMAN_NUMERALS[chord.degree];
-    if (chord.quality === 'dim') numeral += '°';
-    else if (chord.quality === 'hdim7') numeral += 'ø7';
-    else if (chord.quality === 'dim7') numeral += '°7';
-    else if (chord.quality === 'dom7' || chord.quality === 'min7') numeral += '7';
-    else if (chord.quality === 'maj7') numeral += 'Δ7';
-    return numeral;
+}
+
+// Get tension color from LUT (O(1) lookup, no interpolation)
+function computeTensionColor(tension: number): RGB {
+  const idx = Math.min(TENSION_LUT_SIZE - 1, Math.max(0, Math.floor(tension * (TENSION_LUT_SIZE - 1))));
+  return tensionColorLUT[idx];
+}
+
+// Binary search: find index of last element with time <= target
+function binarySearchTime<T extends { time: number }>(arr: T[], target: number): number {
+  let lo = 0, hi = arr.length - 1, result = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    if (arr[mid].time <= target) {
+      result = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
   }
-  return '';
+  return result;
+}
+
+// Binary search: find index of first element with time >= target
+function binarySearchFirstGE<T extends { time: number }>(arr: T[], target: number): number {
+  let lo = 0, hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (arr[mid].time < target) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+  return lo;
 }
 
 // Build simplified bar chords - one chord per bar, first chord in bar wins
+// Precomputed at song load for O(1) bar chord lookup during playback
 function buildSimplifiedBarChords(duration: number): void {
   if (songBarDuration <= 0 || allChords.length === 0) {
     simplifiedBarChords = [];
@@ -242,24 +286,18 @@ function buildSimplifiedBarChords(duration: number): void {
     const barStart = bar * songBarDuration;
     const barEnd = barStart + songBarDuration;
 
-    // Find first chord that starts in this bar, or the active chord at bar start
+    // Binary search: find first chord that starts >= barStart
+    const firstInBar = binarySearchFirstGE(allChords, barStart);
     let barChord: ChordEvent | null = null;
 
-    // First, try to find a chord that starts within this bar
-    for (const chord of allChords) {
-      if (chord.time >= barStart && chord.time < barEnd) {
-        barChord = chord;
-        break; // first chord in bar
-      }
-    }
-
-    // If no chord starts in this bar, find the chord active at bar start
-    if (!barChord) {
-      for (let i = allChords.length - 1; i >= 0; i--) {
-        if (allChords[i].time <= barStart) {
-          barChord = allChords[i];
-          break;
-        }
+    // Check if this chord is within the bar
+    if (firstInBar < allChords.length && allChords[firstInBar].time < barEnd) {
+      barChord = allChords[firstInBar];
+    } else {
+      // No chord starts in this bar, find the active chord at bar start
+      const activeIdx = binarySearchTime(allChords, barStart);
+      if (activeIdx >= 0) {
+        barChord = allChords[activeIdx];
       }
     }
 
@@ -293,7 +331,7 @@ function computeBarChords(currentTime: number): UpcomingChord[] {
         root: chord.root,
         quality: chord.quality,
         degree: chord.degree,
-        numeral: buildChordNumeral(chord),
+        numeral: chord.numeral,  // precomputed during MIDI analysis
         timeUntil: barTime - currentTime,
       });
     }
@@ -312,31 +350,25 @@ function computeUpcomingChords(currentTime: number): UpcomingChord[] {
   // Calculate current bar number
   const currentBar = Math.floor(currentTime / barDuration);
 
-  // Helper to find chord playing at a given time
+  // Helper to find chord playing at a given time (uses binary search)
   const getChordAtTime = (time: number): UpcomingChord => {
     if (time < 0) {
       return { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 };
     }
 
-    // Find the chord that's active at this time
-    let chord = null;
-    for (let i = allChords.length - 1; i >= 0; i--) {
-      if (allChords[i].time <= time) {
-        chord = allChords[i];
-        break;
-      }
-    }
-
-    if (!chord) {
+    // Binary search for the chord active at this time
+    const idx = binarySearchTime(allChords, time);
+    if (idx < 0) {
       return { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 };
     }
 
+    const chord = allChords[idx];
     return {
       time: time,
       root: chord.root,
       quality: chord.quality,
       degree: chord.degree,
-      numeral: buildChordNumeral(chord),
+      numeral: chord.numeral,  // precomputed during MIDI analysis
       timeUntil: time - currentTime,
     };
   };
@@ -356,11 +388,19 @@ function computeUpcomingNotes(currentTime: number): UpcomingNote[] {
   const windowStart = currentTime - 0.1;  // include notes that just started
   const windowEnd = currentTime + LOOKAHEAD_SECONDS;
 
-  for (const note of allNotes) {
+  // Binary search to find starting point (first note that could overlap)
+  // Notes are sorted by start time, so find first note starting after (windowStart - maxDuration)
+  // Use conservative estimate: start from notes that begin within ~10s before windowStart
+  const searchStart = Math.max(0, binarySearchFirstGE(allNotes, windowStart - 10));
+
+  for (let i = searchStart; i < allNotes.length; i++) {
+    const note = allNotes[i];
+    // Stop when note starts after window (all subsequent notes are later)
+    if (note.time >= windowEnd) break;
     if (note.isDrum) continue;  // skip drum notes
     const noteEnd = note.time + note.duration;
     // Include if note overlaps with window
-    if (note.time < windowEnd && noteEnd > windowStart) {
+    if (noteEnd > windowStart) {
       upcoming.push({
         midi: note.midi,
         pitchClass: note.midi % 12,
@@ -405,9 +445,15 @@ export const musicMapper = {
   setKey(pitchClass: number, mode: 'major' | 'minor') {
     currentKey = pitchClass;
     currentKeyMode = mode;
+    // Initialize chord root to tonic until actual chords play
+    currentChordRoot = pitchClass;
+    currentChordDegree = 1;
+    currentChordQuality = mode === 'minor' ? 'minor' : 'major';
     // Initialize rotation to align this key at 12 o'clock
     keyRotationTarget = -pitchClass * (Math.PI * 2 / 12);
     keyRotationState.value = keyRotationTarget;
+    // Precompute tension color endpoints for this key
+    updateCachedKeyColors(pitchClass);
   },
 
   setKeyRegions(regions: KeyRegion[]) {
@@ -742,6 +788,7 @@ export const musicMapper = {
       upcomingNotes: computeUpcomingNotes(currentTime),
       upcomingChords: computeUpcomingChords(currentTime),
       barChords: computeBarChords(currentTime),
+      tensionColor: computeTensionColor(currentTension),
     };
   },
 
@@ -795,6 +842,7 @@ export const musicMapper = {
       upcomingNotes: [],
       upcomingChords: [],
       barChords: [],
+      tensionColor: computeTensionColor(0),  // idle = no tension
     };
   },
 
@@ -804,6 +852,10 @@ export const musicMapper = {
     keyRotationTarget = -currentKey * (Math.PI * 2 / 12);
     keyRotationState.value = keyRotationTarget;
     frameOnModulation = false;
+    // Reset chord to tonic
+    currentChordRoot = currentKey;
+    currentChordDegree = 1;
+    currentChordQuality = currentKeyMode === 'minor' ? 'minor' : 'major';
     const def = getDefaultAnchor();
     currentCenter = { ...def };
     targetCenter = { ...def };

@@ -103,6 +103,10 @@ export interface MusicParams {
 
   // Simplified per-bar chords for Theory Bar display (first chord of each bar)
   barChords: UpcomingChord[];  // [prev bar, current bar, next bar, next-next bar]
+
+  // Tension color: I→V interpolation based on harmonic tension
+  // Low tension = tonic color (I), high tension = dominant color (V)
+  tensionColor: RGB;
 }
 
 export interface EffectConfig {
