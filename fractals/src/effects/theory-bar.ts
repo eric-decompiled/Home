@@ -334,7 +334,7 @@ export class TheoryBarEffect implements VisualEffect {
     const numeralColor = getCachedEqualizedColor(numeralPitchClass, 0.45);
     ctx.fillStyle = `rgb(${numeralColor[0]}, ${numeralColor[1]}, ${numeralColor[2]})`;
     ctx.fillText(currentNumeral, x, centerY);
-    x += Math.max(ctx.measureText('IV').width, ctx.measureText(currentNumeral).width) + 12 * scale; // reserve space for wider numerals
+    x += ctx.measureText('viio').width + 12 * scale; // fixed width for widest numeral
 
     // Separator
     ctx.font = `${fontNumeral}px "SF Mono", Monaco, Consolas, monospace`;
@@ -466,8 +466,8 @@ export class TheoryBarEffect implements VisualEffect {
       }
     }
 
-    // Draw indicator arrow under current chord (slot 1)
-    const currentSlotX = chordStartX + 1 * (slotWidth + arrowWidth) + slideOffset;
+    // Draw indicator arrow under current chord (slot 1) - fixed position, doesn't slide
+    const currentSlotX = chordStartX + 1 * (slotWidth + arrowWidth);
     const arrowSize = 7 * scale;
     const arrowY = centerY + 18 * scale;
     const arrowCenterX = currentSlotX + slotWidth * 0.35; // Center under chord text
@@ -477,7 +477,7 @@ export class TheoryBarEffect implements VisualEffect {
     ctx.lineTo(arrowCenterX - arrowSize * 0.7, arrowY); // Bottom left
     ctx.lineTo(arrowCenterX + arrowSize * 0.7, arrowY); // Bottom right
     ctx.closePath();
-    ctx.fillStyle = `rgba(${this.grooveColor[0]}, ${this.grooveColor[1]}, ${this.grooveColor[2]}, 0.6)`;
+    ctx.fillStyle = '#666';
     ctx.fill();
 
     x = chordStartX + totalChordWidth + 16 * scale;

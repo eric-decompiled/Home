@@ -126,27 +126,27 @@ const layerSlots: LayerSlot[] = [
   {
     name: 'Background',
     effects: [domainWarpEffect, waveEffect, chladniEffect, flowFieldEffect],
-    activeId: 'domainwarp',  // Fractal Dance default
+    activeId: 'flowfield',  // Cosmic Spiral default
   },
   {
     name: 'Foreground',
     effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect],
-    activeId: 'fractal',  // Fractal Dance default
+    activeId: 'note-spiral',  // Cosmic Spiral default
   },
   {
     name: 'Overlay',
     effects: [kaleidoscopeEffect, theoryBarEffect],
-    activeId: 'theory-bar',  // Fractal Dance default
+    activeId: null,  // Cosmic Spiral default
   },
   {
     name: 'Melody',
     effects: [melodyAuroraEffect, melodyWebEffect, melodyClockEffect],
-    activeId: null,  // Fractal Dance default
+    activeId: null,  // Cosmic Spiral default
   },
   {
     name: 'Bass',
     effects: [bassWebEffect, bassClockEffect],
-    activeId: null,  // Fractal Dance default
+    activeId: 'bass-clock',  // Cosmic Spiral default
   },
 ];
 
@@ -500,9 +500,7 @@ canvas.addEventListener('mouseleave', () => {
 
 // --- Animations panel toggle ---
 
-let layerPanelOpen = true;  // Open by default for Fractal Dance
-layerPanel.classList.add('open');
-layersToggle.classList.add('active');
+let layerPanelOpen = false;  // Closed by default
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
