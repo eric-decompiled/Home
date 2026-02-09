@@ -102,7 +102,8 @@
       "Bash(unzip:*)",
       "WebFetch(domain:www.hooktheory.com)",
       "Bash(python3:*)",
-      "Bash(pip3 install:*)"
+      "Bash(pip3 install:*)",
+      "Bash(sips:*)"
     ]
   }
 }
