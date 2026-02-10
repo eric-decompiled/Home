@@ -103,7 +103,13 @@
       "WebFetch(domain:www.hooktheory.com)",
       "Bash(python3:*)",
       "Bash(pip3 install:*)",
-      "Bash(sips:*)"
+      "Bash(sips:*)",
+      "Bash(for f in pachelbel-canon.mid bach-toccata-fugue.mid bach-prelude-c.mid vivaldi-spring.mid hallelujah.mid mozart-eine-kleine.mid mozart-lacrimosa.mid beethoven-fur-elise.mid beethoven-ode-to-joy.mid chopin-nocturne.mid grieg-mountain-king.mid clair-de-lune.mid tchaikovsky-sugar-plum.mid)",
+      "Bash(if [ -f \"/Users/eric/dsp/fractals/public/midi/$f\" ])",
+      "Bash(then)",
+      "Bash(else)",
+      "Bash(fi)",
+      "Bash(for f in queen-bohemian-rhapsody.mid bee-gees-stayin-alive.mid abba-dancing-queen.mid mj-billie-jean.mid toto-africa.mid europe-final-countdown.mid bon-jovi-livin-prayer.mid gnr-sweet-child.mid rick-astley-never-gonna.mid survivor-eye-of-tiger.mid journey-dont-stop.mid)"
     ]
   }
 }

@@ -74,6 +74,16 @@ body {
   border-color: #16c79a;
 }
 
+.playlist-category-wrap {
+  display: flex;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+.playlist-btn {
+  font-size: 12px;
+  padding: 4px 10px;
+}
 
 .toggle-btn {
   padding: 5px 10px;

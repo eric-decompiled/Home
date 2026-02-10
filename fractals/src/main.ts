@@ -52,9 +52,27 @@ interface SongEntry {
   file: string;
 }
 
-const songs: SongEntry[] = [
-  // Chronological order
-  { name: 'Prelude in C Major (Bach)', file: 'bach-prelude-c.mid' },                     // 1722
+// --- Playlist Categories ---
+
+type PlaylistCategory = 'classical' | 'pop' | 'video';
+
+const popSongs: SongEntry[] = [
+  // Ultimate pop/rock anthems everyone knows (chronological)
+  { name: 'Bohemian Rhapsody (Queen)', file: 'queen-bohemian-rhapsody.mid' },             // 1975
+  { name: 'Dancing Queen (ABBA)', file: 'abba-dancing-queen.mid' },                       // 1976
+  { name: 'Stayin\' Alive (Bee Gees)', file: 'bee-gees-stayin-alive.mid' },               // 1977
+  { name: 'Don\'t Stop Believin\' (Journey)', file: 'journey-dont-stop.mid' },            // 1981
+  { name: 'Eye of the Tiger (Survivor)', file: 'survivor-eye-of-tiger.mid' },             // 1982
+  { name: 'Billie Jean (Michael Jackson)', file: 'mj-billie-jean.mid' },                  // 1982
+  { name: 'Africa (Toto)', file: 'toto-africa.mid' },                                     // 1982
+  { name: 'The Final Countdown (Europe)', file: 'europe-final-countdown.mid' },           // 1986
+  { name: 'Livin\' on a Prayer (Bon Jovi)', file: 'bon-jovi-livin-prayer.mid' },          // 1986
+  { name: 'Never Gonna Give You Up (Rick Astley)', file: 'rick-astley-never-gonna.mid' }, // 1987
+  { name: 'Sweet Child O\' Mine (Guns N\' Roses)', file: 'gnr-sweet-child.mid' },         // 1987
+];
+
+const videoSongs: SongEntry[] = [
+  // Chronological video game music journey (1991-2001)
   { name: 'Dark World (Zelda: ALTTP)', file: 'zelda-alttp-dark-world.mid' },             // 1991
   { name: "Terra's Theme (Final Fantasy VI)", file: 'ff6-terras-theme.mid' },            // 1994
   { name: "Schala's Theme (Chrono Trigger)", file: 'schala.mid' },                       // 1995
@@ -68,6 +86,33 @@ const songs: SongEntry[] = [
   { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // 2001
   { name: "Aerith's Theme (Final Fantasy VII)", file: 'aeris-theme.mid' },               // ♡
 ];
+
+const classicalSongs: SongEntry[] = [
+  // Baroque (1600-1750)
+  { name: 'Canon in D (Pachelbel)', file: 'pachelbel-canon.mid' },                       // ~1680, D major
+  { name: 'Toccata & Fugue (Bach)', file: 'bach-toccata-fugue.mid' },                    // ~1708, D minor
+  { name: 'Prelude in C Major (Bach)', file: 'bach-prelude-c.mid' },                     // 1722, C major
+  { name: 'Spring - Four Seasons (Vivaldi)', file: 'vivaldi-spring.mid' },               // 1725, E major
+  // Classical (1750-1820)
+  { name: 'Eine Kleine Nachtmusik (Mozart)', file: 'mozart-eine-kleine.mid' },           // 1787, G major
+  { name: 'Lacrimosa - Requiem (Mozart)', file: 'mozart-lacrimosa.mid' },                // 1791, D minor
+  { name: 'Für Elise (Beethoven)', file: 'beethoven-fur-elise.mid' },                    // 1810, A minor
+  { name: 'Ode to Joy (Beethoven)', file: 'beethoven-ode-to-joy.mid' },                  // 1824, D major
+  // Romantic (1820-1900)
+  { name: 'Nocturne Op.9 No.2 (Chopin)', file: 'chopin-nocturne.mid' },                  // 1832, Eb major
+  { name: 'Hall of Mountain King (Grieg)', file: 'grieg-mountain-king.mid' },            // 1875, B minor
+  { name: 'Dance of Sugar Plum Fairy (Tchaikovsky)', file: 'tchaikovsky-sugar-plum.mid' }, // 1892, E minor
+  // Impressionist (1890-1930)
+  { name: 'Clair de Lune (Debussy)', file: 'clair-de-lune.mid' },                        // 1890, Db major
+];
+
+const playlists: Record<PlaylistCategory, SongEntry[]> = {
+  classical: classicalSongs,
+  pop: popSongs,
+  video: videoSongs,
+};
+
+let currentPlaylist: PlaylistCategory = 'classical';
 
 // --- State ---
 
@@ -215,10 +260,15 @@ app.innerHTML = `
     <header class="top-bar">
       <div class="top-row">
         <h1>Fractured Jukebox</h1>
+        <div class="playlist-category-wrap">
+          <button class="toggle-btn playlist-btn active" id="playlist-classical" title="Classical masters">Classical</button>
+          <button class="toggle-btn playlist-btn" id="playlist-pop" title="Pop & rock anthems">Classics</button>
+          <button class="toggle-btn playlist-btn" id="playlist-video" title="Video game & anime music">Video</button>
+        </div>
         <div class="song-picker-wrap">
           <select id="song-picker">
             <option value="">-- Select a Song --</option>
-            ${songs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
+            ${classicalSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
           </select>
         </div>
         <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -344,9 +394,38 @@ const layerPanel = document.getElementById('layer-panel')!;
 const layerList = document.getElementById('layer-list')!;
 const fullscreenBtn = document.getElementById('fullscreen-btn') as HTMLButtonElement;
 const debugOverlay = document.getElementById('debug-overlay') as HTMLElement;
+const playlistClassicalBtn = document.getElementById('playlist-classical') as HTMLButtonElement;
+const playlistPopBtn = document.getElementById('playlist-pop') as HTMLButtonElement;
+const playlistVideoBtn = document.getElementById('playlist-video') as HTMLButtonElement;
 
 // Debug overlay visibility state
 let debugOverlayVisible = false;
+
+// --- Playlist category switching ---
+
+async function switchPlaylist(category: PlaylistCategory): Promise<void> {
+  if (currentPlaylist === category) return;
+  currentPlaylist = category;
+
+  // Update button states
+  playlistClassicalBtn.classList.toggle('active', category === 'classical');
+  playlistPopBtn.classList.toggle('active', category === 'pop');
+  playlistVideoBtn.classList.toggle('active', category === 'video');
+
+  // Rebuild song picker options
+  const currentSongs = playlists[category];
+  songPicker.innerHTML = '<option value="">-- Select a Song --</option>' +
+    currentSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
+
+  // Load and auto-play first song of new playlist
+  songPicker.value = '0';
+  await loadSong(0);
+  if (!isPlaying) playBtn.click();
+}
+
+function getCurrentSongs(): SongEntry[] {
+  return playlists[currentPlaylist];
+}
 
 // --- Update URL to reflect current settings (using state module) ---
 
@@ -1225,7 +1304,7 @@ function formatTime(seconds: number): string {
 // --- Song loading ---
 
 async function loadSong(index: number) {
-  const song = songs[index];
+  const song = getCurrentSongs()[index];
   audioPlayer.stop();
   isPlaying = false;
   playBtn.textContent = '\u25B6';
@@ -1357,6 +1436,11 @@ async function loadMidiFile(file: File) {
 
 // --- Event listeners ---
 
+// Playlist category buttons
+playlistClassicalBtn.addEventListener('click', () => switchPlaylist('classical'));
+playlistPopBtn.addEventListener('click', () => switchPlaylist('pop'));
+playlistVideoBtn.addEventListener('click', () => switchPlaylist('video'));
+
 songPicker.addEventListener('change', async () => {
   if (songPicker.value === 'custom') return; // Already loaded
   const idx = parseInt(songPicker.value);
@@ -1370,7 +1454,8 @@ songPicker.addEventListener('change', async () => {
 prevBtn.addEventListener('click', async () => {
   const currentIdx = parseInt(songPicker.value);
   if (isNaN(currentIdx) || songPicker.value === 'custom') return;
-  const prevIdx = (currentIdx - 1 + songs.length) % songs.length;
+  const currentSongs = getCurrentSongs();
+  const prevIdx = (currentIdx - 1 + currentSongs.length) % currentSongs.length;
   songPicker.value = String(prevIdx);
   await loadSong(prevIdx);
   if (!isPlaying) playBtn.click();
@@ -1379,7 +1464,8 @@ prevBtn.addEventListener('click', async () => {
 nextBtn.addEventListener('click', async () => {
   const currentIdx = parseInt(songPicker.value);
   if (isNaN(currentIdx) || songPicker.value === 'custom') return;
-  const nextIdx = (currentIdx + 1) % songs.length;
+  const currentSongs = getCurrentSongs();
+  const nextIdx = (currentIdx + 1) % currentSongs.length;
   songPicker.value = String(nextIdx);
   await loadSong(nextIdx);
   if (!isPlaying) playBtn.click();
@@ -1637,7 +1723,8 @@ function loop(time: number): void {
     if (currentTime > 0.5 && (audioPlayer.isFinished() || currentTime >= timeline.duration)) {
       // Auto-play next song
       const currentIdx = parseInt(songPicker.value);
-      if (!isNaN(currentIdx) && currentIdx < songs.length - 1) {
+      const currentSongs = getCurrentSongs();
+      if (!isNaN(currentIdx) && currentIdx < currentSongs.length - 1) {
         const nextIdx = currentIdx + 1;
         songPicker.value = String(nextIdx);
         loadSong(nextIdx).then(() => {
@@ -1718,7 +1805,6 @@ function loop(time: number): void {
 
 requestAnimationFrame(loop);
 
-// Auto-load default song (Dark World - first chronologically)
-const defaultSongIdx = songs.findIndex(s => s.file === 'bach-prelude-c.mid');
-songPicker.value = String(defaultSongIdx >= 0 ? defaultSongIdx : 0);
-loadSong(defaultSongIdx >= 0 ? defaultSongIdx : 0);
+// Auto-load default song (first in current playlist)
+songPicker.value = '0';
+loadSong(0);
