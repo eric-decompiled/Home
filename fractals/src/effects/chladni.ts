@@ -9,6 +9,7 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
+import { gsap } from '../animation.ts';
 
 const SIM_W = 512;
 const SIM_H = 384;
@@ -133,14 +134,13 @@ export class ChladniEffect implements VisualEffect {
   // Animated state
   private currentM = 1;
   private currentN = 2;
-  private targetM = 1;
-  private targetN = 2;
   private currentSign = 1;
   private time = 0;
   private amplitude = 1.0;
   private rotation = 0;
   private rotationVelocity = 0;
   private lineWidth = 0.08;
+  private lastChordDegree = -1;
 
   // Colors
   private color1: [number, number, number] = [0.0, 0.15, 0.3];
@@ -210,14 +210,30 @@ export class ChladniEffect implements VisualEffect {
 
     // Degree → anchor
     const anchor = DEGREE_ANCHORS[music.chordDegree] ?? DEGREE_ANCHORS[0];
-    this.targetM = anchor.m;
-    this.targetN = anchor.n;
-    this.currentSign = anchor.sign;
 
-    // Smooth snap to target mode numbers
-    const snap = 1 - Math.exp(-4.0 * dt);
-    this.currentM += (this.targetM - this.currentM) * snap;
-    this.currentN += (this.targetN - this.currentN) * snap;
+    // Detect chord changes and tween smoothly
+    if (music.chordDegree !== this.lastChordDegree && music.chordDegree >= 0) {
+      this.lastChordDegree = music.chordDegree;
+
+      const beatDur = music.beatDuration || 0.5;
+      const tweenDur = beatDur * 1.5;
+
+      // Tween mode numbers with musical timing
+      gsap.to(this, {
+        currentM: anchor.m,
+        currentN: anchor.n,
+        duration: tweenDur,
+        ease: 'power2.inOut',
+        overwrite: true,
+      });
+
+      // Tween sign separately (as float for smooth crossfade)
+      gsap.to(this, {
+        currentSign: anchor.sign,
+        duration: tweenDur * 0.5,
+        ease: 'power2.inOut',
+      });
+    }
 
     // === GROOVE CURVES ===
     const beatAnticipation = music.beatAnticipation ?? 0;

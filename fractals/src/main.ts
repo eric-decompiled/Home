@@ -267,7 +267,6 @@ app.innerHTML = `
         </div>
         <div class="song-picker-wrap">
           <select id="song-picker">
-            <option value="">-- Select a Song --</option>
             ${classicalSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
           </select>
         </div>
@@ -403,7 +402,7 @@ let debugOverlayVisible = false;
 
 // --- Playlist category switching ---
 
-async function switchPlaylist(category: PlaylistCategory): Promise<void> {
+function switchPlaylist(category: PlaylistCategory): void {
   if (currentPlaylist === category) return;
   currentPlaylist = category;
 
@@ -412,15 +411,10 @@ async function switchPlaylist(category: PlaylistCategory): Promise<void> {
   playlistPopBtn.classList.toggle('active', category === 'pop');
   playlistVideoBtn.classList.toggle('active', category === 'video');
 
-  // Rebuild song picker options
+  // Rebuild song picker options (keep current song playing)
   const currentSongs = playlists[category];
-  songPicker.innerHTML = '<option value="">-- Select a Song --</option>' +
-    currentSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
-
-  // Load and auto-play first song of new playlist
+  songPicker.innerHTML = currentSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
   songPicker.value = '0';
-  await loadSong(0);
-  if (!isPlaying) playBtn.click();
 }
 
 function getCurrentSongs(): SongEntry[] {

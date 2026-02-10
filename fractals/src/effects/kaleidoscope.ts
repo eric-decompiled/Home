@@ -2,6 +2,7 @@
 // Post-process: mirrors and rotates the composited layers below into symmetric patterns.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
+import { gsap } from '../animation.ts';
 
 export class KaleidoscopeEffect implements VisualEffect {
   readonly id = 'kaleidoscope';
@@ -25,6 +26,7 @@ export class KaleidoscopeEffect implements VisualEffect {
   private rotationSpeed = 0.2;
   private centerOffsetX = 0;
   private centerOffsetY = 0;
+  private lastChordDegree = -1;
 
   // Reference to compositor's composite canvas (set externally)
   private sourceCanvas: HTMLCanvasElement | null = null;
@@ -64,9 +66,18 @@ export class KaleidoscopeEffect implements VisualEffect {
     const beatArrival = music.beatArrival ?? 0;
     const barArrival = music.barArrival ?? 0;
 
-    // Chord degree → fold count (mapped to 3-12)
-    const targetFolds = 3 + (music.chordDegree % 5) * 2; // 3,5,7,9,11
-    this.foldCount = targetFolds;
+    // Chord degree → fold count (mapped to 3-12), tweened smoothly
+    if (music.chordDegree !== this.lastChordDegree && music.chordDegree >= 0) {
+      this.lastChordDegree = music.chordDegree;
+      const targetFolds = 3 + (music.chordDegree % 5) * 2; // 3,5,7,9,11
+      const beatDur = music.beatDuration || 0.5;
+      gsap.to(this, {
+        foldCount: targetFolds,
+        duration: beatDur,
+        ease: 'power2.inOut',
+        overwrite: true,
+      });
+    }
 
     // === ROTATION: groove-driven breathing + impulses ===
     // Continuous groove modulation: rotation "breathes" with the beat
