@@ -392,9 +392,12 @@ export class BassClockEffect implements VisualEffect {
       const tickAlpha = isCurrent ? 0.7 + this.handBrightness * 0.3
         : inKey ? 0.25 : 0.1;
 
-      // Position using shared spiralPos - same radius as trail (r)
-      const pos = spiralPos(113, i, this.key, this.keyRotation, cx, cy, spiralMaxR );
-      const { x: tx, y: ty, angle: tickAngle } = pos;
+      // Get position from spiralPos, then calculate angle to that point for numeral placement
+      // This makes numerals point toward where notes actually are, but at a fixed radius (true circle)
+      const pos = spiralPos(113, i, this.key, this.keyRotation, cx, cy, spiralMaxR);
+      const tickAngle = Math.atan2(pos.y - cy, pos.x - cx);  // Angle from center to note position
+      const tx = cx + Math.cos(tickAngle) * r;
+      const ty = cy + Math.sin(tickAngle) * r;
 
       const numeral = degreeMap[semitones];
       // Get chromatic numeral if applicable

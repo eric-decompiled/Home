@@ -54,7 +54,7 @@ interface SongEntry {
 
 // --- Playlist Categories ---
 
-type PlaylistCategory = 'classical' | 'pop' | 'video';
+type PlaylistCategory = 'classical' | 'bossa' | 'pop' | 'video';
 
 const popSongs: SongEntry[] = [
   // Ultimate pop/rock anthems everyone knows (chronological)
@@ -87,6 +87,22 @@ const videoSongs: SongEntry[] = [
   { name: "Aerith's Theme (Final Fantasy VII)", file: 'aeris-theme.mid' },               // ♡
 ];
 
+const bossaSongs: SongEntry[] = [
+  // Classic Bossa Nova & Brazilian Jazz (chronological)
+  { name: 'Tico Tico (Zequinha Abreu)', file: 'abreu-tico-tico.mid' },                   // 1917
+  { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid' },               // 1959
+  { name: 'Corcovado (Jobim)', file: 'jobim-corcovado.mid' },                            // 1960
+  { name: 'Este Seu Olhar (Jobim)', file: 'jobim-este-seu-olhar.mid' },                  // 1960
+  { name: 'Meditation (Jobim)', file: 'jobim-meditation.mid' },                          // 1960
+  { name: 'How Insensitive (Jobim)', file: 'jobim-how-insensitive.mid' },                // 1961
+  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },        // 1962
+  { name: 'Blue Bossa (Kenny Dorham)', file: 'dorham-blue-bossa.mid' },                  // 1963, Cm
+  { name: 'Mas Que Nada (Jorge Ben)', file: 'jorge-ben-mas-que-nada.mid' },              // 1963
+  { name: 'So Nice / Summer Samba (Valle)', file: 'valle-so-nice.mid' },                 // 1965
+  { name: 'Gabriela Theme (Jobim)', file: 'jobim-gabriela.mid' },                        // 1975
+  { name: 'New Wave Bossa Nova (Zelda MM)', file: 'zelda-new-wave-bossa.mid' },          // 2000
+];
+
 const classicalSongs: SongEntry[] = [
   // Baroque (1600-1750)
   { name: 'Canon in D (Pachelbel)', file: 'pachelbel-canon.mid' },                       // ~1680, D major
@@ -108,11 +124,12 @@ const classicalSongs: SongEntry[] = [
 
 const playlists: Record<PlaylistCategory, SongEntry[]> = {
   classical: classicalSongs,
+  bossa: bossaSongs,
   pop: popSongs,
   video: videoSongs,
 };
 
-let currentPlaylist: PlaylistCategory = 'classical';
+let currentPlaylist: PlaylistCategory = 'bossa';
 
 // --- State ---
 
@@ -261,13 +278,14 @@ app.innerHTML = `
       <div class="top-row">
         <h1>Fractured Jukebox</h1>
         <div class="playlist-category-wrap">
-          <button class="toggle-btn playlist-btn active" id="playlist-classical" title="Classical masters">Classical</button>
+          <button class="toggle-btn playlist-btn active" id="playlist-bossa" title="Bossa nova & Brazilian jazz">Bossa</button>
+          <button class="toggle-btn playlist-btn" id="playlist-classical" title="Classical masters">Classical</button>
           <button class="toggle-btn playlist-btn" id="playlist-pop" title="Pop & rock anthems">Classics</button>
-          <button class="toggle-btn playlist-btn" id="playlist-video" title="Video game & anime music">Video</button>
+          <button class="toggle-btn playlist-btn" id="playlist-video" title="Video game & anime music">Games</button>
         </div>
         <div class="song-picker-wrap">
           <select id="song-picker">
-            ${classicalSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
+            ${bossaSongs.map((s, i) => `<option value="${i}"${i === 6 ? ' selected' : ''}>${s.name}</option>`).join('')}
           </select>
         </div>
         <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -394,6 +412,7 @@ const layerList = document.getElementById('layer-list')!;
 const fullscreenBtn = document.getElementById('fullscreen-btn') as HTMLButtonElement;
 const debugOverlay = document.getElementById('debug-overlay') as HTMLElement;
 const playlistClassicalBtn = document.getElementById('playlist-classical') as HTMLButtonElement;
+const playlistBossaBtn = document.getElementById('playlist-bossa') as HTMLButtonElement;
 const playlistPopBtn = document.getElementById('playlist-pop') as HTMLButtonElement;
 const playlistVideoBtn = document.getElementById('playlist-video') as HTMLButtonElement;
 
@@ -408,6 +427,7 @@ function switchPlaylist(category: PlaylistCategory): void {
 
   // Update button states
   playlistClassicalBtn.classList.toggle('active', category === 'classical');
+  playlistBossaBtn.classList.toggle('active', category === 'bossa');
   playlistPopBtn.classList.toggle('active', category === 'pop');
   playlistVideoBtn.classList.toggle('active', category === 'video');
 
@@ -1432,6 +1452,7 @@ async function loadMidiFile(file: File) {
 
 // Playlist category buttons
 playlistClassicalBtn.addEventListener('click', () => switchPlaylist('classical'));
+playlistBossaBtn.addEventListener('click', () => switchPlaylist('bossa'));
 playlistPopBtn.addEventListener('click', () => switchPlaylist('pop'));
 playlistVideoBtn.addEventListener('click', () => switchPlaylist('video'));
 
@@ -1446,6 +1467,16 @@ songPicker.addEventListener('change', async () => {
 
 // Previous/Next track buttons
 prevBtn.addEventListener('click', async () => {
+  // If past 3 seconds, rewind to start instead of going to previous track
+  const currentTime = audioPlayer.getCurrentTime();
+  if (currentTime > 3) {
+    audioPlayer.seek(0);
+    musicMapper.reset();
+    seekBar.value = '0';
+    updateTimeDisplay(0);
+    return;
+  }
+
   const currentIdx = parseInt(songPicker.value);
   if (isNaN(currentIdx) || songPicker.value === 'custom') return;
   const currentSongs = getCurrentSongs();

@@ -64,8 +64,8 @@ void main() {
   float f2 = sin(m2 * PI * x) * sin(n2 * PI * y)
            + u_sign * sin(n2 * PI * x) * sin(m2 * PI * y);
 
-  // Blend primary and secondary
-  float f = f1 + f2 * 0.3 * sin(u_time * 0.5);
+  // Blend primary and secondary (slow breathing)
+  float f = f1 + f2 * 0.25 * sin(u_time * 0.2);
 
   // Nodal line detection — narrow band around zero
   float lineVal = 1.0 - smoothstep(0.0, u_lineWidth, abs(f));
@@ -85,7 +85,7 @@ void main() {
   col *= plateMask;
 
   // Vibration glow — subtle pulsing brightness on lines
-  float glow = lineVal * (0.7 + 0.3 * sin(u_time * 4.0)) * u_amplitude;
+  float glow = lineVal * (0.8 + 0.2 * sin(u_time * 1.5)) * u_amplitude;
   col += u_color3 * glow * 0.2;
 
   // Alpha based on brightness — lines opaque, dark areas translucent
@@ -240,21 +240,21 @@ export class ChladniEffect implements VisualEffect {
     const beatArrival = music.beatArrival ?? 0;
     const barArrival = music.barArrival ?? 0;
 
-    // Beat → amplitude pulse - arrival creates impact
-    if (music.kick) this.amplitude = 1.5;
-    if (music.snare) this.amplitude = 1.3;
+    // Beat → amplitude pulse - gentle breathing with the music
+    if (music.kick) this.amplitude = Math.max(this.amplitude, 1.25);
+    if (music.snare) this.amplitude = Math.max(this.amplitude, 1.15);
     // Arrival adds to amplitude
-    this.amplitude = Math.max(this.amplitude, 1.0 + beatArrival * 0.4 + barArrival * 0.5);
+    this.amplitude = Math.max(this.amplitude, 1.0 + beatArrival * 0.2 + barArrival * 0.25);
     // Anticipation creates subtle buildup
-    this.amplitude += beatAnticipation * 0.1;
-    this.amplitude += (1.0 - this.amplitude) * (1 - Math.exp(-3.0 * dt));
+    this.amplitude += beatAnticipation * 0.05;
+    this.amplitude += (1.0 - this.amplitude) * (1 - Math.exp(-2.0 * dt));  // Slower decay
 
-    // Rotation from beats - groove curves add subtle motion
-    if (music.kick) this.rotationVelocity += 0.15;
-    if (music.snare) this.rotationVelocity -= 0.12;
+    // Rotation from beats - gentle, musical motion
+    if (music.kick) this.rotationVelocity += 0.04;
+    if (music.snare) this.rotationVelocity -= 0.03;
     // Arrival adds rotation impulse
-    this.rotationVelocity += beatArrival * 0.08 - barArrival * 0.05;
-    this.rotationVelocity *= Math.exp(-1.5 * dt);
+    this.rotationVelocity += beatArrival * 0.025 - barArrival * 0.015;
+    this.rotationVelocity *= Math.exp(-2.5 * dt);  // Faster damping
     this.rotation += this.rotationVelocity * dt;
 
     // Tension → line width (higher tension = finer lines = more detail)

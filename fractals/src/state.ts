@@ -186,7 +186,7 @@ export const PRESET_LAYERS: Record<string, (string | null)[]> = {
   spiral: ['starfield', 'note-spiral', 'theory-bar', null, 'bass-clock'],
   warp: ['chladni', 'note-spiral', 'kaleidoscope', null, 'bass-clock'],
   fractal: ['flowfield', 'fractal', 'theory-bar', null, null],
-  piano: ['flowfield', 'piano-roll', 'theory-bar', null, null],
+  piano: ['flowfield', 'piano-roll', null, null, null],
 };
 
 // Preset-specific effect configs (applied when preset is selected)
