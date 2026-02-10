@@ -34,6 +34,7 @@ export class TheoryBarEffect implements VisualEffect {
   readonly id = 'theory-bar';
   readonly name = 'Theory Bar';
   readonly isPostProcess = false;
+  readonly isHUD = true;  // Render after post-process (not transformed by kaleidoscope)
   readonly defaultBlend: BlendMode = 'source-over';
   readonly defaultOpacity = 1.0;
 

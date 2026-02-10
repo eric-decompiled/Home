@@ -30,7 +30,7 @@ import {
   applyState,
   getPresetState,
   urlToState,
-  updateBrowserURL as updateURL,
+  stateToURL,
   getCustomPresets,
   saveCustomPreset,
   deleteCustomPreset,
@@ -57,69 +57,66 @@ interface SongEntry {
 type PlaylistCategory = 'classical' | 'bossa' | 'pop' | 'video';
 
 const popSongs: SongEntry[] = [
-  // Ultimate pop/rock anthems everyone knows (chronological)
-  { name: 'Bohemian Rhapsody (Queen)', file: 'queen-bohemian-rhapsody.mid' },             // 1975
-  { name: 'Dancing Queen (ABBA)', file: 'abba-dancing-queen.mid' },                       // 1976
-  { name: 'Stayin\' Alive (Bee Gees)', file: 'bee-gees-stayin-alive.mid' },               // 1977
-  { name: 'Don\'t Stop Believin\' (Journey)', file: 'journey-dont-stop.mid' },            // 1981
-  { name: 'Eye of the Tiger (Survivor)', file: 'survivor-eye-of-tiger.mid' },             // 1982
-  { name: 'Billie Jean (Michael Jackson)', file: 'mj-billie-jean.mid' },                  // 1982
-  { name: 'Africa (Toto)', file: 'toto-africa.mid' },                                     // 1982
-  { name: 'The Final Countdown (Europe)', file: 'europe-final-countdown.mid' },           // 1986
-  { name: 'Livin\' on a Prayer (Bon Jovi)', file: 'bon-jovi-livin-prayer.mid' },          // 1986
-  { name: 'Never Gonna Give You Up (Rick Astley)', file: 'rick-astley-never-gonna.mid' }, // 1987
-  { name: 'Sweet Child O\' Mine (Guns N\' Roses)', file: 'gnr-sweet-child.mid' },         // 1987
+  // Pop & rock anthems (energy arc: groove → build → peak → epic finale)
+  { name: 'Africa (Toto)', file: 'toto-africa.mid' },                                     // iconic opener
+  { name: 'Billie Jean (Michael Jackson)', file: 'mj-billie-jean.mid' },                  // groove foundation
+  { name: 'Don\'t Stop Believin\' (Journey)', file: 'journey-dont-stop.mid' },            // building anthem
+  { name: 'Never Gonna Give You Up (Rick Astley)', file: 'rick-astley-never-gonna.mid' }, // fun energy
+  { name: 'Dancing Queen (ABBA)', file: 'abba-dancing-queen.mid' },                       // disco high
+  { name: 'Stayin\' Alive (Bee Gees)', file: 'bee-gees-stayin-alive.mid' },               // disco high
+  { name: 'Eye of the Tiger (Survivor)', file: 'survivor-eye-of-tiger.mid' },             // pump up
+  { name: 'The Final Countdown (Europe)', file: 'europe-final-countdown.mid' },           // dramatic
+  { name: 'Livin\' on a Prayer (Bon Jovi)', file: 'bon-jovi-livin-prayer.mid' },          // PEAK anthem
+  { name: 'Sweet Child O\' Mine (Guns N\' Roses)', file: 'gnr-sweet-child.mid' },         // rock sustain
+  { name: 'Bohemian Rhapsody (Queen)', file: 'queen-bohemian-rhapsody.mid' },             // epic finale ♡
 ];
 
 const videoSongs: SongEntry[] = [
-  // Chronological video game music journey (1991-2001)
-  { name: 'Dark World (Zelda: ALTTP)', file: 'zelda-alttp-dark-world.mid' },             // 1991
-  { name: "Terra's Theme (Final Fantasy VI)", file: 'ff6-terras-theme.mid' },            // 1994
-  { name: "Schala's Theme (Chrono Trigger)", file: 'schala.mid' },                       // 1995
-  { name: "Into the Wilderness (Wild Arms)", file: 'wa1-opening.mid' },                  // 1996
-  { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },                       // Jan 1997
-  { name: "Hero's Theme (Final Fantasy Tactics)", file: 'fft-heros-theme.mid' },         // Jun 1997
-  { name: 'Tank! (Cowboy Bebop)', file: 'cowboy-bebop-tank.mid' },                       // 1998
-  { name: 'Drowning Valley (Chrono Cross)', file: 'cc-drowning_valley.mid' },            // 1999
-  { name: "Fisherman's Horizon (Final Fantasy VIII)", file: 'ff8-fishermans-horizon.mid' }, // 1999
-  { name: 'Battle Theme (Golden Sun)', file: 'golden-sun-battle.mid' },                  // 2001
-  { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // 2001
-  { name: "Aerith's Theme (Final Fantasy VII)", file: 'aeris-theme.mid' },               // ♡
+  // Video game classics (energy arc: setup → build → peak at 2/3 → release)
+  { name: 'Dearly Beloved (Kingdom Hearts)', file: 'kh-dearly-beloved.mid' },            // gentle opening
+  { name: 'Great Fairy Fountain (Zelda: OoT)', file: 'zelda-great-fairy-fountain.mid' }, // ethereal
+  { name: 'Corridors of Time (Chrono Trigger)', file: 'corridors-of-time.mid' },         // dreamy
+  { name: 'Pollyanna (Earthbound)', file: 'earthbound-pollyanna.mid' },                  // heartfelt
+  { name: 'Song of Storms (Zelda: OoT)', file: 'zelda-song-of-storms.mid' },             // mysterious energy
+  { name: 'Ground Theme (Super Mario Bros)', file: 'mario-ground-theme.mid' },           // iconic, building
+  { name: 'Green Hill Zone (Sonic)', file: 'green-hill-zone.mid' },                      // energy rising
+  { name: 'Gerudo Valley (Zelda: OoT)', file: 'zelda-gerudo-valley.mid' },               // high energy
+  { name: 'One-Winged Angel (Final Fantasy VII)', file: 'ff7-one-winged-angel.mid' },    // PEAK
+  { name: 'Mute City (F-Zero)', file: 'fzero-mute-city.mid' },                           // racing sustain
+  { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // emotional cooldown
+  { name: 'Aquatic Ambiance (Donkey Kong Country)', file: 'dkc-aquatic-ambiance.mid' },  // serene ending ♡
 ];
 
 const bossaSongs: SongEntry[] = [
-  // Classic Bossa Nova & Brazilian Jazz (chronological)
-  { name: 'Tico Tico (Zequinha Abreu)', file: 'abreu-tico-tico.mid' },                   // 1917
-  { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid' },               // 1959
-  { name: 'Corcovado (Jobim)', file: 'jobim-corcovado.mid' },                            // 1960
-  { name: 'Este Seu Olhar (Jobim)', file: 'jobim-este-seu-olhar.mid' },                  // 1960
-  { name: 'Meditation (Jobim)', file: 'jobim-meditation.mid' },                          // 1960
-  { name: 'How Insensitive (Jobim)', file: 'jobim-how-insensitive.mid' },                // 1961
-  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },        // 1962
-  { name: 'Blue Bossa (Kenny Dorham)', file: 'dorham-blue-bossa.mid' },                  // 1963, Cm
-  { name: 'Mas Que Nada (Jorge Ben)', file: 'jorge-ben-mas-que-nada.mid' },              // 1963
-  { name: 'So Nice / Summer Samba (Valle)', file: 'valle-so-nice.mid' },                 // 1965
-  { name: 'Gabriela Theme (Jobim)', file: 'jobim-gabriela.mid' },                        // 1975
-  { name: 'New Wave Bossa Nova (Zelda MM)', file: 'zelda-new-wave-bossa.mid' },          // 2000
+  // Bossa Nova & Brazilian Jazz (energy arc: intimate → build → peak → playful end)
+  { name: 'Corcovado (Jobim)', file: 'jobim-corcovado.mid' },                            // intimate opening
+  { name: 'Meditation (Jobim)', file: 'jobim-meditation.mid' },                          // gentle
+  { name: 'How Insensitive (Jobim)', file: 'jobim-how-insensitive.mid' },                // melancholic
+  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },        // iconic, breezy
+  { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid' },               // beautiful lift
+  { name: 'Este Seu Olhar (Jobim)', file: 'jobim-este-seu-olhar.mid' },                  // romantic
+  { name: 'Gabriela Theme (Jobim)', file: 'jobim-gabriela.mid' },                        // cinematic
+  { name: 'Blue Bossa (Kenny Dorham)', file: 'dorham-blue-bossa.mid' },                  // grooving jazz
+  { name: 'Mas Que Nada (Jorge Ben)', file: 'jorge-ben-mas-que-nada.mid' },              // HIGH PEAK
+  { name: 'Tico Tico (Zequinha Abreu)', file: 'abreu-tico-tico.mid' },                   // high energy
+  { name: 'So Nice / Summer Samba (Valle)', file: 'valle-so-nice.mid' },                 // upbeat cooldown
+  { name: 'New Wave Bossa Nova (Zelda MM)', file: 'zelda-new-wave-bossa.mid' },          // playful ending ♡
 ];
 
 const classicalSongs: SongEntry[] = [
-  // Baroque (1600-1750)
-  { name: 'Canon in D (Pachelbel)', file: 'pachelbel-canon.mid' },                       // ~1680, D major
-  { name: 'Toccata & Fugue (Bach)', file: 'bach-toccata-fugue.mid' },                    // ~1708, D minor
-  { name: 'Prelude in C Major (Bach)', file: 'bach-prelude-c.mid' },                     // 1722, C major
-  { name: 'Spring - Four Seasons (Vivaldi)', file: 'vivaldi-spring.mid' },               // 1725, E major
-  // Classical (1750-1820)
-  { name: 'Eine Kleine Nachtmusik (Mozart)', file: 'mozart-eine-kleine.mid' },           // 1787, G major
-  { name: 'Lacrimosa - Requiem (Mozart)', file: 'mozart-lacrimosa.mid' },                // 1791, D minor
-  { name: 'Für Elise (Beethoven)', file: 'beethoven-fur-elise.mid' },                    // 1810, A minor
-  { name: 'Ode to Joy (Beethoven)', file: 'beethoven-ode-to-joy.mid' },                  // 1824, D major
-  // Romantic (1820-1900)
-  { name: 'Nocturne Op.9 No.2 (Chopin)', file: 'chopin-nocturne.mid' },                  // 1832, Eb major
-  { name: 'Hall of Mountain King (Grieg)', file: 'grieg-mountain-king.mid' },            // 1875, B minor
-  { name: 'Dance of Sugar Plum Fairy (Tchaikovsky)', file: 'tchaikovsky-sugar-plum.mid' }, // 1892, E minor
-  // Impressionist (1890-1930)
-  { name: 'Clair de Lune (Debussy)', file: 'clair-de-lune.mid' },                        // 1890, Db major
+  // Classical masters (energy arc: dreamy → build → triumphant peak → dramatic end)
+  { name: 'Clair de Lune (Debussy)', file: 'clair-de-lune.mid' },                        // dreamy opening
+  { name: 'Nocturne Op.9 No.2 (Chopin)', file: 'chopin-nocturne.mid' },                  // gentle, romantic
+  { name: 'Prelude in C Major (Bach)', file: 'bach-prelude-c.mid' },                     // flowing
+  { name: 'Für Elise (Beethoven)', file: 'beethoven-fur-elise.mid' },                    // familiar, gentle
+  { name: 'Dance of Sugar Plum Fairy (Tchaikovsky)', file: 'tchaikovsky-sugar-plum.mid' }, // delicate lift
+  { name: 'Canon in D (Pachelbel)', file: 'pachelbel-canon.mid' },                       // building
+  { name: 'Eine Kleine Nachtmusik (Mozart)', file: 'mozart-eine-kleine.mid' },           // bright energy
+  { name: 'Hall of Mountain King (Grieg)', file: 'grieg-mountain-king.mid' },            // dramatic build
+  { name: 'Spring - Four Seasons (Vivaldi)', file: 'vivaldi-spring.mid' },               // high energy
+  { name: 'Ode to Joy (Beethoven)', file: 'beethoven-ode-to-joy.mid' },                  // TRIUMPHANT PEAK
+  { name: 'Lacrimosa - Requiem (Mozart)', file: 'mozart-lacrimosa.mid' },                // emotional cooldown
+  { name: 'Toccata & Fugue (Bach)', file: 'bach-toccata-fugue.mid' },                    // dramatic finale ♡
 ];
 
 const playlists: Record<PlaylistCategory, SongEntry[]> = {
@@ -200,8 +197,8 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Overlay',
-    effects: [kaleidoscopeEffect, theoryBarEffect],
-    activeId: 'theory-bar',  // Cosmic Spiral default
+    effects: [kaleidoscopeEffect],
+    activeId: null,  // Cosmic Spiral default
   },
   {
     name: 'Melody',
@@ -212,6 +209,11 @@ const layerSlots: LayerSlot[] = [
     name: 'Bass',
     effects: [bassWebEffect, bassClockEffect],
     activeId: 'bass-clock',  // Cosmic Spiral default
+  },
+  {
+    name: 'HUD',
+    effects: [theoryBarEffect],
+    activeId: null,  // Cosmic Spiral default (no HUD)
   },
 ];
 
@@ -281,11 +283,11 @@ app.innerHTML = `
           <button class="toggle-btn playlist-btn active" id="playlist-bossa" title="Bossa nova & Brazilian jazz">Bossa</button>
           <button class="toggle-btn playlist-btn" id="playlist-classical" title="Classical masters">Classical</button>
           <button class="toggle-btn playlist-btn" id="playlist-pop" title="Pop & rock anthems">Classics</button>
-          <button class="toggle-btn playlist-btn" id="playlist-video" title="Video game & anime music">Games</button>
+          <button class="toggle-btn playlist-btn" id="playlist-video" title="Video game music">Games</button>
         </div>
         <div class="song-picker-wrap">
           <select id="song-picker">
-            ${bossaSongs.map((s, i) => `<option value="${i}"${i === 6 ? ' selected' : ''}>${s.name}</option>`).join('')}
+            ${bossaSongs.map((s, i) => `<option value="${i}"${i === 3 ? ' selected' : ''}>${s.name}</option>`).join('')}
           </select>
         </div>
         <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
@@ -435,6 +437,7 @@ function switchPlaylist(category: PlaylistCategory): void {
   const currentSongs = playlists[category];
   songPicker.innerHTML = currentSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
   songPicker.value = '0';
+  updateBrowserURL();
 }
 
 function getCurrentSongs(): SongEntry[] {
@@ -445,7 +448,25 @@ function getCurrentSongs(): SongEntry[] {
 
 function updateBrowserURL(): void {
   const state = getCurrentState(layerSlots);
-  updateURL(state);
+  const baseQuery = stateToURL(state);
+
+  // Add playlist and track params (only if non-default)
+  const params = new URLSearchParams(baseQuery);
+
+  // Playlist/track use short param names, separate from effect state
+  // Default is bossa playlist, track 0
+  if (currentPlaylist !== 'bossa') {
+    params.set('l', currentPlaylist);
+  }
+  if (songPicker.value !== '0') {
+    params.set('t', songPicker.value);
+  }
+
+  const queryString = params.toString();
+  const newURL = queryString
+    ? `${window.location.pathname}?${queryString}`
+    : window.location.pathname;
+  history.replaceState(null, '', newURL);
 }
 
 // --- Fullscreen toggle ---
@@ -1461,6 +1482,7 @@ songPicker.addEventListener('change', async () => {
   const idx = parseInt(songPicker.value);
   if (!isNaN(idx)) {
     await loadSong(idx);
+    updateBrowserURL();
     if (!isPlaying) playBtn.click();
   }
 });
@@ -1483,6 +1505,7 @@ prevBtn.addEventListener('click', async () => {
   const prevIdx = (currentIdx - 1 + currentSongs.length) % currentSongs.length;
   songPicker.value = String(prevIdx);
   await loadSong(prevIdx);
+  updateBrowserURL();
   if (!isPlaying) playBtn.click();
 });
 
@@ -1493,6 +1516,7 @@ nextBtn.addEventListener('click', async () => {
   const nextIdx = (currentIdx + 1) % currentSongs.length;
   songPicker.value = String(nextIdx);
   await loadSong(nextIdx);
+  updateBrowserURL();
   if (!isPlaying) playBtn.click();
 });
 
@@ -1830,6 +1854,24 @@ function loop(time: number): void {
 
 requestAnimationFrame(loop);
 
-// Auto-load default song (first in current playlist)
-songPicker.value = '0';
-loadSong(0);
+// Load playlist and track from URL params, or use defaults
+const startupParams = new URLSearchParams(window.location.search);
+const urlList = startupParams.get('l') as PlaylistCategory | null;
+const urlTrack = startupParams.get('t');
+
+if (urlList && playlists[urlList]) {
+  currentPlaylist = urlList;
+  // Update button states
+  playlistClassicalBtn.classList.toggle('active', urlList === 'classical');
+  playlistBossaBtn.classList.toggle('active', urlList === 'bossa');
+  playlistPopBtn.classList.toggle('active', urlList === 'pop');
+  playlistVideoBtn.classList.toggle('active', urlList === 'video');
+  // Rebuild song picker
+  const songs = playlists[urlList];
+  songPicker.innerHTML = songs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
+}
+
+const trackIdx = urlTrack !== null ? parseInt(urlTrack) : 0;
+const validTrackIdx = !isNaN(trackIdx) && trackIdx >= 0 && trackIdx < playlists[currentPlaylist].length ? trackIdx : 0;
+songPicker.value = String(validTrackIdx);
+loadSong(validTrackIdx);

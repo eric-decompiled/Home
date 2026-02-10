@@ -95,9 +95,9 @@ export class Compositor {
     this.compositeCanvas.height = h;
     this.compositeCtx.clearRect(0, 0, w, h);
 
-    // Render non-post-process layers bottom to top
+    // Render non-post-process, non-HUD layers bottom to top
     for (const layer of this.layers) {
-      if (!layer.enabled || layer.effect.isPostProcess) continue;
+      if (!layer.enabled || layer.effect.isPostProcess || layer.effect.isHUD) continue;
       if (!layer.effect.isReady()) continue;
 
       const effectCanvas = layer.effect.render();
@@ -141,6 +141,17 @@ export class Compositor {
         this.compositeCtx.clearRect(0, 0, w, h);
         this.compositeCtx.drawImage(effectCanvas, 0, 0, w, h);
       }
+    }
+
+    // Render HUD layers on top (after post-process, not transformed)
+    for (const layer of this.layers) {
+      if (!layer.enabled || !layer.effect.isHUD) continue;
+      if (!layer.effect.isReady()) continue;
+
+      const effectCanvas = layer.effect.render();
+      this.compositeCtx.globalAlpha = layer.opacity;
+      this.compositeCtx.globalCompositeOperation = layer.blend;
+      this.compositeCtx.drawImage(effectCanvas, 0, 0, w, h);
     }
 
     // Final blit to target: background color first, then composite on top

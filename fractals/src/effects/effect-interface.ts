@@ -129,6 +129,7 @@ export interface VisualEffect {
   readonly id: string;
   readonly name: string;
   readonly isPostProcess: boolean;
+  readonly isHUD?: boolean;  // HUD effects render after post-process (not transformed)
   readonly defaultBlend: BlendMode;
   readonly defaultOpacity: number;
 

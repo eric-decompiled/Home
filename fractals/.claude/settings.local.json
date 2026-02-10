@@ -109,7 +109,12 @@
       "Bash(then)",
       "Bash(else)",
       "Bash(fi)",
-      "Bash(for f in queen-bohemian-rhapsody.mid bee-gees-stayin-alive.mid abba-dancing-queen.mid mj-billie-jean.mid toto-africa.mid europe-final-countdown.mid bon-jovi-livin-prayer.mid gnr-sweet-child.mid rick-astley-never-gonna.mid survivor-eye-of-tiger.mid journey-dont-stop.mid)"
+      "Bash(for f in queen-bohemian-rhapsody.mid bee-gees-stayin-alive.mid abba-dancing-queen.mid mj-billie-jean.mid toto-africa.mid europe-final-countdown.mid bon-jovi-livin-prayer.mid gnr-sweet-child.mid rick-astley-never-gonna.mid survivor-eye-of-tiger.mid journey-dont-stop.mid)",
+      "Bash(for f in tetris-theme.mid green-hill-zone.mid ff4-theme-of-love.mid fear-of-heavens.mid corridors-of-time.mid frog-theme.mid ff7-jenova.mid great-fairy-fountain.mid ff9-youre-not-alone.mid still-alive.mid megalovania.mid wind-scene.mid)",
+      "Bash(do if [ -f \"$f\" ])",
+      "Bash(then echo \"✓ $f\")",
+      "Bash(else echo \"✗ $f \\(MISSING\\)\")",
+      "Bash(strings:*)"
     ]
   }
 }

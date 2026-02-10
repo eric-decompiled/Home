@@ -81,6 +81,7 @@ export interface VisualizerState {
     overlay: string | null;
     melody: string | null;
     bass: string | null;
+    hud: string | null;
   };
   configs: EffectConfigs;
   anchors?: FractalAnchors;  // Optional - only in JSON/localStorage, never in URL
@@ -109,7 +110,7 @@ const PRESETS_STORAGE_KEY = 'fractured-jukebox-presets';
 
 // --- URL Compression Mappings ---
 
-export const SLOT_KEYS = ['bg', 'fg', 'overlay', 'melody', 'bass'] as const;
+export const SLOT_KEYS = ['bg', 'fg', 'overlay', 'melody', 'bass', 'hud'] as const;
 export type SlotKey = typeof SLOT_KEYS[number];
 
 // Effect ID ↔ short name for layer params (single words where possible)
@@ -152,6 +153,7 @@ export const EFFECT_PREFIXES: Record<string, string> = {
   'tonnetz': 'tn',
   'wave-interference': 'wi',
   'theory-bar': 'tb',
+  'starfield': 'sf',
 };
 
 export const PREFIX_TO_EFFECT = Object.fromEntries(
@@ -183,10 +185,10 @@ for (const [effectId, keys] of Object.entries(CONFIG_SHORTS)) {
 // --- Preset Definitions ---
 
 export const PRESET_LAYERS: Record<string, (string | null)[]> = {
-  spiral: ['starfield', 'note-spiral', 'theory-bar', null, 'bass-clock'],
-  warp: ['chladni', 'note-spiral', 'kaleidoscope', null, 'bass-clock'],
-  fractal: ['flowfield', 'fractal', 'theory-bar', null, null],
-  piano: ['flowfield', 'piano-roll', null, null, null],
+  spiral: ['starfield', 'note-spiral', null, null, 'bass-clock', null],
+  warp: ['chladni', 'note-spiral', 'kaleidoscope', null, 'bass-clock', null],
+  fractal: ['flowfield', 'fractal', null, null, null, 'theory-bar'],
+  piano: ['flowfield', 'piano-roll', null, null, null, null],
 };
 
 // Preset-specific effect configs (applied when preset is selected)
@@ -204,6 +206,11 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
 // --- Default Config Values ---
 
 export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
+  'starfield': {
+    density: 1.0,
+    twinkleAmount: 0.25,
+    shimmerSpeed: 1.5,
+  },
   'flowfield': {
     particleCount: 800,
     flowSpeed: 0.4,
@@ -258,6 +265,7 @@ export function getCurrentState(
       overlay: layerSlots[2].activeId,
       melody: layerSlots[3].activeId,
       bass: layerSlots[4].activeId,
+      hud: layerSlots[5]?.activeId ?? null,
     },
     configs: {},
   };
@@ -310,7 +318,7 @@ export function applyState(
   allEffects: Map<string, VisualEffect>
 ): void {
   // Apply layers
-  const slotKeys: SlotKey[] = ['bg', 'fg', 'overlay', 'melody', 'bass'];
+  const slotKeys: SlotKey[] = ['bg', 'fg', 'overlay', 'melody', 'bass', 'hud'];
   for (let i = 0; i < slotKeys.length; i++) {
     const effectId = state.layers[slotKeys[i]];
     // Validate effect exists in this slot (or is null)
@@ -366,6 +374,7 @@ export function getPresetState(presetName: string): VisualizerState | null {
       overlay: layers[2],
       melody: layers[3],
       bass: layers[4],
+      hud: layers[5] ?? null,
     },
     configs: PRESET_CONFIGS[presetName] || {},
   };
@@ -386,6 +395,7 @@ export function stateToURL(state: VisualizerState): string {
     state.layers.overlay,
     state.layers.melody,
     state.layers.bass,
+    state.layers.hud,
   ];
 
   let matchedPreset: string | null = null;
@@ -451,6 +461,7 @@ export function urlToState(queryString: string): Partial<VisualizerState> | null
       overlay: null,
       melody: null,
       bass: null,
+      hud: null,
     },
     configs: {},
   };
@@ -465,6 +476,7 @@ export function urlToState(queryString: string): Partial<VisualizerState> | null
       overlay: presetLayers[2],
       melody: presetLayers[3],
       bass: presetLayers[4],
+      hud: presetLayers[5] ?? null,
     };
     // Apply preset configs
     state.configs = { ...PRESET_CONFIGS[preset] };
@@ -1021,7 +1033,7 @@ function validateVisualizerState(state: Record<string, unknown>, prefix = ''): s
   }
 
   const layers = state.layers as Record<string, unknown>;
-  const validSlots = ['bg', 'fg', 'overlay', 'melody', 'bass'];
+  const validSlots = ['bg', 'fg', 'overlay', 'melody', 'bass', 'hud'];
   for (const slot of validSlots) {
     if (!(slot in layers)) {
       return `${prefix}Missing layer slot: "${slot}"`;
