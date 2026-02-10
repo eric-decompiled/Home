@@ -55,6 +55,8 @@ export class TheoryBarEffect implements VisualEffect {
   private beatHistory: number[] = [];
   private barHistory: number[] = [];
   private colorHistory: [number, number, number][] = [];  // Rainbow color history
+  private loudnessHistory: number[] = [];  // Smoothed loudness for glow
+  private smoothLoudness = 0;  // Weighted average for smoothing
   private grooveWriteIndex = 0;
   private tensionColor: [number, number, number] = [120, 120, 120];  // I→V interpolated color
   private paletteIndex = 0;
@@ -90,6 +92,7 @@ export class TheoryBarEffect implements VisualEffect {
       this.beatHistory.push(0.5);
       this.barHistory.push(0.5);
       this.colorHistory.push([22, 199, 154]);  // Default teal
+      this.loudnessHistory.push(0);
     }
   }
 
@@ -147,6 +150,11 @@ export class TheoryBarEffect implements VisualEffect {
     const barGroove = 0.5 + ((music.barGroove ?? 0.5) - 0.5) * blend;
     this.beatHistory[this.grooveWriteIndex] = beatGroove;
     this.barHistory[this.grooveWriteIndex] = barGroove;
+
+    // Smooth loudness with weighted average for subtle glow effect
+    const rawLoudness = music.loudness ?? 0;
+    this.smoothLoudness += (rawLoudness - this.smoothLoudness) * 0.06;  // Heavier smoothing for gradual response
+    this.loudnessHistory[this.grooveWriteIndex] = this.smoothLoudness;
 
     // Key display
     this.keyPitchClass = music.key ?? 0;
@@ -552,48 +560,55 @@ export class TheoryBarEffect implements VisualEffect {
       const dg = Math.floor(cg * 0.4);
       const db = Math.floor(cb * 0.4);
 
+      // Loudness modulates opacity: base 0.15 + up to 0.7 from loudness (more extreme)
+      const loudness = this.loudnessHistory[idx1];
+      const barOpacity = 0.15 + loudness * 0.7;
+
       ctx.beginPath();
       ctx.moveTo(x0, y0);
       ctx.lineTo(x1, y1);
-      ctx.strokeStyle = `rgba(${dr}, ${dg}, ${db}, 0.5)`;
+      ctx.strokeStyle = `rgba(${dr}, ${dg}, ${db}, ${barOpacity})`;
       ctx.lineWidth = 2.5 * scale;
       ctx.stroke();
     }
 
     // --- Beat wave (faster, brighter) - draw on top ---
-    const [r, g, b] = this.tensionColor;
+    // Draw segment by segment to modulate opacity with loudness history
+    for (let i = 1; i < sampleCount; i++) {
+      const histIdx0 = Math.floor((sampleCount - i) * sampleStep);
+      const histIdx1 = Math.floor((sampleCount - 1 - i) * sampleStep);
+      const idx0 = (this.grooveWriteIndex - GROOVE_HISTORY_LENGTH + histIdx0 + GROOVE_HISTORY_LENGTH) % GROOVE_HISTORY_LENGTH;
+      const idx1 = (this.grooveWriteIndex - GROOVE_HISTORY_LENGTH + histIdx1 + GROOVE_HISTORY_LENGTH) % GROOVE_HISTORY_LENGTH;
 
-    // Glow stroke
-    ctx.beginPath();
-    for (let i = 0; i < sampleCount; i++) {
-      const histIdx = Math.floor((sampleCount - 1 - i) * sampleStep);
-      const idx = (this.grooveWriteIndex - GROOVE_HISTORY_LENGTH + histIdx + GROOVE_HISTORY_LENGTH) % GROOVE_HISTORY_LENGTH;
-      const val = this.beatHistory[idx];
-      const x = startX + i * stepX;
-      const displacement = (val - 0.5) * 2 * waveHeight;
-      const y = centerY - displacement;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.12)`;
-    ctx.lineWidth = 4 * scale;
-    ctx.stroke();
+      const val0 = this.beatHistory[idx0];
+      const val1 = this.beatHistory[idx1];
+      const x0 = startX + (i - 1) * stepX;
+      const x1 = startX + i * stepX;
+      const y0 = centerY - (val0 - 0.5) * 2 * waveHeight;
+      const y1 = centerY - (val1 - 0.5) * 2 * waveHeight;
 
-    // Core stroke
-    ctx.beginPath();
-    for (let i = 0; i < sampleCount; i++) {
-      const histIdx = Math.floor((sampleCount - 1 - i) * sampleStep);
-      const idx = (this.grooveWriteIndex - GROOVE_HISTORY_LENGTH + histIdx + GROOVE_HISTORY_LENGTH) % GROOVE_HISTORY_LENGTH;
-      const val = this.beatHistory[idx];
-      const x = startX + i * stepX;
-      const displacement = (val - 0.5) * 2 * waveHeight;
-      const y = centerY - displacement;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+      // Use tension color with loudness-modulated opacity
+      const [r, g, b] = this.colorHistory[idx1];
+      const loudness = this.loudnessHistory[idx1];
+
+      // Glow stroke: base 0.06 + up to 0.12 from loudness
+      const glowOpacity = 0.06 + loudness * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${glowOpacity})`;
+      ctx.lineWidth = 4 * scale;
+      ctx.stroke();
+
+      // Core stroke: base 0.25 + up to 0.35 from loudness
+      const coreOpacity = 0.25 + loudness * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${coreOpacity})`;
+      ctx.lineWidth = 1.5 * scale;
+      ctx.stroke();
     }
-    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.4)`;
-    ctx.lineWidth = 1.5 * scale;
-    ctx.stroke();
   }
 
   private drawPitchHistogramInline(

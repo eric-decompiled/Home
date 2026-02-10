@@ -54,6 +54,7 @@ interface SongEntry {
 
 const songs: SongEntry[] = [
   // Chronological order
+  { name: 'Prelude in C Major (Bach)', file: 'bach-prelude-c.mid' },                     // 1722
   { name: 'Dark World (Zelda: ALTTP)', file: 'zelda-alttp-dark-world.mid' },             // 1991
   { name: "Terra's Theme (Final Fantasy VI)", file: 'ff6-terras-theme.mid' },            // 1994
   { name: "Schala's Theme (Chrono Trigger)", file: 'schala.mid' },                       // 1995
@@ -1718,6 +1719,6 @@ function loop(time: number): void {
 requestAnimationFrame(loop);
 
 // Auto-load default song (Dark World - first chronologically)
-const defaultSongIdx = songs.findIndex(s => s.file === 'zelda-alttp-dark-world.mid');
+const defaultSongIdx = songs.findIndex(s => s.file === 'bach-prelude-c.mid');
 songPicker.value = String(defaultSongIdx >= 0 ? defaultSongIdx : 0);
 loadSong(defaultSongIdx >= 0 ? defaultSongIdx : 0);

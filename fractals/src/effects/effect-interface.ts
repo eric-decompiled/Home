@@ -88,6 +88,9 @@ export interface MusicParams {
   snare: boolean;
   hihat: boolean;
 
+  // Audio loudness (0-1) from analyser
+  loudness: number;
+
   // For color consistency across effects
   paletteIndex: number;
 

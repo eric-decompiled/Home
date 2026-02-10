@@ -21,6 +21,14 @@ interface ArcSegment {
 const ARC_TRAIL_MAX = 30;
 const ARC_TRAIL_LIFETIME = 3.1;
 
+// Chromatic (non-diatonic) degree labels
+const CHROMATIC_DEGREES_MAJOR: Record<number, string> = {
+  1: '♭II', 3: '♭III', 6: '♯IV', 8: '♭VI', 10: '♭VII'
+};
+const CHROMATIC_DEGREES_MINOR: Record<number, string> = {
+  1: '♭II', 4: '♯III', 6: '♯IV', 9: '♭VII', 11: 'VII'
+};
+
 export class BassClockEffect implements VisualEffect {
   readonly id = 'bass-clock';
   readonly name = 'Bass Clock';
@@ -35,7 +43,6 @@ export class BassClockEffect implements VisualEffect {
   private ready = false;
 
   private handAngle = -Math.PI / 2;
-  private targetAngle = -Math.PI / 2;
   private handBrightness = 0;
   private key = 0;
   private keyMode: 'major' | 'minor' = 'major';
@@ -54,9 +61,10 @@ export class BassClockEffect implements VisualEffect {
 
   private energy = 0;
   private radius = 0.45; // Inner radius for bass
-  private breathPhase = 0;
   private anticipation = 0;  // Builds before bar lands
-  private windupAngle = 0;   // Rotation offset during windup (lean back before strike)
+  private loudness = 0;  // Smoothed audio loudness (EMA)
+  private chromaticFade: Map<number, number> = new Map();  // Fade alpha for non-key numerals
+
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -80,7 +88,6 @@ export class BassClockEffect implements VisualEffect {
 
   update(dt: number, music: MusicParams): void {
     this.time += dt;
-    this.breathPhase += dt * 0.5; // Slower breath for bass
     this.key = music.key;
     this.keyMode = music.keyMode;
     this.keyRotation = music.keyRotation;
@@ -101,6 +108,10 @@ export class BassClockEffect implements VisualEffect {
     // Energy boost on bar arrival (the big downbeat)
     this.energy += barArrival * 0.35;
 
+    // Smooth loudness using EMA for trail brightness
+    const targetLoudness = music.loudness ?? 0;
+    this.loudness += (targetLoudness - this.loudness) * 0.08;
+
     // Follow chord root for stability (not random bass notes)
     const pc = music.chordRoot >= 0 ? music.chordRoot : -1;
 
@@ -108,25 +119,23 @@ export class BassClockEffect implements VisualEffect {
     // Also re-initialize when song key changes (e.g., when song loads and key is detected)
     const shouldInit = !this.initializedToKey || (this.initializedKey !== this.key && this.initializedKey >= 0);
     if (shouldInit) {
-      // Get exact tonic position from spiralPos, subtract keyRotation (added during render)
+      // Get tonic angle from outer octave position - calculate from x,y to match numeral positions
       const tonicPos = spiralPos(113, this.key, this.key, this.keyRotation, 0, 0, 1);
-      const tonicAngle = tonicPos.angle - this.keyRotation;
+      const tonicAngle = Math.atan2(tonicPos.y, tonicPos.x);  // Derive angle from position
 
       if (!this.initializedToKey) {
         // First init: snap immediately
         this.handAngle = tonicAngle;
-        this.targetAngle = this.handAngle;
         this.lastTrailAngle = this.handAngle;
       } else {
         // Key changed (song loaded): animate to new tonic
         let diff = tonicAngle - this.handAngle;
         while (diff > Math.PI) diff -= Math.PI * 2;
         while (diff < -Math.PI) diff += Math.PI * 2;
-        this.targetAngle = this.handAngle + diff;
 
         const beatDur = music.beatDuration || 0.5;
         gsap.to(this, {
-          handAngle: this.targetAngle,
+          handAngle: this.handAngle + diff,
           duration: beatDur * 1.5,
           ease: 'power2.inOut',
           overwrite: true,
@@ -143,6 +152,7 @@ export class BassClockEffect implements VisualEffect {
 
       // Update highlighted numeral and pulse brightness
       this.lastPitchClass = this.key;
+
       gsap.to(this, {
         handBrightness: 0.8,
         duration: 0.1,
@@ -152,19 +162,8 @@ export class BassClockEffect implements VisualEffect {
       });
     } else if (pc >= 0) {
       // Respond to chord changes (skip on init frame)
-      // Get exact position from spiralPos (includes twist) then subtract keyRotation
-      // since keyRotation is added back during render
-      const targetPos = spiralPos(113, pc, this.key, this.keyRotation, 0, 0, 1);
-      const newAngle = targetPos.angle - this.keyRotation;
-
-      // Use shortest path for animation
-      let diff = newAngle - this.handAngle;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
-
       // Only update if chord root changed
       if (pc !== this.lastPitchClass) {
-        this.targetAngle = this.handAngle + diff;
         this.lastPitchClass = pc;
 
         const c = samplePaletteColor(pc, 0.6);
@@ -172,33 +171,37 @@ export class BassClockEffect implements VisualEffect {
         this.colG = c[1];
         this.colB = c[2];
 
+        // Get target angle from outer octave position - calculate from x,y to match numeral positions
+        const targetPos = spiralPos(113, pc, this.key, this.keyRotation, 0, 0, 1);
+        const targetAngle = Math.atan2(targetPos.y, targetPos.x);  // Derive angle from position
+
+        // Calculate final angle using shortest path (avoid wrapping during animation)
+        let diff = targetAngle - this.handAngle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        const finalAngle = this.handAngle + diff;
+
         const beatDur = music.beatDuration || 0.5;
+        const tweenDur = beatDur * 1.5;
 
-        // GSAP: Windup then snap - lean back first, then swing through
-        // Windup in opposite direction of travel
-        const windupDir = diff > 0 ? -1 : 1;
-        this.windupAngle = windupDir * 0.08; // Immediate lean back
+        // Windup: pull back 1/36 of the movement, take 3/4 beat to do it
+        const windupOffset = -diff / 36;
+        const windupAngle = this.handAngle + windupOffset;
 
-        // Animate windup release (snaps forward as hand moves)
-        gsap.to(this, {
-          windupAngle: 0,
-          duration: beatDur * 1.2,
-          ease: 'power3.out',
-          overwrite: 'auto',
-        });
-
-        // GSAP: Hand motion - smooth without overshoot
-        // Snap to exact normalized angle on complete to prevent drift
-        const exactAngle = newAngle;
-        gsap.to(this, {
-          handAngle: this.targetAngle,
-          duration: beatDur * 1.5,
+        // Timeline: slow pullback over 3/4 beat, then smooth arrival
+        const tl = gsap.timeline({ overwrite: true });
+        tl.to(this, {
+          handAngle: windupAngle,
+          duration: beatDur * 0.75,
           ease: 'power2.out',
-          overwrite: true,
-          onComplete: () => { this.handAngle = exactAngle; },
+        });
+        tl.to(this, {
+          handAngle: finalAngle,
+          duration: tweenDur,
+          ease: 'power2.out',
         });
 
-        // GSAP: Brightness pulse on chord change, slow decay
+        // Brightness pulse on chord change
         gsap.fromTo(this,
           { handBrightness: 0.8 },
           { handBrightness: 0, duration: beatDur * 2.0, ease: 'power2.out', overwrite: 'auto' }
@@ -208,6 +211,27 @@ export class BassClockEffect implements VisualEffect {
 
     // Hand length stays fixed at outer layer
     this.handLength = 0.95;
+
+    // Track chromatic (non-key) numeral fades
+    const diatonicOffsets = this.keyMode === 'minor' ? MINOR_OFFSETS : MAJOR_OFFSETS;
+    if (pc >= 0) {
+      const semi = semitoneOffset(pc, this.key);
+      if (!diatonicOffsets.has(semi)) {
+        // Current chord is chromatic - set fade to full
+        this.chromaticFade.set(pc, 1.0);
+      }
+    }
+    // Decay all chromatic fades over one bar
+    const barDuration = (music.beatDuration ?? 0.5) * (music.beatsPerBar ?? 4);
+    const fadeRate = 4.6 / barDuration;  // ln(100) / barDuration to fade to ~1% over one bar
+    for (const [pitchClass, fade] of this.chromaticFade) {
+      const newFade = fade * Math.exp(-fadeRate * dt);
+      if (newFade < 0.01) {
+        this.chromaticFade.delete(pitchClass);
+      } else {
+        this.chromaticFade.set(pitchClass, newFade);
+      }
+    }
 
     // Sample arc trail
     const angleDiff = Math.abs(this.handAngle - this.lastTrailAngle);
@@ -237,17 +261,15 @@ export class BassClockEffect implements VisualEffect {
     const cx = w / 2;
     const cy = h / 2 + h * 0.04;  // shifted down to match note spiral
     const minDim = Math.min(cx, cy);
-    const breath = 1 + Math.sin(this.breathPhase) * 0.02;
-
     // Use spiralPos to get consistent radius for outer ring (imaginary octave MIDI 113)
     const spiralMaxR = minDim * SPIRAL_RADIUS_SCALE;
-    const outerPos = spiralPos(113, 0, this.key, this.keyRotation, cx, cy, spiralMaxR * breath);
+    const outerPos = spiralPos(113, 0, this.key, this.keyRotation, cx, cy, spiralMaxR);
     const r = outerPos.radius;  // Trail and numerals share this radius
 
     const handLen = r * this.handLength;
 
-    // Render using animated handAngle + keyRotation
-    const angle = this.handAngle + this.keyRotation - this.windupAngle;
+    // Render using animated handAngle directly
+    const angle = this.handAngle;
     const R = this.colR, G = this.colG, B = this.colB;
     const brt = 0.5 + this.handBrightness * 0.4 + this.energy * 0.15;
     const alpha = Math.min(1, brt);
@@ -271,14 +293,14 @@ export class BassClockEffect implements VisualEffect {
 
     // --- Inner ring ---
     ctx.beginPath();
-    ctx.arc(cx, cy, r * breath, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r , 0, Math.PI * 2);
     ctx.strokeStyle = `rgba(${R},${G},${B},0.08)`;
     ctx.lineWidth = 2;
     ctx.stroke();
 
     // --- Arc trail with comet tail gradient ---
     if (this.arcTrail.length >= 2) {
-      const trailR = r * breath;
+      const trailR = r ;
       const groovePulse = 1.0 + this.anticipation * 0.3;
 
       // Find valid trail segments
@@ -295,6 +317,9 @@ export class BassClockEffect implements VisualEffect {
       if (validTrail.length >= 2) {
         ctx.lineCap = 'round';
 
+        // Loudness factor for trail brightness (0.1 to 1.0 range)
+        const loudnessFactor = 0.1 + this.loudness * 0.9;
+
         // Draw segments with gradient opacity (comet tail effect)
         for (let i = 0; i < validTrail.length - 1; i++) {
           const seg = validTrail[i];
@@ -310,7 +335,7 @@ export class BassClockEffect implements VisualEffect {
           // Comet gradient: faint at tail, bright at head
           const cometFade = Math.pow(t, 0.5);
 
-          let startA = seg.angle + this.keyRotation;
+          let startA = seg.angle;  // handAngle is already absolute
           let arcDiff = next.angle - seg.angle;
           while (arcDiff > Math.PI) arcDiff -= Math.PI * 2;
           while (arcDiff < -Math.PI) arcDiff += Math.PI * 2;
@@ -323,25 +348,25 @@ export class BassClockEffect implements VisualEffect {
           // Width grows toward head
           const baseWidth = 2 + t * 8;
 
-          // Outer glow
-          const glowAlpha = ageFade * cometFade * 0.15 * groovePulse;
+          // Outer glow (modulated by loudness)
+          const glowAlpha = ageFade * cometFade * 0.15 * groovePulse * loudnessFactor;
           ctx.beginPath();
           ctx.arc(cx, cy, trailR, startA, startA + arcDiff, arcDiff < 0);
           ctx.strokeStyle = `rgba(${segR},${segG},${segB},${glowAlpha.toFixed(3)})`;
           ctx.lineWidth = baseWidth * 2.5;
           ctx.stroke();
 
-          // Core with brightness increasing toward head
-          const coreAlpha = ageFade * cometFade * 0.5 * groovePulse;
+          // Core with brightness increasing toward head (modulated by loudness)
+          const coreAlpha = ageFade * cometFade * 0.5 * groovePulse * loudnessFactor;
           ctx.beginPath();
           ctx.arc(cx, cy, trailR, startA, startA + arcDiff, arcDiff < 0);
           ctx.strokeStyle = `rgba(${segR},${segG},${segB},${coreAlpha.toFixed(3)})`;
           ctx.lineWidth = baseWidth;
           ctx.stroke();
 
-          // Hot inner core near head
+          // Hot inner core near head (modulated by loudness)
           if (t > 0.6) {
-            const hotAlpha = ageFade * Math.pow((t - 0.6) / 0.4, 2) * 0.4 * groovePulse;
+            const hotAlpha = ageFade * Math.pow((t - 0.6) / 0.4, 2) * 0.4 * groovePulse * loudnessFactor;
             const hotR = Math.min(255, segR + 60);
             const hotG = Math.min(255, segG + 60);
             const hotB = Math.min(255, segB + 60);
@@ -368,10 +393,15 @@ export class BassClockEffect implements VisualEffect {
         : inKey ? 0.25 : 0.1;
 
       // Position using shared spiralPos - same radius as trail (r)
-      const pos = spiralPos(113, i, this.key, this.keyRotation, cx, cy, spiralMaxR * breath);
+      const pos = spiralPos(113, i, this.key, this.keyRotation, cx, cy, spiralMaxR );
       const { x: tx, y: ty, angle: tickAngle } = pos;
 
       const numeral = degreeMap[semitones];
+      // Get chromatic numeral if applicable
+      const chromaticDegreeMap = this.keyMode === 'minor' ? CHROMATIC_DEGREES_MINOR : CHROMATIC_DEGREES_MAJOR;
+      const chromaticNumeral = chromaticDegreeMap[semitones];
+      const chromaticFadeValue = this.chromaticFade.get(i) ?? 0;
+
       if (numeral) {
         // Draw Roman numeral for diatonic scale degrees
         const fontSize = Math.max(11, Math.round(r * 0.1));
@@ -393,8 +423,30 @@ export class BassClockEffect implements VisualEffect {
         ctx.fillText(numeral, 0, 0);
         ctx.shadowBlur = 0;
         ctx.restore();
+      } else if (chromaticNumeral && (isCurrent || chromaticFadeValue > 0)) {
+        // Draw chromatic numeral when current or fading out
+        const fontSize = Math.max(10, Math.round(r * 0.09));  // Slightly smaller
+        const fadeAlpha = isCurrent ? 0.6 + this.handBrightness * 0.3 : chromaticFadeValue * 0.5;
+
+        ctx.save();
+        ctx.translate(tx, ty);
+        ctx.rotate(tickAngle + Math.PI / 2);
+        ctx.font = `${isCurrent ? 'bold ' : ''}${fontSize}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        // Glow pass for current chromatic note
+        if (isCurrent && this.handBrightness > 0.05) {
+          ctx.shadowColor = `rgba(${tc[0]},${tc[1]},${tc[2]},${(this.handBrightness * 0.5).toFixed(3)})`;
+          ctx.shadowBlur = 12;
+        }
+
+        ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${fadeAlpha.toFixed(3)})`;
+        ctx.fillText(chromaticNumeral, 0, 0);
+        ctx.shadowBlur = 0;
+        ctx.restore();
       } else {
-        // Small dot for chromatic (non-diatonic) notes
+        // Small dot for chromatic notes not currently active
         ctx.beginPath();
         ctx.arc(tx, ty, isCurrent ? 3 : 2, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
@@ -439,8 +491,23 @@ export class BassClockEffect implements VisualEffect {
       strokeP(path);
     };
 
-    // --- Main hand: tapered rectangle ---
-    const hand = new Path2D();
+    // --- Circle cutouts at octave positions along the hand ---
+    // Calculate positions dynamically using spiralPos to match note spiral exactly
+    const oct2Pos = spiralPos(this.key + 36, this.key, this.key, this.keyRotation, cx, cy, spiralMaxR );
+    const oct3Pos = spiralPos(this.key + 48, this.key, this.key, this.keyRotation, cx, cy, spiralMaxR );
+    const oct4Pos = spiralPos(this.key + 60, this.key, this.key, this.keyRotation, cx, cy, spiralMaxR );
+
+    // Convert to fraction along hand
+    const cc1 = ptAt(oct2Pos.radius / handLen, 0);
+    const cc2 = ptAt(oct3Pos.radius / handLen, 0);
+    const cc3 = ptAt(oct4Pos.radius / handLen, 0);
+
+    // Visual size of cutout circles
+    const cutoutSize1 = 3.5 * sc;  // Octave 2 (innermost)
+    const cutoutSize2 = 2.5 * sc;  // Octave 3 (middle)
+    const cutoutSize3 = 1.8 * sc;  // Octave 4 (outermost)
+
+    // --- Main hand: tapered rectangle with cutout holes ---
     const baseW = 6 * sc;
     const tipW = 2 * sc;
     const hBase1 = ptAt(0.08, baseW);
@@ -448,23 +515,54 @@ export class BassClockEffect implements VisualEffect {
     const hTip1 = ptAt(0.95, tipW);
     const hTip2 = ptAt(0.95, -tipW);
     const hPoint = ptAt(1.05, 0);
-    hand.moveTo(hBase1.x, hBase1.y);
-    hand.lineTo(hTip1.x, hTip1.y);
-    hand.lineTo(hPoint.x, hPoint.y);
-    hand.lineTo(hTip2.x, hTip2.y);
-    hand.lineTo(hBase2.x, hBase2.y);
-    hand.closePath();
-    fillP(hand);
 
-    // --- Center circle cutout (visual interest) ---
-    const cutoutF = 0.35;
-    const cutoutR = 3.5 * sc;
-    const cc = ptAt(cutoutF, 0);
-    const cutout = new Path2D();
-    cutout.arc(cc.x, cc.y, cutoutR, 0, Math.PI * 2);
+    // Path with cutout holes (for fill only)
+    const handWithHoles = new Path2D();
+    handWithHoles.moveTo(hBase1.x, hBase1.y);
+    handWithHoles.lineTo(hTip1.x, hTip1.y);
+    handWithHoles.lineTo(hPoint.x, hPoint.y);
+    handWithHoles.lineTo(hTip2.x, hTip2.y);
+    handWithHoles.lineTo(hBase2.x, hBase2.y);
+    handWithHoles.closePath();
+    // Cutout holes (counter-clockwise for evenodd)
+    handWithHoles.moveTo(cc1.x + cutoutSize1, cc1.y);
+    handWithHoles.arc(cc1.x, cc1.y, cutoutSize1, 0, Math.PI * 2, true);
+    handWithHoles.moveTo(cc2.x + cutoutSize2, cc2.y);
+    handWithHoles.arc(cc2.x, cc2.y, cutoutSize2, 0, Math.PI * 2, true);
+    handWithHoles.moveTo(cc3.x + cutoutSize3, cc3.y);
+    handWithHoles.arc(cc3.x, cc3.y, cutoutSize3, 0, Math.PI * 2, true);
+
+    // Fill with evenodd to create holes
+    ctx.fillStyle = fillStr;
+    ctx.fill(handWithHoles, 'evenodd');
+
+    // Stroke only the hand outline (not the cutouts)
+    const handOutline = new Path2D();
+    handOutline.moveTo(hBase1.x, hBase1.y);
+    handOutline.lineTo(hTip1.x, hTip1.y);
+    handOutline.lineTo(hPoint.x, hPoint.y);
+    handOutline.lineTo(hTip2.x, hTip2.y);
+    handOutline.lineTo(hBase2.x, hBase2.y);
+    handOutline.closePath();
+    strokeP(handOutline);
+
+    // Stroke cutout circles - thin sharp lines
+    ctx.lineWidth = 2;
+
+    ctx.strokeStyle = `rgba(${R},${G},${B},${(alpha * 0.5).toFixed(3)})`;
+    ctx.beginPath();
+    ctx.arc(cc1.x, cc1.y, cutoutSize1, 0, Math.PI * 2);
+    ctx.stroke();
+
     ctx.strokeStyle = `rgba(${R},${G},${B},${(alpha * 0.7).toFixed(3)})`;
-    ctx.lineWidth = strokeW * 0.5;
-    ctx.stroke(cutout);
+    ctx.beginPath();
+    ctx.arc(cc2.x, cc2.y, cutoutSize2, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = `rgba(${R},${G},${B},${(alpha * 0.95).toFixed(3)})`;
+    ctx.beginPath();
+    ctx.arc(cc3.x, cc3.y, cutoutSize3, 0, Math.PI * 2);
+    ctx.stroke();
 
     // --- Counterweight (heavy circle) ---
     const tailLen = handLen * 0.25;
@@ -486,6 +584,21 @@ export class BassClockEffect implements VisualEffect {
     ctx.strokeStyle = colStr;
     ctx.lineWidth = strokeW * 0.6;
     ctx.stroke(cwInner);
+
+    // Counterweight center glow (same style as hub glow, ~40% size)
+    const cwGlowSz = 3 + this.energy * 2.5 + this.anticipation * 2;
+    const cwGrd = ctx.createRadialGradient(cwCenter.x, cwCenter.y, 0, cwCenter.x, cwCenter.y, cwGlowSz * 1.8);
+    cwGrd.addColorStop(0, `rgba(255,255,255,${(0.15 + this.energy * 0.25).toFixed(3)})`);
+    cwGrd.addColorStop(0.5, `rgba(${R},${G},${B},${(0.1 + this.energy * 0.1).toFixed(3)})`);
+    cwGrd.addColorStop(1, `rgba(${R},${G},${B},0)`);
+    ctx.fillStyle = cwGrd;
+    ctx.fillRect(cwCenter.x - cwGlowSz * 2, cwCenter.y - cwGlowSz * 2, cwGlowSz * 4, cwGlowSz * 4);
+
+    // Counterweight center point (33% size of main hub point)
+    ctx.beginPath();
+    ctx.arc(cwCenter.x, cwCenter.y, 1 + this.energy * 0.7, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${(0.25 + this.energy * 0.35).toFixed(3)})`;
+    ctx.fill();
 
     // --- Tail shaft ---
     const tailShaft = new Path2D();

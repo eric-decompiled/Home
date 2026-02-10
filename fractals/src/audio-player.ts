@@ -21,6 +21,8 @@ function unwrapRiff(buffer: ArrayBuffer): ArrayBuffer {
 let audioCtx: AudioContext | null = null;
 let synth: WorkletSynthesizer | null = null;
 let sequencer: Sequencer | null = null;
+let analyser: AnalyserNode | null = null;
+let analyserData: Uint8Array<ArrayBuffer> | null = null;
 let initPromise: Promise<void> | null = null;
 let pendingMidiBuffer: ArrayBuffer | null = null;
 let pianoMode = false;
@@ -43,7 +45,16 @@ async function init(): Promise<void> {
   await audioCtx.audioWorklet.addModule(new URL('/spessasynth_processor.min.js', import.meta.url).href);
 
   synth = new WorkletSynthesizer(audioCtx);
-  synth.connect(audioCtx.destination);
+
+  // Create analyser for loudness metering
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.8;
+  analyserData = new Uint8Array(analyser.frequencyBinCount);
+
+  // Connect: synth -> analyser -> destination
+  synth.connect(analyser);
+  analyser.connect(audioCtx.destination);
 
   const sfResponse = await fetch('TimGM6mb.sf2');
   const sfBuffer = await sfResponse.arrayBuffer();
@@ -205,5 +216,23 @@ export const audioPlayer = {
 
   isPianoMode(): boolean {
     return pianoMode;
+  },
+
+  /** Get current audio loudness level (0-1) */
+  getLoudness(): number {
+    if (!analyser || !analyserData) return 0;
+
+    // Get frequency data
+    analyser.getByteFrequencyData(analyserData);
+
+    // Calculate RMS-style average
+    let sum = 0;
+    for (let i = 0; i < analyserData.length; i++) {
+      sum += analyserData[i];
+    }
+    const avg = sum / analyserData.length;
+
+    // Normalize to 0-1 (byte data is 0-255)
+    return avg / 255;
   },
 };

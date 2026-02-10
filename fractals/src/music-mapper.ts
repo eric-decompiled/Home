@@ -3,6 +3,7 @@ import type { MusicParams, ActiveVoice, UpcomingNote, UpcomingChord, RGB } from 
 import { createMidiBeatSync, createIdleBeatSync, type BeatSync, type TempoEvent, type TimeSignatureEvent } from './beat-sync.ts';
 import { gsap } from './animation.ts';
 import { palettes } from './fractal-engine.ts';
+import { audioPlayer } from './audio-player.ts';
 
 // --- Julia set anchors by harmonic degree ---
 
@@ -828,6 +829,7 @@ export const musicMapper = {
       kick: frameKick,
       snare: frameSnare,
       hihat: frameHihat,
+      loudness: audioPlayer.getLoudness(),
       paletteIndex: currentChordRoot,
       activeVoices: currentActiveVoices,
       tracks: currentTracks,
@@ -882,6 +884,7 @@ export const musicMapper = {
       kick: false,
       snare: false,
       hihat: false,
+      loudness: 0,
       paletteIndex: currentKey,
       activeVoices: [],
       tracks: currentTracks,

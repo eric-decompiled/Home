@@ -59,7 +59,14 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 `src/effects/melody-clock.ts` — Openwork Breguet/pomme-style clock hand tracking individual melody notes. Drawn as stroked outlines with transparent interiors (filigree style). Features: volute scrollwork, open ellipse moon window, teardrop, fleur-de-lis tip with three petals, crescent tail. Roman numeral markers at diatonic positions. Hand direction tracks actual MIDI pitch—ascending melody goes clockwise, descending counter-clockwise. Uses GSAP with **0.5 beat duration** and power2.out ease for smooth motion with some heft. Arc trail shows recent sweep path.
 
 ### Bass Clock
-`src/effects/bass-clock.ts` — Industrial station-clock style hand tracking **chord root** (not individual bass notes) for harmonic stability. Heavy tapered hand with circular counterweight. Roman numeral markers on outer ring (just outside note spiral radius). **Fixed hand length at 0.95** (outer layer). **Initializes to song key** (tonic position) before first chord is detected. Uses GSAP with full beat duration and power2.inOut ease for slow, weighty motion.
+`src/effects/bass-clock.ts` — Industrial station-clock style hand tracking **chord root** (not individual bass notes) for harmonic stability. Features:
+- **Heavy tapered hand** with circular counterweight and pommel glow
+- **Cutout circles** aligned to tonic's octave 2/3/4 positions on spiral (calculated dynamically via spiralPos each frame for exact alignment)
+- **Roman numeral markers** on outer ring, including chromatic degrees (♭II, ♯IV, etc.) with fade-out animation
+- **Windup animation**: Pulls back 1/36 of movement over 3/4 beat before arriving at target chord
+- **Arc trail** with comet-tail gradient, brightness modulated by audio loudness (EMA smoothed)
+- **Fixed hand length at 0.95** (outer layer), initializes to song key before first chord detected
+- **GSAP timeline** for two-phase motion: anticipation pullback then smooth arrival
 
 ### Piano Roll
 `src/effects/piano-roll.ts` — Falling notes visualization with piano keyboard at bottom. Notes fall from above and land on keys when they play. Features:

@@ -24,6 +24,8 @@
 - **Bar-level groove for bass**: Bass/harmonic elements respond to `barAnticipation`/`barArrival` for weighty feel
 - **Generalized pulse driver**: Use `activeVoices` onsets + beat grid pulse + drums, not just drums. Works with any MIDI
 - **GSAP beat-relative timing for clocks**: Hand motion duration as fraction of beat (0.5 beats for melody, 1.0 beats for bass)
+- **Windup animation for chord changes**: Pull back 1/36 of movement over 3/4 beat before arriving—adds weight and anticipation
+- **Clock hand cutouts aligned to spiral**: Calculate positions dynamically in render using same spiralPos params as note spiral for exact alignment across all keys
 
 ### Physics & Animation
 - **Wave tank physics**: Model energy as waves with momentum—push creates motion that continues after input stops
@@ -96,3 +98,5 @@
 - **Drum-only energy drivers**: Many MIDIs have no drums. Generalize to all note onsets + beat grid
 - **Bass clock tracking individual bass notes**: Too erratic. Follow chord root instead
 - **Drum pulse circles around beat positions**: Despite multiple iterations with capacitor models, hihat accents, different radii—always felt either too heavy/sudden or didn't "land" visually. Better to let wave tanks respond to all onsets
+- **Pre-calculated tick fractions for clock cutouts**: Lookup tables and tweened fractions don't align perfectly across all keys. Calculate positions dynamically each frame using spiralPos directly
+- **Breath effect on clock elements**: Subtle pulsing looked more jittery than organic. Removed in favor of static sizing

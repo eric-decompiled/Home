@@ -85,6 +85,7 @@ export class NoteSpiralEffect implements VisualEffect {
   private spiralTightness = 1.25;  // power curve: lower = more bass space, higher = tighter
   private currentTension = 0;  // for tension-driven visuals
   private beatDuration = 0.5;  // for beat-synced effects
+  private loudness = 0;  // smoothed audio loudness for brightness scaling
   private activeShapes: Set<string> = new Set(['firefly']);
   private static readonly SHAPES = ['firefly', 'starburst', 'ring', 'spark'];
 
@@ -328,7 +329,9 @@ export class NoteSpiralEffect implements VisualEffect {
       // Keep sustained notes at minimum brightness, flash on onset
       const minBrightness = 0.4; // sustained notes stay visible
       if (voice.onset) {
-        node.brightness += voice.velocity * beatStrength;  // Accumulate, weighted by beat
+        // Loudness factor: quiet passages = fainter lines (0.1 to 1.0 range)
+        const loudnessFactor = 0.1 + this.loudness * 0.9;
+        node.brightness += voice.velocity * beatStrength * loudnessFactor;  // Accumulate, weighted by beat and loudness
         node.velocity = voice.velocity;
         node.lastHitTime = this.time;
 
@@ -352,7 +355,8 @@ export class NoteSpiralEffect implements VisualEffect {
         const intensityBoost = attackBoost + outerCurve * 0.7;
 
         // Set initial values and tween to zero
-        node.beamIntensity = voice.velocity * intensityBoost;
+        // Apply loudness factor so quiet passages have fainter beams
+        node.beamIntensity = voice.velocity * intensityBoost * loudnessFactor;
         node.beamLength = targetLength;
         node.beamSpread = targetSpread;
 
@@ -386,6 +390,10 @@ export class NoteSpiralEffect implements VisualEffect {
     // Track tension and beat timing for visual modulation
     this.currentTension = music.tension;
     this.beatDuration = music.beatDuration;
+
+    // Smooth loudness for brightness scaling (gradual response)
+    const targetLoudness = music.loudness ?? 0;
+    this.loudness += (targetLoudness - this.loudness) * 0.1;
 
     // === GROOVE CURVES ===
     const beatArrival = music.beatArrival ?? 0;
