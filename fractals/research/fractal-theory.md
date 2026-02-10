@@ -132,11 +132,13 @@ interface FractalAnchor {
 
 ### Finding Good Anchors
 
-The boundary is where visual interest lives. Criteria for good anchors:
+**Critical insight**: Interior points are DARK (they don't escape). For bright, colorful fractals, place anchors in the **exterior**, just outside the set boundary. This is where escape-time coloring produces rich gradients.
 
-1. **Mix of interior and exterior** — Probe nearby points, want ~40% interior
-2. **Not too deep interior** — Deep = boring filled region
-3. **Not too far exterior** — Far = everything escapes, no structure
+Criteria for good anchors:
+
+1. **Prefer exterior side of boundary** — Exterior points escape and get colored; interior points are black
+2. **Not too far exterior** — Very far = everything escapes instantly, no gradient detail
+3. **Bias toward larger |c| values** — Pushes anchor into exterior with rich color bands
 4. **Stable under small perturbation** — Animation won't cause sudden changes
 
 ```typescript
@@ -154,148 +156,140 @@ function isGoodAnchor(cr: number, ci: number, type: number): boolean {
     if (escaped === 0) interior++; else exterior++;
   }
 
-  // Want a mix, slight exterior bias
-  const mixScore = Math.min(interior, exterior) / probes.length;
-  return mixScore > 0.2 && exterior >= interior;
+  // Want MAJORITY exterior for bright visuals (60-80% exterior is ideal)
+  // Some interior gives boundary detail, but too much = dark
+  const exteriorRatio = exterior / probes.length;
+  return exteriorRatio > 0.6 && exteriorRatio < 0.95;
 }
 ```
 
-### Orbit Offsets
+**Practical tip**: If your fractal looks too dark, increase |c| to push the anchor further into the exterior. For most families, |c| ~ 0.5-0.8 produces bright, detailed results.
 
-Each anchor has 4 orbit points for beat-synced motion:
+### Physics-Based Orbit System
+
+The c-value continuously orbits around each anchor using physics simulation, creating organic "dancing" motion driven by groove curves.
+
+#### Core Model
 
 ```typescript
-interface OrbitOffset {
-  dr: number;  // Real offset from anchor
-  di: number;  // Imaginary offset
-}
+// State variables (per-frame persistent)
+let orbitAngle = 0;           // Current position on orbit circle (radians)
+let orbitRadiusOffset = 0;    // Deviation from base radius
+let orbitRadiusVel = 0;       // Radial velocity
 
-// Beat position determines which orbit point
-const orbitIndex = Math.floor(beatPhase * 4) % 4;
-const orbitFrac = (beatPhase * 4) % 1;
-const t = Math.sin(Math.PI * orbitFrac); // Smooth in-out
+// Each anchor defines a base orbit radius
+const baseRadius = computeOrbitRadius(anchor.orbits);  // Average magnitude
 
+// Final c-value position
+const effectiveRadius = baseRadius + orbitRadiusOffset;
 const c = {
-  r: anchor.cr + anchor.orbits[orbitIndex].dr * t,
-  i: anchor.ci + anchor.orbits[orbitIndex].di * t,
+  r: anchor.cr + effectiveRadius * Math.cos(orbitAngle),
+  i: anchor.ci + effectiveRadius * Math.sin(orbitAngle),
 };
 ```
 
-### Orbit Design Theory
+#### Angular Motion (Continuous Rotation)
 
-The orbit system creates beat-synchronized motion in c-space. Each anchor has 4 orbit offsets (one per beat in 4/4), and the c-value oscillates:
-```
-c = anchor + orbit[beatIndex] * sin(π * beatPhase)
-```
-
-This creates motion that peaks at beat midpoint and returns to anchor at beat boundaries.
-
-#### Orbit Magnitude by Family
-
-Different families have vastly different **boundary sensitivity**—how much the visual changes per unit movement in c-space. This determines appropriate orbit sizes:
-
-| Family | Sensitivity | Recommended Orbit | Notes |
-|--------|-------------|-------------------|-------|
-| **Standard (0)** | Medium | 0.03 - 0.08 | Classic behavior, forgiving |
-| **Cubic (1)** | Medium | 0.02 - 0.06 | Slightly tighter than quadratic |
-| **Burning Ship (3)** | High | 0.01 - 0.04 | Intricate boundaries, small moves matter |
-| **Tricorn (4)** | Medium-High | 0.02 - 0.05 | Angular features respond well |
-| **Phoenix (5)** | Medium | 0.03 - 0.08 | Temporal smoothing helps |
-| **Celtic (6)** | Medium | 0.03 - 0.08 | Knot patterns flow nicely |
-| **Newton (10)** | **Low** | 0.05 - 0.15 | Basin boundaries stable, needs larger moves |
-| **Nova (11)** | Medium | 0.02 - 0.06 | Julia-like sensitivity |
-| **Sine (12)** | Medium-Low | 0.05 - 0.12 | Periodic, stable within period |
-| **Magnet (13)** | High | 0.01 - 0.04 | Near convergence point is sensitive |
-| **Barnsley (14-16)** | Medium-High | 0.02 - 0.05 | Conditional branching creates sensitivity |
-| **Multicorn (17)** | Medium | 0.02 - 0.06 | Similar to Tricorn |
-
-**Key insight**: Convergence-based fractals (Newton, Magnet) are often *less* sensitive in their interior because they're "attracted" to fixed points. Escape-based fractals near boundaries are more sensitive.
-
-#### Direction Patterns
-
-The 4 orbit offsets can follow different patterns:
-
-**Circular (default)**: Creates smooth rotation around anchor
-```typescript
-const CIRCULAR: OrbitPattern = [
-  { dr: R, di: 0 },      // Beat 1: right
-  { dr: 0, di: R },      // Beat 2: up
-  { dr: -R, di: 0 },     // Beat 3: left
-  { dr: 0, di: -R },     // Beat 4: down
-];
-```
-
-**Breathing**: Expands and contracts (good for bass-heavy music)
-```typescript
-const BREATHING: OrbitPattern = [
-  { dr: R, di: R },      // Beat 1: expand diagonal
-  { dr: 0, di: 0 },      // Beat 2: return to center
-  { dr: R, di: R },      // Beat 3: expand again
-  { dr: 0, di: 0 },      // Beat 4: return
-];
-```
-
-**Pendulum**: Side-to-side (good for 2-feel, waltz)
-```typescript
-const PENDULUM: OrbitPattern = [
-  { dr: R, di: 0 },      // Beat 1: right
-  { dr: -R, di: 0 },     // Beat 2: left
-  { dr: R, di: 0 },      // Beat 3: right
-  { dr: -R, di: 0 },     // Beat 4: left
-];
-```
-
-**Asymmetric**: Different magnitude per beat (creates emphasis)
-```typescript
-const ASYMMETRIC: OrbitPattern = [
-  { dr: R*1.5, di: 0 },  // Beat 1: strong (downbeat)
-  { dr: 0, di: R*0.5 },  // Beat 2: weak
-  { dr: R*1.0, di: 0 },  // Beat 3: medium
-  { dr: 0, di: R*0.5 },  // Beat 4: weak
-];
-```
-
-#### Finding Good Orbits: Methodology
-
-1. **Start at boundary**: Place anchor where ~40% of nearby points escape (use config tool probing)
-
-2. **Test with small radius first**: Start with R = 0.02, increase until motion is visible but not jarring
-
-3. **Check all 4 directions**: Ensure no direction crosses into deep interior (freezes) or far exterior (washes out)
-
-4. **Match family character**:
-   - Angular families (Burning Ship, Tricorn) → sharp direction changes work
-   - Organic families (Celtic, Standard) → circular flows better
-   - Convergence families (Newton) → larger, slower movements
-
-5. **Musical matching**:
-   - High tension chords → larger orbits, more asymmetry
-   - Tonic/resolution → smaller orbits, circular
-   - Dominant → medium orbits, directional (leading somewhere)
-
-#### Orbit Scaling with Tension
-
-The current system uses fixed orbits per degree. An improvement would be to scale orbits with harmonic tension:
+The c-value rotates around the anchor at a base rate of one revolution per bar, modulated by groove:
 
 ```typescript
-function getScaledOrbit(baseOrbit: Orbit, tension: number): Orbit {
-  // Low tension (0): 60% of base orbit (calm)
-  // High tension (1): 140% of base orbit (active)
-  const scale = 0.6 + tension * 0.8;
-  return {
-    dr: baseOrbit.dr * scale,
-    di: baseOrbit.di * scale,
-  };
+const barDuration = beat.beatDuration * beat.beatsPerBar;
+const baseAngularSpeed = (Math.PI * 2) / barDuration;
+
+// Groove modulates angular speed (±40% at max tension)
+const grooveSpeedMod = (beatGroove - 0.5) * tension * 0.4;
+orbitAngle += baseAngularSpeed * (1 + grooveSpeedMod) * dt;
+```
+
+#### Radial Physics (Spring-Damped Oscillator)
+
+The radius oscillates around the base value using spring physics with groove-driven impulses:
+
+```typescript
+// Groove-driven forces (WHEN to push)
+const emphasis = (beat.beatIndex % 2 === 0) ? 1.0 : 0.7;  // 2-feel
+const beatKick = beatArrival * tension * 0.15 * emphasis; // Kick outward on beat
+const barKick = barArrival * tension * 0.25;              // Bigger kick on bar 1
+const anticipationPull = -beatAnticipation * tension * 0.08; // Pull inward before beat
+
+orbitRadiusVel += beatKick + barKick + anticipationPull;
+
+// Spring return + damping
+const radiusK = 8.0;       // Spring constant
+const radiusDamping = 2.5; // Damping
+orbitRadiusVel += (-radiusK * orbitRadiusOffset - radiusDamping * orbitRadiusVel) * dt;
+orbitRadiusOffset += orbitRadiusVel * dt;
+```
+
+#### Key Principles
+
+1. **Groove curves control timing**: `beatArrival`, `barArrival`, `beatAnticipation` determine WHEN forces apply
+2. **Tension controls magnitude**: Musical tension (0-1) scales all forces - calm music = calm motion
+3. **2-feel emphasis**: Beats 1 & 3 get stronger kicks than 2 & 4
+4. **Spring physics**: Natural return to base radius, prevents runaway motion
+
+#### Legacy Format Migration
+
+Old anchors defined 4 discrete orbit points. The new system uses a single radius computed as the average magnitude:
+
+```typescript
+function computeOrbitRadius(orbits: Array<{dr: number, di: number}>): number {
+  if (!orbits || orbits.length === 0) return 0.12;
+  let sum = 0;
+  for (const o of orbits) {
+    sum += Math.sqrt(o.dr * o.dr + o.di * o.di);
+  }
+  return sum / orbits.length;
 }
 ```
 
-#### Quick Reference: Orbit Presets by Musical Context
+#### Orbit Magnitude by Family
 
-| Context | Pattern | Magnitude | Asymmetry |
-|---------|---------|-----------|-----------|
-| **Calm/ambient** | Circular | 0.5× base | None |
-| **Driving rhythm** | Pendulum | 1.0× base | Beat 1 emphasis |
-| **Building tension** | Breathing | 1.2× base | Expand on 1,3 |
+Different families have vastly different **boundary sensitivity**—how much the visual changes per unit movement in c-space. This determines appropriate orbit sizes.
+
+**Important**: In practice, orbits need to be **3-5x larger** than pure boundary sensitivity would suggest. Small orbits (0.02-0.05) produce barely perceptible motion. Visible, musical animation requires orbits in the **0.08-0.40 range**. The table below reflects tested values from working presets:
+
+| Family | Sensitivity | Recommended Orbit | Notes |
+|--------|-------------|-------------------|-------|
+| **Standard (0)** | Medium | 0.10 - 0.25 | Classic behavior, forgiving |
+| **Cubic (1)** | Medium | 0.08 - 0.20 | Slightly tighter than quadratic |
+| **Burning Ship (3)** | High | 0.15 - 0.40 | Needs large orbits despite sensitivity |
+| **Tricorn (4)** | Medium-High | 0.10 - 0.30 | Angular features respond well |
+| **Phoenix (5)** | Medium | 0.08 - 0.15 | Temporal smoothing helps |
+| **Celtic (6)** | Medium | 0.15 - 0.40 | Knot patterns need room to flow |
+| **Newton (10)** | **Low** | 0.10 - 0.20 | Basin boundaries stable |
+| **Nova (11)** | Medium | 0.06 - 0.15 | Julia-like, moderate orbits work |
+| **Sine (12)** | Medium-Low | 0.10 - 0.20 | Periodic, stable within period |
+| **Magnet (13)** | High | 0.03 - 0.08 | Near convergence point is sensitive |
+| **Barnsley (14-16)** | Medium-High | 0.08 - 0.15 | Conditional branching creates sensitivity |
+| **Multicorn (17)** | Medium | 0.08 - 0.18 | Similar to Tricorn |
+
+**Key insight**: Convergence-based fractals (Newton, Magnet) are often *less* sensitive in their interior because they're "attracted" to fixed points. Escape-based fractals near boundaries are more sensitive.
+
+**Practical note**: Working presets (e.g., PRESET_ANCHORS in fractal-config.ts) use orbits of 0.15-0.40 for most families. When in doubt, start with R=0.15 and adjust.
+
+#### Finding Good Orbit Radius
+
+1. **Start at boundary**: Place anchor where ~40% of nearby points escape (use config tool probing)
+
+2. **Test with moderate radius**: Start with R = 0.12, adjust based on visual response
+
+3. **Check full circle**: The continuous orbit should stay in the colorful exterior zone
+
+4. **Match family character**:
+   - Angular families (Burning Ship, Tricorn) → smaller radius, physics creates variety
+   - Organic families (Celtic, Phoenix) → larger radius works well
+   - Convergence families (Newton) → moderate radius, stable motion
+
+#### Physics Tuning by Musical Context
+
+The physics constants in the orbit system can be adjusted for different feels:
+
+| Context | Spring K | Damping | Result |
+|---------|----------|---------|--------|
+| **Calm/ambient** | 12.0 | 4.0 | Slower return, gentle wobble |
+| **Driving rhythm** | 8.0 | 2.5 | Bouncy, responsive (default) |
+| **High energy** | 6.0 | 1.5 | More oscillation, looser feel |
 | **Climax** | Asymmetric | 1.5× base | Strong 1, weak 2,4 |
 | **Resolution** | Circular | 0.3× base | None |
 

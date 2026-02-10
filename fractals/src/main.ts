@@ -19,6 +19,7 @@ import { BassClockEffect } from './effects/bass-clock.ts';
 import { NoteSpiralEffect } from './effects/note-spiral.ts';
 import { PianoRollEffect } from './effects/piano-roll.ts';
 import { TheoryBarEffect } from './effects/theory-bar.ts';
+import { StarFieldEffect } from './effects/star-field.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
 import {
   type VisualizerState,
@@ -113,6 +114,7 @@ const bassClockEffect = new BassClockEffect();
 const noteSpiralEffect = new NoteSpiralEffect();
 const pianoRollEffect = new PianoRollEffect();
 const theoryBarEffect = new TheoryBarEffect();
+const starFieldEffect = new StarFieldEffect();
 
 // --- Layer slot definitions (mutually exclusive within each slot) ---
 
@@ -125,8 +127,8 @@ interface LayerSlot {
 const layerSlots: LayerSlot[] = [
   {
     name: 'Background',
-    effects: [domainWarpEffect, waveEffect, chladniEffect, flowFieldEffect],
-    activeId: 'flowfield',  // Cosmic Spiral default
+    effects: [starFieldEffect, domainWarpEffect, waveEffect, chladniEffect, flowFieldEffect],
+    activeId: 'starfield',  // Cosmic Spiral default
   },
   {
     name: 'Foreground',
@@ -222,7 +224,7 @@ app.innerHTML = `
           <span style="color: #aaa; font-size: 13px; font-weight: 500; margin-right: 6px;">Views:</span>
           <button class="toggle-btn preset-btn" id="preset-spiral" title="Flow Field + Note Spiral + Bass Clock">Cosmic Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope + Bass Clock">Warp Prism</button>
-          <button class="toggle-btn preset-btn" id="preset-fractal" title="Domain Warp + Fractal + Theory Bar">Fractal Dance</button>
+          <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar">Fractal Dance</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
           <span style="color: #444; margin: 0 4px;">|</span>
           <button class="toggle-btn" id="layers-toggle">Custom</button>
@@ -231,7 +233,9 @@ app.innerHTML = `
         </div>
       </div>
       <div class="transport">
+        <button class="transport-btn" id="prev-btn" title="Previous track">&#x23EE;</button>
         <button class="transport-btn" id="play-btn" disabled>&#9654;</button>
+        <button class="transport-btn" id="next-btn" title="Next track">&#x23ED;</button>
         <input type="range" id="seek-bar" min="0" max="100" step="0.1" value="0" disabled>
         <span class="time-display" id="time-display">0:00 / 0:00</span>
         <button class="transport-btn" id="fullscreen-btn" title="Fullscreen">&#x26F6;</button>
@@ -326,6 +330,8 @@ app.innerHTML = `
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const songPicker = document.getElementById('song-picker') as HTMLSelectElement;
 const playBtn = document.getElementById('play-btn') as HTMLButtonElement;
+const prevBtn = document.getElementById('prev-btn') as HTMLButtonElement;
+const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
 const seekBar = document.getElementById('seek-bar') as HTMLInputElement;
 const timeDisplay = document.getElementById('time-display')!;
 const keyDisplay = document.getElementById('key-display')!;
@@ -680,7 +686,8 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
       row.appendChild(btnWrap);
     } else if (cfg.type === 'multi-toggle') {
       // Multiple selections allowed - buttons toggle independently
-      const activeSet = new Set((cfg.value as string).split(',').filter(s => s));
+      const valueStr = typeof cfg.value === 'string' ? cfg.value : String(cfg.value ?? '');
+      const activeSet = new Set(valueStr.split(',').filter(s => s));
       const btnWrap = document.createElement('div');
       btnWrap.className = 'config-buttons';
       for (const opt of cfg.options ?? []) {
@@ -1356,6 +1363,25 @@ songPicker.addEventListener('change', async () => {
     await loadSong(idx);
     if (!isPlaying) playBtn.click();
   }
+});
+
+// Previous/Next track buttons
+prevBtn.addEventListener('click', async () => {
+  const currentIdx = parseInt(songPicker.value);
+  if (isNaN(currentIdx) || songPicker.value === 'custom') return;
+  const prevIdx = (currentIdx - 1 + songs.length) % songs.length;
+  songPicker.value = String(prevIdx);
+  await loadSong(prevIdx);
+  if (!isPlaying) playBtn.click();
+});
+
+nextBtn.addEventListener('click', async () => {
+  const currentIdx = parseInt(songPicker.value);
+  if (isNaN(currentIdx) || songPicker.value === 'custom') return;
+  const nextIdx = (currentIdx + 1) % songs.length;
+  songPicker.value = String(nextIdx);
+  await loadSong(nextIdx);
+  if (!isPlaying) playBtn.click();
 });
 
 // --- Custom MIDI file input (drag & drop + file picker) ---

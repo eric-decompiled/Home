@@ -130,6 +130,24 @@ let currentPhoenixP = -0.5;
 let currentOrbits: Array<{ dr: number; di: number }> = [...DEFAULT_ORBITS];
 let targetOrbits: Array<{ dr: number; di: number }> = [...DEFAULT_ORBITS];
 
+// --- Physics-based orbit state ---
+// Instead of discrete 4-point orbits, use continuous circular motion
+let orbitAngle = 0;           // Current position on circle (radians)
+let orbitRadiusOffset = 0;    // Deviation from base radius
+let orbitRadiusVel = 0;       // Radial velocity (for spring physics)
+let currentOrbitRadius = 0.12; // Base orbit radius (computed from anchor)
+let targetOrbitRadius = 0.12;  // Target radius (snaps on chord change)
+
+// Compute average radius from 4-point orbit array
+function computeOrbitRadius(orbits: Array<{ dr: number; di: number }>): number {
+  if (!orbits || orbits.length === 0) return 0.12;
+  let sum = 0;
+  for (const o of orbits) {
+    sum += Math.sqrt(o.dr * o.dr + o.di * o.di);
+  }
+  return sum / orbits.length;
+}
+
 // Beat-driven rotation
 let rotationAngle = 0;
 let rotationVelocity = 0;
@@ -184,6 +202,7 @@ let currentBassVel = 0;
 let currentKey = 0;
 let currentKeyMode: 'major' | 'minor' = 'major';
 let currentBpm = 120;
+let hasPlayedOnce = false;  // Track if playback has ever started (for BPM display)
 
 // Cached tension color endpoints (precomputed when key changes)
 let cachedKeyIColor: RGB = [120, 120, 120];  // Tonic color
@@ -506,8 +525,9 @@ export const musicMapper = {
       currentChordDegree = chord.degree;
       currentChordQuality = chord.quality;
 
-      // Update target orbits
+      // Update target orbits and compute target radius
       targetOrbits = center.orbits.map(o => ({ ...o }));
+      targetOrbitRadius = computeOrbitRadius(center.orbits);
     }
 
     // --- Exponential snap toward target ---
@@ -515,7 +535,10 @@ export const musicMapper = {
     currentCenter.real += (targetCenter.real - currentCenter.real) * snapDecay;
     currentCenter.imag += (targetCenter.imag - currentCenter.imag) * snapDecay;
 
-    // Snap orbits too
+    // Snap orbit radius
+    currentOrbitRadius += (targetOrbitRadius - currentOrbitRadius) * snapDecay;
+
+    // Keep legacy orbit snap for backwards compatibility with config tool
     for (let i = 0; i < 4; i++) {
       currentOrbits[i].dr += (targetOrbits[i].dr - currentOrbits[i].dr) * snapDecay;
       currentOrbits[i].di += (targetOrbits[i].di - currentOrbits[i].di) * snapDecay;
@@ -561,6 +584,7 @@ export const musicMapper = {
     beatDuration = beat.beatDuration;
     beatsPerBar = beat.beatsPerBar;
     currentBpm = beat.bpm;
+    hasPlayedOnce = true;  // Mark that playback has started
 
     // Track beat/bar positions for MusicParams
     currentBeatPosition = beat.beatPhase;
@@ -602,19 +626,41 @@ export const musicMapper = {
     rotationVelocity *= Math.exp(-rotationFriction * safeDt);
     rotationAngle += rotationVelocity * safeDt;
 
-    // --- Orbit-based c-value: beat-synchronized ---
-    let offsetReal = 0;
-    let offsetImag = 0;
+    // --- Physics-based orbit: continuous circular motion ---
+    // Angular motion: continuous rotation, one revolution per bar
+    // Groove modulates speed, tension scales everything
+    const barDur = beat.beatDuration * beat.beatsPerBar;
+    const baseAngularSpeed = barDur > 0 ? (Math.PI * 2) / barDur : Math.PI;
 
-    if (beat.beatDuration > 0) {
-      const orbitIndex = beat.beatIndex % currentOrbits.length;
+    // Groove curves for timing
+    const beatGroove = beat.beatGroove ?? 0.5;
+    const beatArrival = beat.beatArrival ?? 0;
+    const barArrival = beat.barArrival ?? 0;
+    const beatAnticipation = beat.beatAnticipation ?? 0;
 
-      // Sinusoidal: 0 at beat boundary (center), 1 at beat midpoint (orbit point)
-      const t = Math.sin(Math.PI * beat.beatPhase);
+    // Angular speed modulated by groove (speeds up/slows down with beat)
+    const grooveSpeedMod = (beatGroove - 0.5) * currentTension * 0.4;
+    orbitAngle += baseAngularSpeed * (1 + grooveSpeedMod) * safeDt;
 
-      offsetReal = currentOrbits[orbitIndex].dr * t;
-      offsetImag = currentOrbits[orbitIndex].di * t;
-    }
+    // --- Radial physics: spring toward base radius ---
+    // Beat/bar arrival kicks outward, anticipation pulls inward
+    const emphasis = (beat.beatIndex % 2 === 0) ? 1.0 : 0.7; // 2-feel: 1,3 stronger
+    const beatKick = beatArrival * currentTension * 0.15 * emphasis;
+    const barKick = barArrival * currentTension * 0.25; // Bigger on beat 1
+    const anticipationPull = -beatAnticipation * currentTension * 0.08;
+
+    orbitRadiusVel += beatKick + barKick + anticipationPull;
+
+    // Spring physics: pull back toward base radius
+    const radiusK = 8.0;
+    const radiusDamping = 2.5;
+    orbitRadiusVel += (-radiusK * orbitRadiusOffset - radiusDamping * orbitRadiusVel) * safeDt;
+    orbitRadiusOffset += orbitRadiusVel * safeDt;
+
+    // Compute final orbit position
+    const effectiveRadius = currentOrbitRadius + orbitRadiusOffset;
+    const offsetReal = effectiveRadius * Math.cos(orbitAngle);
+    const offsetImag = effectiveRadius * Math.sin(orbitAngle);
 
     // Iterations: tension only
     const iterBase = Math.round(120 + currentTension * 60);
@@ -746,7 +792,7 @@ export const musicMapper = {
     return {
       currentTime,
       dt,
-      bpm: currentBpm,
+      bpm: hasPlayedOnce ? currentBpm : 0,
       beatDuration,
       beatsPerBar,
       beatPosition: currentBeatPosition,
@@ -800,7 +846,7 @@ export const musicMapper = {
     return {
       currentTime: 0,
       dt,
-      bpm: 120,
+      bpm: hasPlayedOnce ? currentBpm : 0,
       beatDuration: 0.5,
       beatsPerBar: 4,
       beatPosition: 0,
@@ -866,6 +912,11 @@ export const musicMapper = {
     currentPhoenixP = -0.5;
     currentOrbits = (def.orbits ?? DEFAULT_ORBITS).map(o => ({ ...o }));
     targetOrbits = currentOrbits.map(o => ({ ...o }));
+    currentOrbitRadius = computeOrbitRadius(def.orbits ?? DEFAULT_ORBITS);
+    targetOrbitRadius = currentOrbitRadius;
+    orbitAngle = 0;
+    orbitRadiusOffset = 0;
+    orbitRadiusVel = 0;
     lastChordIndex = -1;
     rotationAngle = 0;
     rotationVelocity = 0;
@@ -875,6 +926,7 @@ export const musicMapper = {
     lastMelodyPC = -1;
     lastMelodyMidi = -1;
     melodicTensionAccum = 0;
+    hasPlayedOnce = false;
     beatSync.reset();
   },
 
@@ -888,5 +940,7 @@ export const musicMapper = {
     currentFractalType = def.type;
     currentOrbits = (def.orbits ?? DEFAULT_ORBITS).map(o => ({ ...o }));
     targetOrbits = currentOrbits.map(o => ({ ...o }));
+    currentOrbitRadius = computeOrbitRadius(def.orbits ?? DEFAULT_ORBITS);
+    targetOrbitRadius = currentOrbitRadius;
   },
 };

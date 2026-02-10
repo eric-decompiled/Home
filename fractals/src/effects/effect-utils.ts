@@ -1,6 +1,6 @@
 // --- Shared utilities for visual effects ---
 
-import { palettes } from '../fractal-engine.ts';
+import { palettes } from '../palettes.ts';
 
 /** Sample a color from a palette at a given position (0-1) */
 export function samplePaletteColor(paletteIdx: number, pos: number): [number, number, number] {

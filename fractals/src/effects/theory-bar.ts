@@ -140,8 +140,11 @@ export class TheoryBarEffect implements VisualEffect {
     }
 
     // Sample groove curves into history (color written after tension calculation)
-    const beatGroove = music.beatGroove ?? 0.5;
-    const barGroove = music.barGroove ?? 0.5;
+    // When no beat activity, blend both toward 0.5 so they converge at center
+    const activity = Math.max(music.beatArrival ?? 0, music.barArrival ?? 0, music.tension ?? 0);
+    const blend = Math.min(1, activity * 5); // 0 = fully at center, 1 = normal
+    const beatGroove = 0.5 + ((music.beatGroove ?? 0.5) - 0.5) * blend;
+    const barGroove = 0.5 + ((music.barGroove ?? 0.5) - 0.5) * blend;
     this.beatHistory[this.grooveWriteIndex] = beatGroove;
     this.barHistory[this.grooveWriteIndex] = barGroove;
 
@@ -529,7 +532,38 @@ export class TheoryBarEffect implements VisualEffect {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Build single path for glow (batched)
+    // --- Bar wave (slower, darker rainbow) - draw first (behind) ---
+    for (let i = 1; i < sampleCount; i++) {
+      const histIdx0 = Math.floor((sampleCount - i) * sampleStep);
+      const histIdx1 = Math.floor((sampleCount - 1 - i) * sampleStep);
+      const idx0 = (this.grooveWriteIndex - GROOVE_HISTORY_LENGTH + histIdx0 + GROOVE_HISTORY_LENGTH) % GROOVE_HISTORY_LENGTH;
+      const idx1 = (this.grooveWriteIndex - GROOVE_HISTORY_LENGTH + histIdx1 + GROOVE_HISTORY_LENGTH) % GROOVE_HISTORY_LENGTH;
+
+      const val0 = this.barHistory[idx0];
+      const val1 = this.barHistory[idx1];
+      const x0 = startX + (i - 1) * stepX;
+      const x1 = startX + i * stepX;
+      const y0 = centerY - (val0 - 0.5) * 2 * waveHeight;
+      const y1 = centerY - (val1 - 0.5) * 2 * waveHeight;
+
+      // Use color history but darken it (multiply by 0.4 for darker rainbow)
+      const [cr, cg, cb] = this.colorHistory[idx1];
+      const dr = Math.floor(cr * 0.4);
+      const dg = Math.floor(cg * 0.4);
+      const db = Math.floor(cb * 0.4);
+
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.strokeStyle = `rgba(${dr}, ${dg}, ${db}, 0.5)`;
+      ctx.lineWidth = 2.5 * scale;
+      ctx.stroke();
+    }
+
+    // --- Beat wave (faster, brighter) - draw on top ---
+    const [r, g, b] = this.tensionColor;
+
+    // Glow stroke
     ctx.beginPath();
     for (let i = 0; i < sampleCount; i++) {
       const histIdx = Math.floor((sampleCount - 1 - i) * sampleStep);
@@ -541,13 +575,11 @@ export class TheoryBarEffect implements VisualEffect {
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
-    // Single glow stroke using current tension color
-    const [r, g, b] = this.tensionColor;
     ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.12)`;
     ctx.lineWidth = 4 * scale;
     ctx.stroke();
 
-    // Build single path for core
+    // Core stroke
     ctx.beginPath();
     for (let i = 0; i < sampleCount; i++) {
       const histIdx = Math.floor((sampleCount - 1 - i) * sampleStep);
@@ -726,7 +758,8 @@ export class TheoryBarEffect implements VisualEffect {
     ctx.font = `bold ${fontSmall}px "SF Mono", Monaco, Consolas, monospace`;
     ctx.fillStyle = `rgb(${keyColor[0]}, ${keyColor[1]}, ${keyColor[2]})`;
     ctx.textAlign = 'center';
-    ctx.fillText(`${this.currentBpm}`, startX + width / 2, centerY + 16 * scale);
+    const bpmText = this.currentBpm > 0 ? `${this.currentBpm}` : '---';
+    ctx.fillText(bpmText, startX + width / 2, centerY + 16 * scale);
     ctx.textAlign = 'left';
   }
 

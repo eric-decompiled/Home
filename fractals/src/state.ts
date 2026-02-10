@@ -183,9 +183,9 @@ for (const [effectId, keys] of Object.entries(CONFIG_SHORTS)) {
 // --- Preset Definitions ---
 
 export const PRESET_LAYERS: Record<string, (string | null)[]> = {
-  spiral: ['flowfield', 'note-spiral', 'theory-bar', null, 'bass-clock'],
+  spiral: ['starfield', 'note-spiral', 'theory-bar', null, 'bass-clock'],
   warp: ['chladni', 'note-spiral', 'kaleidoscope', null, 'bass-clock'],
-  fractal: ['domainwarp', 'fractal', 'theory-bar', null, null],
+  fractal: ['flowfield', 'fractal', 'theory-bar', null, null],
   piano: ['flowfield', 'piano-roll', 'theory-bar', null, null],
 };
 
@@ -196,7 +196,7 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
     'note-spiral': { setShapes: 'ring' },
   },
   fractal: {
-    'domainwarp': { colorByChord: false },
+    'fractal': { preset: 'organic-flow:Organic Flow' },
   },
   piano: {},
 };
@@ -905,6 +905,24 @@ export const BUILTIN_ANCHOR_PRESETS: AnchorPreset[] = [
       5: { real: -0.6, imag: 0.4, type: 17, orbits: ORBIT_MEDIUM },
       6: { real: -1.7, imag: 0.05, type: 3, orbits: ORBIT_SMALL },
       7: { real: -0.45, imag: 0.55, type: 4, orbits: ORBIT_ASYMMETRIC },
+    },
+  },
+  {
+    id: 'organic-flow',
+    name: 'Organic Flow',
+    builtIn: true,
+    anchors: {
+      // All Phoenix (5) - journey around parameter space
+      // Arranged like circle of fifths: tonic at "home", tension opposite
+      // |c| ~ 0.55-0.70 exterior, angles spaced for visual travel
+      0: { real: 0.60, imag: 0.00, type: 5, orbits: [{ dr: 0.12, di: 0.08 }, { dr: -0.08, di: 0.12 }, { dr: -0.12, di: -0.06 }, { dr: 0.08, di: -0.10 }] },  // chromatic: right (neutral)
+      1: { real: 0.55, imag: 0.30, type: 5, orbits: [{ dr: 0.10, di: 0.07 }, { dr: -0.07, di: 0.10 }, { dr: -0.10, di: -0.05 }, { dr: 0.06, di: -0.08 }] },  // I tonic: home (upper right)
+      2: { real: -0.20, imag: 0.60, type: 5, orbits: [{ dr: 0.13, di: 0.09 }, { dr: -0.09, di: 0.13 }, { dr: -0.13, di: -0.06 }, { dr: 0.09, di: -0.11 }] },  // ii: pre-dominant (upper left)
+      3: { real: 0.30, imag: 0.55, type: 5, orbits: [{ dr: 0.11, di: 0.08 }, { dr: -0.08, di: 0.11 }, { dr: -0.11, di: -0.05 }, { dr: 0.07, di: -0.09 }] },  // iii: between I and vi (top)
+      4: { real: 0.50, imag: -0.35, type: 5, orbits: [{ dr: 0.10, di: 0.07 }, { dr: -0.07, di: 0.10 }, { dr: -0.10, di: -0.05 }, { dr: 0.06, di: -0.08 }] },  // IV: subdominant (lower right)
+      5: { real: -0.45, imag: -0.45, type: 5, orbits: [{ dr: 0.14, di: 0.10 }, { dr: -0.10, di: 0.14 }, { dr: -0.14, di: -0.07 }, { dr: 0.10, di: -0.12 }] },  // V: dominant tension (lower left)
+      6: { real: 0.15, imag: 0.60, type: 5, orbits: [{ dr: 0.09, di: 0.06 }, { dr: -0.06, di: 0.09 }, { dr: -0.09, di: -0.04 }, { dr: 0.05, di: -0.07 }] },  // vi: relative minor (near iii)
+      7: { real: -0.55, imag: 0.35, type: 5, orbits: [{ dr: 0.15, di: 0.11 }, { dr: -0.11, di: 0.15 }, { dr: -0.15, di: -0.08 }, { dr: 0.11, di: -0.13 }] },  // vii: max tension (left, toward V)
     },
   },
 ];

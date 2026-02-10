@@ -10,7 +10,6 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
-import { gsap } from '../animation.ts';
 
 const SIM_W = 400;
 const SIM_H = 300;
@@ -133,26 +132,6 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-// Per-degree anchors: warp amount and scale define the "shape" of the pattern
-interface WarpAnchor {
-  warpAmount: number;  // how much warping (1-6)
-  warpScale: number;   // spatial scale (2-8)
-  flowSpeed: number;   // animation speed (0.1-0.5)
-  detail: number;      // extra detail layer strength (0-0.5)
-}
-
-// Warp amount ordered by harmonic dissonance:
-// I (smooth) → IV/vi (gentle) → iii (mild) → ii (rough) → V (tense) → vii (chaotic)
-const DEGREE_ANCHORS: Record<number, WarpAnchor> = {
-  0: { warpAmount: 4.0, warpScale: 4.0, flowSpeed: 0.2, detail: 0.25 },  // chromatic — unsettled
-  1: { warpAmount: 1.5, warpScale: 3.5, flowSpeed: 0.15, detail: 0.08 }, // I — smooth, resolved
-  2: { warpAmount: 4.5, warpScale: 5.5, flowSpeed: 0.25, detail: 0.35 }, // ii — rough, unresolved
-  3: { warpAmount: 3.0, warpScale: 4.0, flowSpeed: 0.18, detail: 0.18 }, // iii — mild tension
-  4: { warpAmount: 2.0, warpScale: 3.5, flowSpeed: 0.17, detail: 0.12 }, // IV — warm, stable
-  5: { warpAmount: 5.0, warpScale: 6.0, flowSpeed: 0.28, detail: 0.4 },  // V — dominant, tense
-  6: { warpAmount: 2.2, warpScale: 4.0, flowSpeed: 0.16, detail: 0.1 },  // vi — gentle, relative minor
-  7: { warpAmount: 5.8, warpScale: 7.0, flowSpeed: 0.35, detail: 0.45 }, // vii — most dissonant
-};
 
 export class DomainWarpEffect implements VisualEffect {
   readonly id = 'domainwarp';
@@ -194,8 +173,9 @@ export class DomainWarpEffect implements VisualEffect {
   private bassEnergy = 0;     // bass notes
   private melodyEnergy = 0;   // melody + harmony
 
-  // Chord tracking for GSAP transitions
-  private lastChordDegree = -1;
+
+  // Smoothed tension (weighted average to avoid reacting too quickly)
+  private smoothTension = 0;
 
   private color1: [number, number, number] = [0.02, 0.02, 0.06];
   private color2: [number, number, number] = [0.1, 0.2, 0.5];
@@ -322,10 +302,6 @@ export class DomainWarpEffect implements VisualEffect {
         this.melodyEnergy += (voiceCount - 4) * 0.01;
       }
 
-      // Chord changes add to melody energy (harmonic content)
-      if (music.chordDegree !== this.lastChordDegree) {
-        this.melodyEnergy += 0.04 * beat1Boost;
-      }
     }
 
     // Energy decays
@@ -335,125 +311,66 @@ export class DomainWarpEffect implements VisualEffect {
     // === SPATIAL WAVE TANKS ===
     // Bass wave: pushes from bottom (slower, heavier)
     const bassK = 6.0;      // ~1.3 bar period
-    const bassDamping = 0.5;
-    const bassPush = this.bassEnergy * 3.0;
+    const bassDamping = 1.2;
+    const bassPush = this.bassEnergy * 1.0;
     this.bassWaveVel += (bassPush - bassK * this.bassWave - bassDamping * this.bassWaveVel) * dt;
     this.bassWave += this.bassWaveVel * dt;
 
     // Melody wave: pushes from sides (medium speed)
     const melodyK = 10.0;   // ~1 bar period
-    const melodyDamping = 0.6;
-    const melodyPush = this.melodyEnergy * 2.5;
+    const melodyDamping = 1.4;
+    const melodyPush = this.melodyEnergy * 0.8;
     this.melodyWaveVel += (melodyPush - melodyK * this.melodyWave - melodyDamping * this.melodyWaveVel) * dt;
     this.melodyWave += this.melodyWaveVel * dt;
 
     // Main wave: combination for general warp (interference of both)
     const mainK = 8.0;
-    const mainDamping = 0.5;
-    const mainPush = (this.bassEnergy + this.melodyEnergy) * 2.0;
+    const mainDamping = 1.2;
+    const mainPush = (this.bassEnergy + this.melodyEnergy) * 0.7;
     this.mainWaveVel += (mainPush - mainK * this.mainWave - mainDamping * this.mainWaveVel) * dt;
     this.mainWave += this.mainWaveVel * dt;
 
     // Combined wave level for parameter modulation
-    const waveLevel = Math.max(0, this.mainWave + this.bassWave * 0.2 + this.melodyWave * 0.15);
+    const waveLevel = Math.max(0, this.mainWave + this.bassWave * 0.08 + this.melodyWave * 0.06);
+
+    // Smooth tension with weighted average (time constant ~0.5s)
+    const tensionRate = 2.0;
+    this.smoothTension += (music.tension - this.smoothTension) * tensionRate * dt;
 
     // Music modulates the RATE of forward flow
-    const flowRate = 1.0 + waveLevel * 0.5 + music.tension * 0.3 + this.melodyEnergy * 0.3;
+    const flowRate = 1.0 + waveLevel * 0.2 + this.smoothTension * 0.25 + this.melodyEnergy * 0.1;
     this.time += dt * flowRate;
 
-    // Degree → anchor
-    const anchor = DEGREE_ANCHORS[music.chordDegree] ?? DEGREE_ANCHORS[0];
-
-    // Chord quality modifiers: affects texture complexity
-    // Simple triads = smooth, 7ths = sophisticated detail, dim/aug = rough
-    let qualityWarp = 0;
-    let qualityDetail = 0;
-    let qualityFlow = 0;
-    switch (music.chordQuality) {
-      case 'major':
-        // Clean, stable - baseline
-        qualityWarp = 0;
-        qualityDetail = 0;
-        qualityFlow = 0;
-        break;
-      case 'minor':
-        // Slightly darker, more texture
-        qualityWarp = 0.35;
-        qualityDetail = 0.05;
-        qualityFlow = -0.03;
-        break;
-      case 'dom7':
-        // Sophisticated tension, more movement
-        qualityWarp = 0.6;
-        qualityDetail = 0.12;
-        qualityFlow = 0.05;
-        break;
-      case 'min7':
-        // Warm complexity
-        qualityWarp = 0.5;
-        qualityDetail = 0.1;
-        qualityFlow = 0.02;
-        break;
-      case 'maj7':
-        // Lush, dreamy detail
-        qualityWarp = 0.2;
-        qualityDetail = 0.15;
-        qualityFlow = -0.02;
-        break;
-      case 'dim':
-        // Unstable, rough texture
-        qualityWarp = 1.2;
-        qualityDetail = 0.18;
-        qualityFlow = 0.08;
-        break;
-      case 'aug':
-        // Unresolved, swirling
-        qualityWarp = 0.9;
-        qualityDetail = 0.15;
-        qualityFlow = 0.06;
-        break;
-      default:
-        // Unknown quality
-        qualityWarp = 0.15;
-        qualityDetail = 0.03;
-        qualityFlow = 0;
-    }
-
-    if (music.chordDegree !== this.lastChordDegree) {
-      this.lastChordDegree = music.chordDegree;
-
-      // GSAP: Fluid transition for flow speed (includes quality modifier)
-      const beatDur = music.beatDuration || 0.5;
-      gsap.to(this, {
-        currentFlow: anchor.flowSpeed + qualityFlow,
-        duration: beatDur * 2.0,
-        ease: 'power1.inOut',
-        overwrite: true,
-      });
-    }
-
-    // Parameters follow wave level with gentle smoothing
-    // Tension drives visual complexity: low tension = smooth, high tension = rough/detailed
-    const tensionSq = music.tension * music.tension; // Exponential response for dramatic peaks
-    const targetWarp = anchor.warpAmount + qualityWarp + music.tension * 0.8 + waveLevel * 1.2;
+    // === TENSION-DRIVEN PARAMETERS ===
+    // All visual parameters driven by smoothed tension for consistency
+    // Low tension (0): smooth, calm, resolved
+    // High tension (1): complex, active, unresolved
+    const t = this.smoothTension;
     const barCycle = music.currentTime * 0.08;
-    const targetScale = anchor.warpScale + Math.sin(barCycle) * 0.2 + waveLevel * 0.4 + tensionSq * 1.5;
-    const targetDetail = anchor.detail + qualityDetail + music.tension * 0.15 + tensionSq * 0.1 + waveLevel * 0.08;
 
-    // Smooth follow (the wave level already has momentum, so light smoothing here)
-    this.currentWarp += (targetWarp - this.currentWarp) * 3.0 * dt;
+    // Interpolate between relaxed and tense states
+    const targetWarp = 2.0 + t * 1.5 + waveLevel * 0.3;           // 2.0 → 3.5
+    const targetScale = 3.6 + t * 0.9 + Math.sin(barCycle) * 0.1; // 3.6 → 4.5
+    const targetFlow = 0.15 + t * 0.07;                            // 0.15 → 0.22
+    const targetDetail = 0.10 + t * 0.15 + waveLevel * 0.02;      // 0.10 → 0.25
+
+    // Flow speed follows tension smoothly
+    this.currentFlow += (targetFlow - this.currentFlow) * 1.5 * dt;
+
+    // Smooth follow (heavier smoothing for less warble)
+    this.currentWarp += (targetWarp - this.currentWarp) * 1.5 * dt;
     this.currentWarp = Math.min(this.currentWarp, 6.5);
 
-    this.currentScale += (targetScale - this.currentScale) * 3.0 * dt;
+    this.currentScale += (targetScale - this.currentScale) * 1.5 * dt;
 
-    this.currentDetail += (targetDetail - this.currentDetail) * 4.0 * dt;
+    this.currentDetail += (targetDetail - this.currentDetail) * 2.0 * dt;
 
     // Amplitude: gentle swell from wave
-    this.amplitude = 1.0 + waveLevel * 0.08;
+    this.amplitude = 1.0 + waveLevel * 0.03;
 
     // Color from chord root or song key — keep colors vibrant
     const modeDim = music.keyMode === 'minor' ? 0.75 : 1.0;
-    const intensity = (0.85 + waveLevel * 0.15 + music.tension * 0.1) * modeDim;
+    const intensity = (0.85 + waveLevel * 0.15 + this.smoothTension * 0.1) * modeDim;
     const paletteSource = this.colorByChord ? music.chordRoot : music.key;
     const palIdx = paletteSource >= 0 && paletteSource < palettes.length ? paletteSource : 0;
     const p = palettes[palIdx];

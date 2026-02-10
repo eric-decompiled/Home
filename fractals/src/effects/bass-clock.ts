@@ -108,7 +108,9 @@ export class BassClockEffect implements VisualEffect {
     // Also re-initialize when song key changes (e.g., when song loads and key is detected)
     const shouldInit = !this.initializedToKey || (this.initializedKey !== this.key && this.initializedKey >= 0);
     if (shouldInit) {
-      const tonicAngle = (this.key / 12) * Math.PI * 2 - Math.PI / 2;
+      // Get exact tonic position from spiralPos, subtract keyRotation (added during render)
+      const tonicPos = spiralPos(113, this.key, this.key, this.keyRotation, 0, 0, 1);
+      const tonicAngle = tonicPos.angle - this.keyRotation;
 
       if (!this.initializedToKey) {
         // First init: snap immediately
@@ -150,10 +152,12 @@ export class BassClockEffect implements VisualEffect {
       });
     } else if (pc >= 0) {
       // Respond to chord changes (skip on init frame)
-      // Point directly at numeral positions (no twist offset)
-      const newAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2;
+      // Get exact position from spiralPos (includes twist) then subtract keyRotation
+      // since keyRotation is added back during render
+      const targetPos = spiralPos(113, pc, this.key, this.keyRotation, 0, 0, 1);
+      const newAngle = targetPos.angle - this.keyRotation;
 
-      // Use shortest path
+      // Use shortest path for animation
       let diff = newAngle - this.handAngle;
       while (diff > Math.PI) diff -= Math.PI * 2;
       while (diff < -Math.PI) diff += Math.PI * 2;
@@ -183,12 +187,15 @@ export class BassClockEffect implements VisualEffect {
           overwrite: 'auto',
         });
 
-        // GSAP: Hand motion with subtle overshoot - weighty
+        // GSAP: Hand motion - smooth without overshoot
+        // Snap to exact normalized angle on complete to prevent drift
+        const exactAngle = newAngle;
         gsap.to(this, {
           handAngle: this.targetAngle,
-          duration: beatDur * 2.0,
-          ease: 'back.out(0.6)',
+          duration: beatDur * 1.5,
+          ease: 'power2.out',
           overwrite: true,
+          onComplete: () => { this.handAngle = exactAngle; },
         });
 
         // GSAP: Brightness pulse on chord change, slow decay
@@ -239,8 +246,7 @@ export class BassClockEffect implements VisualEffect {
 
     const handLen = r * this.handLength;
 
-    // Apply windup angle - subtle counter-rotation (pull back before striking)
-    // Negative offset creates "leaning back" effect
+    // Render using animated handAngle + keyRotation
     const angle = this.handAngle + this.keyRotation - this.windupAngle;
     const R = this.colR, G = this.colG, B = this.colB;
     const brt = 0.5 + this.handBrightness * 0.4 + this.energy * 0.15;

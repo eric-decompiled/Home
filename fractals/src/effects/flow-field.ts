@@ -89,6 +89,9 @@ export class FlowFieldEffect implements VisualEffect {
   private colorB = 255;
   private useWhite = false;
 
+  // Smoothed tension (weighted average to avoid reacting too quickly)
+  private smoothTension = 0;
+
   // Mouse interaction (subtle - need to look to notice)
   private mouseX = -1;
   private mouseY = -1;
@@ -149,13 +152,17 @@ export class FlowFieldEffect implements VisualEffect {
     // Chord root → angle offset
     this.angleOffset = (music.chordRoot / 12) * Math.PI * 2;
 
+    // Smooth tension with weighted average (time constant ~0.5s)
+    const tensionRate = 2.0;
+    this.smoothTension += (music.tension - this.smoothTension) * tensionRate * dt;
+
     // Tension → flow complexity (subtle, avoid clumping)
     // Low tension: smooth, laminar flow; High tension: slightly more turbulent
-    this.turbulence = 0.3 + music.tension * 0.4;
+    this.turbulence = 0.3 + this.smoothTension * 0.4;
     // Gentle flow speed variation with tension
-    this.flowSpeed = 0.4 + music.tension * 0.2;
+    this.flowSpeed = 0.4 + this.smoothTension * 0.2;
     // Subtle noise detail change
-    this.noiseScale = 0.002 + music.tension * 0.0005;
+    this.noiseScale = 0.002 + this.smoothTension * 0.0005;
 
     // === GROOVE CURVES (rhythm driver) ===
     const beatGroove = music.beatGroove ?? 0.5;

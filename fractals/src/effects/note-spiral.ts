@@ -84,6 +84,7 @@ export class NoteSpiralEffect implements VisualEffect {
   private glowOutlines = true;
   private spiralTightness = 1.25;  // power curve: lower = more bass space, higher = tighter
   private currentTension = 0;  // for tension-driven visuals
+  private beatDuration = 0.5;  // for beat-synced effects
   private activeShapes: Set<string> = new Set(['firefly']);
   private static readonly SHAPES = ['firefly', 'starburst', 'ring', 'spark'];
 
@@ -310,6 +311,13 @@ export class NoteSpiralEffect implements VisualEffect {
       else return;
     }
 
+    // Beat strength: downbeats stronger, offbeats ("ands") weaker
+    // beatIndex 0 = beat 1 (strongest), others medium
+    // beatPosition near 0.5 = offbeat (weaker)
+    const downbeatBoost = music.beatIndex === 0 ? 1.5 : 1.0;
+    const offbeatPenalty = 1.0 - Math.abs(music.beatPosition - 0.5) * 0.6; // 0.7-1.0
+    const beatStrength = downbeatBoost * offbeatPenalty;
+
     // Light up all active voices - keep sustained notes visible
     for (const voice of music.activeVoices) {
       if (voice.midi < MIDI_LO || voice.midi >= MIDI_HI) continue;
@@ -320,7 +328,7 @@ export class NoteSpiralEffect implements VisualEffect {
       // Keep sustained notes at minimum brightness, flash on onset
       const minBrightness = 0.4; // sustained notes stay visible
       if (voice.onset) {
-        node.brightness = 1.0;
+        node.brightness += voice.velocity * beatStrength;  // Accumulate, weighted by beat
         node.velocity = voice.velocity;
         node.lastHitTime = this.time;
 
@@ -375,8 +383,9 @@ export class NoteSpiralEffect implements VisualEffect {
       }
     }
 
-    // Track tension for visual modulation
+    // Track tension and beat timing for visual modulation
     this.currentTension = music.tension;
+    this.beatDuration = music.beatDuration;
 
     // === GROOVE CURVES ===
     const beatArrival = music.beatArrival ?? 0;
@@ -385,7 +394,7 @@ export class NoteSpiralEffect implements VisualEffect {
     if (music.kick) {
       const pulseStrength = 0.08 + music.tension * 0.05;
       for (const node of this.nodes) {
-        if (node.brightness > 0.05) node.brightness = Math.min(1.0, node.brightness + pulseStrength);
+        if (node.brightness > 0.05) node.brightness += pulseStrength;
       }
     }
 
@@ -393,7 +402,7 @@ export class NoteSpiralEffect implements VisualEffect {
     if (beatArrival > 0.1) {
       const arrivalPulse = beatArrival * 0.06;
       for (const node of this.nodes) {
-        if (node.brightness > 0.05) node.brightness = Math.min(1.0, node.brightness + arrivalPulse);
+        if (node.brightness > 0.05) node.brightness += arrivalPulse;
       }
     }
 
@@ -539,7 +548,10 @@ export class NoteSpiralEffect implements VisualEffect {
       const lightFactor = 1.0 - lightT * 0.2;
 
       // Smooth fade using sqrt curve - keeps low values visible longer
-      const alpha = Math.sqrt(node.brightness) * lightFactor;
+      // Normalize by max brightness so only heavily-hit notes reach full size
+      const MAX_BRIGHTNESS = 8.0;  // ~8 full-velocity hits to reach max
+      const normalizedBrightness = Math.min(1, node.brightness / MAX_BRIGHTNESS);
+      const alpha = Math.sqrt(normalizedBrightness) * lightFactor;
 
       // === ATTACK VS SUSTAIN COLORING ===
       // Attack phase (first 0.25s): hot white flash
@@ -851,28 +863,41 @@ export class NoteSpiralEffect implements VisualEffect {
               }
               case 'firefly': {
                 // Dancing particles - simplified for performance
-                const numFlies = 2; // Fixed count for performance
                 const maxFlyDist = fullBeamLen * 0.7;
-                for (let f = 0; f < numFlies; f++) {
-                  // Seeded randomness per particle (stable across frames)
-                  const seed = (midi * 7 + f * 13) % 100 / 100;
-                  const seed2 = (midi * 11 + f * 17) % 100 / 100;
-                  const seed3 = (midi * 19 + f * 23) % 100 / 100;
 
-                  // Start far, come inward as beamLength decays
-                  const progress = 1 - node.beamLength;
-                  const baseDist = maxFlyDist * (0.15 + seed * 0.5) * (1 - progress);
-                  const wobbleAmt = (8 + seed2 * 12) * pos.scale;
-                  const wobble = Math.sin(this.time * (6 + seed3 * 8) + f * 2 + seed * 10) * wobbleAmt;
-                  const flyAngle = beamAngle + (seed - 0.5) * Math.PI * 0.8;
-                  const flyDist = baseDist + Math.sin(this.time * 4 + seed * 20) * 5 * pos.scale;
+                // Beat-synced using absolute time (not reset by repeated hits)
+                const beatNum = Math.floor(this.time / this.beatDuration);
+                const beatPhase = (this.time % this.beatDuration) / this.beatDuration;
+
+                // Random 0-3 particles per beat (stable within beat)
+                const numFlies = (beatNum * 41 + midi * 7) % 4;
+
+                // Smooth fade: in during first 20%, full 20-60%, out 60-100%
+                let beatFade = 1.0;
+                if (beatPhase < 0.2) beatFade = beatPhase / 0.2;
+                else if (beatPhase > 0.6) beatFade = 1.0 - (beatPhase - 0.6) / 0.4;
+
+                for (let f = 0; f < numFlies; f++) {
+                  // Stable seeds within each beat - changes each beat for variety
+                  const beatSeed = (beatNum * 97 + midi * 7 + f * 13) % 1000;
+                  const seed = (beatSeed % 100) / 100;
+                  const seed2 = ((beatSeed * 3 + 17) % 100) / 100;
+                  const seed3 = ((beatSeed * 7 + 31) % 100) / 100;
+
+                  // Start scattered, converge over the beat
+                  const convergence = beatPhase;  // 0 at beat start, 1 at beat end
+                  const baseDist = maxFlyDist * (0.05 + seed * 0.6) * (1 - convergence * 0.8);
+                  const wobbleAmt = (4 + seed2 * 6) * pos.scale * (1 - convergence);
+                  const wobble = Math.sin(this.time * (4 + seed3 * 4) + f * 2 + seed * 10) * wobbleAmt;
+                  const flyAngle = beamAngle + (seed - 0.5) * Math.PI * 1.4;
+                  const flyDist = baseDist;
                   const fx = pos.x + Math.cos(flyAngle) * flyDist + Math.cos(flyAngle + Math.PI/2) * wobble;
                   const fy = pos.y + Math.sin(flyAngle) * flyDist + Math.sin(flyAngle + Math.PI/2) * wobble;
-                  const flyR = (3 + seed2 * 4) * pos.scale;
+                  const flyR = (1.5 + seed2 * 2) * pos.scale;
 
-                  // Simple layered fills instead of gradient (much faster)
-                  const coreAlpha = beamAlpha * 0.7;
-                  const outerAlpha = beamAlpha * 0.25;
+                  // Apply beat fade to alpha
+                  const coreAlpha = beamAlpha * 0.4 * beatFade;
+                  const outerAlpha = beamAlpha * 0.12 * beatFade;
                   // Outer glow
                   ctx.fillStyle = `rgba(${node.r},${node.g},${node.b},${outerAlpha.toFixed(3)})`;
                   ctx.beginPath();
@@ -921,11 +946,11 @@ export class NoteSpiralEffect implements VisualEffect {
 
       // Dot: diatonic notes brighter, chromatic visible
       // Scale dot by depth (higher notes = larger = closer)
-      const baseAlpha = inKey ? 0.3 : 0.12;
-      const dotAlpha = baseAlpha + alpha * 0.75;
+      const baseAlpha = inKey ? 0.25 : 0.10;
+      const dotAlpha = baseAlpha + alpha * 0.5;
       if (dotAlpha < 0.005) continue;
 
-      const baseDotR = inKey ? (4.5 + alpha * 6) : (2.5 + alpha * 4);
+      const baseDotR = inKey ? (4.0 + alpha * 4) : (2.5 + alpha * 3);
       const dotR = baseDotR * pos.scale;
 
       // Soft glow outline around dot (scaled by depth)
@@ -1017,7 +1042,8 @@ export class NoteSpiralEffect implements VisualEffect {
     if (key === 'setShapes') {
       // Set shapes directly (comma-separated list)
       this.activeShapes.clear();
-      const shapes = (value as string).split(',').filter(s => s);
+      const valueStr = typeof value === 'string' ? value : String(value ?? '');
+      const shapes = valueStr.split(',').filter(s => s);
       for (const s of shapes) this.activeShapes.add(s);
     }
     if (key === 'spiralTightness') this.spiralTightness = value as number;
