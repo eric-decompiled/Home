@@ -256,14 +256,14 @@ function applyURLSettings(): { presetApplied?: string } {
   const urlState = urlToState(window.location.search);
   const result: { presetApplied?: string } = {};
 
-  // If no URL params, apply default Spiral preset (including configs)
+  // If no URL params, apply default Warp preset (including configs)
   if (!urlState) {
-    const defaultPreset = getPresetState('spiral');
+    const defaultPreset = getPresetState('warp');
     if (defaultPreset) {
       applyState(defaultPreset, layerSlots, getAllEffects());
     }
     applySlotSelections();
-    result.presetApplied = 'spiral';
+    result.presetApplied = 'warp';
     return result;
   }
 
@@ -294,9 +294,9 @@ app.innerHTML = `
           <span></span><span></span><span></span>
         </button>
         <div class="mobile-presets mobile-only">
+          <button class="mobile-preset-btn" id="mobile-bar-warp">Warp</button>
           <button class="mobile-preset-btn" id="mobile-bar-spiral">Spiral</button>
           <button class="mobile-preset-btn" id="mobile-bar-clock">Clock</button>
-          <button class="mobile-preset-btn" id="mobile-bar-warp">Warp</button>
           <button class="mobile-preset-btn" id="mobile-bar-sculpture">Sculpt</button>
         </div>
         <div class="transport-compact">
@@ -320,9 +320,9 @@ app.innerHTML = `
           <span class="time-display" id="time-display">0:00 / 0:00</span>
         </div>
         <div class="preset-buttons desktop-only">
+          <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope">Warp</button>
           <button class="toggle-btn preset-btn" id="preset-spiral" title="Starfield + Star Spiral + Bass Fire">Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-clock" title="Starfield + Note Spiral + Bass Clock">Clock</button>
-          <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope">Warp</button>
           <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar" style="display:none;">Fractal</button>
           <button class="toggle-btn preset-btn" id="preset-sculpture" title="Graph Sculpture + Theory Bar">Sculpture</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
@@ -352,9 +352,9 @@ app.innerHTML = `
       <div class="mobile-menu-section">
         <div class="mobile-menu-label">View</div>
         <div class="mobile-menu-buttons">
+          <button class="toggle-btn preset-btn" id="mobile-preset-warp">Warp</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-spiral">Spiral</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-clock">Clock</button>
-          <button class="toggle-btn preset-btn" id="mobile-preset-warp">Warp</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-fractal" style="display:none;">Fractal</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-sculpture">Sculpture</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-piano">Piano</button>
@@ -529,7 +529,10 @@ mobilePlayBtn.addEventListener('click', async () => {
 // Triple-tap on canvas to toggle theory bar with slide animation
 let tapCount = 0;
 let tapTimeout: number | null = null;
-canvas.addEventListener('touchend', () => {
+canvas.addEventListener('touchend', (e) => {
+  // Ignore multi-touch (pinch zoom)
+  if (e.changedTouches.length > 1) return;
+
   tapCount++;
   if (tapTimeout) clearTimeout(tapTimeout);
   tapTimeout = window.setTimeout(() => {
@@ -552,8 +555,8 @@ canvas.addEventListener('touchend', () => {
       }
     }
     tapCount = 0;
-  }, 400);
-});
+  }, 500);
+}, { passive: true });
 
 // Triple-click on canvas to toggle theory bar (mirrors triple-tap on mobile)
 let clickCount = 0;

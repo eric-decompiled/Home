@@ -8,15 +8,12 @@ body {
   background-color: #0a0a0a;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   color: #fff;
-  min-height: 100vh;
-  min-height: 100dvh; /* Dynamic viewport height for mobile */
-  overflow-x: hidden;
-  overflow-y: auto;
+  height: 100vh;
+  overflow: hidden;
 }
 
 #app {
-  min-height: 100vh;
-  min-height: 100dvh; /* Dynamic viewport height for mobile */
+  height: 100vh;
   display: flex;
   flex-direction: column;
 }
@@ -24,8 +21,7 @@ body {
 .container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh; /* Dynamic viewport height for mobile */
+  height: 100vh;
 }
 
 /* --- Top bar --- */
@@ -238,8 +234,7 @@ a.toggle-btn {
   flex: 1;
   display: flex;
   min-height: 0;
-  overflow: visible;
-  touch-action: pan-y pinch-zoom;
+  overflow: hidden;
 }
 
 /* --- Layer panel --- */
@@ -606,10 +601,9 @@ a.toggle-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: visible;
+  overflow: hidden;
   padding: 8px;
-  min-height: 70vh;
-  min-height: 70dvh; /* Dynamic viewport height for mobile */
+  min-height: 0;
   position: relative;
 }
 
@@ -665,14 +659,10 @@ canvas {
   display: block;
   max-width: 100%;
   max-height: 100%;
-  min-width: 80vw;
-  min-width: 80dvw; /* Dynamic viewport width for mobile */
-  min-height: 70vh;
-  min-height: 70dvh; /* Dynamic viewport height for mobile */
   background: #000;
   border: 1px solid #1a1a2e;
   border-radius: 4px;
-  touch-action: pan-x pan-y pinch-zoom;
+  touch-action: pan-y;
 }
 
 /* --- Mobile play overlay --- */
@@ -914,14 +904,47 @@ input[type="range"]::-moz-range-thumb {
     font-size: 10px;
   }
 
-  /* Canvas fills available space */
+  /* Mobile layout overrides */
+  body {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    overflow-y: auto;
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+
+  #app {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    touch-action: pan-x pan-y pinch-zoom;
+  }
+
+  .container {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .main-area {
+    overflow: visible;
+    touch-action: pan-y pinch-zoom;
+  }
+
+  /* Canvas fills available space with min dimensions (px to avoid zoom issues) */
   .canvas-wrap {
     padding: 2px;
+    min-height: 400px;
+    overflow: visible;
   }
 
   canvas {
     border-radius: 0;
     border: none;
+    min-width: 300px;
+    min-height: 400px;
+    touch-action: pan-x pan-y pinch-zoom;
   }
 
   /* Debug overlay on tablet */
@@ -1060,15 +1083,12 @@ input[type="range"]::-moz-range-thumb {
 
   .canvas-wrap {
     padding: 2px;
-    min-height: 60vh;
-    min-height: 60dvh;
+    min-height: 250px;
   }
 
   canvas {
-    min-height: 55vh;
-    min-height: 55dvh;
-    min-width: 50vw;
-    min-width: 50dvw;
+    min-height: 240px;
+    min-width: 400px;
     border: none;
     border-radius: 0;
   }

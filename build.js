@@ -19,8 +19,12 @@ const titles = {
   'fractals': 'Fractured Jukebox',
 };
 
-// Featured project gets special styling
-const featuredProject = 'fractals';
+// Project styling classes (gold, silver, bronze)
+const projectStyles = {
+  'fractals': 'gold',
+  'lissajous': 'silver',
+  'sound-synth': 'bronze',
+};
 
 // Base path for GitHub Pages deployment (set via environment variable or default to root)
 const basePath = process.env.BASE_PATH || '';
@@ -65,8 +69,8 @@ async function build() {
   const projectLinks = Object.entries(projects)
     .map(([name, description]) => {
       const title = titles[name] || name.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-      const isFeatured = name === featuredProject;
-      const classes = isFeatured ? 'project-link featured' : 'project-link';
+      const styleClass = projectStyles[name];
+      const classes = styleClass ? `project-link ${styleClass}` : 'project-link';
       return `
         <a href="${name}/index.html" class="${classes}">
           <h3>${title}</h3>
