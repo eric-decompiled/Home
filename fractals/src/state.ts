@@ -58,16 +58,15 @@ export interface EffectConfigs {
 }
 
 // Fractal anchor for a single harmonic degree
-export interface FractalOrbit {
-  dr: number;  // real offset
-  di: number;  // imaginary offset
-}
-
 export interface FractalAnchor {
   real: number;
   imag: number;
   type: number;  // fractal type enum (3=BurningShip, 4=Tricorn, etc.)
-  orbits: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit];
+  orbitRadius: number;  // base radius for orbit ellipse
+  orbitSkew?: number;   // aspect ratio: 1=circle, <1=wide, >1=tall (default 1)
+  orbitRotation?: number; // ellipse rotation in radians (default 0)
+  beatSpread?: number;  // angle between beat points in radians (default π/2 = 90°)
+  orbitMode?: 'orbit' | 'beats';  // continuous orbit vs discrete beat jumps (default 'orbit')
 }
 
 // Full anchors for all degrees (0-7, where 0 mirrors 1)
@@ -185,10 +184,12 @@ for (const [effectId, keys] of Object.entries(CONFIG_SHORTS)) {
 // --- Preset Definitions ---
 
 export const PRESET_LAYERS: Record<string, (string | null)[]> = {
-  spiral: ['starfield', 'note-spiral', null, null, 'bass-clock', null],
+  // [bg, fg, overlay, melody, bass, hud]
+  spiral: ['starfield', 'note-spiral', null, null, 'bass-clock', 'theory-bar'],
   warp: ['chladni', 'note-spiral', 'kaleidoscope', null, 'bass-clock', null],
   fractal: ['flowfield', 'fractal', null, null, null, 'theory-bar'],
   piano: ['flowfield', 'piano-roll', null, null, null, null],
+  sculpture: [null, 'graph-sculpture', null, null, null, 'theory-bar'],
 };
 
 // Preset-specific effect configs (applied when preset is selected)
@@ -201,6 +202,7 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
     'fractal': { preset: 'organic-flow:Organic Flow' },
   },
   piano: {},
+  sculpture: {},
 };
 
 // --- Default Config Values ---
@@ -754,73 +756,45 @@ export interface AnchorPreset {
   builtIn?: boolean;
 }
 
-// Orbit patterns by family type (based on boundary sensitivity)
+// Orbit radii by family type (based on boundary sensitivity)
 // See research/fractal-theory.md "Orbit Design Theory" for rationale
-
-// Small circular - for sensitive families (Burning Ship, Magnet, Barnsley)
-const ORBIT_SMALL: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
-  { dr: 0.025, di: 0 },
-  { dr: 0, di: 0.025 },
-  { dr: -0.025, di: 0 },
-  { dr: 0, di: -0.025 },
-];
-
-// Medium circular - default for most families
-const ORBIT_MEDIUM: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
-  { dr: 0.05, di: 0 },
-  { dr: 0, di: 0.05 },
-  { dr: -0.05, di: 0 },
-  { dr: 0, di: -0.05 },
-];
-
-// Large circular - for stable families (Newton, Sine)
-const ORBIT_LARGE: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
-  { dr: 0.10, di: 0 },
-  { dr: 0, di: 0.10 },
-  { dr: -0.10, di: 0 },
-  { dr: 0, di: -0.10 },
-];
-
-// Pendulum (horizontal) - good for Sine's periodic structure
-const ORBIT_PENDULUM: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
-  { dr: 0.12, di: 0 },
-  { dr: -0.12, di: 0 },
-  { dr: 0.12, di: 0 },
-  { dr: -0.12, di: 0 },
-];
-
-// Breathing (expand/contract) - good for Magnet convergence
-const ORBIT_BREATHING: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
-  { dr: 0.03, di: 0.03 },
-  { dr: 0, di: 0 },
-  { dr: 0.03, di: 0.03 },
-  { dr: 0, di: 0 },
-];
-
-// Asymmetric (emphasis on beat 1) - good for angular families
-const ORBIT_ASYMMETRIC: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
-  { dr: 0.06, di: 0 },
-  { dr: 0, di: 0.03 },
-  { dr: -0.04, di: 0 },
-  { dr: 0, di: -0.03 },
-];
+const RADIUS_SMALL = 0.025;   // Sensitive families (Burning Ship, Magnet, Barnsley)
+const RADIUS_MEDIUM = 0.05;   // Default for most families
+const RADIUS_LARGE = 0.10;    // Stable families (Newton, Sine)
 
 // Built-in anchor presets showcasing different families
-// Each uses family-appropriate orbit patterns based on boundary sensitivity
+// Each uses family-appropriate orbit radius based on boundary sensitivity
 export const BUILTIN_ANCHOR_PRESETS: AnchorPreset[] = [
+  {
+    id: 'julia-classics',
+    name: 'Julia Classics',
+    builtIn: true,
+    anchors: {
+      // Spread around Mandelbrot boundary - no crossing orbits
+      // Positioned in different quadrants/regions for visual variety
+      0: { real: 0.28, imag: 0.53, type: 0, orbitRadius: RADIUS_MEDIUM },     // chromatic: upper right filament
+      1: { real: -0.12, imag: 0.74, type: 0, orbitRadius: RADIUS_MEDIUM },    // I: top (seahorse valley)
+      2: { real: -0.75, imag: 0.11, type: 0, orbitRadius: RADIUS_MEDIUM },    // ii: left side cardioid edge
+      3: { real: -1.25, imag: 0.0, type: 0, orbitRadius: RADIUS_MEDIUM },     // iii: left antenna (black ok)
+      4: { real: -0.74, imag: -0.18, type: 0, orbitRadius: RADIUS_MEDIUM },   // IV: lower left cardioid
+      5: { real: 0.36, imag: -0.35, type: 0, orbitRadius: RADIUS_MEDIUM },    // V: lower right filament
+      6: { real: -0.16, imag: -0.65, type: 0, orbitRadius: RADIUS_MEDIUM },   // vi: bottom
+      7: { real: -1.0, imag: 0.27, type: 0, orbitRadius: RADIUS_MEDIUM },     // vii: period-2 bulb upper
+    },
+  },
   {
     id: 'classic-mix',
     name: 'Classic Mix',
     builtIn: true,
     anchors: {
-      0: { real: -0.4, imag: 0.6, type: 6, orbits: ORBIT_MEDIUM },     // Celtic - medium
-      1: { real: -0.4, imag: 0.6, type: 6, orbits: ORBIT_MEDIUM },     // Celtic
-      2: { real: -1.75, imag: -0.02, type: 3, orbits: ORBIT_SMALL },   // Burning Ship - sensitive
-      3: { real: 0.285, imag: 0.01, type: 5, orbits: ORBIT_MEDIUM },   // Phoenix
-      4: { real: -0.8, imag: 0.156, type: 6, orbits: ORBIT_MEDIUM },   // Celtic
-      5: { real: -1.75, imag: 0.0, type: 8, orbits: ORBIT_SMALL },     // PerpBurn - sensitive
-      6: { real: 0.285, imag: 0.53, type: 5, orbits: ORBIT_MEDIUM },   // Phoenix
-      7: { real: -1.75, imag: -0.05, type: 3, orbits: ORBIT_SMALL },   // Burning Ship
+      0: { real: -0.4, imag: 0.6, type: 6, orbitRadius: RADIUS_MEDIUM },     // Celtic
+      1: { real: -0.4, imag: 0.6, type: 6, orbitRadius: RADIUS_MEDIUM },     // Celtic
+      2: { real: -1.75, imag: -0.02, type: 3, orbitRadius: RADIUS_SMALL },   // Burning Ship
+      3: { real: 0.285, imag: 0.01, type: 5, orbitRadius: RADIUS_MEDIUM },   // Phoenix
+      4: { real: -0.8, imag: 0.156, type: 6, orbitRadius: RADIUS_MEDIUM },   // Celtic
+      5: { real: -1.75, imag: 0.0, type: 8, orbitRadius: RADIUS_SMALL },     // PerpBurn
+      6: { real: 0.285, imag: 0.53, type: 5, orbitRadius: RADIUS_MEDIUM },   // Phoenix
+      7: { real: -1.75, imag: -0.05, type: 3, orbitRadius: RADIUS_SMALL },   // Burning Ship
     },
   },
   {
@@ -828,15 +802,14 @@ export const BUILTIN_ANCHOR_PRESETS: AnchorPreset[] = [
     name: 'Newton Basins',
     builtIn: true,
     anchors: {
-      // Newton is very stable - use large orbits for visible motion
-      0: { real: 0.5, imag: 0.5, type: 10, orbits: ORBIT_LARGE },
-      1: { real: 0.5, imag: 0.5, type: 10, orbits: ORBIT_LARGE },
-      2: { real: -0.3, imag: 0.8, type: 10, orbits: ORBIT_LARGE },
-      3: { real: 0.7, imag: -0.2, type: 10, orbits: ORBIT_LARGE },
-      4: { real: 0.0, imag: 1.0, type: 10, orbits: ORBIT_LARGE },
-      5: { real: -0.5, imag: 0.5, type: 10, orbits: ORBIT_LARGE },
-      6: { real: 0.3, imag: 0.7, type: 10, orbits: ORBIT_LARGE },
-      7: { real: -0.7, imag: 0.3, type: 10, orbits: ORBIT_LARGE },
+      0: { real: 0.5, imag: 0.5, type: 10, orbitRadius: RADIUS_LARGE },
+      1: { real: 0.5, imag: 0.5, type: 10, orbitRadius: RADIUS_LARGE },
+      2: { real: -0.3, imag: 0.8, type: 10, orbitRadius: RADIUS_LARGE },
+      3: { real: 0.7, imag: -0.2, type: 10, orbitRadius: RADIUS_LARGE },
+      4: { real: 0.0, imag: 1.0, type: 10, orbitRadius: RADIUS_LARGE },
+      5: { real: -0.5, imag: 0.5, type: 10, orbitRadius: RADIUS_LARGE },
+      6: { real: 0.3, imag: 0.7, type: 10, orbitRadius: RADIUS_LARGE },
+      7: { real: -0.7, imag: 0.3, type: 10, orbitRadius: RADIUS_LARGE },
     },
   },
   {
@@ -844,31 +817,14 @@ export const BUILTIN_ANCHOR_PRESETS: AnchorPreset[] = [
     name: 'Nova Layers',
     builtIn: true,
     anchors: {
-      // Nova is Julia-like, medium sensitivity
-      0: { real: 0.3, imag: 0.0, type: 11, orbits: ORBIT_MEDIUM },
-      1: { real: 0.3, imag: 0.0, type: 11, orbits: ORBIT_MEDIUM },
-      2: { real: 0.4, imag: 0.1, type: 11, orbits: ORBIT_MEDIUM },
-      3: { real: 0.2, imag: -0.2, type: 11, orbits: ORBIT_MEDIUM },
-      4: { real: 0.35, imag: 0.15, type: 11, orbits: ORBIT_MEDIUM },
-      5: { real: 0.5, imag: 0.0, type: 11, orbits: ORBIT_MEDIUM },
-      6: { real: 0.25, imag: 0.25, type: 11, orbits: ORBIT_MEDIUM },
-      7: { real: 0.45, imag: -0.1, type: 11, orbits: ORBIT_MEDIUM },
-    },
-  },
-  {
-    id: 'sine-waves',
-    name: 'Sine Waves',
-    builtIn: true,
-    anchors: {
-      // Sine is periodic - use pendulum motion along real axis
-      0: { real: 1.0, imag: 0.0, type: 12, orbits: ORBIT_PENDULUM },
-      1: { real: 1.0, imag: 0.0, type: 12, orbits: ORBIT_PENDULUM },
-      2: { real: 1.2, imag: 0.3, type: 12, orbits: ORBIT_PENDULUM },
-      3: { real: 0.8, imag: -0.4, type: 12, orbits: ORBIT_LARGE },
-      4: { real: 1.1, imag: 0.2, type: 12, orbits: ORBIT_PENDULUM },
-      5: { real: 1.3, imag: 0.0, type: 12, orbits: ORBIT_PENDULUM },
-      6: { real: 0.9, imag: 0.5, type: 12, orbits: ORBIT_LARGE },
-      7: { real: 1.4, imag: -0.2, type: 12, orbits: ORBIT_PENDULUM },
+      0: { real: 0.3, imag: 0.0, type: 11, orbitRadius: RADIUS_MEDIUM },
+      1: { real: 0.3, imag: 0.0, type: 11, orbitRadius: RADIUS_MEDIUM },
+      2: { real: 0.4, imag: 0.1, type: 11, orbitRadius: RADIUS_MEDIUM },
+      3: { real: 0.2, imag: -0.2, type: 11, orbitRadius: RADIUS_MEDIUM },
+      4: { real: 0.35, imag: 0.15, type: 11, orbitRadius: RADIUS_MEDIUM },
+      5: { real: 0.5, imag: 0.0, type: 11, orbitRadius: RADIUS_MEDIUM },
+      6: { real: 0.25, imag: 0.25, type: 11, orbitRadius: RADIUS_MEDIUM },
+      7: { real: 0.45, imag: -0.1, type: 11, orbitRadius: RADIUS_MEDIUM },
     },
   },
   {
@@ -876,15 +832,14 @@ export const BUILTIN_ANCHOR_PRESETS: AnchorPreset[] = [
     name: 'Magnet Flames',
     builtIn: true,
     anchors: {
-      // Magnet converges to z=1 - use breathing pattern, small radius
-      0: { real: 0.0, imag: 0.0, type: 13, orbits: ORBIT_BREATHING },
-      1: { real: 0.0, imag: 0.0, type: 13, orbits: ORBIT_BREATHING },
-      2: { real: 0.5, imag: 0.5, type: 13, orbits: ORBIT_BREATHING },
-      3: { real: -0.5, imag: 0.5, type: 13, orbits: ORBIT_SMALL },
-      4: { real: 0.3, imag: -0.3, type: 13, orbits: ORBIT_BREATHING },
-      5: { real: 1.0, imag: 0.0, type: 13, orbits: ORBIT_SMALL },
-      6: { real: -0.3, imag: 0.6, type: 13, orbits: ORBIT_BREATHING },
-      7: { real: 0.7, imag: 0.4, type: 13, orbits: ORBIT_SMALL },
+      0: { real: 0.0, imag: 0.0, type: 13, orbitRadius: RADIUS_SMALL },
+      1: { real: 0.0, imag: 0.0, type: 13, orbitRadius: RADIUS_SMALL },
+      2: { real: 0.5, imag: 0.5, type: 13, orbitRadius: RADIUS_SMALL },
+      3: { real: -0.5, imag: 0.5, type: 13, orbitRadius: RADIUS_SMALL },
+      4: { real: 0.3, imag: -0.3, type: 13, orbitRadius: RADIUS_SMALL },
+      5: { real: 1.0, imag: 0.0, type: 13, orbitRadius: RADIUS_SMALL },
+      6: { real: -0.3, imag: 0.6, type: 13, orbitRadius: RADIUS_SMALL },
+      7: { real: 0.7, imag: 0.4, type: 13, orbitRadius: RADIUS_SMALL },
     },
   },
   {
@@ -892,15 +847,14 @@ export const BUILTIN_ANCHOR_PRESETS: AnchorPreset[] = [
     name: 'Organic Ferns',
     builtIn: true,
     anchors: {
-      // Barnsley has conditional branching - use small/asymmetric orbits
-      0: { real: 0.6, imag: 1.1, type: 14, orbits: ORBIT_SMALL },
-      1: { real: 0.6, imag: 1.1, type: 14, orbits: ORBIT_SMALL },
-      2: { real: 0.5, imag: 1.0, type: 15, orbits: ORBIT_ASYMMETRIC },
-      3: { real: 0.7, imag: 0.9, type: 14, orbits: ORBIT_SMALL },
-      4: { real: 0.55, imag: 1.05, type: 16, orbits: ORBIT_ASYMMETRIC },
-      5: { real: 0.65, imag: 1.15, type: 14, orbits: ORBIT_SMALL },
-      6: { real: 0.45, imag: 0.95, type: 15, orbits: ORBIT_ASYMMETRIC },
-      7: { real: 0.75, imag: 1.2, type: 16, orbits: ORBIT_SMALL },
+      0: { real: 0.6, imag: 1.1, type: 14, orbitRadius: RADIUS_SMALL },
+      1: { real: 0.6, imag: 1.1, type: 14, orbitRadius: RADIUS_SMALL },
+      2: { real: 0.5, imag: 1.0, type: 15, orbitRadius: RADIUS_MEDIUM },
+      3: { real: 0.7, imag: 0.9, type: 14, orbitRadius: RADIUS_SMALL },
+      4: { real: 0.55, imag: 1.05, type: 16, orbitRadius: RADIUS_MEDIUM },
+      5: { real: 0.65, imag: 1.15, type: 14, orbitRadius: RADIUS_SMALL },
+      6: { real: 0.45, imag: 0.95, type: 15, orbitRadius: RADIUS_MEDIUM },
+      7: { real: 0.75, imag: 1.2, type: 16, orbitRadius: RADIUS_SMALL },
     },
   },
   {
@@ -908,15 +862,14 @@ export const BUILTIN_ANCHOR_PRESETS: AnchorPreset[] = [
     name: 'Angular Mix',
     builtIn: true,
     anchors: {
-      // Angular families (Tricorn, Multicorn, Burning Ship) - asymmetric emphasis
-      0: { real: -0.4, imag: 0.6, type: 4, orbits: ORBIT_ASYMMETRIC },
-      1: { real: -0.4, imag: 0.6, type: 4, orbits: ORBIT_ASYMMETRIC },
-      2: { real: -0.5, imag: 0.5, type: 17, orbits: ORBIT_MEDIUM },
-      3: { real: -1.75, imag: -0.02, type: 3, orbits: ORBIT_SMALL },
-      4: { real: -0.3, imag: 0.7, type: 4, orbits: ORBIT_ASYMMETRIC },
-      5: { real: -0.6, imag: 0.4, type: 17, orbits: ORBIT_MEDIUM },
-      6: { real: -1.7, imag: 0.05, type: 3, orbits: ORBIT_SMALL },
-      7: { real: -0.45, imag: 0.55, type: 4, orbits: ORBIT_ASYMMETRIC },
+      0: { real: -0.4, imag: 0.6, type: 4, orbitRadius: RADIUS_MEDIUM },
+      1: { real: -0.4, imag: 0.6, type: 4, orbitRadius: RADIUS_MEDIUM },
+      2: { real: -0.5, imag: 0.5, type: 17, orbitRadius: RADIUS_MEDIUM },
+      3: { real: -1.75, imag: -0.02, type: 3, orbitRadius: RADIUS_SMALL },
+      4: { real: -0.3, imag: 0.7, type: 4, orbitRadius: RADIUS_MEDIUM },
+      5: { real: -0.6, imag: 0.4, type: 17, orbitRadius: RADIUS_MEDIUM },
+      6: { real: -1.7, imag: 0.05, type: 3, orbitRadius: RADIUS_SMALL },
+      7: { real: -0.45, imag: 0.55, type: 4, orbitRadius: RADIUS_MEDIUM },
     },
   },
   {
@@ -926,15 +879,32 @@ export const BUILTIN_ANCHOR_PRESETS: AnchorPreset[] = [
     anchors: {
       // All Phoenix (5) - journey around parameter space
       // Arranged like circle of fifths: tonic at "home", tension opposite
-      // |c| ~ 0.55-0.70 exterior, angles spaced for visual travel
-      0: { real: 0.60, imag: 0.00, type: 5, orbits: [{ dr: 0.12, di: 0.08 }, { dr: -0.08, di: 0.12 }, { dr: -0.12, di: -0.06 }, { dr: 0.08, di: -0.10 }] },  // chromatic: right (neutral)
-      1: { real: 0.55, imag: 0.30, type: 5, orbits: [{ dr: 0.10, di: 0.07 }, { dr: -0.07, di: 0.10 }, { dr: -0.10, di: -0.05 }, { dr: 0.06, di: -0.08 }] },  // I tonic: home (upper right)
-      2: { real: -0.20, imag: 0.60, type: 5, orbits: [{ dr: 0.13, di: 0.09 }, { dr: -0.09, di: 0.13 }, { dr: -0.13, di: -0.06 }, { dr: 0.09, di: -0.11 }] },  // ii: pre-dominant (upper left)
-      3: { real: 0.30, imag: 0.55, type: 5, orbits: [{ dr: 0.11, di: 0.08 }, { dr: -0.08, di: 0.11 }, { dr: -0.11, di: -0.05 }, { dr: 0.07, di: -0.09 }] },  // iii: between I and vi (top)
-      4: { real: 0.50, imag: -0.35, type: 5, orbits: [{ dr: 0.10, di: 0.07 }, { dr: -0.07, di: 0.10 }, { dr: -0.10, di: -0.05 }, { dr: 0.06, di: -0.08 }] },  // IV: subdominant (lower right)
-      5: { real: -0.45, imag: -0.45, type: 5, orbits: [{ dr: 0.14, di: 0.10 }, { dr: -0.10, di: 0.14 }, { dr: -0.14, di: -0.07 }, { dr: 0.10, di: -0.12 }] },  // V: dominant tension (lower left)
-      6: { real: 0.15, imag: 0.60, type: 5, orbits: [{ dr: 0.09, di: 0.06 }, { dr: -0.06, di: 0.09 }, { dr: -0.09, di: -0.04 }, { dr: 0.05, di: -0.07 }] },  // vi: relative minor (near iii)
-      7: { real: -0.55, imag: 0.35, type: 5, orbits: [{ dr: 0.15, di: 0.11 }, { dr: -0.11, di: 0.15 }, { dr: -0.15, di: -0.08 }, { dr: 0.11, di: -0.13 }] },  // vii: max tension (left, toward V)
+      0: { real: 0.60, imag: 0.00, type: 5, orbitRadius: 0.14 },   // chromatic
+      1: { real: 0.55, imag: 0.30, type: 5, orbitRadius: 0.12 },   // I tonic
+      2: { real: -0.20, imag: 0.60, type: 5, orbitRadius: 0.16 },  // ii
+      3: { real: 0.30, imag: 0.55, type: 5, orbitRadius: 0.14 },   // iii
+      4: { real: 0.50, imag: -0.35, type: 5, orbitRadius: 0.12 },  // IV
+      5: { real: -0.45, imag: -0.45, type: 5, orbitRadius: 0.17 }, // V (tension)
+      6: { real: 0.15, imag: 0.60, type: 5, orbitRadius: 0.11 },   // vi
+      7: { real: -0.55, imag: 0.35, type: 5, orbitRadius: 0.19 },  // vii (max tension)
+    },
+  },
+  {
+    id: 'phoenix-journey',
+    name: 'Phoenix Journey',
+    builtIn: true,
+    anchors: {
+      // Phoenix (5) exploration - radial journey from center outward
+      // Lower tension (I, IV, vi) = closer to origin, calmer shapes
+      // Higher tension (V, vii) = farther out, more dramatic boundaries
+      0: { real: 0.28, imag: 0.01, type: 5, orbitRadius: 0.08 },   // chromatic: near origin
+      1: { real: 0.28, imag: 0.01, type: 5, orbitRadius: 0.08 },   // I tonic: calm center
+      2: { real: 0.35, imag: 0.35, type: 5, orbitRadius: 0.10 },   // ii: upper right quadrant
+      3: { real: 0.45, imag: 0.20, type: 5, orbitRadius: 0.10 },   // iii: mid-right
+      4: { real: 0.30, imag: -0.25, type: 5, orbitRadius: 0.09 },  // IV: lower right
+      5: { real: 0.56, imag: 0.43, type: 5, orbitRadius: 0.12 },   // V: outer boundary (tension)
+      6: { real: 0.40, imag: 0.10, type: 5, orbitRadius: 0.09 },   // vi: between I and iii
+      7: { real: 0.52, imag: 0.52, type: 5, orbitRadius: 0.14 },   // vii: max tension, outer corner
     },
   },
 ];
@@ -1076,14 +1046,9 @@ function validateVisualizerState(state: Record<string, unknown>, prefix = ''): s
       if (typeof a.real !== 'number' || typeof a.imag !== 'number' || typeof a.type !== 'number') {
         return `${prefix}Invalid anchor for degree ${degree}`;
       }
-      if (!Array.isArray(a.orbits) || a.orbits.length !== 4) {
-        return `${prefix}Invalid anchor orbits for degree ${degree}`;
-      }
-      for (let i = 0; i < 4; i++) {
-        const orbit = a.orbits[i] as Record<string, unknown>;
-        if (typeof orbit?.dr !== 'number' || typeof orbit?.di !== 'number') {
-          return `${prefix}Invalid orbit ${i} for degree ${degree}`;
-        }
+      // Must have orbitRadius (or legacy orbits array for backwards compat)
+      if (typeof a.orbitRadius !== 'number' && !Array.isArray(a.orbits)) {
+        return `${prefix}Invalid anchor for degree ${degree}: missing orbitRadius`;
       }
     }
   }

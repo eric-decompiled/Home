@@ -6,22 +6,40 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 
 | Slot | Purpose | Effects |
 |------|---------|---------|
-| **Background** | Full-canvas animated backdrop | Chladni (default), Domain Warp, Waves, Flow Field |
-| **Foreground** | Main visual element | Note Spiral (default), Fractal, Piano Roll, Tonnetz |
-| **Overlay** | Post-process effects | Kaleidoscope, Theory Bar |
+| **Background** | Full-canvas animated backdrop | Chladni, Domain Warp, Waves, Flow Field, Starfield |
+| **Foreground** | Main visual element | Graph Sculpture (default), Note Spiral, Fractal, Piano Roll, Tonnetz |
+| **Overlay** | Post-process effects | Kaleidoscope |
 | **Melody** | Melodic visualization | Melody Aurora, Melody Web, Melody Clock |
-| **Bass** | Bass note tracking | Bass Clock (default), Bass Web |
+| **Bass** | Bass note tracking | Bass Clock, Bass Web |
+| **HUD** | Informational overlay | Theory Bar |
 
 ## Presets
 
-| Preset | Background | Foreground | Overlay | Melody | Bass |
-|--------|------------|------------|---------|--------|------|
-| **Cosmic Spiral** (default) | Flow Field | Note Spiral | — | — | Bass Clock |
-| **Warp Prism** | Chladni | Note Spiral (ring) | Kaleidoscope | — | Bass Clock |
-| **Fractal Dance** | Domain Warp | Fractal | Theory Bar | — | — |
-| **Piano** | Flow Field | Piano Roll | Theory Bar | — | — |
+| Preset | Background | Foreground | Overlay | Bass | HUD |
+|--------|------------|------------|---------|------|-----|
+| **Sculpture** (default) | — | Graph Sculpture | — | — | Theory Bar |
+| **Spiral** | Starfield | Note Spiral | — | Bass Clock | Theory Bar |
+| **Warp** | Chladni | Note Spiral (ring) | Kaleidoscope | Bass Clock | — |
+| **Fractal** | Flow Field | Fractal | — | — | Theory Bar |
+| **Piano** | Flow Field | Piano Roll | — | — | — |
 
 ## Effect Catalog
+
+### Graph Sculpture
+`src/effects/graph-sculpture.ts` — Force-directed graph that grows methodically with the music, creating a unique sculpture by song's end. Inspired by [znah/graphs](https://github.com/znah/graphs). Features:
+
+- **Tonnetz-based connections**: Nodes only connect if their pitch classes are harmonic neighbors (intervals of 3, 4, 5, or 7 semitones—minor 3rd, major 3rd, perfect 4th, perfect 5th)
+- **Harmonic affinity physics**: Consonant intervals attract (unison 0.3x, P4/P5 0.5x, thirds 0.7x repulsion), dissonant intervals repel more (m2 1.4x, tritone 1.5x)
+- **Lure drag**: Oldest node is dragged rightward based on BPM, structure trails behind like a fishing lure through water
+- **Connection gating**:
+  - Normally only nodes < 4 bars old can form new connections
+  - Every 4 bars: "connection window" opens allowing older nodes to bridge (both must be > 1 bar old)
+- **Live node glow**: Nodes < 4 bars old glow 40% brighter, are 15% larger, have brighter cores
+- **Half-bar debounce**: One node per pitch class per 2 beats prevents overwhelming density
+- **Disconnected node fade**: Nodes without edges fade out after 4 bars TTL
+- **Auto-zoom**: Camera follows the drifting structure
+
+See `research/graph-evolution.md` for design notes and music mapping theory.
 
 ### Tonnetz
 `src/effects/tonnetz.ts` — Hexagonal lattice visualization of harmonic relationships based on neo-Riemannian music theory. Each node represents a pitch class (0-11), positioned using axial coordinates where `pc = (7*q + 4*r) mod 12`. Three axes encode consonant intervals: horizontal = perfect fifths, diagonals = major/minor thirds. Active pitch classes glow when notes play. Current chord highlighted as a filled triangle connecting root, third, and fifth. Chord progression path drawn as dashed line between recent chord triangles. Pulses on beat/bar boundaries. Colors derived from song key palette.

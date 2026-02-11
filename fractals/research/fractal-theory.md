@@ -1207,10 +1207,360 @@ When adding a new fractal family:
 
 ---
 
+## 11. Deep Dive: Sine Julia Sets
+
+This section provides comprehensive research on the Sine Julia set family (`z = c·sin(z)`), a transcendental fractal with unique mathematical properties and visualization requirements.
+
+---
+
+### 11.1 Mathematical Foundation
+
+**Iteration Formula:**
+```
+z_{n+1} = c · sin(z_n)
+```
+
+Where `c` is a complex constant (the Julia parameter) and `sin(z)` is the complex sine function.
+
+**Complex Sine Definition:**
+```
+sin(z) = sin(x + iy) = sin(x)·cosh(y) + i·cos(x)·sinh(y)
+```
+
+This creates a function that:
+- Is **periodic** along the real axis (period 2π)
+- Grows **exponentially** along the imaginary axis (due to sinh/cosh)
+
+**Component Formulas for `c·sin(z)`:**
+```typescript
+// Given z = x + iy and c = cr + ci
+const sinR = Math.sin(x) * Math.cosh(y);
+const sinI = Math.cos(x) * Math.sinh(y);
+
+// c * sin(z) = (cr + i*ci) * (sinR + i*sinI)
+const newX = cr * sinR - ci * sinI;
+const newY = cr * sinI + ci * sinR;
+```
+
+---
+
+### 11.2 Transcendental vs Polynomial Differences
+
+Sine Julia sets are **transcendental** (non-polynomial), which creates fundamental differences from standard Julia sets:
+
+| Property | Polynomial Julia | Sine Julia |
+|----------|------------------|------------|
+| **Degree** | Finite (2 for quadratic) | Infinite |
+| **Critical Points** | Finite count | Infinitely many |
+| **Singular Values** | Finite | Two asymptotic values (±c) |
+| **Fatou Components** | No wandering domains | May have wandering domains |
+| **Julia Set Dimension** | Varies | Always ≥ 1 (Baker, 1975) |
+| **Special Structures** | N/A | Cantor bouquets, Baker domains |
+
+**Baker Domains:** Transcendental Julia sets can have "Baker domains"—periodic Fatou components where iterates converge to infinity (the essential singularity). These don't exist for polynomials.
+
+**Cantor Bouquets:** For certain parameter values, the Julia set forms a "Cantor bouquet"—a Cantor set with curves ("hairs") emanating from each point. Devaney studied this for the sine family `F_λ(z) = (λ/2i)(e^{iz} - e^{-iz})`.
+
+---
+
+### 11.3 Escape Condition (Critical Difference)
+
+**Key Insight:** Unlike polynomial Julia sets, sine Julia sets require a **different escape criterion**.
+
+```typescript
+// WRONG: Standard magnitude bailout
+if (zr * zr + zi * zi > 4) return i; // Doesn't work for sine!
+
+// CORRECT: Imaginary part overflow
+if (Math.abs(zi) > 50) return i; // sinh/cosh overflow detection
+```
+
+**Why?** The complex sine function grows exponentially along the imaginary axis:
+- `sinh(50) ≈ 2.6 × 10²¹` — numerical overflow
+- `cosh(50) ≈ 2.6 × 10²¹` — numerical overflow
+
+Once `|Im(z)| > 50`, the orbit will escape to infinity. Using magnitude-based bailout fails because points can have large real parts while remaining bounded.
+
+**Escape Radius:** `r_c = 50` (imaginary component) is the standard choice.
+
+---
+
+### 11.4 Recommended c-Parameter Values
+
+Based on research from Paul Bourke's fractal galleries and academic studies:
+
+| c-value | Name | Description |
+|---------|------|-------------|
+| **1 + 0i** | Pure Real | Clean periodic structure, good baseline |
+| **1 + 0.1i** | Vortex | Swirling tendrils, excellent animation |
+| **1 + 0.3i** | Swirl | More complex spiraling patterns |
+| **1 + 0.5i** | Complex Swirl | Rich detail, approaching chaos boundary |
+| **1 + i** | Virus | Highly detailed, organic cell-like structures |
+| **0.2 + i** | Florets | Flower-like radiating patterns |
+| **3i/2** (0 + 1.5i) | Vertical | Strong vertical periodicity |
+| **0.984808 + 0.173648i** | Tilted | Rotated structure (≈ cis(10°)) |
+| **-1.29904 - 0.75i** | Asymmetric | Left-weighted asymmetric pattern |
+| **-0.2 + i** | Offset Florets | Similar to florets, shifted |
+| **π/2** (1.5708 + 0i) | Quarter Period | Aligns with sine periodicity |
+| **e^{iπ/4}** (0.707 + 0.707i) | 45° Phase | Diagonal symmetry |
+
+**Parameter Space Structure:**
+
+The "Mandelbrot analog" for `c·sin(z)` has been less thoroughly studied than the polynomial case, but exhibits these characteristics:
+
+- **Near origin (|c| < 0.5):** Mostly stable, simple patterns
+- **Unit circle region (|c| ≈ 1):** Rich structure, many interesting shapes
+- **|c| > 2:** Increasingly chaotic, most orbits escape quickly
+- **Pure imaginary axis:** Creates vertical wave patterns
+- **Pure real axis:** Creates horizontal periodic bands
+
+---
+
+### 11.5 Visualization Best Practices
+
+#### Viewing Range
+
+```typescript
+// Standard view for sine Julia sets
+const SINE_BOUNDS = {
+  xMin: -Math.PI,    // -3.14159...
+  xMax: Math.PI,     //  3.14159...
+  yMin: -3,
+  yMax: 3
+};
+
+// Extended view showing periodicity
+const SINE_EXTENDED = {
+  xMin: -2 * Math.PI,
+  xMax: 2 * Math.PI,
+  yMin: -4,
+  yMax: 4
+};
+```
+
+The ±2π range on the real axis shows one complete period of the sine pattern.
+
+#### Iteration Count
+
+```typescript
+const MAX_ITER = 50; // Standard (Paul Bourke's choice)
+// Higher values (100-150) for boundary detail
+// Lower values (30-40) for performance
+```
+
+Lower iteration counts work better than polynomial fractals because:
+1. Escape happens faster (exponential growth)
+2. Smooth coloring is harder to achieve (see below)
+
+#### Coloring Challenges
+
+**Problem:** Traditional smooth iteration formulas don't work well:
+
+```typescript
+// This smooth formula has issues for transcendental functions
+const smooth = iter + 1 - Math.log(Math.log(|z|)) / Math.log(degree);
+// What is "degree" for an infinite-degree function?
+```
+
+**Solutions:**
+
+1. **Discrete iteration count:** Accept banding, use enough colors
+2. **Imaginary-based smoothing:** Use `|Im(z)|` instead of `|z|`
+3. **Distance estimation:** Works for transcendental functions
+4. **Orbit trap coloring:** Color by distance to shapes
+
+```typescript
+// Imaginary-based pseudo-smooth coloring
+function sineSmooth(iter: number, zi: number): number {
+  if (Math.abs(zi) > 50) {
+    const overshoot = Math.log(Math.abs(zi) / 50) / Math.log(2);
+    return iter + 1 - Math.min(overshoot, 1);
+  }
+  return iter;
+}
+```
+
+#### Performance Considerations
+
+Sine is **slower** than polynomial fractals (≈40% relative speed):
+
+```typescript
+// Per-iteration cost comparison
+// Standard: 10 ops (mul, add)
+// Sine: 40+ ops (sin, cos, sinh, cosh, mul, add)
+
+// Optimization: Precompute trig when possible
+const sinX = Math.sin(zr);
+const cosX = Math.cos(zr);
+const sinhY = Math.sinh(zi);
+const coshY = Math.cosh(zi);
+```
+
+---
+
+### 11.6 Animation Patterns
+
+**What Works Well:**
+
+1. **Rotation in c-space:** Small circular orbits around a center point
+2. **Real-axis pendulum:** Moving c along Re(c) creates wave-like motion
+3. **Smooth transitions:** Interpolating between nearby c-values
+
+**What to Avoid:**
+
+1. **Large c-jumps:** Can cause sudden structure changes
+2. **Crossing imaginary axis:** Pattern symmetry can flip abruptly
+3. **High |c| values:** Structure becomes sparse, less interesting
+
+**Recommended Orbit Settings:**
+
+```typescript
+const SINE_ORBIT = {
+  baseRadius: 0.08,        // Smaller than polynomial types
+  maxRadius: 0.15,
+  angularSpeed: 'bar',     // One revolution per bar
+  radiusModulation: 0.3    // 30% breathing based on tension
+};
+```
+
+---
+
+### 11.7 Mathematical Properties
+
+#### Fixed Points
+
+The equation `z = c·sin(z)` has fixed points where the orbit stays constant. For `c = 1`:
+- `z = 0` is always a fixed point (trivial)
+- Non-trivial fixed points exist at roots of `z = sin(z)` (only z=0 is real)
+
+#### Periodic Orbits
+
+Period-2 cycles satisfy: `z = c·sin(c·sin(z))`
+
+For c near 1, period-2 orbits exist near `±π/2`.
+
+#### Critical Points
+
+The derivative of `f(z) = c·sin(z)` is `f'(z) = c·cos(z)`.
+
+Critical points occur where `cos(z) = 0`:
+- At `z = π/2 + nπ` for all integers n
+- **Infinitely many** critical points (unlike polynomials)
+
+The **critical values** are `±c` (the asymptotic values of the sine family).
+
+#### Symmetry
+
+For real c-values, the Julia set has **reflection symmetry** about the real axis.
+
+For purely imaginary c-values, the Julia set has **180° rotational symmetry**.
+
+---
+
+### 11.8 Code Reference
+
+Complete implementation for sine Julia sets:
+
+```typescript
+// Sine Julia iteration with proper bailout
+function sineJulia(
+  x0: number, y0: number,     // Starting point
+  cr: number, ci: number,     // c parameter
+  maxIter: number
+): { iter: number; zr: number; zi: number } {
+  let zr = x0, zi = y0;
+
+  for (let i = 0; i < maxIter; i++) {
+    // Check overflow BEFORE computing (prevents NaN)
+    if (Math.abs(zi) > 50) {
+      return { iter: i, zr, zi };
+    }
+
+    // sin(z) = sin(x)cosh(y) + i*cos(x)sinh(y)
+    const sinR = Math.sin(zr) * Math.cosh(zi);
+    const sinI = Math.cos(zr) * Math.sinh(zi);
+
+    // c * sin(z)
+    const newZr = cr * sinR - ci * sinI;
+    const newZi = cr * sinI + ci * sinR;
+
+    zr = newZr;
+    zi = newZi;
+  }
+
+  return { iter: maxIter, zr, zi };
+}
+
+// Coloring for sine Julia (discrete + pseudo-smooth)
+function sineColor(
+  iter: number,
+  zi: number,
+  maxIter: number,
+  palette: number[][]
+): [number, number, number] {
+  if (iter === maxIter) {
+    return [0, 0, 0]; // Interior
+  }
+
+  // Pseudo-smooth based on overshoot
+  let t = iter / maxIter;
+  if (Math.abs(zi) > 50) {
+    const overshoot = Math.log(Math.abs(zi) / 50) / Math.log(Math.E);
+    t = (iter + 1 - Math.min(overshoot, 1)) / maxIter;
+  }
+
+  // Apply sqrt spreading for boundary detail
+  t = Math.sqrt(t);
+
+  const idx = Math.floor(t * (palette.length - 1));
+  return palette[idx] as [number, number, number];
+}
+```
+
+---
+
+### 11.9 Music Mapping for Sine Fractals
+
+The periodic, wave-like nature of sine fractals maps well to:
+
+| Musical Feature | Sine Fractal Mapping |
+|-----------------|---------------------|
+| **Beat grid** | Align view to 2π periodicity |
+| **Verse/Chorus** | Different c-values per section |
+| **Rising tension** | Increase |c| toward boundary |
+| **Resolution** | Return to low |c|, stable patterns |
+| **Rhythmic pulse** | Radial oscillation in c-space |
+| **Melodic contour** | Movement along Re(c) axis |
+
+**Recommended Quality Mappings:**
+
+| Chord Quality | c-Region | Rationale |
+|---------------|----------|-----------|
+| Major | Near 1+0i | Clean, stable |
+| Minor | 0.5+0.5i region | More complex |
+| Suspended | Pure imaginary | Vertical waves = suspension |
+| Dominant | 1+0.3i to 1+0.5i | Rich, forward-moving |
+
+---
+
+### 11.10 Research Sources
+
+- [Paul Bourke: Julia set of sin(z)](https://paulbourke.net/fractals/sinjulia/) — Parameter gallery, viewing bounds
+- [Lars' Blog: Sin(z) fractals](https://rotgers.io/posts/sinz_fractal/) — Escape condition explanation
+- [MDPI: Fractals as Julia Sets of Complex Sine Function](https://www.mdpi.com/2504-3110/5/4/272) — Fixed point iterations
+- [Wikipedia: Julia set](https://en.wikipedia.org/wiki/Julia_set) — Transcendental properties
+- [Stony Brook: Transcendental Dynamics (MAT 627)](https://www.math.stonybrook.edu/~bishop/classes/math627.S13/math627.html) — Baker domains, academic theory
+- [Devaney Publications](https://math.bu.edu/people/bob/publications.html) — Cantor bouquets, sine family dynamics
+- [Generalized Julia Set Fractal Generator](https://www.math.muni.cz/~xmacharacekj/juliaGeneralized.html) — Interactive visualization
+
+---
+
 ## References
 
 - Peitgen, H.-O., & Richter, P. H. (1986). *The Beauty of Fractals*. Springer.
 - Mandelbrot, B. B. (1982). *The Fractal Geometry of Nature*. W.H. Freeman.
+- Baker, I.N. (1975). "The domains of normality of an entire function." *Annales Academiae Scientiarum Fennicae*.
+- Devaney, R.L. & Tangerman, F. (1986). "Dynamics of entire functions near the essential singularity." *Ergodic Theory and Dynamical Systems*.
 - [Fractint Formula Archive](https://fractint.org/)
 - [Paul Bourke's Fractal Collection](http://paulbourke.net/fractals/)
 - [Newton Fractal (Wikipedia)](https://en.wikipedia.org/wiki/Newton_fractal)

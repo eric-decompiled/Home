@@ -5,7 +5,7 @@
  * Each anchor defines a c-plane position and 4 orbit offsets for beat-synchronized motion.
  */
 
-import { loadFractalAnchors, saveFractalAnchors, type FractalAnchors, type FractalAnchor, type FractalOrbit } from './state.ts';
+import { loadFractalAnchors, saveFractalAnchors, type FractalAnchors, type FractalAnchor } from './state.ts';
 
 // --- Constants ---
 
@@ -20,15 +20,8 @@ const DEGREE_COLORS = ['#888', '#ff4444', '#44aaff', '#44dd88', '#ffaa22', '#ff6
 const ORBIT_COLORS = ['#ff6666', '#66bbff', '#66ff99', '#ffcc44'];
 const ORBIT_LABELS = ['1', '2', '3', '4'];
 
-// Chord qualities (matching midi-analyzer.ts ChordQuality type)
-const QUALITIES = [
-  { id: 'major', label: 'M' },
-  { id: 'minor', label: 'm' },
-  { id: 'dom7', label: '7' },
-  { id: 'min7', label: 'm7' },
-  { id: 'dim', label: '°' },
-  { id: 'aug', label: '+' },
-];
+// Simplified: one anchor per degree (no chord quality variants)
+const QUALITIES = [{ id: 'major', label: '' }];  // Single quality for compatibility
 
 // --- Fractal Families ---
 
@@ -42,6 +35,31 @@ interface FractalFamily {
 }
 
 const FAMILIES: FractalFamily[] = [
+  {
+    id: 'classic', label: 'Classic', typeNum: 0,
+    bounds: { rMin: -2.0, rMax: 0.7, iMin: -1.3, iMax: 1.3 },
+    // Classic Mandelbrot/Julia: z² + c - the iconic fractal
+    locus(cr, ci, maxIter) {
+      let x = 0, y = 0;
+      for (let i = 0; i < maxIter; i++) {
+        const x2 = x * x, y2 = y * y;
+        if (x2 + y2 > 4) return i + 1;
+        y = 2 * x * y + ci;
+        x = x2 - y2 + cr;
+      }
+      return 0;
+    },
+    julia(fx, fy, jR, jI, maxIter) {
+      let x = fx, y = fy;
+      for (let i = 0; i < maxIter; i++) {
+        const x2 = x * x, y2 = y * y;
+        if (x2 + y2 > 4) return i + 1;
+        y = 2 * x * y + jI;
+        x = x2 - y2 + jR;
+      }
+      return 0;
+    },
+  },
   {
     id: 'burning-ship', label: 'Burning Ship', typeNum: 3,
     bounds: { rMin: -2.2, rMax: 1.2, iMin: -2.0, iMax: 0.8 },
@@ -227,73 +245,63 @@ const FAMILIES: FractalFamily[] = [
     id: 'nova', label: 'Nova', typeNum: 11,
     bounds: { rMin: -2.0, rMax: 2.0, iMin: -2.0, iMax: 2.0 },
     // Nova: z = z - (z³-1)/(3z²) + c — algebraic form, no trig
+    // Cubic roots at e^(2πik/3) for k=0,1,2: (1,0), (-0.5, 0.866), (-0.5, -0.866)
     locus(cr, ci, maxIter) {
       let x = cr, y = ci;
+      const roots = [[1, 0], [-0.5, 0.866025], [-0.5, -0.866025]];
       for (let i = 0; i < maxIter; i++) {
         const x2 = x * x, y2 = y * y;
         const r2 = x2 + y2;
         if (r2 > 100) return i + 1;
-        if (r2 < 1e-12) return 0; // Converged to origin
+        // Check convergence to any root
+        for (let k = 0; k < 3; k++) {
+          const dx = x - roots[k][0], dy = y - roots[k][1];
+          if (dx * dx + dy * dy < 1e-6) {
+            // Color by convergence speed + root offset for variety
+            return (maxIter - i) * 0.5 + k * maxIter * 0.15 + 1;
+          }
+        }
+        if (r2 < 1e-12) return maxIter * 0.3; // Near origin
         const z2r = x2 - y2, z2i = 2 * x * y;
         const z3r = x * z2r - y * z2i, z3i = x * z2i + y * z2r;
         const denR = 3 * z2r, denI = 3 * z2i;
         const den2 = denR * denR + denI * denI;
-        if (den2 < 1e-12) return 0;
+        if (den2 < 1e-12) return maxIter * 0.3;
         const numR = z3r - 1, numI = z3i;
         const divR = (numR * denR + numI * denI) / den2;
         const divI = (numI * denR - numR * denI) / den2;
         x = x - divR + cr;
         y = y - divI + ci;
       }
-      return 0;
+      return maxIter * 0.5; // Didn't converge - mid brightness
     },
     julia(fx, fy, jR, jI, maxIter) {
       let x = fx, y = fy;
+      const roots = [[1, 0], [-0.5, 0.866025], [-0.5, -0.866025]];
       for (let i = 0; i < maxIter; i++) {
         const x2 = x * x, y2 = y * y;
         const r2 = x2 + y2;
         if (r2 > 100) return i + 1;
-        if (r2 < 1e-12) return 0;
+        // Check convergence to any root
+        for (let k = 0; k < 3; k++) {
+          const dx = x - roots[k][0], dy = y - roots[k][1];
+          if (dx * dx + dy * dy < 1e-6) {
+            return (maxIter - i) * 0.5 + k * maxIter * 0.15 + 1;
+          }
+        }
+        if (r2 < 1e-12) return maxIter * 0.3;
         const z2r = x2 - y2, z2i = 2 * x * y;
         const z3r = x * z2r - y * z2i, z3i = x * z2i + y * z2r;
         const denR = 3 * z2r, denI = 3 * z2i;
         const den2 = denR * denR + denI * denI;
-        if (den2 < 1e-12) return 0;
+        if (den2 < 1e-12) return maxIter * 0.3;
         const numR = z3r - 1, numI = z3i;
         const divR = (numR * denR + numI * denI) / den2;
         const divI = (numI * denR - numR * denI) / den2;
         x = x - divR + jR;
         y = y - divI + jI;
       }
-      return 0;
-    },
-  },
-  {
-    id: 'sine', label: 'Sine', typeNum: 12,
-    bounds: { rMin: -4.0, rMax: 4.0, iMin: -3.0, iMax: 3.0 },
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0;
-      for (let i = 0; i < maxIter; i++) {
-        if (Math.abs(y) > 50) return i + 1;
-        if (x * x + y * y > 100) return i + 1;
-        const sinR = Math.sin(x) * Math.cosh(y);
-        const sinI = Math.cos(x) * Math.sinh(y);
-        x = cr * sinR - ci * sinI;
-        y = cr * sinI + ci * sinR;
-      }
-      return 0;
-    },
-    julia(fx, fy, jR, jI, maxIter) {
-      let x = fx, y = fy;
-      for (let i = 0; i < maxIter; i++) {
-        if (Math.abs(y) > 50) return i + 1;
-        if (x * x + y * y > 100) return i + 1;
-        const sinR = Math.sin(x) * Math.cosh(y);
-        const sinI = Math.cos(x) * Math.sinh(y);
-        x = jR * sinR - jI * sinI;
-        y = jR * sinI + jI * sinR;
-      }
-      return 0;
+      return maxIter * 0.5;
     },
   },
   {
@@ -477,22 +485,21 @@ const PALETTES = [
 
 // --- Default Anchors ---
 
-const DEFAULT_ORBITS: [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit] = [
-  { dr: 0, di: -0.08 },   // Beat 1: North
-  { dr: 0.08, di: 0 },    // Beat 2: East
-  { dr: 0, di: 0.08 },    // Beat 3: South
-  { dr: -0.08, di: 0 },   // Beat 4: West
-];
+const DEFAULT_ORBIT_RADIUS = 0.08;
+const DEFAULT_ORBIT_SKEW = 1.0;     // circle
+const DEFAULT_ORBIT_ROTATION = 0;   // no rotation
+const DEFAULT_BEAT_SPREAD = Math.PI / 2;  // 90° between beat points
+const DEFAULT_ORBIT_MODE: 'orbit' | 'beats' = 'orbit';
 
 const PRESET_ANCHORS: FractalAnchor[] = [
-  { type: 4, real: 0.1691, imag: -0.4957, orbits: [{ dr: -0.0164, di: 0.0417 }, { dr: -0.1442, di: 0.1592 }, { dr: 0.0995, di: -0.1970 }, { dr: 0.1415, di: -0.3167 }] },
-  { type: 4, real: 0.1691, imag: -0.4957, orbits: [{ dr: -0.0164, di: 0.0417 }, { dr: -0.1442, di: 0.1592 }, { dr: 0.0995, di: -0.1970 }, { dr: 0.1415, di: -0.3167 }] },
-  { type: 8, real: 0.3215, imag: 0.3842, orbits: [{ dr: 0.0800, di: 0.0000 }, { dr: 0.0000, di: 0.0800 }, { dr: -0.0800, di: 0.0000 }, { dr: 0.0000, di: -0.0800 }] },
-  { type: 3, real: 0.3386, imag: -1.5682, orbits: [{ dr: 0.3780, di: 0.2838 }, { dr: 0.0203, di: 0.3658 }, { dr: -0.3341, di: 0.2716 }, { dr: 0.6591, di: -0.0036 }] },
-  { type: 6, real: -1.2810, imag: -0.4794, orbits: [{ dr: 0.3687, di: 0.2541 }, { dr: -0.4120, di: 0.3658 }, { dr: -0.3442, di: 0.0000 }, { dr: 0.0000, di: -0.3003 }] },
-  { type: 4, real: 0.3789, imag: 0.5193, orbits: [{ dr: 0.0395, di: 0.0300 }, { dr: 0.0675, di: 0.0413 }, { dr: -0.0305, di: -0.0552 }, { dr: -0.0331, di: -0.1026 }] },
-  { type: 3, real: -1.0169, imag: -1.0135, orbits: [{ dr: 0.0128, di: -0.2683 }, { dr: -0.3061, di: 0.2928 }, { dr: -0.3486, di: 0.0034 }, { dr: 0.3770, di: 0.0085 }] },
-  { type: 9, real: -0.5409, imag: -0.9587, orbits: [{ dr: 0.3182, di: -0.0236 }, { dr: -0.0152, di: 0.2597 }, { dr: 0.3001, di: 0.2507 }, { dr: -0.3193, di: 0.2747 }] },
+  { type: 4, real: 0.1691, imag: -0.4957, orbitRadius: 0.15 },
+  { type: 4, real: 0.1691, imag: -0.4957, orbitRadius: 0.15 },
+  { type: 8, real: 0.3215, imag: 0.3842, orbitRadius: 0.08 },
+  { type: 3, real: 0.3386, imag: -1.5682, orbitRadius: 0.35 },
+  { type: 6, real: -1.2810, imag: -0.4794, orbitRadius: 0.30 },
+  { type: 4, real: 0.3789, imag: 0.5193, orbitRadius: 0.06 },
+  { type: 3, real: -1.0169, imag: -1.0135, orbitRadius: 0.25 },
+  { type: 9, real: -0.5409, imag: -0.9587, orbitRadius: 0.28 },
 ];
 
 // --- Internal Anchor Format ---
@@ -501,7 +508,11 @@ interface InternalAnchor {
   familyIdx: number;
   real: number;
   imag: number;
-  orbits: FractalOrbit[];
+  orbitRadius: number;
+  orbitSkew: number;     // aspect ratio: 1=circle, <1=wide, >1=tall
+  orbitRotation: number; // rotation in radians
+  beatSpread: number;    // angle between beat points in radians (π/2 = 90°)
+  orbitMode: 'orbit' | 'beats';  // continuous orbit vs discrete beat jumps
 }
 
 // --- Fractal Config Panel Class ---
@@ -510,9 +521,9 @@ export class FractalConfigPanel {
   private container: HTMLElement;
   private visible = false;
   private selectedDegree = 1;
-  private selectedQuality = 'major';
+  private selectedQuality = 'major';  // Always major now (simplified)
   private selectedFamily = 0;
-  // Anchor keys are "degree-quality" e.g. "1-major", "4-dom7"
+  // Anchor keys are just degree numbers as strings
   private anchors: Map<string, InternalAnchor> = new Map();
 
   // Canvas elements
@@ -546,7 +557,6 @@ export class FractalConfigPanel {
   // Drag state
   private dragMode: 'center' | 'orbit' | 'pan' | null = null;
   private dragDeg = -1;
-  private dragOrbitIdx = -1;
   private dragStartMx = 0;
   private dragStartMy = 0;
   private dragStartData: Record<string, number> = {};
@@ -555,15 +565,18 @@ export class FractalConfigPanel {
   private showAtlasGrid = false;
   private dragDebounceTimer: number | null = null;
 
-  // Lock state - locked cells (deg-quality keys) are preserved during Surprise
+  // Lock state - locked degrees are preserved during Surprise
   private lockedCells: Set<string> = new Set();
+
+  // Clock rotation offset (0-11 semitones, cycles on each click)
+  private clockRotationOffset = 0;
 
   // Temperature per degree (0-1, default 0.5) - controls reroll variation
   private degreeTemperatures: Map<number, number> = new Map();
 
   // Thumbnail cache - key is "deg:familyIdx:real:imag" rounded to 3 decimals
   private thumbnailCache: Map<string, ImageData> = new Map();
-  private static readonly THUMB_SIZE = 44;
+  private static readonly THUMB_SIZE = 94;
   private static readonly THUMB_ITER = 60;  // Reduced for performance
 
   // Locus cache - key is "familyIdx:bounds"
@@ -571,6 +584,7 @@ export class FractalConfigPanel {
 
   // Track when thumbnails need re-rendering
   private allThumbnailsDirty = true;
+
 
   // Debounce timer for zoom
   private zoomDebounceTimer: number | null = null;
@@ -580,14 +594,183 @@ export class FractalConfigPanel {
   // Callbacks
   public onSave: (() => void) | null = null;
 
-  // Helper: generate anchor key from degree and quality
-  private anchorKey(deg: number, quality: string): string {
-    return `${deg}-${quality}`;
+  /** Set global temperature for all degrees (0-1) */
+  public setGlobalTemperature(temp: number): void {
+    for (let deg = 0; deg <= 7; deg++) {
+      this.degreeTemperatures.set(deg, temp);
+    }
+  }
+
+  /** Set orbit radius for a degree */
+  private setOrbitRadius(deg: number, radius: number): void {
+    const key = this.anchorKey(deg);
+    const anchor = this.anchors.get(key);
+    if (anchor) {
+      anchor.orbitRadius = Math.max(0.01, radius);
+      this.drawOverlay();
+    }
+  }
+
+  /** Set orbit skew for a degree */
+  private setOrbitSkew(deg: number, skew: number): void {
+    const key = this.anchorKey(deg);
+    const anchor = this.anchors.get(key);
+    if (anchor) {
+      anchor.orbitSkew = skew;
+      this.drawOverlay();
+    }
+  }
+
+  /** Set orbit rotation for a degree */
+  private setOrbitRotation(deg: number, rotation: number): void {
+    const key = this.anchorKey(deg);
+    const anchor = this.anchors.get(key);
+    if (anchor) {
+      anchor.orbitRotation = rotation;
+      this.drawOverlay();
+    }
+  }
+
+  /** Set beat spread (angle between beat points) for a degree */
+  private setBeatSpread(deg: number, spread: number): void {
+    const key = this.anchorKey(deg);
+    const anchor = this.anchors.get(key);
+    if (anchor) {
+      anchor.beatSpread = spread;
+      this.drawOverlay();
+    }
+  }
+
+  /** Shake positions randomly by up to 25% of current zoom range */
+  private shakePositions(): void {
+    const bounds = this.viewBounds[this.selectedFamily];
+    const rangeR = (bounds.rMax - bounds.rMin) * 0.25;
+    const rangeI = (bounds.iMax - bounds.iMin) * 0.25;
+
+    this.markAllThumbnailsDirty();
+
+    let shaken = 0;
+    for (let deg = 1; deg <= 7; deg++) {
+      for (const q of QUALITIES) {
+        const key = this.anchorKey(deg, q.id);
+        if (this.lockedCells.has(key)) continue;
+
+        const anchor = this.anchors.get(key);
+        if (anchor && anchor.familyIdx === this.selectedFamily) {
+          anchor.real += (Math.random() - 0.5) * rangeR;
+          anchor.imag += (Math.random() - 0.5) * rangeI;
+          shaken++;
+        }
+      }
+    }
+
+    const status = this.container.querySelector('#fc-status')!;
+    status.textContent = `Shook ${shaken} anchors`;
+
+    this.syncOrbitSliders();
+    this.drawOverlay();
+    this.updateAssignments();
+  }
+
+  /** Show clock button only for Nova family */
+  private updateClockButtonVisibility(): void {
+    const clockBtn = this.container.querySelector('.fc-clock-btn') as HTMLElement;
+    if (!clockBtn) return;
+    const family = FAMILIES[this.selectedFamily];
+    clockBtn.style.display = family.id === 'nova' ? '' : 'none';
+  }
+
+  /** Distribute anchors on clock positions (major scale semitones around a circle) */
+  private distributeOnClock(): void {
+    const family = FAMILIES[this.selectedFamily];
+    if (family.id !== 'nova') return;
+
+    // Major scale semitones (degrees 1-7)
+    const MAJOR_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
+
+    this.markAllThumbnailsDirty();
+
+    // For Nova, place anchors near but not exactly on cube roots of unity
+    // Use radius ~0.8 to be in the interesting boundary region
+    const radius = 0.8;
+
+    for (let deg = 1; deg <= 7; deg++) {
+      const key = this.anchorKey(deg);
+      if (this.lockedCells.has(key)) continue;
+
+      const semitone = MAJOR_SEMITONES[deg - 1];
+      // Apply rotation offset (cycles through 12 positions)
+      const adjustedSemitone = (semitone + this.clockRotationOffset) % 12;
+      const angle = (adjustedSemitone / 12) * Math.PI * 2 - Math.PI / 2; // Start from top
+
+      const anchor = this.anchors.get(key);
+      if (anchor) {
+        anchor.real = radius * Math.cos(angle);
+        anchor.imag = radius * Math.sin(angle);
+        anchor.familyIdx = this.selectedFamily;
+      }
+    }
+
+    // Cycle rotation offset for next click
+    this.clockRotationOffset = (this.clockRotationOffset + 1) % 12;
+
+    const status = this.container.querySelector('#fc-status')!;
+    status.textContent = `Distributed on clock (offset ${this.clockRotationOffset - 1 < 0 ? 11 : this.clockRotationOffset - 1})`;
+
+    this.syncOrbitSliders();
+    this.drawOverlay();
+    this.updateAssignments();
+  }
+
+  /** Toggle orbit mode (orbit vs beats) for a degree */
+  private toggleOrbitMode(deg: number): void {
+    const key = this.anchorKey(deg);
+    const anchor = this.anchors.get(key);
+    if (anchor) {
+      anchor.orbitMode = anchor.orbitMode === 'orbit' ? 'beats' : 'orbit';
+      this.drawOverlay();
+    }
+  }
+
+  /** Sync orbit sliders to current anchor values */
+  private syncOrbitSliders(): void {
+    for (let deg = 0; deg <= 7; deg++) {
+      const key = this.anchorKey(deg);
+      const anchor = this.anchors.get(key);
+      if (!anchor) continue;
+
+      const radiusSlider = this.container.querySelector(`.fc-radius-slider[data-deg="${deg}"]`) as HTMLInputElement;
+      const skewSlider = this.container.querySelector(`.fc-skew-slider[data-deg="${deg}"]`) as HTMLInputElement;
+      const rotSlider = this.container.querySelector(`.fc-rotation-slider[data-deg="${deg}"]`) as HTMLInputElement;
+      const spreadSlider = this.container.querySelector(`.fc-spread-slider[data-deg="${deg}"]`) as HTMLInputElement;
+
+      if (radiusSlider) radiusSlider.value = String(Math.round(anchor.orbitRadius * 250));
+      if (skewSlider) skewSlider.value = String(Math.round(anchor.orbitSkew * 100));
+      if (rotSlider) rotSlider.value = String(Math.round(anchor.orbitRotation * 100));
+      if (spreadSlider) spreadSlider.value = String(Math.round(anchor.beatSpread * 100));
+      this.updateOrbitModeButton(deg);
+    }
+  }
+
+  /** Update orbit mode button appearance */
+  private updateOrbitModeButton(deg: number): void {
+    const key = this.anchorKey(deg);
+    const anchor = this.anchors.get(key);
+    const btn = this.container.querySelector(`.fc-orbit-mode-btn[data-deg="${deg}"]`) as HTMLElement;
+    if (btn && anchor) {
+      btn.textContent = anchor.orbitMode === 'orbit' ? '◯' : '⁙';
+      btn.title = anchor.orbitMode === 'orbit' ? 'Orbit mode (continuous)' : 'Beats mode (discrete)';
+    }
+  }
+
+  // Helper: generate anchor key from degree (quality ignored now)
+  private anchorKey(deg: number, _quality?: string): string {
+    return `${deg}-major`;  // Always use major
   }
 
   // Helper: get current selection's anchor key
   private get currentKey(): string {
-    return this.anchorKey(this.selectedDegree, this.selectedQuality);
+    return this.anchorKey(this.selectedDegree);
   }
 
   // Helper: get anchor for current selection
@@ -661,11 +844,16 @@ export class FractalConfigPanel {
             <div class="fc-grid-degree" data-deg="${deg}" title="Apply to all qualities">
               <span class="fc-deg-dot" style="background:${DEGREE_COLORS[deg]}"></span>${name}
             </div>
-            <span class="fc-temp-label">🎲🔥</span><input type="range" class="fc-deg-temp" data-deg="${deg}"
-              min="0" max="100" value="50" title="Temperature: reroll variation">
           </div>
           <div class="fc-degree-cells">
             ${cells}
+          </div>
+          <div class="fc-orbit-controls">
+            <label title="Orbit radius">⊕<input type="range" class="fc-radius-slider" data-deg="${deg}" min="1" max="100" value="20"></label>
+            <label title="Orbit skew (aspect ratio)">⬭<input type="range" class="fc-skew-slider" data-deg="${deg}" min="20" max="200" value="100"></label>
+            <label title="Orbit rotation">↻<input type="range" class="fc-rotation-slider" data-deg="${deg}" min="0" max="628" value="0"></label>
+            <label title="Beat spread (angle between points)">∢<input type="range" class="fc-spread-slider" data-deg="${deg}" min="10" max="157" value="157"></label>
+            <button class="fc-orbit-mode-btn" data-deg="${deg}" title="Orbit mode (continuous)">◯</button>
           </div>
         </div>`;
     };
@@ -703,7 +891,10 @@ export class FractalConfigPanel {
             <span class="fc-progression-display" id="fc-progression-display"></span>
           </div>
           <div class="fc-actions">
+            <button class="fc-btn fc-clock-btn" title="Distribute on clock (cycles rotation)" style="display:none;">🕐</button>
+            <button class="fc-btn fc-shake-btn" title="Shake positions randomly">🫨</button>
             <button class="fc-btn fc-surprise-btn" title="Regenerate unlocked anchors">🎲</button>
+            <span class="fc-temp-inline">🔥<input type="range" class="fc-global-temp" min="0" max="100" value="50" title="Temperature: reroll variation"></span>
             <button class="fc-btn fc-lock-all-btn fc-lock-toolbar locked" title="Lock all">🔒</button>
             <button class="fc-btn fc-unlock-all-btn fc-lock-toolbar" title="Unlock all">🔓</button>
             <button class="fc-btn fc-atlas-btn" title="Toggle atlas grid overlay">🗺️ Atlas</button>
@@ -753,9 +944,16 @@ export class FractalConfigPanel {
     const familySelect = this.container.querySelector('#fc-family-select') as HTMLSelectElement;
     familySelect.addEventListener('change', () => {
       this.selectedFamily = parseInt(familySelect.value);
+      this.updateClockButtonVisibility();
       this.renderLocus();
       this.drawOverlay();
     });
+
+    // Clock button (distribute on clock positions)
+    this.container.querySelector('.fc-clock-btn')!.addEventListener('click', () => this.distributeOnClock());
+
+    // Shake button (random perturbation)
+    this.container.querySelector('.fc-shake-btn')!.addEventListener('click', () => this.shakePositions());
 
     // Grid cell clicks (select degree + quality)
     this.container.querySelectorAll('.fc-grid-cell').forEach(cell => {
@@ -803,17 +1001,62 @@ export class FractalConfigPanel {
       });
     });
 
-    // Temperature sliders per degree
-    this.container.querySelectorAll('.fc-deg-temp').forEach(slider => {
+    // Action buttons
+    this.container.querySelector('.fc-surprise-btn')!.addEventListener('click', () => this.generateSurprise());
+    this.container.querySelector('.fc-global-temp')!.addEventListener('input', (e) => {
+      const temp = parseInt((e.target as HTMLInputElement).value) / 100;
+      this.setGlobalTemperature(temp);
+    });
+
+    // Orbit radius sliders per degree
+    this.container.querySelectorAll('.fc-radius-slider').forEach(slider => {
       slider.addEventListener('input', () => {
         const el = slider as HTMLInputElement;
         const deg = parseInt(el.dataset.deg!);
-        this.degreeTemperatures.set(deg, parseInt(el.value) / 100);
+        const radius = parseInt(el.value) / 250; // 1-100 -> 0.004-0.4
+        this.setOrbitRadius(deg, radius);
       });
     });
 
-    // Action buttons
-    this.container.querySelector('.fc-surprise-btn')!.addEventListener('click', () => this.generateSurprise());
+    // Orbit skew sliders per degree
+    this.container.querySelectorAll('.fc-skew-slider').forEach(slider => {
+      slider.addEventListener('input', () => {
+        const el = slider as HTMLInputElement;
+        const deg = parseInt(el.dataset.deg!);
+        const skew = parseInt(el.value) / 100; // 20-200 -> 0.2-2.0
+        this.setOrbitSkew(deg, skew);
+      });
+    });
+
+    // Orbit rotation sliders per degree
+    this.container.querySelectorAll('.fc-rotation-slider').forEach(slider => {
+      slider.addEventListener('input', () => {
+        const el = slider as HTMLInputElement;
+        const deg = parseInt(el.dataset.deg!);
+        const rotation = parseInt(el.value) / 100; // 0-628 -> 0-6.28 (2π)
+        this.setOrbitRotation(deg, rotation);
+      });
+    });
+
+    // Beat spread sliders per degree
+    this.container.querySelectorAll('.fc-spread-slider').forEach(slider => {
+      slider.addEventListener('input', () => {
+        const el = slider as HTMLInputElement;
+        const deg = parseInt(el.dataset.deg!);
+        const spread = parseInt(el.value) / 100; // 10-157 -> 0.1-1.57 (π/2 max)
+        this.setBeatSpread(deg, spread);
+      });
+    });
+
+    // Orbit mode toggle buttons
+    this.container.querySelectorAll('.fc-orbit-mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const deg = parseInt((btn as HTMLElement).dataset.deg!);
+        this.toggleOrbitMode(deg);
+        this.updateOrbitModeButton(deg);
+      });
+    });
+
     this.container.querySelector('.fc-lock-all-btn')!.addEventListener('click', () => this.lockAll());
     this.container.querySelector('.fc-unlock-all-btn')!.addEventListener('click', () => this.unlockAll());
     this.container.querySelector('.fc-atlas-btn')!.addEventListener('click', () => this.toggleAtlasGrid());
@@ -887,9 +1130,19 @@ export class FractalConfigPanel {
         const a = this.anchors.get(key);
         if (!a || a.familyIdx !== this.selectedFamily) continue;
 
+        // Check 4 points around the orbit ellipse
+        const rx = a.orbitRadius;
+        const ry = a.orbitRadius * a.orbitSkew;
+        const cosR = Math.cos(a.orbitRotation);
+        const sinR = Math.sin(a.orbitRotation);
         for (let oi = 0; oi < 4; oi++) {
-          const orb = a.orbits[oi];
-          const op = this.cToPixel(a.real + orb.dr, a.imag + orb.di);
+          // Beat points at 0, spread, 2*spread, 3*spread
+          const angle = oi * a.beatSpread;
+          const px = rx * Math.cos(angle);
+          const py = ry * Math.sin(angle);
+          const dr = px * cosR - py * sinR;
+          const di = px * sinR + py * cosR;
+          const op = this.cToPixel(a.real + dr, a.imag + di);
           const dist = Math.hypot(mx - op.x, my - op.y);
           if (dist < HIT_RADIUS && (!closestOrbit || dist < closestOrbit.dist)) {
             closestOrbit = { dist, deg: this.selectedDegree, quality: q.id, orbitIdx: oi };
@@ -937,11 +1190,20 @@ export class FractalConfigPanel {
         }
         this.dragMode = 'orbit';
         this.dragDeg = hit.deg;
-        this.dragOrbitIdx = hit.orbitIdx;
         const key = this.anchorKey(hit.deg, hit.quality);
         const a = this.anchors.get(key)!;
-        const orb = a.orbits[hit.orbitIdx];
-        this.dragStartData = { dr: orb.dr, di: orb.di };
+        // Calculate initial offset from anchor center (the orbit point that was clicked)
+        const angle = hit.orbitIdx * a.beatSpread;
+        const rx = a.orbitRadius;
+        const ry = a.orbitRadius * a.orbitSkew;
+        const px = rx * Math.cos(angle);
+        const py = ry * Math.sin(angle);
+        const cosR = Math.cos(a.orbitRotation);
+        const sinR = Math.sin(a.orbitRotation);
+        const startOffsetR = px * cosR - py * sinR;
+        const startOffsetI = px * sinR + py * cosR;
+        // Save original radius and initial offset for drag
+        this.dragStartData = { origRadius: a.orbitRadius, startOffsetR, startOffsetI };
         this.isDragging = true;
         canvas.style.cursor = 'move';
       } else if (hit.type === 'center') {
@@ -994,23 +1256,17 @@ export class FractalConfigPanel {
       const dragAnchor = this.anchors.get(dragKey);
 
       if (this.dragMode === 'orbit' && dragAnchor?.familyIdx === this.selectedFamily) {
-        let newDr = this.dragStartData.dr + cDx;
-        let newDi = this.dragStartData.di + cDy;
+        // Calculate new radius as distance from anchor center to current mouse position
+        // Start offset + drag delta = new offset from anchor center
+        const newOffsetR = this.dragStartData.startOffsetR + cDx;
+        const newOffsetI = this.dragStartData.startOffsetI + cDy;
+        const newRadius = Math.sqrt(newOffsetR * newOffsetR + newOffsetI * newOffsetI);
 
         // Track snap mode for visual feedback
         this.snapMode = e.shiftKey ? 'cross' : 'none';
 
-        // Shift: snap to cross (horizontal or vertical axis)
-        if (e.shiftKey) {
-          if (Math.abs(newDr) > Math.abs(newDi)) {
-            newDi = 0; // Snap to horizontal
-          } else {
-            newDr = 0; // Snap to vertical
-          }
-        }
-
-        dragAnchor.orbits[this.dragOrbitIdx].dr = newDr;
-        dragAnchor.orbits[this.dragOrbitIdx].di = newDi;
+        // Update orbit radius (skew and rotation preserved)
+        dragAnchor.orbitRadius = Math.max(0.01, newRadius);
         this.debouncedDraw();
       } else if (this.dragMode === 'center' && dragAnchor?.familyIdx === this.selectedFamily) {
         dragAnchor.real = this.dragStartData.real + cDx;
@@ -1042,15 +1298,16 @@ export class FractalConfigPanel {
           const pos = getPos(e);
           const c = this.pixelToC(pos.x, pos.y);
           const existing = this.currentAnchor;
-          const existingOrbits = existing?.orbits
-            ? existing.orbits.map(o => ({ ...o }))
-            : DEFAULT_ORBITS.map(o => ({ ...o }));
 
           this.anchors.set(this.currentKey, {
             familyIdx: this.selectedFamily,
             real: c.r,
             imag: c.i,
-            orbits: existingOrbits as FractalOrbit[],
+            orbitRadius: existing?.orbitRadius ?? DEFAULT_ORBIT_RADIUS,
+            orbitSkew: existing?.orbitSkew ?? DEFAULT_ORBIT_SKEW,
+            orbitRotation: existing?.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
+            beatSpread: existing?.beatSpread ?? DEFAULT_BEAT_SPREAD,
+            orbitMode: existing?.orbitMode ?? DEFAULT_ORBIT_MODE,
           });
 
           this.startPreview(this.anchors.get(this.currentKey)!);
@@ -1157,6 +1414,7 @@ export class FractalConfigPanel {
       this.selectedFamily = a.familyIdx;
       const familySelect = this.container.querySelector('#fc-family-select') as HTMLSelectElement;
       familySelect.value = String(a.familyIdx);
+      this.updateClockButtonVisibility();
       this.renderLocus();
       this.startPreview(a);
     } else {
@@ -1389,23 +1647,18 @@ export class FractalConfigPanel {
         30    // samples
       );
 
-      // Scale and add asymmetry to orbits
-      const newOrbits: FractalOrbit[] = majorAnchor.orbits.map((o, oi) => {
-        const scale = params.orbitScale;
-        // Asymmetry: beat 1 gets extra, beats 2,4 get less
-        const asymMult = oi === 0 ? (1 + params.asymmetry) :
-                         oi === 2 ? (1 - params.asymmetry * 0.5) : 1;
-        return {
-          dr: o.dr * scale * asymMult,
-          di: o.di * scale * asymMult,
-        };
-      });
+      // Scale orbit radius
+      const newRadius = majorAnchor.orbitRadius * params.orbitScale;
 
       this.anchors.set(key, {
         familyIdx: majorAnchor.familyIdx,
         real: pos.real,
         imag: pos.imag,
-        orbits: newOrbits,
+        orbitRadius: newRadius,
+        orbitSkew: majorAnchor.orbitSkew * params.orbitScale,
+        orbitRotation: majorAnchor.orbitRotation,
+        beatSpread: majorAnchor.beatSpread,
+        orbitMode: majorAnchor.orbitMode,
       });
     }
 
@@ -1429,17 +1682,14 @@ export class FractalConfigPanel {
     const b = this.viewBounds[this.selectedFamily];
     const offset = (b.rMax - b.rMin) * 0.08;
 
-    // Beat 1: North (up), Beat 2: East (right), Beat 3: South (down), Beat 4: West (left)
-    anchor.orbits[0] = { dr: 0, di: -offset };  // North
-    anchor.orbits[1] = { dr: offset, di: 0 };   // East
-    anchor.orbits[2] = { dr: 0, di: offset };   // South
-    anchor.orbits[3] = { dr: -offset, di: 0 };  // West
+    // Reset orbit radius to default
+    anchor.orbitRadius = offset;
 
     this.drawOverlay();
     this.startPreview(anchor);
 
     const status = this.container.querySelector('#fc-status')!;
-    status.textContent = 'Orbits reset to cross: ↑1 →2 ↓3 ←4';
+    status.textContent = `Orbit radius reset to ${offset.toFixed(3)}`;
   }
 
   private copyToClipboard(): void {
@@ -1458,11 +1708,7 @@ export class FractalConfigPanel {
       if (!a) continue;
 
       const f = FAMILIES[a.familyIdx];
-      const orbitsStr = a.orbits.map(o =>
-        `{ dr: ${o.dr.toFixed(4)}, di: ${o.di.toFixed(4)} }`
-      ).join(', ');
-
-      lines.push(`    ${deg}: { real: ${a.real.toFixed(4)}, imag: ${a.imag.toFixed(4)}, type: ${f.typeNum}, orbits: [${orbitsStr}] },`);
+      lines.push(`    ${deg}: { real: ${a.real.toFixed(4)}, imag: ${a.imag.toFixed(4)}, type: ${f.typeNum}, orbitRadius: ${a.orbitRadius.toFixed(4)}, orbitSkew: ${a.orbitSkew.toFixed(2)}, orbitRotation: ${a.orbitRotation.toFixed(2)}, beatSpread: ${a.beatSpread.toFixed(2)}, orbitMode: '${a.orbitMode}' },`);
     }
 
     lines.push('  },');
@@ -1666,7 +1912,11 @@ export class FractalConfigPanel {
         familyIdx: sourceAnchor.familyIdx,
         real: sourceAnchor.real,
         imag: sourceAnchor.imag,
-        orbits: sourceAnchor.orbits.map(o => ({ dr: o.dr, di: o.di })),
+        orbitRadius: sourceAnchor.orbitRadius,
+        orbitSkew: sourceAnchor.orbitSkew,
+        orbitRotation: sourceAnchor.orbitRotation,
+        beatSpread: sourceAnchor.beatSpread,
+        orbitMode: sourceAnchor.orbitMode,
       });
     }
 
@@ -1725,7 +1975,11 @@ export class FractalConfigPanel {
               familyIdx: fi,
               real: a.real,
               imag: a.imag,
-              orbits: a.orbits.map(o => ({ ...o })),
+              orbitRadius: a.orbitRadius ?? DEFAULT_ORBIT_RADIUS,
+              orbitSkew: a.orbitSkew ?? DEFAULT_ORBIT_SKEW,
+              orbitRotation: a.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
+              beatSpread: a.beatSpread ?? DEFAULT_BEAT_SPREAD,
+              orbitMode: a.orbitMode === 'beats' ? 'beats' : DEFAULT_ORBIT_MODE,
             };
             // Apply to all qualities for this degree
             for (const q of QUALITIES) {
@@ -1733,7 +1987,11 @@ export class FractalConfigPanel {
                 familyIdx: anchor.familyIdx,
                 real: anchor.real,
                 imag: anchor.imag,
-                orbits: anchor.orbits.map(o => ({ ...o })),
+                orbitRadius: anchor.orbitRadius,
+                orbitSkew: anchor.orbitSkew,
+                orbitRotation: anchor.orbitRotation,
+                beatSpread: anchor.beatSpread,
+                orbitMode: anchor.orbitMode,
               });
             }
           }
@@ -1741,7 +1999,9 @@ export class FractalConfigPanel {
       }
     } else {
       this.resetToDefaults();
+      return; // resetToDefaults calls syncOrbitSliders
     }
+    this.syncOrbitSliders();
   }
 
   private resetToDefaults(): void {
@@ -1754,7 +2014,11 @@ export class FractalConfigPanel {
         familyIdx: fi,
         real: p.real,
         imag: p.imag,
-        orbits: p.orbits.map(o => ({ ...o })),
+        orbitRadius: p.orbitRadius,
+        orbitSkew: p.orbitSkew ?? DEFAULT_ORBIT_SKEW,
+        orbitRotation: p.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
+        beatSpread: p.beatSpread ?? DEFAULT_BEAT_SPREAD,
+        orbitMode: p.orbitMode === 'beats' ? 'beats' : DEFAULT_ORBIT_MODE,
       };
       // Apply to all qualities for this degree
       for (const q of QUALITIES) {
@@ -1762,10 +2026,15 @@ export class FractalConfigPanel {
           familyIdx: anchor.familyIdx,
           real: anchor.real,
           imag: anchor.imag,
-          orbits: anchor.orbits.map(o => ({ ...o })),
+          orbitRadius: anchor.orbitRadius,
+          orbitSkew: anchor.orbitSkew,
+          orbitRotation: anchor.orbitRotation,
+          beatSpread: anchor.beatSpread,
+          orbitMode: anchor.orbitMode,
         });
       }
     }
+    this.syncOrbitSliders();
     this.drawOverlay();
     this.updateAssignments();
     this.selectDegreeQuality(1, 'major');
@@ -1783,7 +2052,11 @@ export class FractalConfigPanel {
         real: a.real,
         imag: a.imag,
         type: f.typeNum,
-        orbits: a.orbits.map(o => ({ dr: o.dr, di: o.di })) as [FractalOrbit, FractalOrbit, FractalOrbit, FractalOrbit],
+        orbitRadius: a.orbitRadius,
+        orbitSkew: a.orbitSkew,
+        orbitRotation: a.orbitRotation,
+        beatSpread: a.beatSpread,
+        orbitMode: a.orbitMode,
       };
     }
     saveFractalAnchors(out);
@@ -1793,9 +2066,8 @@ export class FractalConfigPanel {
 
   private generateSurprise(): void {
     this.markAllThumbnailsDirty();
-    const shuffled = [...FAMILIES.keys()].sort(() => Math.random() - 0.5);
-    const numFamilies = 2 + Math.floor(Math.random() * 2);
-    const familyPool = shuffled.slice(0, numFamilies);
+    // Use the currently selected family for all anchors
+    const fi = this.selectedFamily;
     const degreeTension = [0.1, 0.1, 0.35, 0.5, 0.3, 0.7, 0.45, 0.85];
 
     // Count how many cells will be regenerated
@@ -1811,53 +2083,55 @@ export class FractalConfigPanel {
 
         regeneratedCount++;
         const temp = this.degreeTemperatures.get(deg) ?? 0.5;
-        const fi = familyPool[Math.max(1, deg) % familyPool.length];
 
         // Get existing anchor or use default position
         const existing = this.anchors.get(key);
         const pt = this.findBoundaryPointWithTemp(fi, existing, temp);
 
         const tension = degreeTension[deg];
-        const baseOrbitR = (0.06 + tension * 0.25) * (0.5 + temp);
+        const orbitRadius = (0.06 + tension * 0.25) * (0.5 + temp) * (0.8 + Math.random() * 0.4 * temp);
+        // Random skew: low temp = more circular, high temp = more elliptical
+        const orbitSkew = 1.0 + (Math.random() - 0.5) * temp * 1.0;
+        // Random rotation
+        const orbitRotation = Math.random() * Math.PI * 2 * temp;
+        // Random beat spread: low temp = 90°, high temp = random 30°-90°
+        const beatSpread = (0.5 + 0.5 * (1 - temp)) * Math.PI / 2 + Math.random() * temp * Math.PI / 4;
+        // Random orbit mode at high temp
+        const orbitMode: 'orbit' | 'beats' = temp > 0.7 && Math.random() > 0.5 ? 'beats' : 'orbit';
 
-        const orbits: FractalOrbit[] = [];
-        // Low temp: NESW pattern, high temp: random angles
-        const baseAngle = temp < 0.3 ? -Math.PI / 2 : Math.random() * Math.PI * 2;
-        for (let oi = 0; oi < 4; oi++) {
-          const fixedAngle = -Math.PI / 2 + (oi / 4) * Math.PI * 2; // NESW
-          const randomAngle = baseAngle + (oi / 4) * Math.PI * 2 + (Math.random() - 0.5) * 0.8;
-          const angle = fixedAngle * (1 - temp) + randomAngle * temp;
-          const r = baseOrbitR * (0.8 + Math.random() * 0.4 * temp);
-          orbits.push({ dr: r * Math.cos(angle), di: r * Math.sin(angle) });
-        }
-
-        this.anchors.set(key, { familyIdx: fi, real: pt.r, imag: pt.i, orbits });
+        this.anchors.set(key, { familyIdx: fi, real: pt.r, imag: pt.i, orbitRadius, orbitSkew, orbitRotation, beatSpread, orbitMode });
       }
     }
 
     // Update status to show what was regenerated
     const status = this.container.querySelector('#fc-status')!;
+    const familyName = FAMILIES[fi].label;
     const totalCells = 8 * QUALITIES.length;
     if (regeneratedCount === 0) {
       status.textContent = 'All cells locked — unlock some to regenerate';
     } else if (this.lockedCells.size > 0) {
-      status.textContent = `Regenerated ${regeneratedCount} cells (${this.lockedCells.size} locked)`;
+      status.textContent = `Regenerated ${regeneratedCount} ${familyName} (${this.lockedCells.size} locked)`;
     } else {
-      status.textContent = `Generated new anchors for all ${totalCells} cells`;
+      status.textContent = `Generated ${familyName} anchors for all ${totalCells} cells`;
     }
 
+    this.syncOrbitSliders();
     this.drawOverlay();
-    this.updateAssignments();
 
     // Select first unlocked cell, or keep current if all locked
     for (let deg = 1; deg <= 7; deg++) {
       for (const q of QUALITIES) {
         if (!this.lockedCells.has(this.anchorKey(deg, q.id))) {
           this.selectDegreeQuality(deg, q.id);
+          // Re-mark dirty and update to ensure all thumbnails render
+          this.markAllThumbnailsDirty();
+          this.updateAssignments();
           return;
         }
       }
     }
+    // If all locked, still update assignments
+    this.updateAssignments();
   }
 
   private findBoundaryPoint(familyIdx: number): { r: number; i: number } {
@@ -2157,74 +2431,129 @@ export class FractalConfigPanel {
       }
     }
 
-    // Quality colors for distinguishing variations
-    const qualityColors: Record<string, string> = {
-      'major': '#44ff44',  // green
-      'minor': '#4488ff',  // blue
-      'dom7':  '#ffaa44',  // orange
-      'min7':  '#44dddd',  // cyan
-      'dim':   '#ff4444',  // red
-      'aug':   '#dd44dd',  // magenta
-    };
+    // Degree colors for visual distinction
+    const degreeColors = [
+      '#888888', // 0 - gray (root)
+      '#ff6666', // 1 - red
+      '#ffaa44', // 2 - orange
+      '#ffff66', // 3 - yellow
+      '#66ff66', // 4 - green
+      '#66ffff', // 5 - cyan
+      '#6688ff', // 6 - blue
+      '#ff66ff', // 7 - magenta
+    ];
 
-    // Draw all anchors for current degree (all qualities) that belong to current family
-    for (const q of QUALITIES) {
-      const key = this.anchorKey(this.selectedDegree, q.id);
-      const a = this.anchors.get(key);
-      if (!a || a.familyIdx !== this.selectedFamily) continue;
+    // Draw all anchors for degrees 1-7 that belong to current family
+    // Draw non-selected first, then selected on top
+    for (let pass = 0; pass < 2; pass++) {
+      for (let deg = 1; deg <= 7; deg++) {
+        for (const q of QUALITIES) {
+          const key = this.anchorKey(deg, q.id);
+          const a = this.anchors.get(key);
+          if (!a || a.familyIdx !== this.selectedFamily) continue;
 
-      const p = this.cToPixel(a.real, a.imag);
-      const col = qualityColors[q.id] || '#888';
-      const isSelected = q.id === this.selectedQuality;
+          const isSelectedDeg = deg === this.selectedDegree;
+          const isSelectedQuality = q.id === this.selectedQuality;
+          const isSelected = isSelectedDeg && isSelectedQuality;
 
-      // Draw orbit lines and dots
-      for (let oi = 0; oi < 4; oi++) {
-        const orb = a.orbits[oi];
-        const op = this.cToPixel(a.real + orb.dr, a.imag + orb.di);
+          // Pass 0: draw non-selected, Pass 1: draw selected
+          if (pass === 0 && isSelected) continue;
+          if (pass === 1 && !isSelected) continue;
 
-        this.locusCtx.beginPath();
-        this.locusCtx.moveTo(p.x, p.y);
-        this.locusCtx.lineTo(op.x, op.y);
-        this.locusCtx.strokeStyle = isSelected ? ORBIT_COLORS[oi] + 'aa' : ORBIT_COLORS[oi] + '44';
-        this.locusCtx.lineWidth = isSelected ? 1.5 : 1;
-        this.locusCtx.stroke();
+          const p = this.cToPixel(a.real, a.imag);
+          const col = degreeColors[deg];
+          const alpha = isSelectedDeg ? (isSelectedQuality ? 1.0 : 0.7) : 0.3;
 
-        this.locusCtx.beginPath();
-        this.locusCtx.arc(op.x, op.y, isSelected ? 5 : 3, 0, Math.PI * 2);
-        this.locusCtx.fillStyle = ORBIT_COLORS[oi];
-        this.locusCtx.globalAlpha = isSelected ? 1 : 0.5;
-        this.locusCtx.fill();
-        this.locusCtx.globalAlpha = 1;
+          // Draw orbit visualization - mode determines continuous ellipse vs discrete points
+          const rx = a.orbitRadius;
+          const ry = a.orbitRadius * a.orbitSkew;
+          const cosR = Math.cos(a.orbitRotation);
+          const sinR = Math.sin(a.orbitRotation);
+          const isOrbitMode = a.orbitMode === 'orbit';
 
-        if (isSelected) {
-          this.locusCtx.font = 'bold 9px monospace';
-          this.locusCtx.lineWidth = 2;
+          this.locusCtx.globalAlpha = alpha;
+
+          // In orbit mode, draw continuous ellipse path
+          if (isOrbitMode) {
+            this.locusCtx.beginPath();
+            const segments = 64;
+            for (let i = 0; i <= segments; i++) {
+              const angle = (i / segments) * Math.PI * 2;
+              const ex = rx * Math.cos(angle);
+              const ey = ry * Math.sin(angle);
+              const dr = ex * cosR - ey * sinR;
+              const di = ex * sinR + ey * cosR;
+              const ep = this.cToPixel(a.real + dr, a.imag + di);
+              if (i === 0) this.locusCtx.moveTo(ep.x, ep.y);
+              else this.locusCtx.lineTo(ep.x, ep.y);
+            }
+            this.locusCtx.strokeStyle = col;
+            this.locusCtx.lineWidth = isSelected ? 2 : 1;
+            this.locusCtx.stroke();
+          }
+
+          // Draw beat points (with lines in beats mode) - only for selected degree
+          if (isSelectedDeg) {
+            for (let oi = 0; oi < 4; oi++) {
+              const angle = oi * a.beatSpread;
+              const px = rx * Math.cos(angle);
+              const py = ry * Math.sin(angle);
+              const dr = px * cosR - py * sinR;
+              const di = px * sinR + py * cosR;
+              const op = this.cToPixel(a.real + dr, a.imag + di);
+
+              if (!isOrbitMode) {
+                this.locusCtx.beginPath();
+                this.locusCtx.moveTo(p.x, p.y);
+                this.locusCtx.lineTo(op.x, op.y);
+                this.locusCtx.strokeStyle = ORBIT_COLORS[oi];
+                this.locusCtx.lineWidth = isSelected ? 1.5 : 1;
+                this.locusCtx.stroke();
+              }
+
+              this.locusCtx.beginPath();
+              this.locusCtx.arc(op.x, op.y, isSelected ? 5 : 3, 0, Math.PI * 2);
+              this.locusCtx.fillStyle = ORBIT_COLORS[oi];
+              this.locusCtx.fill();
+
+              if (isSelected) {
+                this.locusCtx.globalAlpha = 1;
+                this.locusCtx.font = 'bold 9px monospace';
+                this.locusCtx.lineWidth = 2;
+                this.locusCtx.strokeStyle = '#000';
+                this.locusCtx.strokeText(ORBIT_LABELS[oi], op.x + 6, op.y - 4);
+                this.locusCtx.fillStyle = ORBIT_COLORS[oi];
+                this.locusCtx.fillText(ORBIT_LABELS[oi], op.x + 6, op.y - 4);
+                this.locusCtx.globalAlpha = alpha;
+              }
+            }
+          }
+
+          // Center dot
+          this.locusCtx.beginPath();
+          this.locusCtx.arc(p.x, p.y, isSelected ? 7 : (isSelectedDeg ? 5 : 4), 0, Math.PI * 2);
+          this.locusCtx.fillStyle = col;
+          this.locusCtx.fill();
+          if (isSelected) {
+            this.locusCtx.globalAlpha = 1;
+            this.locusCtx.strokeStyle = '#fff';
+            this.locusCtx.lineWidth = 2;
+            this.locusCtx.stroke();
+          }
+
+          // Degree label
+          this.locusCtx.globalAlpha = 1;
+          this.locusCtx.font = isSelected ? 'bold 11px monospace' : '9px monospace';
+          this.locusCtx.lineWidth = 3;
           this.locusCtx.strokeStyle = '#000';
-          this.locusCtx.strokeText(ORBIT_LABELS[oi], op.x + 6, op.y - 4);
-          this.locusCtx.fillStyle = ORBIT_COLORS[oi];
-          this.locusCtx.fillText(ORBIT_LABELS[oi], op.x + 6, op.y - 4);
+          const label = `${deg}${q.label}`;
+          this.locusCtx.strokeText(label, p.x + 8, p.y - 6);
+          this.locusCtx.fillStyle = col;
+          this.locusCtx.fillText(label, p.x + 8, p.y - 6);
         }
       }
-
-      // Center dot
-      this.locusCtx.beginPath();
-      this.locusCtx.arc(p.x, p.y, isSelected ? 6 : 4, 0, Math.PI * 2);
-      this.locusCtx.fillStyle = col;
-      this.locusCtx.fill();
-      if (isSelected) {
-        this.locusCtx.strokeStyle = '#fff';
-        this.locusCtx.lineWidth = 1.5;
-        this.locusCtx.stroke();
-      }
-
-      // Quality label
-      this.locusCtx.font = 'bold 11px monospace';
-      this.locusCtx.lineWidth = 3;
-      this.locusCtx.strokeStyle = '#000';
-      this.locusCtx.strokeText(q.label, p.x + 8, p.y - 6);
-      this.locusCtx.fillStyle = '#fff';
-      this.locusCtx.fillText(q.label, p.x + 8, p.y - 6);
     }
+    this.locusCtx.globalAlpha = 1;
   }
 
   private updateAssignments(): void {
@@ -2326,29 +2655,52 @@ export class FractalConfigPanel {
     // Parse degree color
     const [colR, colG, colB] = this.parseHexColor(DEGREE_COLORS[deg] || '#888888');
 
-    // Render new thumbnail
+    // Render at 2x resolution for antialiasing (supersampling)
     const size = FractalConfigPanel.THUMB_SIZE;
+    const ssSize = size * 2;  // 2x supersample
     const iter = FractalConfigPanel.THUMB_ITER;
     const f = FAMILIES[anchor.familyIdx];
-    const data = new Uint8ClampedArray(size * size * 4);
     const range = 3.6, half = range / 2;
-    const step = range / size;
+    const step = range / ssSize;
 
-    for (let py = 0; py < size; py++) {
-      for (let px = 0; px < size; px++) {
+    // Render at 2x resolution
+    const ssData = new Float32Array(ssSize * ssSize * 3);
+    for (let py = 0; py < ssSize; py++) {
+      for (let px = 0; px < ssSize; px++) {
         const fx = -half + px * step;
         const fy = -half + py * step;
         const esc = f.julia(fx, fy, anchor.real, anchor.imag, iter);
-        const idx = (py * size + px) * 4;
+        const idx = (py * ssSize + px) * 3;
         if (esc === 0) {
-          data[idx] = data[idx + 1] = data[idx + 2] = 0;
+          ssData[idx] = ssData[idx + 1] = ssData[idx + 2] = 0;
         } else {
           const t = Math.sqrt(esc / iter);
-          // Apply degree color tinting
-          data[idx] = Math.min(255, Math.round(t * colR));
-          data[idx + 1] = Math.min(255, Math.round(t * colG));
-          data[idx + 2] = Math.min(255, Math.round(t * colB));
+          ssData[idx] = t * colR;
+          ssData[idx + 1] = t * colG;
+          ssData[idx + 2] = t * colB;
         }
+      }
+    }
+
+    // Downsample 2x2 blocks with averaging for antialiasing
+    const data = new Uint8ClampedArray(size * size * 4);
+    for (let py = 0; py < size; py++) {
+      for (let px = 0; px < size; px++) {
+        const sx = px * 2, sy = py * 2;
+        // Average 2x2 block
+        let r = 0, g = 0, b = 0;
+        for (let dy = 0; dy < 2; dy++) {
+          for (let dx = 0; dx < 2; dx++) {
+            const sidx = ((sy + dy) * ssSize + (sx + dx)) * 3;
+            r += ssData[sidx];
+            g += ssData[sidx + 1];
+            b += ssData[sidx + 2];
+          }
+        }
+        const idx = (py * size + px) * 4;
+        data[idx] = Math.min(255, Math.round(r / 4));
+        data[idx + 1] = Math.min(255, Math.round(g / 4));
+        data[idx + 2] = Math.min(255, Math.round(b / 4));
         data[idx + 3] = 255;
       }
     }
@@ -2387,13 +2739,23 @@ export class FractalConfigPanel {
       const beatDur = 60 / this.previewBpm;
       this.previewPhase += dt;
       const beatFloat = this.previewPhase / beatDur;
-      const beatIndex = Math.floor(beatFloat) % 4;
       const beatFrac = beatFloat - Math.floor(beatFloat);
       const t = Math.sin(Math.PI * beatFrac);
+      const beatIdx = Math.floor(beatFloat) % 4;
 
-      const orb = anchor.orbits[beatIndex];
-      const cr = anchor.real + orb.dr * t;
-      const ci = anchor.imag + orb.di * t;
+      // Choose angle based on orbit mode
+      // 'orbit': continuous motion, 'beats': snap to beat points
+      const orbitAngle = anchor.orbitMode === 'beats'
+        ? beatIdx * anchor.beatSpread
+        : beatFloat * Math.PI * 0.5;
+      const rx = anchor.orbitRadius;
+      const ry = anchor.orbitRadius * anchor.orbitSkew;
+      const px = rx * Math.cos(orbitAngle) * t;
+      const py = ry * Math.sin(orbitAngle) * t;
+      const cosR = Math.cos(anchor.orbitRotation);
+      const sinR = Math.sin(anchor.orbitRotation);
+      const cr = anchor.real + px * cosR - py * sinR;
+      const ci = anchor.imag + px * sinR + py * cosR;
 
       this.renderJulia(anchor.familyIdx, cr, ci);
       this.previewAnim = requestAnimationFrame(loop);
@@ -2444,6 +2806,7 @@ export class FractalConfigPanel {
     this.visible = true;
     this.container.classList.add('visible');
     this.loadAnchors();
+    this.updateClockButtonVisibility();
     this.renderLocus();
     this.drawOverlay();
     this.updateAssignments();

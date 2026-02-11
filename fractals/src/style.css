@@ -28,9 +28,7 @@ body {
 
 .top-bar {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 24px;
+  padding: 8px 16px;
   background: rgba(15, 52, 96, 0.3);
   border-bottom: 1px solid #0f3460;
   flex-shrink: 0;
@@ -41,32 +39,31 @@ body {
 .top-row {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 12px;
+  width: 100%;
 }
 
-.top-row h1 {
-  font-size: 18px;
-  color: #16c79a;
-  white-space: nowrap;
+.transport-compact {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
-.title-icon {
-  width: 24px;
-  height: 24px;
+.transport-compact .transport-btn {
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
 }
 
 .song-picker-wrap select {
-  padding: 8px 12px;
+  padding: 6px 10px;
   background: #1a1a2e;
   border: 1px solid #0f3460;
   border-radius: 6px;
   color: #fff;
-  font-size: 14px;
+  font-size: 13px;
   cursor: pointer;
-  min-width: 200px;
+  min-width: 160px;
 }
 
 .song-picker-wrap select:focus {
@@ -76,13 +73,34 @@ body {
 
 .playlist-category-wrap {
   display: flex;
-  gap: 4px;
-  margin-left: 12px;
+  gap: 3px;
+  flex-shrink: 0;
 }
 
 .playlist-btn {
-  font-size: 12px;
-  padding: 4px 10px;
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.seek-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 120px;
+}
+
+.seek-wrap input[type="range"] {
+  flex: 1;
+  min-width: 80px;
+}
+
+
+.preset-buttons {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .toggle-btn {
@@ -548,11 +566,6 @@ a.toggle-btn {
   transform: translateY(0);
 }
 
-#app:fullscreen .transport {
-  border-top: none;
-  padding-top: 0;
-}
-
 #app:fullscreen .main-area {
   height: 100vh;
 }
@@ -639,22 +652,14 @@ canvas {
   font-weight: 500;
 }
 
-.transport {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  border-top: 1px solid #0f3460;
-  padding-top: 8px;
-}
-
 .transport-btn {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: rgba(22, 199, 154, 0.2);
   border: 2px solid #16c79a;
   color: #16c79a;
-  font-size: 16px;
+  font-size: 14px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -672,11 +677,6 @@ canvas {
   cursor: not-allowed;
 }
 
-.transport input[type="range"] {
-  flex: 1;
-  touch-action: manipulation;
-}
-
 .transport-btn,
 .toggle-btn,
 select {
@@ -685,11 +685,9 @@ select {
 
 .time-display {
   font-family: 'Courier New', monospace;
-  font-size: 13px;
+  font-size: 11px;
   color: #888;
   white-space: nowrap;
-  min-width: 100px;
-  text-align: right;
 }
 
 /* --- Range inputs --- */
@@ -738,65 +736,59 @@ input[type="range"]::-moz-range-thumb {
 /* --- Responsive --- */
 
 @media (max-width: 1100px) {
-  .preset-buttons {
-    flex-wrap: wrap;
+  .top-row {
+    gap: 8px;
   }
 
-  .preset-btn {
-    font-size: 11px;
-    padding: 4px 8px;
+  .seek-wrap {
+    min-width: 100px;
   }
 }
 
 @media (max-width: 900px) {
   .top-row {
     flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .seek-wrap {
+    order: 10;
+    flex: 1 0 100%;
   }
 }
 
 @media (max-width: 700px) {
   .top-bar {
-    gap: 6px;
     padding: 6px 10px;
   }
 
   .top-row {
-    flex-wrap: wrap;
-    gap: 8px;
+    gap: 4px;
   }
 
-  .top-row h1 {
-    font-size: 14px;
-    width: 100%;
-    text-align: center;
-  }
-
-  .song-picker-wrap {
-    flex: 1;
+  .playlist-category-wrap {
+    display: none;
   }
 
   .song-picker-wrap select {
-    width: 100%;
-    min-width: unset;
-    font-size: 13px;
-    padding: 6px 8px;
+    min-width: 120px;
+    font-size: 12px;
+    padding: 4px 6px;
   }
 
-  .song-info {
-    margin-left: 0;
-    width: 100%;
-    justify-content: center;
-  }
-
-  .info-badge {
-    padding: 3px 8px;
-    font-size: 11px;
-    min-width: 50px;
-  }
-
-  .toggle-btn, .config-link {
+  .toggle-btn {
     padding: 4px 8px;
     font-size: 11px;
+  }
+
+  .transport-btn {
+    width: 28px;
+    height: 28px;
+    font-size: 12px;
+  }
+
+  .time-display {
+    font-size: 10px;
   }
 
   /* Canvas fills available space */
@@ -814,17 +806,6 @@ input[type="range"]::-moz-range-thumb {
     bottom: 10px;
     right: 10px;
     font-size: 11px;
-  }
-
-  .transport-btn {
-    width: 36px;
-    height: 36px;
-    font-size: 14px;
-  }
-
-  .time-display {
-    font-size: 11px;
-    min-width: 80px;
   }
 
   /* Layer panel full width on mobile */
@@ -845,13 +826,8 @@ input[type="range"]::-moz-range-thumb {
 
 /* Even smaller screens */
 @media (max-width: 480px) {
-  .top-row h1 {
-    display: none;
-  }
-
   .top-bar {
     padding: 4px 6px;
-    gap: 4px;
   }
 
   .debug-overlay {
@@ -862,15 +838,16 @@ input[type="range"]::-moz-range-thumb {
   }
 
   .transport-btn {
-    width: 32px;
-    height: 32px;
+    width: 26px;
+    height: 26px;
+    font-size: 11px;
   }
 
   .canvas-wrap {
     padding: 0;
   }
 
-  .config-link {
+  .preset-buttons {
     display: none;
   }
 }
@@ -886,27 +863,20 @@ input[type="range"]::-moz-range-thumb {
 
   .top-bar {
     padding: 4px;
-    gap: 2px;
   }
 
   .top-row {
     gap: 4px;
   }
 
-  .transport {
-    padding-top: 4px;
-    gap: 6px;
-  }
-
   .transport-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 12px;
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
   }
 
   .time-display {
-    font-size: 10px;
-    min-width: 60px;
+    font-size: 9px;
   }
 
   .toggle-btn {
@@ -1400,18 +1370,22 @@ input[type="range"]::-moz-range-thumb {
 
 .fc-degree-block {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px;
   background: #111;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid #222;
 }
 
 .fc-degree-header {
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 4px;
+  min-width: 32px;
 }
 
 /* Temperature slider per degree */
@@ -1430,10 +1404,49 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .fc-degree-cells {
-  display: grid;
-  grid-template-columns: repeat(6, auto auto);
-  gap: 2px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+
+.fc-orbit-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+  padding-left: 6px;
+  border-left: 1px solid rgba(255,255,255,0.1);
+}
+
+.fc-orbit-controls label {
+  display: flex;
   align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  color: #888;
+}
+
+.fc-orbit-controls input[type="range"] {
+  width: 50px;
+  height: 4px;
+}
+
+.fc-orbit-mode-btn {
+  background: transparent;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  font-size: 14px;
+  min-width: 24px;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.fc-orbit-mode-btn:hover {
+  border-color: #16c79a;
+  background: rgba(22, 199, 154, 0.1);
 }
 
 /* Progression controls (inline in toolbar) */
@@ -1487,14 +1500,14 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .fc-grid-cell {
-  width: 48px;
-  height: 48px;
+  width: 98px;
+  height: 98px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: #111;
   border: 1px solid #333;
-  border-radius: 3px;
+  border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s;
   padding: 2px;
@@ -1528,10 +1541,9 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .fc-cell-thumb {
-  width: 44px;
-  height: 44px;
-  border-radius: 3px;
-  image-rendering: pixelated;
+  width: 94px;
+  height: 94px;
+  border-radius: 4px;
 }
 
 .fc-grid-cell.active .fc-cell-thumb {
@@ -1548,6 +1560,19 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   gap: 6px;
   margin-left: auto;
+  align-items: center;
+}
+
+.fc-temp-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.fc-temp-inline input[type="range"] {
+  width: 50px;
+  height: 4px;
 }
 
 .fc-btn {

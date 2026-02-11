@@ -114,7 +114,9 @@
       "Bash(do if [ -f \"$f\" ])",
       "Bash(then echo \"✓ $f\")",
       "Bash(else echo \"✗ $f \\(MISSING\\)\")",
-      "Bash(strings:*)"
+      "Bash(strings:*)",
+      "Bash(gh repo view:*)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

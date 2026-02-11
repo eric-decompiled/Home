@@ -20,6 +20,7 @@ import { NoteSpiralEffect } from './effects/note-spiral.ts';
 import { PianoRollEffect } from './effects/piano-roll.ts';
 import { TheoryBarEffect } from './effects/theory-bar.ts';
 import { StarFieldEffect } from './effects/star-field.ts';
+import { GraphSculptureEffect } from './effects/graph-sculpture.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
 import {
   type VisualizerState,
@@ -82,7 +83,7 @@ const videoSongs: SongEntry[] = [
   { name: 'Green Hill Zone (Sonic)', file: 'green-hill-zone.mid' },                      // energy rising
   { name: 'Gerudo Valley (Zelda: OoT)', file: 'zelda-gerudo-valley.mid' },               // high energy
   { name: 'One-Winged Angel (Final Fantasy VII)', file: 'ff7-one-winged-angel.mid' },    // PEAK
-  { name: 'Mute City (F-Zero)', file: 'fzero-mute-city.mid' },                           // racing sustain
+  { name: 'Battle Theme (Golden Sun)', file: 'golden-sun-battle.mid' },                  // RPG intensity
   { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // emotional cooldown
   { name: 'Aquatic Ambiance (Donkey Kong Country)', file: 'dkc-aquatic-ambiance.mid' },  // serene ending ♡
 ];
@@ -175,6 +176,7 @@ const noteSpiralEffect = new NoteSpiralEffect();
 const pianoRollEffect = new PianoRollEffect();
 const theoryBarEffect = new TheoryBarEffect();
 const starFieldEffect = new StarFieldEffect();
+const graphSculptureEffect = new GraphSculptureEffect();
 
 // --- Layer slot definitions (mutually exclusive within each slot) ---
 
@@ -188,32 +190,32 @@ const layerSlots: LayerSlot[] = [
   {
     name: 'Background',
     effects: [starFieldEffect, domainWarpEffect, waveEffect, chladniEffect, flowFieldEffect],
-    activeId: 'starfield',  // Cosmic Spiral default
+    activeId: 'flowfield',  // Fractal Dance default
   },
   {
     name: 'Foreground',
-    effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect],
-    activeId: 'note-spiral',  // Cosmic Spiral default
+    effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect, graphSculptureEffect],
+    activeId: 'graph-sculpture',  // Graph Sculpture default
   },
   {
     name: 'Overlay',
     effects: [kaleidoscopeEffect],
-    activeId: null,  // Cosmic Spiral default
+    activeId: null,
   },
   {
     name: 'Melody',
     effects: [melodyAuroraEffect, melodyWebEffect, melodyClockEffect],
-    activeId: null,  // Cosmic Spiral default
+    activeId: null,
   },
   {
     name: 'Bass',
     effects: [bassWebEffect, bassClockEffect],
-    activeId: 'bass-clock',  // Cosmic Spiral default
+    activeId: null,
   },
   {
     name: 'HUD',
     effects: [theoryBarEffect],
-    activeId: null,  // Cosmic Spiral default (no HUD)
+    activeId: 'theory-bar',  // Fractal Dance default
   },
 ];
 
@@ -249,9 +251,14 @@ function applyURLSettings(): { presetApplied?: string } {
   const urlState = urlToState(window.location.search);
   const result: { presetApplied?: string } = {};
 
-  // If no URL params, apply default Cosmic Spiral preset
+  // If no URL params, apply default Fractal Dance preset (including configs)
   if (!urlState) {
+    const defaultPreset = getPresetState('fractal');
+    if (defaultPreset) {
+      applyState(defaultPreset, layerSlots, getAllEffects());
+    }
     applySlotSelections();
+    result.presetApplied = 'fractal';
     return result;
   }
 
@@ -278,36 +285,36 @@ app.innerHTML = `
   <div class="container">
     <header class="top-bar">
       <div class="top-row">
-        <h1>Fractured Jukebox</h1>
+        <div class="transport-compact">
+          <button class="transport-btn" id="prev-btn" title="Previous track">&#x23EE;</button>
+          <button class="transport-btn" id="play-btn" disabled>&#9654;</button>
+          <button class="transport-btn" id="next-btn" title="Next track">&#x23ED;</button>
+        </div>
         <div class="playlist-category-wrap">
-          <button class="toggle-btn playlist-btn active" id="playlist-bossa" title="Bossa nova & Brazilian jazz">Bossa</button>
-          <button class="toggle-btn playlist-btn" id="playlist-classical" title="Classical masters">Classical</button>
-          <button class="toggle-btn playlist-btn" id="playlist-pop" title="Pop & rock anthems">Classics</button>
-          <button class="toggle-btn playlist-btn" id="playlist-video" title="Video game music">Games</button>
+          <button class="toggle-btn playlist-btn active" id="playlist-bossa" title="Bossa nova">Bossa</button>
+          <button class="toggle-btn playlist-btn" id="playlist-classical" title="Classical">Classical</button>
+          <button class="toggle-btn playlist-btn" id="playlist-pop" title="Pop & rock">Classics</button>
+          <button class="toggle-btn playlist-btn" id="playlist-video" title="Video games">Games</button>
         </div>
         <div class="song-picker-wrap">
           <select id="song-picker">
             ${bossaSongs.map((s, i) => `<option value="${i}"${i === 3 ? ' selected' : ''}>${s.name}</option>`).join('')}
           </select>
         </div>
-        <div class="preset-buttons" style="margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-          <span style="color: #aaa; font-size: 13px; font-weight: 500; margin-right: 6px;">Views:</span>
-          <button class="toggle-btn preset-btn" id="preset-spiral" title="Flow Field + Note Spiral + Bass Clock">Cosmic Spiral</button>
-          <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope + Bass Clock">Warp Prism</button>
-          <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar">Fractal Dance</button>
+        <div class="seek-wrap">
+          <input type="range" id="seek-bar" min="0" max="100" step="0.1" value="0" disabled>
+          <span class="time-display" id="time-display">0:00 / 0:00</span>
+        </div>
+        <div class="preset-buttons">
+          <button class="toggle-btn preset-btn" id="preset-spiral" title="Starfield + Note Spiral + Bass Clock">Spiral</button>
+          <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope">Warp</button>
+          <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar">Fractal</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
-          <span style="color: #444; margin: 0 4px;">|</span>
+          <button class="toggle-btn preset-btn" id="preset-sculpture" title="Graph Sculpture + Theory Bar">Sculpture</button>
           <button class="toggle-btn" id="layers-toggle">Custom</button>
           <div class="custom-presets-wrap" id="custom-presets"></div>
-          <button class="reset-presets-btn" id="reset-presets-btn" title="Delete all custom presets">Reset</button>
+          <button class="reset-presets-btn" id="reset-presets-btn" title="Delete all custom presets" style="display:none;">Reset</button>
         </div>
-      </div>
-      <div class="transport">
-        <button class="transport-btn" id="prev-btn" title="Previous track">&#x23EE;</button>
-        <button class="transport-btn" id="play-btn" disabled>&#9654;</button>
-        <button class="transport-btn" id="next-btn" title="Next track">&#x23ED;</button>
-        <input type="range" id="seek-bar" min="0" max="100" step="0.1" value="0" disabled>
-        <span class="time-display" id="time-display">0:00 / 0:00</span>
         <button class="transport-btn" id="fullscreen-btn" title="Fullscreen">&#x26F6;</button>
       </div>
     </header>
@@ -621,7 +628,9 @@ canvas.addEventListener('mouseleave', () => {
 
 // --- Animations panel toggle ---
 
-let layerPanelOpen = false;  // Closed by default
+let layerPanelOpen = true;  // Open by default
+layersToggle.classList.add('active');
+layerPanel.classList.add('open');
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
@@ -644,6 +653,8 @@ const fractalConfigPanel = new FractalConfigPanel();
 fractalConfigPanel.onSave = () => {
   dirty = true;
 };
+
+// Config panel starts closed - user can open via ⚙️ button
 
 // --- Build layer panel UI ---
 
@@ -842,26 +853,25 @@ buildLayerPanel();
 
 // --- Preset buttons ---
 
-const presetPianoBtn = document.getElementById('preset-piano') as HTMLButtonElement;
-const presetSpiralBtn = document.getElementById('preset-spiral') as HTMLButtonElement;
-const presetFractalBtn = document.getElementById('preset-fractal') as HTMLButtonElement;
-const presetWarpBtn = document.getElementById('preset-warp') as HTMLButtonElement;
+type PresetName = 'spiral' | 'warp' | 'fractal' | 'piano' | 'sculpture';
+const presetButtons: Record<PresetName, HTMLButtonElement> = {
+  spiral: document.getElementById('preset-spiral') as HTMLButtonElement,
+  warp: document.getElementById('preset-warp') as HTMLButtonElement,
+  fractal: document.getElementById('preset-fractal') as HTMLButtonElement,
+  piano: document.getElementById('preset-piano') as HTMLButtonElement,
+  sculpture: document.getElementById('preset-sculpture') as HTMLButtonElement,
+};
 
-// Highlight preset button based on URL settings or default to Cosmic Spiral
+// Highlight preset button based on URL settings or default to Sculpture
 if (urlSettingsResult.presetApplied) {
-  const btn = {
-    piano: presetPianoBtn,
-    spiral: presetSpiralBtn,
-    fractal: presetFractalBtn,
-    warp: presetWarpBtn,
-  }[urlSettingsResult.presetApplied];
+  const btn = presetButtons[urlSettingsResult.presetApplied as PresetName];
   if (btn) btn.classList.add('active');
 } else if (!urlToState(window.location.search)) {
-  // Default to Cosmic Spiral if no URL params
-  presetSpiralBtn.classList.add('active');
+  // Default to Sculpture if no URL params
+  presetButtons.sculpture.classList.add('active');
 }
 
-function applyPreset(preset: 'piano' | 'spiral' | 'fractal' | 'warp'): void {
+function applyPreset(preset: PresetName): void {
   // Reset all effect configs to defaults first
   for (const [effectId, defaults] of Object.entries(DEFAULT_CONFIGS)) {
     const effect = getAllEffects().get(effectId);
@@ -884,25 +894,22 @@ function applyPreset(preset: 'piano' | 'spiral' | 'fractal' | 'warp'): void {
   clearUnsavedChanges();
 
   // Update button active states
-  presetPianoBtn.classList.toggle('active', preset === 'piano');
-  presetSpiralBtn.classList.toggle('active', preset === 'spiral');
-  presetFractalBtn.classList.toggle('active', preset === 'fractal');
-  presetWarpBtn.classList.toggle('active', preset === 'warp');
+  for (const [name, btn] of Object.entries(presetButtons)) {
+    btn.classList.toggle('active', name === preset);
+  }
 
   updateBrowserURL();
 }
 
-presetPianoBtn.addEventListener('click', () => applyPreset('piano'));
-presetSpiralBtn.addEventListener('click', () => applyPreset('spiral'));
-presetFractalBtn.addEventListener('click', () => applyPreset('fractal'));
-presetWarpBtn.addEventListener('click', () => applyPreset('warp'));
+for (const [name, btn] of Object.entries(presetButtons)) {
+  btn.addEventListener('click', () => applyPreset(name as PresetName));
+}
 
 // Clear preset highlights when manual changes are made
 function clearPresetHighlights(): void {
-  presetPianoBtn.classList.remove('active');
-  presetSpiralBtn.classList.remove('active');
-  presetFractalBtn.classList.remove('active');
-  presetWarpBtn.classList.remove('active');
+  for (const btn of Object.values(presetButtons)) {
+    btn.classList.remove('active');
+  }
   // Also clear custom preset highlights
   document.querySelectorAll('.custom-preset-btn').forEach(btn => btn.classList.remove('active'));
 }
@@ -1820,9 +1827,9 @@ function loop(time: number): void {
     const idle = musicMapper.getIdleAnchor();
     idlePhase += 0.3 * dt;
     const t = Math.sin(Math.PI * idlePhase);
-    const orbit = idle.orbits?.[0] ?? { dr: 0.08, di: 0 };
-    const cr = idle.real + orbit.dr * t * 0.5;
-    const ci = idle.imag + orbit.di * t * 0.5;
+    const radius = idle.orbitRadius ?? 0.08;
+    const cr = idle.real + radius * t * 0.5;
+    const ci = idle.imag + radius * t * 0.5;
 
     fractalEffect.setFractalParams(
       cr, ci, 1.0, 150, renderFidelity,

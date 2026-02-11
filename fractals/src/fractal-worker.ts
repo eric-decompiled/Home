@@ -60,10 +60,8 @@ ctx.onmessage = (e: MessageEvent) => {
     fType === 1 ? Math.log(3) : fType === 2 ? Math.log(4) : Math.log(2);
   const lutMax = LUT_SIZE - 1;
 
-  // Convergence-based fractals (Newton, Magnet)
-  const isConvergence = fType === 10 || fType === 13;
-  // Overflow-prone fractals (Sine)
-  const isOverflow = fType === 12;
+  // Convergence-based fractals (Newton, Nova, Magnet)
+  const isConvergence = fType === 10 || fType === 11 || fType === 13;
 
   for (let row = 0; row < bandH; row++) {
     const py = yStart + row;
@@ -88,11 +86,9 @@ ctx.onmessage = (e: MessageEvent) => {
 
       const bailout = fType === 7 || fType === 11 || fType === 13 ? 100.0 : 4.0;
       while (x2 + y2 <= bailout && iteration < maxIter) {
-        // Overflow check for trig functions
-        if (isOverflow && Math.abs(y) > 50) break;
 
-        // Convergence check for Newton (type 10)
-        if (fType === 10) {
+        // Convergence check for Newton (type 10) and Nova (type 11) - cube roots of unity
+        if (fType === 10 || fType === 11) {
           for (let k = 0; k < 3; k++) {
             const dr = x - NEWTON_ROOTS_3[k][0];
             const di = y - NEWTON_ROOTS_3[k][1];
@@ -213,15 +209,6 @@ ctx.onmessage = (e: MessageEvent) => {
             ny = y - divI + jI;
             break;
           }
-          case 12: {
-            // Sine: z = c * sin(z)
-            // sin(z) = sin(x)cosh(y) + i*cos(x)sinh(y)
-            const sinR = Math.sin(x) * Math.cosh(y);
-            const sinI = Math.cos(x) * Math.sinh(y);
-            nx = jR * sinR - jI * sinI;
-            ny = jR * sinI + jI * sinR;
-            break;
-          }
           case 13: {
             // Magnet Type I: z = ((z² + c - 1) / (2z + c - 2))²
             const numR = x2 - y2 + jR - 1;
@@ -287,7 +274,7 @@ ctx.onmessage = (e: MessageEvent) => {
       }
 
       if (iteration === maxIter && rootIndex < 0) {
-        // Interior of the set - transparent so background layers show through
+        // Interior of the set: transparent so background layers show through
         data32[row * w + px] = 0x00000000;
       } else if (isConvergence && rootIndex >= 0) {
         // Convergence coloring (Newton, Magnet): color by root, brightness by speed

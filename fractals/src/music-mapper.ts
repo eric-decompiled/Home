@@ -12,40 +12,31 @@ interface CValue {
   imag: number;
   type: number;
   phoenix?: number;
-  // 4 orbit offsets (relative to center), one per beat
-  orbits: Array<{ dr: number; di: number }>;
+  orbitRadius: number;   // base radius for orbit ellipse
+  orbitSkew: number;     // aspect ratio: 1=circle, <1=wide, >1=tall
+  orbitRotation: number; // ellipse rotation in radians
+  beatSpread: number;    // angle between beat points in radians (π/2 = 90°)
+  orbitMode: 'orbit' | 'beats';  // continuous orbit vs discrete beat jumps
 }
 
 // type: 0=Julia z²+c, 1=Cubic z³+c, 2=Quartic z⁴+c, 3=BurningShip,
 //       4=Tricorn, 5=Phoenix, 6=Celtic, 7=Lambda, 8=PerpBurn, 9=Buffalo
 
-// --- Mixed anchors: cross-family degree assignments ---
-
-
-const DEFAULT_ORBITS: Array<{ dr: number; di: number }> = [
-  { dr: 0.08, di: 0 },
-  { dr: 0, di: 0.08 },
-  { dr: -0.08, di: 0 },
-  { dr: 0, di: -0.08 },
-];
+const DEFAULT_ORBIT_RADIUS = 0.08;
+const DEFAULT_ORBIT_SKEW = 1.0;     // circle
+const DEFAULT_ORBIT_ROTATION = 0;   // no rotation
+const DEFAULT_BEAT_SPREAD = Math.PI / 2;  // 90° between beat points
+const DEFAULT_ORBIT_MODE: 'orbit' | 'beats' = 'orbit';
 
 const defaultAnchors: Record<number, CValue> = {
-  0: { real: 0.1691, imag: -0.4957, type: 4,
-       orbits: [{dr:-0.0164, di:0.0417}, {dr:-0.1442, di:0.1592}, {dr:0.0995, di:-0.1970}, {dr:0.1415, di:-0.3167}] },  // Tricorn
-  1: { real: 0.1691, imag: -0.4957, type: 4,
-       orbits: [{dr:-0.0164, di:0.0417}, {dr:-0.1442, di:0.1592}, {dr:0.0995, di:-0.1970}, {dr:0.1415, di:-0.3167}] },  // Tricorn
-  2: { real: 0.3215, imag: 0.3842, type: 8,
-       orbits: [{dr:0.0800, di:0.0000}, {dr:0.0000, di:0.0800}, {dr:-0.0800, di:0.0000}, {dr:0.0000, di:-0.0800}] },  // PerpBurn
-  3: { real: 0.3386, imag: -1.5682, type: 3,
-       orbits: [{dr:0.3780, di:0.2838}, {dr:0.0203, di:0.3658}, {dr:-0.3341, di:0.2716}, {dr:0.6591, di:-0.0036}] },  // Burning Ship
-  4: { real: 0.1969, imag: 0.5382, type: 4,
-       orbits: [{dr:-0.0130, di:0.4822}, {dr:-0.0364, di:0.3081}, {dr:-0.1946, di:-0.1429}, {dr:-0.5589, di:-0.3168}] },  // Tricorn
-  5: { real: 0.3972, imag: 0.5086, type: 4,
-       orbits: [{dr:0.1357, di:-0.0154}, {dr:0.2352, di:-0.1154}, {dr:-0.0090, di:-0.0631}, {dr:0.0353, di:-0.1455}] },  // Tricorn
-  6: { real: -1.0169, imag: -1.0135, type: 3,
-       orbits: [{dr:0.0128, di:-0.2683}, {dr:-0.3061, di:0.2928}, {dr:-0.3486, di:0.0034}, {dr:0.3770, di:0.0085}] },  // Burning Ship
-  7: { real: 0.2881, imag: 0.4126, type: 5,
-       orbits: [{dr:0.3182, di:-0.0236}, {dr:1.0254, di:-0.0038}, {dr:-0.0310, di:0.3267}, {dr:-0.3607, di:0.3102}] },  // Phoenix
+  0: { real: 0.1691, imag: -0.4957, type: 4, orbitRadius: 0.15, orbitSkew: 1.0, orbitRotation: 0, beatSpread: Math.PI/2, orbitMode: 'orbit' },
+  1: { real: 0.1691, imag: -0.4957, type: 4, orbitRadius: 0.15, orbitSkew: 1.0, orbitRotation: 0, beatSpread: Math.PI/2, orbitMode: 'orbit' },
+  2: { real: 0.3215, imag: 0.3842, type: 8, orbitRadius: 0.08, orbitSkew: 1.0, orbitRotation: 0, beatSpread: Math.PI/2, orbitMode: 'orbit' },
+  3: { real: 0.3386, imag: -1.5682, type: 3, orbitRadius: 0.35, orbitSkew: 1.0, orbitRotation: 0, beatSpread: Math.PI/2, orbitMode: 'orbit' },
+  4: { real: 0.1969, imag: 0.5382, type: 4, orbitRadius: 0.30, orbitSkew: 1.0, orbitRotation: 0, beatSpread: Math.PI/2, orbitMode: 'orbit' },
+  5: { real: 0.3972, imag: 0.5086, type: 4, orbitRadius: 0.12, orbitSkew: 1.0, orbitRotation: 0, beatSpread: Math.PI/2, orbitMode: 'orbit' },
+  6: { real: -1.0169, imag: -1.0135, type: 3, orbitRadius: 0.25, orbitSkew: 1.0, orbitRotation: 0, beatSpread: Math.PI/2, orbitMode: 'orbit' },
+  7: { real: 0.2881, imag: 0.4126, type: 5, orbitRadius: 0.40, orbitSkew: 1.0, orbitRotation: 0, beatSpread: Math.PI/2, orbitMode: 'orbit' },
 };
 
 const STORAGE_KEY = 'fractal-anchors';
@@ -58,16 +49,36 @@ function loadAnchorsFromStorage(): void {
     if (!raw) return;
     const parsed = JSON.parse(raw) as Record<string, any>;
     if (!parsed['0'] || !parsed['1']) return;
-    // Schema check: new format has orbits array, old format has sweepTo
-    if (!parsed['0'].orbits) {
-      // Old schema — ignore, use hardcoded defaults
-      return;
-    }
+
     const loaded: Record<number, CValue> = {};
     for (let d = 0; d <= 7; d++) {
-      if (parsed[d] && parsed[d].orbits) {
-        loaded[d] = parsed[d];
+      const p = parsed[d];
+      if (!p || typeof p.real !== 'number') continue;
+
+      // Get orbitRadius: direct value, or compute from legacy orbits array
+      let orbitRadius = DEFAULT_ORBIT_RADIUS;
+      if (typeof p.orbitRadius === 'number') {
+        orbitRadius = p.orbitRadius;
+      } else if (Array.isArray(p.orbits) && p.orbits.length > 0) {
+        // Convert legacy 4-point orbits to average radius
+        let sum = 0;
+        for (const o of p.orbits) {
+          sum += Math.sqrt((o.dr || 0) ** 2 + (o.di || 0) ** 2);
+        }
+        orbitRadius = sum / p.orbits.length;
       }
+
+      loaded[d] = {
+        real: p.real,
+        imag: p.imag,
+        type: p.type ?? 0,
+        phoenix: p.phoenix,
+        orbitRadius,
+        orbitSkew: typeof p.orbitSkew === 'number' ? p.orbitSkew : DEFAULT_ORBIT_SKEW,
+        orbitRotation: typeof p.orbitRotation === 'number' ? p.orbitRotation : DEFAULT_ORBIT_ROTATION,
+        beatSpread: typeof p.beatSpread === 'number' ? p.beatSpread : DEFAULT_BEAT_SPREAD,
+        orbitMode: p.orbitMode === 'beats' ? 'beats' : DEFAULT_ORBIT_MODE,
+      };
     }
     if (Object.keys(loaded).length >= 2) {
       anchors = loaded;
@@ -93,7 +104,11 @@ function centerForChord(degree: number, root: number): CValue {
     imag: anchor.imag + radius * Math.sin(angle),
     type: anchor.type,
     phoenix: anchor.phoenix,
-    orbits: anchor.orbits ?? [...DEFAULT_ORBITS],
+    orbitRadius: anchor.orbitRadius ?? DEFAULT_ORBIT_RADIUS,
+    orbitSkew: anchor.orbitSkew ?? DEFAULT_ORBIT_SKEW,
+    orbitRotation: anchor.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
+    beatSpread: anchor.beatSpread ?? DEFAULT_BEAT_SPREAD,
+    orbitMode: anchor.orbitMode ?? DEFAULT_ORBIT_MODE,
   };
 }
 
@@ -127,27 +142,21 @@ let currentPalette = 4;
 let currentFractalType = getDefaultAnchor().type;
 let currentPhoenixP = -0.5;
 
-// Current orbit offsets (interpolated on chord change)
-let currentOrbits: Array<{ dr: number; di: number }> = [...DEFAULT_ORBITS];
-let targetOrbits: Array<{ dr: number; di: number }> = [...DEFAULT_ORBITS];
-
 // --- Physics-based orbit state ---
-// Instead of discrete 4-point orbits, use continuous circular motion
-let orbitAngle = 0;           // Current position on circle (radians)
+// Continuous elliptical motion around the anchor point
+let orbitAngle = 0;           // Current position on ellipse (radians)
 let orbitRadiusOffset = 0;    // Deviation from base radius
 let orbitRadiusVel = 0;       // Radial velocity (for spring physics)
-let currentOrbitRadius = 0.12; // Base orbit radius (computed from anchor)
+let currentOrbitRadius = 0.12; // Base orbit radius (from anchor)
 let targetOrbitRadius = 0.12;  // Target radius (snaps on chord change)
-
-// Compute average radius from 4-point orbit array
-function computeOrbitRadius(orbits: Array<{ dr: number; di: number }>): number {
-  if (!orbits || orbits.length === 0) return 0.12;
-  let sum = 0;
-  for (const o of orbits) {
-    sum += Math.sqrt(o.dr * o.dr + o.di * o.di);
-  }
-  return sum / orbits.length;
-}
+let currentOrbitSkew = 1.0;    // Aspect ratio (1=circle, <1=wide, >1=tall)
+let targetOrbitSkew = 1.0;
+let currentOrbitRotation = 0;  // Ellipse rotation angle
+let targetOrbitRotation = 0;
+let currentBeatSpread = Math.PI / 2;  // Angle between beat points
+let targetBeatSpread = Math.PI / 2;
+let currentOrbitMode: 'orbit' | 'beats' = 'orbit';
+let targetOrbitMode: 'orbit' | 'beats' = 'orbit';
 
 // Beat-driven rotation
 let rotationAngle = 0;
@@ -526,9 +535,12 @@ export const musicMapper = {
       currentChordDegree = chord.degree;
       currentChordQuality = chord.quality;
 
-      // Update target orbits and compute target radius
-      targetOrbits = center.orbits.map(o => ({ ...o }));
-      targetOrbitRadius = computeOrbitRadius(center.orbits);
+      // Update target orbit params
+      targetOrbitRadius = center.orbitRadius;
+      targetOrbitSkew = center.orbitSkew;
+      targetOrbitRotation = center.orbitRotation;
+      targetBeatSpread = center.beatSpread;
+      targetOrbitMode = center.orbitMode;
     }
 
     // --- Exponential snap toward target ---
@@ -536,14 +548,12 @@ export const musicMapper = {
     currentCenter.real += (targetCenter.real - currentCenter.real) * snapDecay;
     currentCenter.imag += (targetCenter.imag - currentCenter.imag) * snapDecay;
 
-    // Snap orbit radius
+    // Snap orbit params
     currentOrbitRadius += (targetOrbitRadius - currentOrbitRadius) * snapDecay;
-
-    // Keep legacy orbit snap for backwards compatibility with config tool
-    for (let i = 0; i < 4; i++) {
-      currentOrbits[i].dr += (targetOrbits[i].dr - currentOrbits[i].dr) * snapDecay;
-      currentOrbits[i].di += (targetOrbits[i].di - currentOrbits[i].di) * snapDecay;
-    }
+    currentOrbitSkew += (targetOrbitSkew - currentOrbitSkew) * snapDecay;
+    currentOrbitRotation += (targetOrbitRotation - currentOrbitRotation) * snapDecay;
+    currentBeatSpread += (targetBeatSpread - currentBeatSpread) * snapDecay;
+    currentOrbitMode = targetOrbitMode; // Snap immediately (discrete)
 
     // Tension smoothing with melodic modulation
     // Combine harmonic tension (from chord analysis) with real-time melodic tension
@@ -631,7 +641,8 @@ export const musicMapper = {
     // Angular motion: continuous rotation, one revolution per bar
     // Groove modulates speed, tension scales everything
     const barDur = beat.beatDuration * beat.beatsPerBar;
-    const baseAngularSpeed = barDur > 0 ? (Math.PI * 2) / barDur : Math.PI;
+    // One full orbit every 8 bars (slowed down 8x from original 1 bar)
+    const baseAngularSpeed = barDur > 0 ? (Math.PI * 2) / (barDur * 8) : Math.PI / 8;
 
     // Groove curves for timing
     const beatGroove = beat.beatGroove ?? 0.5;
@@ -658,10 +669,23 @@ export const musicMapper = {
     orbitRadiusVel += (-radiusK * orbitRadiusOffset - radiusDamping * orbitRadiusVel) * safeDt;
     orbitRadiusOffset += orbitRadiusVel * safeDt;
 
-    // Compute final orbit position
+    // Compute final orbit position (ellipse with rotation)
     const effectiveRadius = currentOrbitRadius + orbitRadiusOffset;
-    const offsetReal = effectiveRadius * Math.cos(orbitAngle);
-    const offsetImag = effectiveRadius * Math.sin(orbitAngle);
+    // Ellipse radii: x is base, y is scaled by skew
+    const rx = effectiveRadius;
+    const ry = effectiveRadius * currentOrbitSkew;
+    // Choose angle based on orbit mode
+    // 'orbit': continuous motion using orbitAngle
+    // 'beats': snap to beat points (0, spread, 2*spread, 3*spread)
+    const beatPointAngle = (beat.beatIndex % 4) * currentBeatSpread;
+    const effectiveAngle = currentOrbitMode === 'beats' ? beatPointAngle : orbitAngle;
+    const px = rx * Math.cos(effectiveAngle);
+    const py = ry * Math.sin(effectiveAngle);
+    // Rotate ellipse by orbitRotation
+    const cosR = Math.cos(currentOrbitRotation);
+    const sinR = Math.sin(currentOrbitRotation);
+    const offsetReal = px * cosR - py * sinR;
+    const offsetImag = px * sinR + py * cosR;
 
     // Iterations: tension only
     const iterBase = Math.round(120 + currentTension * 60);
@@ -913,10 +937,16 @@ export const musicMapper = {
     currentPalette = 4;
     currentFractalType = def.type;
     currentPhoenixP = -0.5;
-    currentOrbits = (def.orbits ?? DEFAULT_ORBITS).map(o => ({ ...o }));
-    targetOrbits = currentOrbits.map(o => ({ ...o }));
-    currentOrbitRadius = computeOrbitRadius(def.orbits ?? DEFAULT_ORBITS);
+    currentOrbitRadius = def.orbitRadius ?? DEFAULT_ORBIT_RADIUS;
     targetOrbitRadius = currentOrbitRadius;
+    currentOrbitSkew = def.orbitSkew ?? DEFAULT_ORBIT_SKEW;
+    targetOrbitSkew = currentOrbitSkew;
+    currentOrbitRotation = def.orbitRotation ?? DEFAULT_ORBIT_ROTATION;
+    targetOrbitRotation = currentOrbitRotation;
+    currentBeatSpread = def.beatSpread ?? DEFAULT_BEAT_SPREAD;
+    targetBeatSpread = currentBeatSpread;
+    currentOrbitMode = def.orbitMode ?? DEFAULT_ORBIT_MODE;
+    targetOrbitMode = currentOrbitMode;
     orbitAngle = 0;
     orbitRadiusOffset = 0;
     orbitRadiusVel = 0;
@@ -941,9 +971,15 @@ export const musicMapper = {
     currentCenter = { ...def };
     targetCenter = { ...def };
     currentFractalType = def.type;
-    currentOrbits = (def.orbits ?? DEFAULT_ORBITS).map(o => ({ ...o }));
-    targetOrbits = currentOrbits.map(o => ({ ...o }));
-    currentOrbitRadius = computeOrbitRadius(def.orbits ?? DEFAULT_ORBITS);
+    currentOrbitRadius = def.orbitRadius ?? DEFAULT_ORBIT_RADIUS;
     targetOrbitRadius = currentOrbitRadius;
+    currentOrbitSkew = def.orbitSkew ?? DEFAULT_ORBIT_SKEW;
+    targetOrbitSkew = currentOrbitSkew;
+    currentOrbitRotation = def.orbitRotation ?? DEFAULT_ORBIT_ROTATION;
+    targetOrbitRotation = currentOrbitRotation;
+    currentBeatSpread = def.beatSpread ?? DEFAULT_BEAT_SPREAD;
+    targetBeatSpread = currentBeatSpread;
+    currentOrbitMode = def.orbitMode ?? DEFAULT_ORBIT_MODE;
+    targetOrbitMode = currentOrbitMode;
   },
 };
