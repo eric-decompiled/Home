@@ -415,11 +415,6 @@ app.innerHTML = `
         <span class="debug-label">Perf</span>
         <span class="debug-value" id="fps-display">--</span>
       </div>
-      <div class="debug-row">
-        <span class="debug-label">Audio</span>
-        <span class="debug-value" id="audio-debug">--</span>
-      </div>
-      <div class="debug-logs" id="debug-logs" style="display:none; font-size:9px; max-height:150px; overflow-y:auto; margin-top:8px; border-top:1px solid #333; padding-top:8px;"></div>
     </div>
   </div>
 
@@ -486,8 +481,6 @@ const keyDisplay = document.getElementById('key-display')!;
 const bpmDisplay = document.getElementById('bpm-display')!;
 const chordDisplay = document.getElementById('chord-display')!;
 const fpsDisplay = document.getElementById('fps-display')!;
-const audioDebugDisplay = document.getElementById('audio-debug')!;
-const debugLogsDisplay = document.getElementById('debug-logs')!;
 const layersToggle = document.getElementById('layers-toggle') as HTMLButtonElement;
 const layerPanel = document.getElementById('layer-panel')!;
 const layerList = document.getElementById('layer-list')!;
@@ -650,8 +643,12 @@ function updateMobilePlaylistButtons(): void {
 
 // --- Playlist category switching ---
 
-function switchPlaylist(category: PlaylistCategory): void {
+async function switchPlaylist(category: PlaylistCategory): Promise<void> {
   if (currentPlaylist === category) return;
+
+  // Remember if we were playing before switching
+  const wasPlaying = isPlaying;
+
   currentPlaylist = category;
 
   // Update button states
@@ -660,11 +657,21 @@ function switchPlaylist(category: PlaylistCategory): void {
   playlistPopBtn.classList.toggle('active', category === 'pop');
   playlistVideoBtn.classList.toggle('active', category === 'video');
 
-  // Rebuild song picker options (keep current song playing)
+  // Rebuild song picker options
   const currentSongs = playlists[category];
   songPicker.innerHTML = currentSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
   songPicker.value = '0';
+
+  // Load and optionally auto-play first song
+  await loadSong(0);
   updateBrowserURL();
+
+  // If we were playing before, continue playing the new song
+  if (wasPlaying) {
+    await audioPlayer.play();
+    isPlaying = true;
+    playBtn.textContent = '\u23F8';
+  }
 }
 
 function getCurrentSongs(): SongEntry[] {
@@ -2099,14 +2106,6 @@ fractalEngine.onFrameReady = (renderMs: number) => {
     fpsFrameCount = 0;
     fpsLastSample = now;
     fpsDisplay.textContent = `${currentFps} fps | ${currentRenderMs.toFixed(0)}ms | ${renderFidelity.toFixed(2)}x`;
-
-    // Update audio debug info
-    if (debugOverlayVisible) {
-      const audioDebug = audioPlayer.getDebugInfo();
-      audioDebugDisplay.textContent = audioDebug.status;
-      debugLogsDisplay.innerHTML = audioDebug.logs.map(l => `<div>${l}</div>`).join('');
-      debugLogsDisplay.style.display = audioDebug.logs.length > 0 ? 'block' : 'none';
-    }
   }
 };
 

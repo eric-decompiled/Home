@@ -438,16 +438,20 @@ export function stateToURL(state: VisualizerState): string {
     }
   }
 
-  // Encode configs (compressed) - skip configs that match preset defaults
+  // Encode configs (compressed) - skip configs that match preset or default values
   const presetConfigs = matchedPreset ? PRESET_CONFIGS[matchedPreset] || {} : {};
   for (const [effectId, configs] of Object.entries(state.configs)) {
     const prefix = EFFECT_PREFIXES[effectId] || effectId;
     const shortKeys = CONFIG_SHORTS[effectId] || {};
     const presetEffectConfigs = presetConfigs[effectId] || {};
+    const defaultEffectConfigs = DEFAULT_CONFIGS[effectId] || {};
 
     for (const [key, value] of Object.entries(configs)) {
       // Skip if this config matches what the preset expects
       if (presetEffectConfigs[key] === value) continue;
+
+      // Skip if this config matches the default and preset doesn't override it
+      if (!(key in presetEffectConfigs) && defaultEffectConfigs[key] === value) continue;
 
       const shortKey = shortKeys[key] || key;
       let strValue = String(value);

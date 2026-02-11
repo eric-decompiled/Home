@@ -27,37 +27,20 @@ let initPromise: Promise<void> | null = null;
 let pendingMidiBuffer: ArrayBuffer | null = null;
 let pianoMode = false;
 
-// Debug logging for mobile troubleshooting
-const debugLog: string[] = [];
-const MAX_DEBUG_LOGS = 20;
-function logDebug(msg: string): void {
-  const timestamp = new Date().toISOString().substr(11, 12);
-  debugLog.push(`[${timestamp}] ${msg}`);
-  if (debugLog.length > MAX_DEBUG_LOGS) debugLog.shift();
-  console.log(`[AudioPlayer] ${msg}`);
-}
-
 // Mobile audio unlock: create and resume AudioContext on first user gesture
 let audioUnlocked = false;
 function unlockAudio(): void {
   if (audioUnlocked) return;
   audioUnlocked = true;
-  logDebug('unlockAudio called');
 
   // Create AudioContext immediately during user gesture (required for iOS)
   if (!audioCtx) {
     audioCtx = new AudioContext();
-    logDebug(`AudioContext created, state: ${audioCtx.state}`);
   }
 
   // Resume if suspended (required for Chrome/Safari mobile)
   if (audioCtx.state === 'suspended') {
-    logDebug('Calling audioCtx.resume()');
-    audioCtx.resume().then(() => {
-      logDebug(`AudioContext resumed, state: ${audioCtx?.state}`);
-    }).catch(e => {
-      logDebug(`Resume failed: ${e.message}`);
-    });
+    audioCtx.resume();
   }
 }
 
@@ -84,62 +67,40 @@ function resetTimeTracking() {
 }
 
 async function init(): Promise<void> {
-  if (synth) {
-    logDebug('init: synth already exists');
-    return;
-  }
-
-  logDebug('init: starting');
+  if (synth) return;
 
   // Reuse existing AudioContext from unlock, or create new one
   if (!audioCtx) {
     audioCtx = new AudioContext();
-    logDebug(`init: created AudioContext, state: ${audioCtx.state}`);
-  } else {
-    logDebug(`init: reusing AudioContext, state: ${audioCtx.state}`);
   }
 
   // Ensure resumed (may have been created before user gesture)
   if (audioCtx.state === 'suspended') {
-    logDebug('init: resuming suspended AudioContext');
     await audioCtx.resume();
-    logDebug(`init: resumed, state: ${audioCtx.state}`);
   }
 
-  try {
-    logDebug('init: loading audio worklet');
-    await audioCtx.audioWorklet.addModule(new URL('/spessasynth_processor.min.js', import.meta.url).href);
-    logDebug('init: worklet loaded');
+  await audioCtx.audioWorklet.addModule(new URL('/spessasynth_processor.min.js', import.meta.url).href);
 
-    synth = new WorkletSynthesizer(audioCtx);
-    logDebug('init: synth created');
+  synth = new WorkletSynthesizer(audioCtx);
 
-    // Create analyser for loudness metering
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 256;
-    analyser.smoothingTimeConstant = 0.8;
-    analyserData = new Uint8Array(analyser.frequencyBinCount);
+  // Create analyser for loudness metering
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.8;
+  analyserData = new Uint8Array(analyser.frequencyBinCount);
 
-    // Connect: synth -> analyser -> destination
-    synth.connect(analyser);
-    analyser.connect(audioCtx.destination);
-    logDebug('init: audio graph connected');
+  // Connect: synth -> analyser -> destination
+  synth.connect(analyser);
+  analyser.connect(audioCtx.destination);
 
-    logDebug('init: fetching SoundFont');
-    const sfResponse = await fetch(`${import.meta.env.BASE_URL}TimGM6mb.sf2`);
-    if (!sfResponse.ok) {
-      throw new Error(`SoundFont fetch failed: ${sfResponse.status}`);
-    }
-    const sfBuffer = await sfResponse.arrayBuffer();
-    logDebug(`init: SoundFont loaded, ${sfBuffer.byteLength} bytes`);
-
-    await synth.soundBankManager.addSoundBank(sfBuffer, 'gm');
-    await synth.isReady;
-    logDebug('init: complete, synth ready');
-  } catch (e) {
-    logDebug(`init ERROR: ${e instanceof Error ? e.message : e}`);
-    throw e;
+  const sfResponse = await fetch(`${import.meta.env.BASE_URL}TimGM6mb.sf2`);
+  if (!sfResponse.ok) {
+    throw new Error(`SoundFont fetch failed: ${sfResponse.status}`);
   }
+  const sfBuffer = await sfResponse.arrayBuffer();
+
+  await synth.soundBankManager.addSoundBank(sfBuffer, 'gm');
+  await synth.isReady;
 }
 
 function ensureInit(): Promise<void> {
@@ -192,40 +153,25 @@ export const audioPlayer = {
   },
 
   async play() {
-    logDebug('play() called');
-
     // Unlock audio immediately during user gesture (before any await)
     unlockAudio();
 
     // Init synth and soundfont (async)
-    try {
-      await ensureInit();
-      logDebug('play: init complete');
-    } catch (e) {
-      logDebug(`play: init failed: ${e instanceof Error ? e.message : e}`);
-      return;
-    }
+    await ensureInit();
 
     // If we had a pending buffer that wasn't loaded yet, load now
     if (pendingMidiBuffer) {
-      logDebug('play: loading pending MIDI');
       this._loadSequencer(pendingMidiBuffer);
       pendingMidiBuffer = null;
     }
-    if (!sequencer) {
-      logDebug('play: no sequencer!');
-      return;
-    }
+    if (!sequencer) return;
 
     if (audioCtx && audioCtx.state === 'suspended') {
-      logDebug('play: resuming suspended AudioContext');
       await audioCtx.resume();
     }
 
-    logDebug(`play: starting sequencer, audioCtx.state=${audioCtx?.state}`);
     resetTimeTracking();
     sequencer.play();
-    logDebug('play: sequencer.play() called');
   },
 
   pause() {
@@ -332,17 +278,5 @@ export const audioPlayer = {
 
     // Normalize to 0-1 (byte data is 0-255)
     return avg / 255;
-  },
-
-  /** Get debug info for troubleshooting */
-  getDebugInfo(): { status: string; logs: string[] } {
-    const status = [
-      `unlocked: ${audioUnlocked}`,
-      `ctx: ${audioCtx ? audioCtx.state : 'null'}`,
-      `synth: ${synth ? 'yes' : 'no'}`,
-      `seq: ${sequencer ? 'yes' : 'no'}`,
-      `pending: ${pendingMidiBuffer ? 'yes' : 'no'}`,
-    ].join(', ');
-    return { status, logs: [...debugLog] };
   },
 };
