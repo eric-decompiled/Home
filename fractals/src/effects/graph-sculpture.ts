@@ -81,7 +81,7 @@ export class GraphSculptureEffect implements VisualEffect {
   // Config
   private maxNodes = 2000;
   private nodeSize = 4;          // smaller, elegant nodes
-  private edgeWidth = 0.8;       // thin, elegant lines
+  private edgeWidth = 1.2;       // elegant lines
   private glowIntensity = 0.8;
 
   // Auto-zoom state

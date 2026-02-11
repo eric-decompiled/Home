@@ -85,6 +85,12 @@ export class TheoryBarEffect implements VisualEffect {
   private frameCount = 0;
   private lastFpsTime = 0;
 
+  // Slide animation
+  private slideOffset = 0;  // 0 = fully visible, 1 = fully hidden (below screen)
+  private slideTarget = 0;  // Target offset
+  private slideSpeed = 4;   // Animation speed (units per second)
+  private onSlideComplete: (() => void) | null = null;
+
   constructor() {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d')!;
@@ -114,6 +120,21 @@ export class TheoryBarEffect implements VisualEffect {
 
   update(dt: number, music: MusicParams): void {
     dt = Math.min(dt, 0.1); // Cap dt for physics stability
+
+    // Slide animation
+    if (this.slideOffset !== this.slideTarget) {
+      const diff = this.slideTarget - this.slideOffset;
+      const step = this.slideSpeed * dt;
+      if (Math.abs(diff) <= step) {
+        this.slideOffset = this.slideTarget;
+        if (this.onSlideComplete) {
+          this.onSlideComplete();
+          this.onSlideComplete = null;
+        }
+      } else {
+        this.slideOffset += Math.sign(diff) * step;
+      }
+    }
 
     // FPS calculation
     this.frameCount++;
@@ -208,7 +229,12 @@ export class TheoryBarEffect implements VisualEffect {
     this.scale = barHeight / 64; // Scale factor relative to default size
     const scale = this.scale;
     const padding = 16 * scale;
-    const barTop = this.height - barHeight;
+
+    // Apply slide animation offset (eased for smooth movement)
+    const easeOffset = this.slideOffset * this.slideOffset * (3 - 2 * this.slideOffset); // smoothstep
+    const slideY = easeOffset * (barHeight + 10); // Slide down by bar height + a bit extra
+
+    const barTop = this.height - barHeight + slideY;
     const centerY = barTop + barHeight / 2;
 
     // Font sizes scaled
@@ -805,5 +831,18 @@ export class TheoryBarEffect implements VisualEffect {
     if (key === 'barHeight' && typeof value === 'number') {
       this.barHeight = value;
     }
+  }
+
+  /** Animate the bar sliding in from below */
+  animateIn(): void {
+    this.slideOffset = 1;  // Start hidden
+    this.slideTarget = 0;  // Animate to visible
+    this.onSlideComplete = null;
+  }
+
+  /** Animate the bar sliding out below, then call callback */
+  animateOut(onComplete: () => void): void {
+    this.slideTarget = 1;  // Animate to hidden
+    this.onSlideComplete = onComplete;
   }
 }

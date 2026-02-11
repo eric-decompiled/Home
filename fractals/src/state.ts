@@ -116,6 +116,7 @@ export type SlotKey = typeof SLOT_KEYS[number];
 export const EFFECT_SHORT_NAMES: Record<string, string> = {
   'flowfield': 'flow',
   'note-spiral': 'spiral',
+  'star-spiral': 'stars',
   'piano-roll': 'piano',
   'domainwarp': 'warp',
   'chladni': 'chladni',
@@ -140,6 +141,7 @@ export const SHORT_NAME_TO_EFFECT = Object.fromEntries(
 export const EFFECT_PREFIXES: Record<string, string> = {
   'flowfield': 'ff',
   'note-spiral': 'ns',
+  'star-spiral': 'ss',
   'piano-roll': 'pr',
   'domainwarp': 'dw',
   'chladni': 'ch',
@@ -187,7 +189,8 @@ for (const [effectId, keys] of Object.entries(CONFIG_SHORTS)) {
 
 export const PRESET_LAYERS: Record<string, (string | null)[]> = {
   // [bg, fg, overlay, melody, bass, hud]
-  spiral: ['starfield', 'note-spiral', null, null, 'bass-clock', 'theory-bar'],
+  spiral: ['starfield', 'star-spiral', null, null, 'bass-fire', null],
+  clock: ['starfield', 'note-spiral', null, null, 'bass-clock', null],
   warp: ['chladni', 'note-spiral', 'kaleidoscope', null, 'bass-clock', null],
   fractal: ['flowfield', 'fractal', null, null, null, 'theory-bar'],
   piano: ['flowfield', 'piano-roll', null, null, null, null],
@@ -196,7 +199,12 @@ export const PRESET_LAYERS: Record<string, (string | null)[]> = {
 
 // Preset-specific effect configs (applied when preset is selected)
 export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
-  spiral: {},
+  spiral: {
+    'bass-fire': { showNumerals: false },
+  },
+  clock: {
+    'note-spiral': { setShapes: '' },
+  },
   warp: {
     'note-spiral': { setShapes: 'ring' },
   },

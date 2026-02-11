@@ -18,6 +18,7 @@ import { BassWebEffect } from './effects/bass-web.ts';
 import { BassClockEffect } from './effects/bass-clock.ts';
 import { BassFireEffect } from './effects/bass-fire.ts';
 import { NoteSpiralEffect } from './effects/note-spiral.ts';
+import { StarSpiralEffect } from './effects/star-spiral.ts';
 import { PianoRollEffect } from './effects/piano-roll.ts';
 import { TheoryBarEffect } from './effects/theory-bar.ts';
 import { StarFieldEffect } from './effects/star-field.ts';
@@ -76,7 +77,7 @@ const popSongs: SongEntry[] = [
 
 const videoSongs: SongEntry[] = [
   // Video game classics (energy arc: setup → build → peak at 2/3 → release)
-  { name: 'Dearly Beloved (Kingdom Hearts)', file: 'kh-dearly-beloved.mid' },            // gentle opening
+  { name: 'Prelude (Final Fantasy VII)', file: 'ff7-prelude.mid' },                       // iconic arpeggio opener
   { name: 'Great Fairy Fountain (Zelda: OoT)', file: 'zelda-great-fairy-fountain.mid' }, // ethereal
   { name: 'Corridors of Time (Chrono Trigger)', file: 'corridors-of-time.mid' },         // dreamy
   { name: 'Pollyanna (Earthbound)', file: 'earthbound-pollyanna.mid' },                  // heartfelt
@@ -84,7 +85,7 @@ const videoSongs: SongEntry[] = [
   { name: 'Ground Theme (Super Mario Bros)', file: 'mario-ground-theme.mid' },           // iconic, building
   { name: 'Green Hill Zone (Sonic)', file: 'green-hill-zone.mid' },                      // energy rising
   { name: 'Gerudo Valley (Zelda: OoT)', file: 'zelda-gerudo-valley.mid' },               // high energy
-  { name: 'One-Winged Angel (Final Fantasy VII)', file: 'ff7-one-winged-angel.mid' },    // PEAK
+  { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },                        // PEAK battle
   { name: 'Battle Theme (Golden Sun)', file: 'golden-sun-battle.mid' },                  // RPG intensity
   { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // emotional cooldown
   { name: 'Aquatic Ambiance (Donkey Kong Country)', file: 'dkc-aquatic-ambiance.mid' },  // serene ending ♡
@@ -92,10 +93,10 @@ const videoSongs: SongEntry[] = [
 
 const bossaSongs: SongEntry[] = [
   // Bossa Nova & Brazilian Jazz (energy arc: intimate → build → peak → playful end)
-  { name: 'Corcovado (Jobim)', file: 'jobim-corcovado.mid' },                            // intimate opening
+  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },        // iconic opener
+  { name: 'Corcovado (Jobim)', file: 'jobim-corcovado.mid' },                            // intimate
   { name: 'Meditation (Jobim)', file: 'jobim-meditation.mid' },                          // gentle
   { name: 'How Insensitive (Jobim)', file: 'jobim-how-insensitive.mid' },                // melancholic
-  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },        // iconic, breezy
   { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid' },               // beautiful lift
   { name: 'Este Seu Olhar (Jobim)', file: 'jobim-este-seu-olhar.mid' },                  // romantic
   { name: 'Gabriela Theme (Jobim)', file: 'jobim-gabriela.mid' },                        // cinematic
@@ -176,6 +177,7 @@ const bassWebEffect = new BassWebEffect();
 const bassClockEffect = new BassClockEffect();
 const bassFireEffect = new BassFireEffect();
 const noteSpiralEffect = new NoteSpiralEffect();
+const starSpiralEffect = new StarSpiralEffect();
 const pianoRollEffect = new PianoRollEffect();
 const theoryBarEffect = new TheoryBarEffect();
 const starFieldEffect = new StarFieldEffect();
@@ -197,7 +199,7 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Foreground',
-    effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect, graphSculptureEffect],
+    effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect, starSpiralEffect, graphSculptureEffect],
     activeId: 'graph-sculpture',  // Graph Sculpture default
   },
   {
@@ -254,14 +256,14 @@ function applyURLSettings(): { presetApplied?: string } {
   const urlState = urlToState(window.location.search);
   const result: { presetApplied?: string } = {};
 
-  // If no URL params, apply default Warp preset (including configs)
+  // If no URL params, apply default Spiral preset (including configs)
   if (!urlState) {
-    const defaultPreset = getPresetState('warp');
+    const defaultPreset = getPresetState('spiral');
     if (defaultPreset) {
       applyState(defaultPreset, layerSlots, getAllEffects());
     }
     applySlotSelections();
-    result.presetApplied = 'warp';
+    result.presetApplied = 'spiral';
     return result;
   }
 
@@ -288,12 +290,21 @@ app.innerHTML = `
   <div class="container">
     <header class="top-bar">
       <div class="top-row">
+        <button class="hamburger-btn" id="hamburger-btn" title="Menu">
+          <span></span><span></span><span></span>
+        </button>
+        <div class="mobile-presets mobile-only">
+          <button class="mobile-preset-btn" id="mobile-bar-spiral">Spiral</button>
+          <button class="mobile-preset-btn" id="mobile-bar-clock">Clock</button>
+          <button class="mobile-preset-btn" id="mobile-bar-warp">Warp</button>
+          <button class="mobile-preset-btn" id="mobile-bar-sculpture">Sculpt</button>
+        </div>
         <div class="transport-compact">
           <button class="transport-btn" id="prev-btn" title="Previous track">&#x23EE;</button>
           <button class="transport-btn" id="play-btn" disabled>&#9654;</button>
           <button class="transport-btn" id="next-btn" title="Next track">&#x23ED;</button>
         </div>
-        <div class="playlist-category-wrap">
+        <div class="playlist-category-wrap desktop-only">
           <button class="toggle-btn playlist-btn active" id="playlist-bossa" title="Bossa nova">Bossa</button>
           <button class="toggle-btn playlist-btn" id="playlist-classical" title="Classical">Classical</button>
           <button class="toggle-btn playlist-btn" id="playlist-pop" title="Pop & rock">Classics</button>
@@ -308,10 +319,11 @@ app.innerHTML = `
           <input type="range" id="seek-bar" min="0" max="100" step="0.1" value="0" disabled>
           <span class="time-display" id="time-display">0:00 / 0:00</span>
         </div>
-        <div class="preset-buttons">
+        <div class="preset-buttons desktop-only">
+          <button class="toggle-btn preset-btn" id="preset-spiral" title="Starfield + Star Spiral + Bass Fire">Spiral</button>
+          <button class="toggle-btn preset-btn" id="preset-clock" title="Starfield + Note Spiral + Bass Clock">Clock</button>
           <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope">Warp</button>
-          <button class="toggle-btn preset-btn" id="preset-spiral" title="Starfield + Note Spiral + Bass Clock">Spiral</button>
-          <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar">Fractal</button>
+          <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar" style="display:none;">Fractal</button>
           <button class="toggle-btn preset-btn" id="preset-sculpture" title="Graph Sculpture + Theory Bar">Sculpture</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
           <button class="toggle-btn" id="layers-toggle">Custom</button>
@@ -321,6 +333,38 @@ app.innerHTML = `
         <button class="transport-btn" id="fullscreen-btn" title="Fullscreen">&#x26F6;</button>
       </div>
     </header>
+
+    <!-- Mobile menu -->
+    <div class="mobile-menu" id="mobile-menu">
+      <div class="mobile-menu-header">
+        <span>Menu</span>
+        <button class="mobile-menu-close" id="mobile-menu-close">&times;</button>
+      </div>
+      <div class="mobile-menu-section">
+        <div class="mobile-menu-label">Playlist</div>
+        <div class="mobile-menu-buttons">
+          <button class="toggle-btn playlist-btn active" id="mobile-playlist-bossa">Bossa</button>
+          <button class="toggle-btn playlist-btn" id="mobile-playlist-classical">Classical</button>
+          <button class="toggle-btn playlist-btn" id="mobile-playlist-pop">Classics</button>
+          <button class="toggle-btn playlist-btn" id="mobile-playlist-video">Games</button>
+        </div>
+      </div>
+      <div class="mobile-menu-section">
+        <div class="mobile-menu-label">View</div>
+        <div class="mobile-menu-buttons">
+          <button class="toggle-btn preset-btn" id="mobile-preset-spiral">Spiral</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-clock">Clock</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-warp">Warp</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-fractal" style="display:none;">Fractal</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-sculpture">Sculpture</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-piano">Piano</button>
+        </div>
+      </div>
+      <div class="mobile-menu-section">
+        <button class="toggle-btn" id="mobile-layers-toggle">Custom Layers</button>
+      </div>
+    </div>
+    <div class="mobile-menu-backdrop" id="mobile-menu-backdrop"></div>
 
     <div class="main-area">
       <div class="layer-panel" id="layer-panel">
@@ -343,6 +387,14 @@ app.innerHTML = `
       </div>
       <div class="canvas-wrap">
         <canvas id="canvas"></canvas>
+        <div class="mobile-play-overlay" id="mobile-play-overlay">
+          <button class="mobile-play-btn" id="mobile-play-btn">
+            <svg viewBox="0 0 24 24" width="64" height="64">
+              <path fill="currentColor" d="M8 5v14l11-7z"/>
+            </svg>
+            <span>Tap to Play</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -363,6 +415,11 @@ app.innerHTML = `
         <span class="debug-label">Perf</span>
         <span class="debug-value" id="fps-display">--</span>
       </div>
+      <div class="debug-row">
+        <span class="debug-label">Audio</span>
+        <span class="debug-value" id="audio-debug">--</span>
+      </div>
+      <div class="debug-logs" id="debug-logs" style="display:none; font-size:9px; max-height:150px; overflow-y:auto; margin-top:8px; border-top:1px solid #333; padding-top:8px;"></div>
     </div>
   </div>
 
@@ -403,7 +460,18 @@ app.innerHTML = `
       </div>
     </div>
   </div>
+  <div id="toast" class="toast"></div>
 `;
+
+// --- Toast notification ---
+function showToast(message: string, duration = 4000): void {
+  const toast = document.getElementById('toast')!;
+  toast.textContent = message;
+  toast.classList.add('show');
+  setTimeout(() => {
+    toast.classList.remove('show');
+  }, duration);
+}
 
 // --- DOM refs ---
 
@@ -418,6 +486,8 @@ const keyDisplay = document.getElementById('key-display')!;
 const bpmDisplay = document.getElementById('bpm-display')!;
 const chordDisplay = document.getElementById('chord-display')!;
 const fpsDisplay = document.getElementById('fps-display')!;
+const audioDebugDisplay = document.getElementById('audio-debug')!;
+const debugLogsDisplay = document.getElementById('debug-logs')!;
 const layersToggle = document.getElementById('layers-toggle') as HTMLButtonElement;
 const layerPanel = document.getElementById('layer-panel')!;
 const layerList = document.getElementById('layer-list')!;
@@ -427,9 +497,153 @@ const playlistClassicalBtn = document.getElementById('playlist-classical') as HT
 const playlistBossaBtn = document.getElementById('playlist-bossa') as HTMLButtonElement;
 const playlistPopBtn = document.getElementById('playlist-pop') as HTMLButtonElement;
 const playlistVideoBtn = document.getElementById('playlist-video') as HTMLButtonElement;
+const mobilePlayOverlay = document.getElementById('mobile-play-overlay')!;
+const mobilePlayBtn = document.getElementById('mobile-play-btn')!;
+
+// Mobile menu elements
+const hamburgerBtn = document.getElementById('hamburger-btn')!;
+const mobileMenu = document.getElementById('mobile-menu')!;
+const mobileMenuClose = document.getElementById('mobile-menu-close')!;
+const mobileMenuBackdrop = document.getElementById('mobile-menu-backdrop')!;
 
 // Debug overlay visibility state
 let debugOverlayVisible = false;
+
+// --- Mobile play overlay ---
+// Show on touch devices to ensure clean user gesture for audio unlock
+const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+if (isTouchDevice) {
+  mobilePlayOverlay.classList.add('visible');
+}
+
+mobilePlayBtn.addEventListener('click', async () => {
+  mobilePlayOverlay.classList.remove('visible');
+  // Trigger play which will unlock audio
+  if (!isPlaying) {
+    await audioPlayer.play();
+    isPlaying = true;
+    playBtn.textContent = '\u23F8';
+  }
+});
+
+// Triple-tap on canvas to toggle theory bar with slide animation
+let tapCount = 0;
+let tapTimeout: number | null = null;
+canvas.addEventListener('touchend', () => {
+  tapCount++;
+  if (tapTimeout) clearTimeout(tapTimeout);
+  tapTimeout = window.setTimeout(() => {
+    if (tapCount >= 3) {
+      // Toggle theory bar with animation
+      const layer = compositor.getLayer('theory-bar');
+      if (layer) {
+        const willShow = !layer.enabled;
+        if (willShow) {
+          // Enable and animate in
+          compositor.setEnabled('theory-bar', true);
+          theoryBarEffect.animateIn();
+        } else {
+          // Animate out, then disable
+          theoryBarEffect.animateOut(() => {
+            compositor.setEnabled('theory-bar', false);
+          });
+        }
+        dirty = true;
+      }
+    }
+    tapCount = 0;
+  }, 400);
+});
+
+// Triple-click on canvas to toggle theory bar (mirrors triple-tap on mobile)
+let clickCount = 0;
+let clickTimeout: number | null = null;
+canvas.addEventListener('click', () => {
+  // Only count clicks outside fullscreen (fullscreen click handles play/pause)
+  if (getFullscreenEl()) return;
+
+  clickCount++;
+  if (clickTimeout) clearTimeout(clickTimeout);
+  clickTimeout = window.setTimeout(() => {
+    if (clickCount >= 3) {
+      // Toggle theory bar with animation
+      const layer = compositor.getLayer('theory-bar');
+      if (layer) {
+        const willShow = !layer.enabled;
+        if (willShow) {
+          compositor.setEnabled('theory-bar', true);
+          theoryBarEffect.animateIn();
+        } else {
+          theoryBarEffect.animateOut(() => {
+            compositor.setEnabled('theory-bar', false);
+          });
+        }
+        dirty = true;
+      }
+    }
+    clickCount = 0;
+  }, 400);
+});
+
+// --- Mobile menu ---
+function openMobileMenu(): void {
+  mobileMenu.classList.add('open');
+  mobileMenuBackdrop.classList.add('visible');
+}
+
+function closeMobileMenu(): void {
+  mobileMenu.classList.remove('open');
+  mobileMenuBackdrop.classList.remove('visible');
+}
+
+hamburgerBtn.addEventListener('click', openMobileMenu);
+mobileMenuClose.addEventListener('click', closeMobileMenu);
+mobileMenuBackdrop.addEventListener('click', closeMobileMenu);
+
+// Swipe to close mobile menu
+let menuTouchStartX = 0;
+let menuTouchStartY = 0;
+mobileMenu.addEventListener('touchstart', (e) => {
+  menuTouchStartX = e.touches[0].clientX;
+  menuTouchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+mobileMenu.addEventListener('touchend', (e) => {
+  const deltaX = e.changedTouches[0].clientX - menuTouchStartX;
+  const deltaY = e.changedTouches[0].clientY - menuTouchStartY;
+  // Swipe left to close (must be mostly horizontal)
+  if (deltaX < -50 && Math.abs(deltaY) < Math.abs(deltaX)) {
+    closeMobileMenu();
+  }
+}, { passive: true });
+
+// Mobile menu playlist buttons
+document.getElementById('mobile-playlist-bossa')!.addEventListener('click', () => {
+  switchPlaylist('bossa');
+  updateMobilePlaylistButtons();
+});
+document.getElementById('mobile-playlist-classical')!.addEventListener('click', () => {
+  switchPlaylist('classical');
+  updateMobilePlaylistButtons();
+});
+document.getElementById('mobile-playlist-pop')!.addEventListener('click', () => {
+  switchPlaylist('pop');
+  updateMobilePlaylistButtons();
+});
+document.getElementById('mobile-playlist-video')!.addEventListener('click', () => {
+  switchPlaylist('video');
+  updateMobilePlaylistButtons();
+});
+
+function updateMobilePlaylistButtons(): void {
+  document.getElementById('mobile-playlist-bossa')!.classList.toggle('active', currentPlaylist === 'bossa');
+  document.getElementById('mobile-playlist-classical')!.classList.toggle('active', currentPlaylist === 'classical');
+  document.getElementById('mobile-playlist-pop')!.classList.toggle('active', currentPlaylist === 'pop');
+  document.getElementById('mobile-playlist-video')!.classList.toggle('active', currentPlaylist === 'video');
+}
+
+// Mobile menu preset buttons (will wire up after preset functions are defined)
+// Mobile layers toggle (will wire up after layers toggle is set up)
 
 // --- Playlist category switching ---
 
@@ -631,9 +845,8 @@ canvas.addEventListener('mouseleave', () => {
 
 // --- Animations panel toggle ---
 
-let layerPanelOpen = true;  // Open by default
-layersToggle.classList.add('active');
-layerPanel.classList.add('open');
+let layerPanelOpen = false;  // Closed by default
+// layersToggle and layerPanel start without 'active'/'open' classes
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
@@ -646,6 +859,15 @@ panelCloseBtn.addEventListener('click', () => {
   layerPanelOpen = false;
   layersToggle.classList.remove('active');
   layerPanel.classList.remove('open');
+});
+
+// Mobile menu layers toggle
+const mobileLayersToggle = document.getElementById('mobile-layers-toggle')!;
+mobileLayersToggle.addEventListener('click', () => {
+  layerPanelOpen = true;
+  layersToggle.classList.add('active');
+  layerPanel.classList.add('open');
+  closeMobileMenu();
 });
 
 // --- Fractal Config Panel (created early for use in layer panel) ---
@@ -866,9 +1088,10 @@ buildLayerPanel();
 
 // --- Preset buttons ---
 
-type PresetName = 'spiral' | 'warp' | 'fractal' | 'piano' | 'sculpture';
+type PresetName = 'spiral' | 'clock' | 'warp' | 'fractal' | 'piano' | 'sculpture';
 const presetButtons: Record<PresetName, HTMLButtonElement> = {
   spiral: document.getElementById('preset-spiral') as HTMLButtonElement,
+  clock: document.getElementById('preset-clock') as HTMLButtonElement,
   warp: document.getElementById('preset-warp') as HTMLButtonElement,
   fractal: document.getElementById('preset-fractal') as HTMLButtonElement,
   piano: document.getElementById('preset-piano') as HTMLButtonElement,
@@ -910,6 +1133,18 @@ function applyPreset(preset: PresetName): void {
   for (const [name, btn] of Object.entries(presetButtons)) {
     btn.classList.toggle('active', name === preset);
   }
+  // Also update mobile preset buttons
+  if (typeof mobilePresetButtons !== 'undefined') {
+    for (const [name, btn] of Object.entries(mobilePresetButtons)) {
+      btn.classList.toggle('active', name === preset);
+    }
+  }
+  // Also update mobile bar preset buttons
+  if (typeof mobileBarPresets !== 'undefined') {
+    for (const [name, btn] of Object.entries(mobileBarPresets)) {
+      btn.classList.toggle('active', name === preset);
+    }
+  }
 
   updateBrowserURL();
 }
@@ -918,9 +1153,55 @@ for (const [name, btn] of Object.entries(presetButtons)) {
   btn.addEventListener('click', () => applyPreset(name as PresetName));
 }
 
+// Mobile preset buttons
+const mobilePresetButtons: Record<PresetName, HTMLButtonElement> = {
+  spiral: document.getElementById('mobile-preset-spiral') as HTMLButtonElement,
+  clock: document.getElementById('mobile-preset-clock') as HTMLButtonElement,
+  warp: document.getElementById('mobile-preset-warp') as HTMLButtonElement,
+  fractal: document.getElementById('mobile-preset-fractal') as HTMLButtonElement,
+  piano: document.getElementById('mobile-preset-piano') as HTMLButtonElement,
+  sculpture: document.getElementById('mobile-preset-sculpture') as HTMLButtonElement,
+};
+
+for (const [name, btn] of Object.entries(mobilePresetButtons)) {
+  btn.addEventListener('click', () => {
+    applyPreset(name as PresetName);
+    closeMobileMenu();
+  });
+}
+
+// Sync mobile preset buttons with desktop on initial load
+if (urlSettingsResult.presetApplied) {
+  const mobileBtn = mobilePresetButtons[urlSettingsResult.presetApplied as PresetName];
+  if (mobileBtn) mobileBtn.classList.add('active');
+}
+
+// Mobile bar preset buttons (in top bar)
+const mobileBarPresets: Record<string, HTMLButtonElement> = {
+  spiral: document.getElementById('mobile-bar-spiral') as HTMLButtonElement,
+  clock: document.getElementById('mobile-bar-clock') as HTMLButtonElement,
+  warp: document.getElementById('mobile-bar-warp') as HTMLButtonElement,
+  sculpture: document.getElementById('mobile-bar-sculpture') as HTMLButtonElement,
+};
+
+for (const [name, btn] of Object.entries(mobileBarPresets)) {
+  btn.addEventListener('click', () => applyPreset(name as PresetName));
+}
+
+// Sync mobile bar presets on initial load
+if (urlSettingsResult.presetApplied && mobileBarPresets[urlSettingsResult.presetApplied]) {
+  mobileBarPresets[urlSettingsResult.presetApplied].classList.add('active');
+}
+
 // Clear preset highlights when manual changes are made
 function clearPresetHighlights(): void {
   for (const btn of Object.values(presetButtons)) {
+    btn.classList.remove('active');
+  }
+  for (const btn of Object.values(mobilePresetButtons)) {
+    btn.classList.remove('active');
+  }
+  for (const btn of Object.values(mobileBarPresets)) {
     btn.classList.remove('active');
   }
   // Also clear custom preset highlights
@@ -1313,36 +1594,70 @@ renderCustomPresets();
 
 // --- Canvas sizing ---
 
+// Track DPR for coordinate transforms
+let canvasDPR = 1;
+
 function resizeCanvas(): void {
   const wrap = document.querySelector('.canvas-wrap')!;
   const rect = wrap.getBoundingClientRect();
+  const isMobile = window.innerWidth <= 768;
+  const isPortrait = window.innerHeight > window.innerWidth;
   const padding = window.innerWidth <= 480 ? 0 : 16;
   const availW = rect.width - padding;
   const availH = rect.height - padding;
 
-  // 16:9 landscape aspect ratio
-  const aspect = 16 / 9;
+  // Device pixel ratio for sharp rendering (cap at 2 for mobile performance)
+  canvasDPR = Math.min(window.devicePixelRatio || 1, 2);
 
-  if (availW / availH > aspect) {
-    // Height-constrained
-    displayHeight = Math.floor(Math.max(180, availH));
-    displayWidth = Math.floor(displayHeight * aspect);
+  // Minimum dimensions proportional to viewport
+  const minHeight = Math.floor(window.innerHeight * 0.7);
+  const minWidth = Math.floor(window.innerWidth * 0.8);
+
+  // On mobile portrait, fill available space (relax 16:9 constraint)
+  if (isMobile && isPortrait) {
+    // Use a more portrait-friendly aspect ratio but don't go extreme
+    const maxAspect = 4 / 3; // Don't go narrower than 4:3
+    const naturalAspect = availW / availH;
+    if (naturalAspect < maxAspect) {
+      // Very tall/narrow - constrain to 4:3
+      displayWidth = Math.floor(Math.max(minWidth, availW));
+      displayHeight = Math.floor(Math.max(minHeight, displayWidth / maxAspect));
+    } else {
+      // Fill available space
+      displayWidth = Math.floor(Math.max(minWidth, availW));
+      displayHeight = Math.floor(Math.max(minHeight, availH));
+    }
   } else {
-    // Width-constrained
-    displayWidth = Math.floor(Math.max(320, availW));
-    displayHeight = Math.floor(displayWidth / aspect);
+    // Desktop/landscape: maintain 16:9
+    const aspect = 16 / 9;
+    if (availW / availH > aspect) {
+      displayHeight = Math.floor(Math.max(minHeight, availH));
+      displayWidth = Math.floor(Math.max(minWidth, displayHeight * aspect));
+    } else {
+      displayWidth = Math.floor(Math.max(minWidth, availW));
+      displayHeight = Math.floor(Math.max(minHeight, displayWidth / aspect));
+    }
   }
 
-  canvas.width = displayWidth;
-  canvas.height = displayHeight;
+  // Set canvas buffer size (DPR-scaled for sharpness)
+  canvas.width = Math.floor(displayWidth * canvasDPR);
+  canvas.height = Math.floor(displayHeight * canvasDPR);
+
+  // Set CSS size (logical pixels)
   canvas.style.width = displayWidth + 'px';
   canvas.style.height = displayHeight + 'px';
-  compositor.resize(displayWidth, displayHeight);
+
+  // Resize compositor with DPR-scaled dimensions
+  compositor.resize(canvas.width, canvas.height);
   dirty = true;
 }
 
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
+// Listen for visual viewport changes (mobile browser chrome show/hide)
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', resizeCanvas);
+}
 // Also resize on fullscreen change (after a brief delay for the transition)
 document.addEventListener('fullscreenchange', () => {
   setTimeout(resizeCanvas, 50);
@@ -1374,10 +1689,14 @@ async function loadSong(index: number) {
 
   let midiBuffer: ArrayBuffer;
   try {
-    const response = await fetch(`midi/${song.file}`);
+    const response = await fetch(`${import.meta.env.BASE_URL}midi/${song.file}`);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
     midiBuffer = await response.arrayBuffer();
   } catch (e) {
     console.error('Failed to fetch MIDI:', e);
+    showToast(`Failed to load: ${song.file}`);
     chordDisplay.textContent = 'Load failed';
     timeline = null;
     return;
@@ -1387,6 +1706,7 @@ async function loadSong(index: number) {
     timeline = analyzeMidiBuffer(midiBuffer);
   } catch (e) {
     console.error('Failed to analyze MIDI:', e);
+    showToast(`Failed to analyze: ${song.file}`);
     chordDisplay.textContent = 'Analysis failed';
     timeline = null;
     return;
@@ -1776,6 +2096,14 @@ fractalEngine.onFrameReady = (renderMs: number) => {
     fpsFrameCount = 0;
     fpsLastSample = now;
     fpsDisplay.textContent = `${currentFps} fps | ${currentRenderMs.toFixed(0)}ms | ${renderFidelity.toFixed(2)}x`;
+
+    // Update audio debug info
+    if (debugOverlayVisible) {
+      const audioDebug = audioPlayer.getDebugInfo();
+      audioDebugDisplay.textContent = audioDebug.status;
+      debugLogsDisplay.innerHTML = audioDebug.logs.map(l => `<div>${l}</div>`).join('');
+      debugLogsDisplay.style.display = audioDebug.logs.length > 0 ? 'block' : 'none';
+    }
   }
 };
 

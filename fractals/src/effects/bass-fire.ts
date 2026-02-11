@@ -12,8 +12,7 @@ import {
 import { gsap } from '../animation.ts';
 
 interface TrailPoint {
-  x: number;
-  y: number;
+  angle: number;
   time: number;
   r: number;
   g: number;
@@ -44,9 +43,8 @@ export class BassFireEffect implements VisualEffect {
   private initializedToKey = false;
   private initializedKey = -1;
 
-  // Position (tweened)
-  private fireX = 0;
-  private fireY = 0;
+  // Angle on outer circle (tweened)
+  private fireAngle = -Math.PI / 2;
 
   // Color
   private colR = 150;
@@ -61,8 +59,10 @@ export class BassFireEffect implements VisualEffect {
 
   // Burn trail
   private trail: TrailPoint[] = [];
-  private lastTrailX = 0;
-  private lastTrailY = 0;
+  private lastTrailAngle = -Math.PI / 2;
+
+  // Config
+  private showNumerals = true;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -102,22 +102,20 @@ export class BassFireEffect implements VisualEffect {
     this.anticipation = barAnticipation * 0.3 + barArrival * 0.25 + beatGroove * 0.08;
     this.energy += barArrival * 0.4;
 
-    // Sample trail points as fire moves
-    const dx = this.fireX - this.lastTrailX;
-    const dy = this.fireY - this.lastTrailY;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > 3) {
+    // Sample trail points as fire moves (angle-based)
+    let angleDiff = this.fireAngle - this.lastTrailAngle;
+    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+    if (Math.abs(angleDiff) > 0.02) {
       this.trail.push({
-        x: this.fireX,
-        y: this.fireY,
+        angle: this.fireAngle,
         time: this.time,
         r: this.colR,
         g: this.colG,
         b: this.colB,
       });
       if (this.trail.length > TRAIL_MAX) this.trail.shift();
-      this.lastTrailX = this.fireX;
-      this.lastTrailY = this.fireY;
+      this.lastTrailAngle = this.fireAngle;
     }
 
     // Expire old trail points
@@ -128,41 +126,32 @@ export class BassFireEffect implements VisualEffect {
     // Follow chord root
     const pc = music.chordRoot >= 0 ? music.chordRoot : -1;
 
-    const cx = this.width / 2;
-    const cy = this.height / 2 + this.height * 0.04;
-    const minDim = Math.min(cx, cy);
-    const spiralMaxR = minDim * SPIRAL_RADIUS_SCALE;
+    // Get target angle from spiralPos (derive angle from position)
+    const getAngleForPitchClass = (pitchClass: number): number => {
+      const pos = spiralPos(113, pitchClass, this.key, this.keyRotation, 0, 0, 1);
+      return Math.atan2(pos.y, pos.x);
+    };
 
     // Initialize to tonic
     const shouldInit = !this.initializedToKey || (this.initializedKey !== this.key && this.initializedKey >= 0);
     if (shouldInit) {
-      const tonicPos = spiralPos(113, this.key, this.key, this.keyRotation, cx, cy, spiralMaxR);
+      const tonicAngle = getAngleForPitchClass(this.key);
 
       if (!this.initializedToKey) {
-        this.fireX = tonicPos.x;
-        this.fireY = tonicPos.y;
-        this.lastTrailX = this.fireX;
-        this.lastTrailY = this.fireY;
+        this.fireAngle = tonicAngle;
+        this.lastTrailAngle = this.fireAngle;
       } else {
-        const beatDur = music.beatDuration || 0.5;
-        // Windup: pull back opposite to movement direction
-        const diffX = tonicPos.x - this.fireX;
-        const diffY = tonicPos.y - this.fireY;
-        const windupX = this.fireX - diffX / 24;
-        const windupY = this.fireY - diffY / 24;
+        // Animate to new tonic with shortest path
+        let diff = tonicAngle - this.fireAngle;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
 
-        const tl = gsap.timeline({ overwrite: true });
-        tl.to(this, {
-          fireX: windupX,
-          fireY: windupY,
-          duration: beatDur * 0.5,
+        const beatDur = music.beatDuration || 0.5;
+        gsap.to(this, {
+          fireAngle: this.fireAngle + diff,
+          duration: beatDur * 4.0,
           ease: 'power2.out',
-        });
-        tl.to(this, {
-          fireX: tonicPos.x,
-          fireY: tonicPos.y,
-          duration: beatDur * 1.2,
-          ease: 'power2.out',
+          overwrite: true,
         });
       }
 
@@ -182,32 +171,24 @@ export class BassFireEffect implements VisualEffect {
       this.colG = c[1];
       this.colB = c[2];
 
-      const targetPos = spiralPos(113, pc, this.key, this.keyRotation, cx, cy, spiralMaxR);
+      const targetAngle = getAngleForPitchClass(pc);
       const beatDur = music.beatDuration || 0.5;
 
-      // Windup: pull back opposite to movement direction
-      const diffX = targetPos.x - this.fireX;
-      const diffY = targetPos.y - this.fireY;
-      const windupX = this.fireX - diffX / 24;
-      const windupY = this.fireY - diffY / 24;
+      // Shortest path rotation
+      let diff = targetAngle - this.fireAngle;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
 
-      const tl = gsap.timeline({ overwrite: true });
-      tl.to(this, {
-        fireX: windupX,
-        fireY: windupY,
-        duration: beatDur * 0.5,
+      gsap.to(this, {
+        fireAngle: this.fireAngle + diff,
+        duration: beatDur * 4.0,
         ease: 'power2.out',
-      });
-      tl.to(this, {
-        fireX: targetPos.x,
-        fireY: targetPos.y,
-        duration: beatDur * 1.2,
-        ease: 'power2.out',
+        overwrite: true,
       });
 
       gsap.fromTo(this,
         { brightness: 0.9 },
-        { brightness: 0, duration: beatDur * 2.0, ease: 'power2.out', overwrite: 'auto' }
+        { brightness: 0, duration: beatDur * 3.0, ease: 'power2.out', overwrite: 'auto' }
       );
     }
 
@@ -238,16 +219,34 @@ export class BassFireEffect implements VisualEffect {
 
     const R = this.colR, G = this.colG, B = this.colB;
 
+    // Calculate center and radius for outer circle
+    const cx = this.width / 2;
+    const cy = this.height / 2 + this.height * 0.04;
+    const minDim = Math.min(cx, cy);
+    const spiralMaxR = minDim * SPIRAL_RADIUS_SCALE;
+    const outerPos = spiralPos(113, 0, this.key, this.keyRotation, cx, cy, spiralMaxR);
+    const r = outerPos.radius;
+
+    // Fire position on outer circle
+    const fireX = cx + Math.cos(this.fireAngle) * r;
+    const fireY = cy + Math.sin(this.fireAngle) * r;
+
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
 
-    // --- Burn trail ---
+    // --- Burn trail (arc along outer circle) ---
     if (this.trail.length >= 2) {
       ctx.lineCap = 'round';
 
       for (let i = 0; i < this.trail.length - 1; i++) {
         const pt = this.trail[i];
         const next = this.trail[i + 1];
+
+        // Convert angles to positions
+        const ptX = cx + Math.cos(pt.angle) * r;
+        const ptY = cy + Math.sin(pt.angle) * r;
+        const nextX = cx + Math.cos(next.angle) * r;
+        const nextY = cy + Math.sin(next.angle) * r;
 
         // Position along trail: 0 = tail (oldest), 1 = head (newest)
         const t = i / (this.trail.length - 1);
@@ -265,8 +264,8 @@ export class BassFireEffect implements VisualEffect {
         // Outer glow
         const glowAlpha = ageFade * cometFade * 0.2;
         ctx.beginPath();
-        ctx.moveTo(pt.x, pt.y);
-        ctx.lineTo(next.x, next.y);
+        ctx.moveTo(ptX, ptY);
+        ctx.lineTo(nextX, nextY);
         ctx.strokeStyle = `rgba(${pt.r},${pt.g},${pt.b},${glowAlpha.toFixed(3)})`;
         ctx.lineWidth = baseWidth * 2.5;
         ctx.stroke();
@@ -274,8 +273,8 @@ export class BassFireEffect implements VisualEffect {
         // Core
         const coreAlpha = ageFade * cometFade * 0.5;
         ctx.beginPath();
-        ctx.moveTo(pt.x, pt.y);
-        ctx.lineTo(next.x, next.y);
+        ctx.moveTo(ptX, ptY);
+        ctx.lineTo(nextX, nextY);
         ctx.strokeStyle = `rgba(${pt.r},${pt.g},${pt.b},${coreAlpha.toFixed(3)})`;
         ctx.lineWidth = baseWidth;
         ctx.stroke();
@@ -287,8 +286,8 @@ export class BassFireEffect implements VisualEffect {
           const hotG = Math.min(255, pt.g + 60);
           const hotB = Math.min(255, pt.b + 60);
           ctx.beginPath();
-          ctx.moveTo(pt.x, pt.y);
-          ctx.lineTo(next.x, next.y);
+          ctx.moveTo(ptX, ptY);
+          ctx.lineTo(nextX, nextY);
           ctx.strokeStyle = `rgba(${hotR},${hotG},${hotB},${hotAlpha.toFixed(3)})`;
           ctx.lineWidth = baseWidth * 0.4;
           ctx.stroke();
@@ -296,40 +295,34 @@ export class BassFireEffect implements VisualEffect {
       }
     }
 
-    // Fire glow effect
-    const orbSz = 12 + this.brightness * 18 + this.energy * 10 + this.anticipation * 14;
-    const orbA = 0.35 + this.brightness * 0.5 + this.anticipation * 0.3 + this.energy * 0.2;
+    // Fire glow effect - large and diffuse
+    const orbSz = 20 + this.brightness * 30 + this.energy * 18 + this.anticipation * 22;
+    const orbA = 0.2 + this.brightness * 0.3 + this.anticipation * 0.2 + this.energy * 0.15;
 
-    // Outer glow
-    const outerGrd = ctx.createRadialGradient(this.fireX, this.fireY, 0, this.fireX, this.fireY, orbSz * 3);
-    outerGrd.addColorStop(0, `rgba(${R},${G},${B},${(orbA * 0.3).toFixed(3)})`);
-    outerGrd.addColorStop(0.5, `rgba(${R},${G},${B},${(orbA * 0.1).toFixed(3)})`);
+    // Outer glow - very large, soft
+    const outerGrd = ctx.createRadialGradient(fireX, fireY, 0, fireX, fireY, orbSz * 5);
+    outerGrd.addColorStop(0, `rgba(${R},${G},${B},${(orbA * 0.15).toFixed(3)})`);
+    outerGrd.addColorStop(0.4, `rgba(${R},${G},${B},${(orbA * 0.08).toFixed(3)})`);
+    outerGrd.addColorStop(0.7, `rgba(${R},${G},${B},${(orbA * 0.03).toFixed(3)})`);
     outerGrd.addColorStop(1, `rgba(${R},${G},${B},0)`);
     ctx.fillStyle = outerGrd;
-    ctx.fillRect(this.fireX - orbSz * 3, this.fireY - orbSz * 3, orbSz * 6, orbSz * 6);
+    ctx.fillRect(fireX - orbSz * 5, fireY - orbSz * 5, orbSz * 10, orbSz * 10);
 
-    // Core glow
-    const coreGrd = ctx.createRadialGradient(this.fireX, this.fireY, 0, this.fireX, this.fireY, orbSz * 1.5);
-    coreGrd.addColorStop(0, `rgba(255,255,255,${(orbA * 0.6).toFixed(3)})`);
-    coreGrd.addColorStop(0.3, `rgba(${R},${G},${B},${(orbA * 0.4).toFixed(3)})`);
+    // Core glow - larger, more transparent
+    const coreGrd = ctx.createRadialGradient(fireX, fireY, 0, fireX, fireY, orbSz * 2.5);
+    coreGrd.addColorStop(0, `rgba(255,255,255,${(orbA * 0.35).toFixed(3)})`);
+    coreGrd.addColorStop(0.2, `rgba(${R},${G},${B},${(orbA * 0.25).toFixed(3)})`);
+    coreGrd.addColorStop(0.6, `rgba(${R},${G},${B},${(orbA * 0.1).toFixed(3)})`);
     coreGrd.addColorStop(1, `rgba(${R},${G},${B},0)`);
     ctx.fillStyle = coreGrd;
-    ctx.fillRect(this.fireX - orbSz * 1.5, this.fireY - orbSz * 1.5, orbSz * 3, orbSz * 3);
+    ctx.fillRect(fireX - orbSz * 2.5, fireY - orbSz * 2.5, orbSz * 5, orbSz * 5);
 
-    // Hot center point
-    const centerSz = 3 + this.energy * 4 + this.brightness * 3;
+    // Hot center point - smaller, softer
+    const centerSz = 2 + this.energy * 3 + this.brightness * 2;
     ctx.beginPath();
-    ctx.arc(this.fireX, this.fireY, centerSz, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255,255,255,${(0.4 + this.energy * 0.4 + this.brightness * 0.3).toFixed(3)})`;
+    ctx.arc(fireX, fireY, centerSz, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${(0.25 + this.energy * 0.25 + this.brightness * 0.2).toFixed(3)})`;
     ctx.fill();
-
-    // Center hub glow (like bass clock) - at canvas center
-    const cx = this.width / 2;
-    const cy = this.height / 2 + this.height * 0.04;
-    const minDim = Math.min(cx, cy);
-    const spiralMaxR = minDim * SPIRAL_RADIUS_SCALE;
-    const outerPos = spiralPos(113, 0, this.key, this.keyRotation, cx, cy, spiralMaxR);
-    const r = outerPos.radius;
 
     // --- Roman numeral markers ---
     const diatonicOffsets = this.keyMode === 'minor' ? MINOR_OFFSETS : MAJOR_OFFSETS;
@@ -361,7 +354,7 @@ export class BassFireEffect implements VisualEffect {
       const chromaticNumeral = chromaticDegreeMap[semitones];
       const chromaticFadeValue = this.chromaticFade.get(i) ?? 0;
 
-      if (numeral) {
+      if (numeral && this.showNumerals) {
         const fontSize = Math.max(11, Math.round(r * 0.1));
 
         ctx.save();
@@ -380,7 +373,7 @@ export class BassFireEffect implements VisualEffect {
         ctx.fillText(numeral, 0, 0);
         ctx.shadowBlur = 0;
         ctx.restore();
-      } else if (chromaticNumeral && (isCurrent || chromaticFadeValue > 0)) {
+      } else if (chromaticNumeral && this.showNumerals && (isCurrent || chromaticFadeValue > 0)) {
         const fontSize = Math.max(10, Math.round(r * 0.09));
         const fadeAlpha = isCurrent ? 0.6 + this.brightness * 0.3 : chromaticFadeValue * 0.5;
 
@@ -401,6 +394,7 @@ export class BassFireEffect implements VisualEffect {
         ctx.shadowBlur = 0;
         ctx.restore();
       } else {
+        // Draw dot instead of numeral
         ctx.beginPath();
         ctx.arc(tx, ty, isCurrent ? 3 : 2, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
@@ -460,16 +454,21 @@ export class BassFireEffect implements VisualEffect {
     this.ready = false;
     this.brightness = 0;
     this.energy = 0;
+    this.trail = [];
+    this.fireAngle = -Math.PI / 2;
+    this.lastTrailAngle = -Math.PI / 2;
     this.initializedToKey = false;
     this.initializedKey = -1;
     this.lastPitchClass = -1;
   }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'showNumerals', label: 'Show Numerals', type: 'toggle', value: this.showNumerals },
+    ];
   }
 
-  setConfigValue(_key: string, _value: number | string | boolean): void {
-    // No config options
+  setConfigValue(key: string, value: number | string | boolean): void {
+    if (key === 'showNumerals') this.showNumerals = value as boolean;
   }
 }

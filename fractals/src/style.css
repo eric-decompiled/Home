@@ -8,12 +8,15 @@ body {
   background-color: #0a0a0a;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   color: #fff;
-  height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 #app {
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
   display: flex;
   flex-direction: column;
 }
@@ -21,7 +24,8 @@ body {
 .container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh; /* Dynamic viewport height for mobile */
 }
 
 /* --- Top bar --- */
@@ -69,6 +73,67 @@ body {
 .song-picker-wrap select:focus {
   outline: none;
   border-color: #16c79a;
+}
+
+/* Hamburger menu button - mobile only */
+.hamburger-btn {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  background: transparent;
+  border: 1px solid #333;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.hamburger-btn span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: #fff;
+  border-radius: 1px;
+}
+
+.hamburger-btn:hover {
+  background: #1a1a2e;
+}
+
+/* Desktop-only elements */
+.desktop-only {
+  display: flex;
+}
+
+/* Mobile-only elements */
+.mobile-only {
+  display: none;
+}
+
+/* Mobile preset buttons in top bar */
+.mobile-presets {
+  display: none;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.mobile-preset-btn {
+  background: transparent;
+  border: 1px solid #1a1a2e;
+  color: #888;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.mobile-preset-btn:hover,
+.mobile-preset-btn.active {
+  border-color: #16c79a;
+  color: #16c79a;
 }
 
 .playlist-category-wrap {
@@ -173,7 +238,8 @@ a.toggle-btn {
   flex: 1;
   display: flex;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
+  touch-action: pan-y pinch-zoom;
 }
 
 /* --- Layer panel --- */
@@ -540,9 +606,11 @@ a.toggle-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: visible;
   padding: 8px;
-  min-height: 0;
+  min-height: 70vh;
+  min-height: 70dvh; /* Dynamic viewport height for mobile */
+  position: relative;
 }
 
 /* Fullscreen mode */
@@ -568,6 +636,7 @@ a.toggle-btn {
 
 #app:fullscreen .main-area {
   height: 100vh;
+  height: 100dvh;
 }
 
 #app:fullscreen .layer-panel {
@@ -596,10 +665,59 @@ canvas {
   display: block;
   max-width: 100%;
   max-height: 100%;
+  min-width: 80vw;
+  min-width: 80dvw; /* Dynamic viewport width for mobile */
+  min-height: 70vh;
+  min-height: 70dvh; /* Dynamic viewport height for mobile */
   background: #000;
   border: 1px solid #1a1a2e;
   border-radius: 4px;
-  touch-action: pan-y;
+  touch-action: pan-x pan-y pinch-zoom;
+}
+
+/* --- Mobile play overlay --- */
+
+.mobile-play-overlay {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
+  border-radius: 4px;
+}
+
+.mobile-play-overlay.visible {
+  display: flex;
+}
+
+.mobile-play-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 48px;
+  background: rgba(22, 199, 154, 0.2);
+  border: 2px solid #16c79a;
+  border-radius: 16px;
+  color: #16c79a;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mobile-play-btn:hover,
+.mobile-play-btn:active {
+  background: rgba(22, 199, 154, 0.4);
+  transform: scale(1.05);
+}
+
+.mobile-play-btn svg {
+  filter: drop-shadow(0 0 8px rgba(22, 199, 154, 0.5));
 }
 
 /* --- Debug overlay (toggle with 'D' key) --- */
@@ -767,12 +885,17 @@ input[type="range"]::-moz-range-thumb {
   }
 
   .playlist-category-wrap {
-    display: none;
+    gap: 2px;
+  }
+
+  .playlist-btn {
+    font-size: 10px;
+    padding: 3px 12px;
   }
 
   .song-picker-wrap select {
-    min-width: 120px;
-    font-size: 12px;
+    min-width: 100px;
+    font-size: 11px;
     padding: 4px 6px;
   }
 
@@ -859,10 +982,16 @@ input[type="range"]::-moz-range-thumb {
     right: 4px;
     padding: 6px 10px;
     font-size: 9px;
+    /* Account for home indicator on iOS */
+    bottom: max(4px, env(safe-area-inset-bottom, 0px));
   }
 
   .top-bar {
     padding: 4px;
+    /* Account for notch on iOS */
+    padding-top: max(4px, env(safe-area-inset-top, 0px));
+    padding-left: max(4px, env(safe-area-inset-left, 0px));
+    padding-right: max(4px, env(safe-area-inset-right, 0px));
   }
 
   .top-row {
@@ -887,6 +1016,70 @@ input[type="range"]::-moz-range-thumb {
   .song-picker-wrap select {
     padding: 4px 6px;
     font-size: 12px;
+  }
+
+  /* Ensure main area fills remaining space properly */
+  .main-area {
+    flex: 1;
+    min-height: 0;
+    /* Account for home indicator on iOS */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .canvas-wrap {
+    flex: 1;
+    min-height: 0;
+  }
+}
+
+/* Landscape mobile - compact layout, tuned canvas size */
+@media (max-height: 500px) and (orientation: landscape) {
+  .top-bar {
+    padding: 2px 8px;
+    padding-left: max(8px, env(safe-area-inset-left, 0px));
+    padding-right: max(8px, env(safe-area-inset-right, 0px));
+  }
+
+  .top-row {
+    gap: 6px;
+  }
+
+  .transport-btn {
+    width: 24px;
+    height: 24px;
+    font-size: 10px;
+  }
+
+  .seek-wrap {
+    min-width: 80px;
+  }
+
+  .time-display {
+    font-size: 9px;
+  }
+
+  .canvas-wrap {
+    padding: 2px;
+    min-height: 60vh;
+    min-height: 60dvh;
+  }
+
+  canvas {
+    min-height: 55vh;
+    min-height: 55dvh;
+    min-width: 50vw;
+    min-width: 50dvw;
+    border: none;
+    border-radius: 0;
+  }
+
+  .mobile-presets {
+    display: none !important;
+  }
+
+  .debug-overlay {
+    bottom: 4px;
+    right: max(4px, env(safe-area-inset-right, 0px));
   }
 }
 
@@ -1791,4 +1984,149 @@ input[type="range"]::-moz-range-thumb {
     width: 100%;
     justify-content: flex-end;
   }
+}
+
+/* --- Mobile Menu --- */
+
+.mobile-menu {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile */
+  background: #0f0f1a;
+  border-right: 1px solid #1a1a2e;
+  z-index: 3000;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  overflow-y: auto;
+}
+
+.mobile-menu.open {
+  transform: translateX(0);
+}
+
+.mobile-menu-backdrop {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 2999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.mobile-menu-backdrop.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mobile-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #1a1a2e;
+  font-size: 18px;
+  font-weight: 600;
+  color: #16c79a;
+}
+
+.mobile-menu-close {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+
+.mobile-menu-close:hover {
+  color: #fff;
+}
+
+.mobile-menu-section {
+  padding: 16px 20px;
+  border-bottom: 1px solid #1a1a2e;
+}
+
+.mobile-menu-label {
+  font-size: 12px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.mobile-menu-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mobile-menu-buttons .toggle-btn {
+  flex: 1 1 calc(50% - 4px);
+  min-width: 100px;
+  text-align: center;
+  padding: 10px 12px;
+}
+
+/* Show hamburger and mobile menu on small screens */
+@media (max-width: 700px) {
+  .hamburger-btn {
+    display: flex;
+  }
+
+  .desktop-only {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: flex !important;
+  }
+
+  .mobile-presets {
+    display: flex !important;
+  }
+
+  .mobile-menu {
+    display: flex;
+  }
+
+  .mobile-menu-backdrop {
+    display: block;
+  }
+}
+
+/* --- Toast notifications --- */
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(220, 60, 60, 0.95);
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s, transform 0.3s;
+  z-index: 10000;
+  max-width: 90%;
+  text-align: center;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }

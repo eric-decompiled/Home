@@ -2,7 +2,7 @@
 
 A layered music visualization system that transforms MIDI files into synchronized visual experiences. Combines fractal rendering, physics simulations, and procedural graphics—all driven by real-time harmonic analysis. Plays MIDI through a SoundFont synthesizer while mapping musical structure (key, chords, melody, bass, drums) to visual parameters across multiple composited effect layers.
 
-**Default preset**: Sculpture (Graph Sculpture + Theory Bar)
+**Default preset**: Spiral (Starfield + Star Spiral + Bass Fire)
 
 ## Architecture
 
@@ -31,7 +31,7 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 
 **Layers**: Background (Chladni, Domain Warp, Waves, Flow Field, Starfield) | Foreground (Graph Sculpture, Note Spiral, Fractal, Piano Roll, Tonnetz) | Overlay (Kaleidoscope) | HUD (Theory Bar) | Melody/Bass clocks and webs
 
-**Presets**: `sculpture` (default), `spiral`, `warp`, `fractal`, `piano`
+**Presets**: `spiral` (default), `warp`, `fractal`, `sculpture`, `piano`
 
 **MIDIs**: Place in `public/midi/`, must start with `MThd` bytes (not RIFF-wrapped)
 
@@ -42,3 +42,32 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 **Breaking changes** (ask first): Rename/remove effect or config key — bump `CURRENT_VERSION`, add migration.
 
 See [`docs/state-schema.md`](docs/state-schema.md) for full procedure.
+
+## Cleanup Defaults
+
+When cleaning up or resetting to sensible defaults, use these settings:
+
+**UI State**:
+- Custom/layer panel: closed by default (`layerPanelOpen = false`)
+- Preset button order: Spiral, Warp, Fractal, Sculpture, Piano
+- Default preset on fresh load: `spiral`
+
+**Mobile/Canvas**:
+- Device pixel ratio: use `devicePixelRatio` capped at 2 for sharp rendering
+- Portrait mobile: fill available space (relax 16:9, limit to 4:3 minimum aspect)
+- Desktop/landscape: maintain 16:9 aspect ratio
+- Touch action on `.main-area`: `pan-y pinch-zoom` (allow scroll gestures)
+- Canvas touch-action: `pan-y` (allow vertical scroll)
+
+**Note Spiral**:
+- Spiral lines (spine): off by default (`showSpine = false`)
+- Config shows only: Shapes, Spiral Lines toggle, Dark Backdrop toggle
+- Wave colors: use tension colors (not white/gray)
+
+## Toast Notifications
+
+Use `showToast(message, duration?)` for user feedback:
+- Red background, centered at bottom of screen
+- Auto-dismisses after `duration` ms (default 4000)
+- Used for MIDI load errors, import failures, etc.
+- CSS class `.toast` with `.toast.show` for visibility

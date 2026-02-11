@@ -66,10 +66,10 @@ export class KaleidoscopeEffect implements VisualEffect {
     const beatArrival = music.beatArrival ?? 0;
     const barArrival = music.barArrival ?? 0;
 
-    // Chord degree → fold count (mapped to 3-12), tweened smoothly
+    // Chord degree → fold count (reduced variability: 6-9 range)
     if (music.chordDegree !== this.lastChordDegree && music.chordDegree >= 0) {
       this.lastChordDegree = music.chordDegree;
-      const targetFolds = 3 + (music.chordDegree % 5) * 2; // 3,5,7,9,11
+      const targetFolds = 6 + (music.chordDegree % 4); // 6,7,8,9
       const beatDur = music.beatDuration || 0.5;
       gsap.to(this, {
         foldCount: targetFolds,
@@ -97,20 +97,20 @@ export class KaleidoscopeEffect implements VisualEffect {
     }
 
     // === ZOOM: groove-driven breathing + anticipation ===
-    // Base zoom from tension
-    this.zoomTarget = 1.0 + music.tension * 0.025;
-    // Groove creates continuous zoom breathing (main driver)
-    this.zoomTarget += (beatGroove - 0.5) * 0.04;
-    // Anticipation adds buildup before the beat
-    this.zoomTarget += beatAnticipation * 0.02;
-    // Bar-level for bigger phrases
-    this.zoomTarget += (music.barAnticipation ?? 0) * 0.015;
-    // Arrival creates soft "hit"
-    this.zoomTarget += beatArrival * 0.02 + barArrival * 0.025;
-    // Kick/snare zoom accents
-    if (music.kick) this.zoomTarget += 0.02;
-    if (music.snare) this.zoomTarget += 0.012;
-    this.zoomTarget = Math.min(1.08, this.zoomTarget);
+    // Higher base zoom, reduced variability
+    this.zoomTarget = 1.04 + music.tension * 0.015;
+    // Groove creates continuous zoom breathing (reduced)
+    this.zoomTarget += (beatGroove - 0.5) * 0.02;
+    // Anticipation adds buildup before the beat (reduced)
+    this.zoomTarget += beatAnticipation * 0.01;
+    // Bar-level for bigger phrases (reduced)
+    this.zoomTarget += (music.barAnticipation ?? 0) * 0.008;
+    // Arrival creates soft "hit" (reduced)
+    this.zoomTarget += beatArrival * 0.01 + barArrival * 0.012;
+    // Kick/snare zoom accents (reduced)
+    if (music.kick) this.zoomTarget += 0.01;
+    if (music.snare) this.zoomTarget += 0.006;
+    this.zoomTarget = Math.max(1.03, Math.min(1.08, this.zoomTarget));
 
     // Zoom pulse with asymmetric response: gentle attack, very slow decay
     if (this.zoomTarget > this.zoomPulse) {

@@ -127,7 +127,8 @@
       "WebFetch(domain:meinardmueller.github.io)",
       "WebFetch(domain:ar5iv.labs.arxiv.org)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "WebFetch(domain:www.midishow.com)"
     ]
   }
 }
