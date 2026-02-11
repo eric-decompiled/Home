@@ -24,7 +24,30 @@ export interface ChordEvent {
 
 export interface DrumHit {
   time: number;
-  type: 'kick' | 'snare' | 'hihat';
+  type: 'kick' | 'snare' | 'hihat' | 'tom' | 'crash';
+}
+
+// Per-bar section detection (drums + melodic markers)
+export interface BarDrumInfo {
+  barIndex: number;
+  startTime: number;
+  endTime: number;
+  totalHits: number;
+  kickCount: number;
+  snareCount: number;
+  hihatCount: number;
+  tomCount: number;
+  crashCount: number;       // crash cymbals (49, 57) - mark section starts
+  density: number;          // hits per beat (normalized by beatsPerBar)
+  energyDelta: number;      // change in energy from previous bar (-1 to 1)
+  // Melodic markers (for orchestral hits, stabs, etc.)
+  avgVelocity: number;      // 0-1 average velocity of notes this bar
+  maxPolyphony: number;     // peak simultaneous notes (high = orchestral stab)
+  hasVelocitySpike: boolean; // sudden loud notes vs neighbors
+  hasPolyphonySpike: boolean; // sudden many-note hit (orchestral stab signature)
+  isFill: boolean;          // high snare/tom density relative to neighbors
+  isBreakdown: boolean;     // near-zero density
+  isTransition: boolean;    // any strong transition marker (fill, crash, energy spike, stab)
 }
 
 export interface NoteEvent {
@@ -67,6 +90,7 @@ export interface MusicTimeline {
   duration: number;      // total seconds
   chords: ChordEvent[];
   drums: DrumHit[];
+  barDrumInfo: BarDrumInfo[];             // per-bar drum density for section detection
   notes: NoteEvent[];
   tracks: TrackInfo[];
 }
@@ -268,16 +292,207 @@ function detectChordWeighted(
 
 // --- Drum classification ---
 
-function classifyDrum(noteNumber: number): 'kick' | 'snare' | 'hihat' | null {
+function classifyDrum(noteNumber: number): 'kick' | 'snare' | 'hihat' | 'tom' | 'crash' | null {
   // General MIDI drum map (note numbers on channel 10 / 0-indexed channel 9)
   if (noteNumber === 35 || noteNumber === 36) return 'kick';
   if (noteNumber === 38 || noteNumber === 40 || noteNumber === 37) return 'snare';
-  if (noteNumber >= 41 && noteNumber <= 48) return 'kick';  // toms → kick (low percussive hit)
-  if (noteNumber >= 42 && noteNumber <= 46) return 'hihat';
-  if (noteNumber === 49 || noteNumber === 51 || noteNumber === 52 || noteNumber === 55 || noteNumber === 57 || noteNumber === 59) return 'hihat'; // cymbals/rides
   if (noteNumber === 39) return 'snare'; // hand clap
+  // Crash cymbals: strong section markers (49 = Crash 1, 57 = Crash 2)
+  if (noteNumber === 49 || noteNumber === 57) return 'crash';
+  // Hi-hats: 42 (closed), 44 (pedal), 46 (open) - check BEFORE tom range
+  if (noteNumber === 42 || noteNumber === 44 || noteNumber === 46) return 'hihat';
+  // Rides/splash/chinese treated as hihat for density
+  if (noteNumber === 51 || noteNumber === 52 || noteNumber === 53 ||
+      noteNumber === 55 || noteNumber === 59) return 'hihat';
   if (noteNumber === 54 || noteNumber === 56) return 'hihat'; // tambourine, cowbell
+  // Toms: 41, 43, 45, 47, 48, 50 (used in fills/transitions)
+  if (noteNumber === 41 || noteNumber === 43 || noteNumber === 45 ||
+      noteNumber === 47 || noteNumber === 48 || noteNumber === 50) return 'tom';
   return null;
+}
+
+// --- Section detection via drum + melodic analysis ---
+
+function computeBarDrumInfo(
+  drums: DrumHit[],
+  notes: NoteEvent[],
+  numBars: number,
+  barDuration: number,
+  beatsPerBar: number
+): BarDrumInfo[] {
+  const barInfo: BarDrumInfo[] = [];
+
+  // Pre-compute melodic notes (non-drum)
+  const melodicNotes = notes.filter(n => !n.isDrum);
+
+  // First pass: count hits per bar + melodic analysis
+  for (let bar = 0; bar < numBars; bar++) {
+    const startTime = bar * barDuration;
+    const endTime = startTime + barDuration;
+
+    // Drum counting
+    let kickCount = 0, snareCount = 0, hihatCount = 0, tomCount = 0, crashCount = 0;
+    for (const d of drums) {
+      if (d.time >= endTime) break;
+      if (d.time >= startTime) {
+        switch (d.type) {
+          case 'kick': kickCount++; break;
+          case 'snare': snareCount++; break;
+          case 'hihat': hihatCount++; break;
+          case 'tom': tomCount++; break;
+          case 'crash': crashCount++; break;
+        }
+      }
+    }
+
+    // Melodic analysis: velocity and polyphony (for orchestral stabs)
+    let velocitySum = 0;
+    let noteCount = 0;
+    let maxPolyphony = 0;
+
+    // Find notes in this bar and compute max simultaneous notes
+    const barNotes = melodicNotes.filter(n => n.time >= startTime && n.time < endTime);
+    for (const note of barNotes) {
+      velocitySum += note.velocity;
+      noteCount++;
+    }
+
+    // Compute polyphony: how many notes are sounding at each note onset
+    for (const note of barNotes) {
+      let simultaneous = 0;
+      for (const other of barNotes) {
+        // Other note overlaps with this one's onset
+        if (other.time <= note.time && other.time + other.duration > note.time) {
+          simultaneous++;
+        }
+      }
+      maxPolyphony = Math.max(maxPolyphony, simultaneous);
+    }
+
+    const totalHits = kickCount + snareCount + hihatCount + tomCount + crashCount;
+    const avgVelocity = noteCount > 0 ? velocitySum / noteCount : 0;
+
+    barInfo.push({
+      barIndex: bar,
+      startTime,
+      endTime,
+      totalHits,
+      kickCount,
+      snareCount,
+      hihatCount,
+      tomCount,
+      crashCount,
+      density: totalHits / beatsPerBar,
+      energyDelta: 0,  // computed in later pass
+      avgVelocity,
+      maxPolyphony,
+      hasVelocitySpike: false,  // computed in later pass
+      hasPolyphonySpike: false, // computed in later pass
+      isFill: false,
+      isBreakdown: false,
+      isTransition: false,
+    });
+  }
+
+  // Find max density for normalization
+  const maxDensity = Math.max(...barInfo.map(b => b.density), 1);
+
+  // Second pass: detect fills and breakdowns
+  // Based on Groove MIDI Dataset analysis:
+  // - Fills have HIGH tom ratio (50-75%) and NO/FEW hihats
+  // - Beats have lower tom ratio (19-27%) and more hihats
+  for (let i = 0; i < barInfo.length; i++) {
+    const bar = barInfo[i];
+    bar.density = bar.density / maxDensity; // Normalize to 0-1
+
+    // Breakdown: very low density for this bar
+    bar.isBreakdown = bar.totalHits <= 2;
+
+    // Fill detection using multiple signals:
+    const fillHits = bar.snareCount + bar.tomCount;
+    const totalHits = bar.totalHits || 1;
+    const tomRatio = bar.tomCount / totalHits;
+    const hihatRatio = bar.hihatCount / totalHits;
+
+    // A fill typically has:
+    // 1. High tom ratio (>35%) - toms dominate during fills
+    // 2. Low hihat ratio (<15%) - hihats drop out during fills
+    // 3. At least 4 snare+tom hits
+    const hasHighToms = tomRatio > 0.35;
+    const hasLowHihats = hihatRatio < 0.15;
+    const hasEnoughHits = fillHits >= 4;
+
+    // Also check for spike relative to neighbors (original logic)
+    const prevFillHits = i > 0 ? barInfo[i - 1].snareCount + barInfo[i - 1].tomCount : 0;
+    const nextFillHits = i < barInfo.length - 1 ? barInfo[i + 1].snareCount + barInfo[i + 1].tomCount : 0;
+    const isSpike = fillHits > prevFillHits * 1.3 || fillHits > nextFillHits * 1.3;
+
+    // Fill if: (high toms + low hihats + enough hits) OR (spike with enough hits)
+    bar.isFill = (hasHighToms && hasLowHihats && hasEnoughHits) || (isSpike && hasEnoughHits && hasHighToms);
+  }
+
+  // Third pass: temporal constraint - fills are transient (1-2 bars), not persistent
+  // If we see many consecutive "fills", only keep ones at transition points
+  let consecutiveFills = 0;
+  for (let i = 0; i < barInfo.length; i++) {
+    if (barInfo[i].isFill) {
+      consecutiveFills++;
+      // More than 2 consecutive fills is suspicious - probably steady beat mislabeled
+      if (consecutiveFills > 2) {
+        // Keep this as fill only if it's a spike (transition point)
+        const fillHits = barInfo[i].snareCount + barInfo[i].tomCount;
+        const prevFillHits = barInfo[i - 1].snareCount + barInfo[i - 1].tomCount;
+        const nextFillHits = i < barInfo.length - 1 ? barInfo[i + 1].snareCount + barInfo[i + 1].tomCount : 0;
+        const isTransitionPoint = fillHits > prevFillHits * 1.3 || fillHits > nextFillHits * 1.3;
+        if (!isTransitionPoint) {
+          barInfo[i].isFill = false;
+        }
+      }
+    } else {
+      consecutiveFills = 0;
+    }
+  }
+
+  // Fourth pass: compute energy deltas, melodic spikes, and combined transition flag
+  for (let i = 0; i < barInfo.length; i++) {
+    const bar = barInfo[i];
+    const prevBar = i > 0 ? barInfo[i - 1] : null;
+    const nextBar = i < barInfo.length - 1 ? barInfo[i + 1] : null;
+
+    // Energy delta: how much did density change from previous bar
+    if (prevBar) {
+      bar.energyDelta = bar.density - prevBar.density;
+    }
+
+    // Velocity spike: much louder than neighbors (orchestral stab!)
+    const prevVel = prevBar?.avgVelocity ?? bar.avgVelocity;
+    const nextVel = nextBar?.avgVelocity ?? bar.avgVelocity;
+    const neighborAvgVel = (prevVel + nextVel) / 2;
+    bar.hasVelocitySpike = bar.avgVelocity > 0.7 && bar.avgVelocity > neighborAvgVel * 1.3;
+
+    // Polyphony spike: many notes at once vs neighbors (DUH DUH DUH DUH!)
+    const prevPoly = prevBar?.maxPolyphony ?? 0;
+    const nextPoly = nextBar?.maxPolyphony ?? 0;
+    const neighborMaxPoly = Math.max(prevPoly, nextPoly);
+    // Stab = high polyphony (4+ voices) AND significantly higher than neighbors
+    bar.hasPolyphonySpike = bar.maxPolyphony >= 4 && bar.maxPolyphony > neighborMaxPoly * 1.5;
+
+    // Combined transition detection:
+    // - Crash cymbal (especially on beat 1 of bar = section start)
+    // - Drum fill leading into this bar
+    // - Large energy increase (>30% jump)
+    // - Coming out of breakdown
+    // - Orchestral stab (velocity spike or polyphony spike)
+    const hasCrash = bar.crashCount > 0;
+    const prevWasFill = prevBar?.isFill ?? false;
+    const prevWasBreakdown = prevBar?.isBreakdown ?? false;
+    const hasEnergySpike = bar.energyDelta > 0.3;
+    const hasStab = bar.hasVelocitySpike || bar.hasPolyphonySpike;
+
+    bar.isTransition = hasCrash || prevWasFill || prevWasBreakdown || hasEnergySpike || bar.isFill || hasStab;
+  }
+
+  return barInfo;
 }
 
 // --- Key detection via Krumhansl-Schmuckler ---
@@ -676,6 +891,9 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
   const numBars = Math.ceil(totalDuration / barDuration);
   const chords: ChordEvent[] = [];
 
+  // Compute per-bar drum info for section detection (includes melodic stab detection)
+  const barDrumInfo = computeBarDrumInfo(drums, notes, numBars, barDuration, beatsPerBar);
+
   for (let bar = 0; bar < numBars; bar++) {
     const tStart = bar * barDuration;
     const tEnd = tStart + barDuration;
@@ -872,6 +1090,7 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
     duration: totalDuration,
     chords,
     drums,
+    barDrumInfo,
     notes,
     tracks,
   };

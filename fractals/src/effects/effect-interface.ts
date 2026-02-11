@@ -69,7 +69,19 @@ export interface MusicParams {
   chordRoot: number;       // pitch class 0-11
   chordDegree: number;     // 1-7 (0 = chromatic)
   chordQuality: string;
-  tension: number;         // 0-1
+
+  // Harmonic tension system (for chromatic tension-driven visuals)
+  tension: number;                // 0-1 current harmonic tension (tonic=0, dominant=high)
+  harmonicTensionSmooth: number;  // 0-1 slow-following average (for glow buildup)
+  harmonicTensionRelease: number; // 0-1 release intensity (peaks on resolution, decays)
+  onHarmonicRelease: boolean;     // true on frame when harmonic release triggers
+
+  // Rhythmic tension system (for white light rings)
+  rhythmicTension: number;        // 0-1 current rhythmic tension (syncopation + anticipation)
+  rhythmicTensionSmooth: number;  // 0-1 slow-following average
+  rhythmicRelease: number;        // 0-1 release intensity (peaks on strong beats)
+  onRhythmicRelease: boolean;     // true on frame when rhythmic release triggers (strong beats)
+
   key: number;             // pitch class 0-11
   keyMode: 'major' | 'minor';
   keyRotation: number;     // rotation offset in radians to align tonic at 12 o'clock (tweened on modulation)
@@ -87,6 +99,20 @@ export interface MusicParams {
   kick: boolean;
   snare: boolean;
   hihat: boolean;
+  tom: boolean;              // Toms - often signal fills/transitions
+  crash: boolean;            // Crash cymbals - mark section boundaries
+
+  // Section detection (from per-bar drum analysis)
+  drumDensity: number;       // 0-1, current bar density vs song max
+  fillIntensity: number;     // 0-1, high during fills (rapid snare/tom)
+  isBreakdown: boolean;      // true when drums are silent/sparse
+  isFill: boolean;           // true during detected fill bars
+  isTransition: boolean;     // true when any transition marker fires (fill, crash, energy spike, post-breakdown)
+  energyDelta: number;       // -1 to 1, change in energy from previous bar
+
+  // Transition anticipation (lookahead-based)
+  nextTransitionIn: number;  // seconds until next transition bar (0 if currently in transition)
+  transitionAnticipation: number; // 0→1 building toward transition (use for pre-stab glow/tension)
 
   // Audio loudness (0-1) from analyser
   loudness: number;

@@ -16,6 +16,7 @@ import { MelodyWebEffect } from './effects/melody-web.ts';
 import { MelodyClockEffect } from './effects/melody-clock.ts';
 import { BassWebEffect } from './effects/bass-web.ts';
 import { BassClockEffect } from './effects/bass-clock.ts';
+import { BassFireEffect } from './effects/bass-fire.ts';
 import { NoteSpiralEffect } from './effects/note-spiral.ts';
 import { PianoRollEffect } from './effects/piano-roll.ts';
 import { TheoryBarEffect } from './effects/theory-bar.ts';
@@ -45,6 +46,7 @@ import {
   type FullExport,
 } from './state.ts';
 import { FractalConfigPanel } from './fractal-config.ts';
+import { GRAConfigPanel } from './gra-config.ts';
 
 // --- Song list ---
 
@@ -172,6 +174,7 @@ const melodyWebEffect = new MelodyWebEffect();
 const melodyClockEffect = new MelodyClockEffect();
 const bassWebEffect = new BassWebEffect();
 const bassClockEffect = new BassClockEffect();
+const bassFireEffect = new BassFireEffect();
 const noteSpiralEffect = new NoteSpiralEffect();
 const pianoRollEffect = new PianoRollEffect();
 const theoryBarEffect = new TheoryBarEffect();
@@ -209,7 +212,7 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Bass',
-    effects: [bassWebEffect, bassClockEffect],
+    effects: [bassWebEffect, bassClockEffect, bassFireEffect],
     activeId: null,
   },
   {
@@ -251,14 +254,14 @@ function applyURLSettings(): { presetApplied?: string } {
   const urlState = urlToState(window.location.search);
   const result: { presetApplied?: string } = {};
 
-  // If no URL params, apply default Fractal Dance preset (including configs)
+  // If no URL params, apply default Warp preset (including configs)
   if (!urlState) {
-    const defaultPreset = getPresetState('fractal');
+    const defaultPreset = getPresetState('warp');
     if (defaultPreset) {
       applyState(defaultPreset, layerSlots, getAllEffects());
     }
     applySlotSelections();
-    result.presetApplied = 'fractal';
+    result.presetApplied = 'warp';
     return result;
   }
 
@@ -306,11 +309,11 @@ app.innerHTML = `
           <span class="time-display" id="time-display">0:00 / 0:00</span>
         </div>
         <div class="preset-buttons">
-          <button class="toggle-btn preset-btn" id="preset-spiral" title="Starfield + Note Spiral + Bass Clock">Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope">Warp</button>
+          <button class="toggle-btn preset-btn" id="preset-spiral" title="Starfield + Note Spiral + Bass Clock">Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar">Fractal</button>
-          <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
           <button class="toggle-btn preset-btn" id="preset-sculpture" title="Graph Sculpture + Theory Bar">Sculpture</button>
+          <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
           <button class="toggle-btn" id="layers-toggle">Custom</button>
           <div class="custom-presets-wrap" id="custom-presets"></div>
           <button class="reset-presets-btn" id="reset-presets-btn" title="Delete all custom presets" style="display:none;">Reset</button>
@@ -654,7 +657,11 @@ fractalConfigPanel.onSave = () => {
   dirty = true;
 };
 
-// Config panel starts closed - user can open via ⚙️ button
+// --- GRA Config Panel (for graph-sculpture effect) ---
+
+const graConfigPanel = new GRAConfigPanel();
+
+// Config panels start closed - user can open via Config buttons
 
 // --- Build layer panel UI ---
 
@@ -691,15 +698,20 @@ function buildLayerPanel(): void {
       select.appendChild(opt);
     }
 
-    // Config button for fractal effect (only in Foreground slot)
+    // Config button for fractal and graph-sculpture effects (only in Foreground slot)
     let configBtn: HTMLButtonElement | null = null;
     if (slot.name === 'Foreground') {
       configBtn = document.createElement('button');
       configBtn.className = 'slot-config-link';
       configBtn.textContent = 'Config';
-      configBtn.style.display = slot.activeId === 'fractal' ? 'block' : 'none';
+      const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-sculpture';
+      configBtn.style.display = hasConfig ? 'block' : 'none';
       configBtn.addEventListener('click', () => {
-        fractalConfigPanel.show();
+        if (slot.activeId === 'fractal') {
+          fractalConfigPanel.show();
+        } else if (slot.activeId === 'graph-sculpture') {
+          graConfigPanel.show();
+        }
       });
     }
 
@@ -711,9 +723,10 @@ function buildLayerPanel(): void {
       dirty = true;
       markUnsavedChanges();
       updateBrowserURL();
-      // Show/hide fractal config button
+      // Show/hide config button for fractal and graph-sculpture
       if (configBtn) {
-        configBtn.style.display = slot.activeId === 'fractal' ? 'block' : 'none';
+        const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-sculpture';
+        configBtn.style.display = hasConfig ? 'block' : 'none';
       }
     });
 
@@ -721,7 +734,7 @@ function buildLayerPanel(): void {
     header.appendChild(select);
     slotDiv.appendChild(header);
 
-    // Config button on its own line (for fractal effect)
+    // Config button on its own line (for effects with config panels)
     if (configBtn) {
       slotDiv.appendChild(configBtn);
     }
@@ -1806,7 +1819,7 @@ function loop(time: number): void {
       updateKeyDisplay(currentTime);
 
       // Get fractal params from music (always computed — fractal effect reads them)
-      const params = musicMapper.update(dt, currentTime, timeline.chords, timeline.drums, timeline.notes);
+      const params = musicMapper.update(dt, currentTime, timeline.chords, timeline.drums, timeline.notes, timeline.barDrumInfo);
 
       // Generic music params for all other effects
       const musicParams = musicMapper.getMusicParams(dt, currentTime);

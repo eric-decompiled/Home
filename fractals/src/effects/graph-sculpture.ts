@@ -15,6 +15,15 @@
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { samplePaletteColor } from './effect-utils.ts';
 
+// Register categories for hierarchical connections
+type Register = 'bass' | 'mid' | 'melody';
+
+function getRegister(midi: number): Register {
+  if (midi < 48) return 'bass';      // Below C3
+  if (midi < 72) return 'mid';       // C3 to B4
+  return 'melody';                    // C5 and above
+}
+
 interface GraphNode {
   x: number;
   y: number;
@@ -22,6 +31,7 @@ interface GraphNode {
   vy: number;
   pitchClass: number;
   midi: number;
+  register: Register;   // bass/mid/melody for hierarchical connections
   birth: number;        // time created
   birthBar: number;     // bar index when created
   strength: number;     // accumulated importance (hit count)
@@ -111,20 +121,14 @@ export class GraphSculptureEffect implements VisualEffect {
 
   private addNode(midi: number, velocity: number): number {
     const pc = midi % 12;
-
-    // Always create a new node (don't reuse by pitch class)
-    // Position based on pitch class (circle of fifths layout) with randomness
-    const fifthsOrder = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
-    const baseAngle = (fifthsOrder.indexOf(pc) / 12) * Math.PI * 2 - Math.PI / 2;
-    const angle = baseAngle + (Math.random() - 0.5) * 0.3;  // slight angle variation
     const cx = this.width / 2;
     const cy = this.height / 2;
-    const radius = Math.min(this.width, this.height) * 0.3;
 
-    // Randomness in position
-    const r = radius * (0.5 + Math.random() * 0.5);
-    const x = cx + Math.cos(angle) * r + (Math.random() - 0.5) * 50;
-    const y = cy + Math.sin(angle) * r + (Math.random() - 0.5) * 50;
+    // Simple spawn near center with slight randomness
+    const radius = 50 + Math.random() * 100;
+    const angle = Math.random() * Math.PI * 2;
+    const x = cx + Math.cos(angle) * radius;
+    const y = cy + Math.sin(angle) * radius;
 
     const color = samplePaletteColor(pc, 0.8);
 
@@ -133,6 +137,7 @@ export class GraphSculptureEffect implements VisualEffect {
       vx: 0, vy: 0,
       pitchClass: pc,
       midi,
+      register: getRegister(midi),
       birth: this.time,
       birthBar: this.lastBarIndex,
       strength: velocity,
@@ -212,6 +217,11 @@ export class GraphSculptureEffect implements VisualEffect {
 
     const fromNode = this.nodes[fromIdx];
     const toNode = this.nodes[toIdx];
+
+    // Hierarchical connections: only connect across registers
+    // Bass connects to mid, mid connects to melody - no same-register connections
+    if (fromNode.register === toNode.register) return;
+
     const fromAge = this.lastBarIndex - fromNode.birthBar;
     const toAge = this.lastBarIndex - toNode.birthBar;
 
@@ -280,9 +290,9 @@ export class GraphSculptureEffect implements VisualEffect {
         const interval = Math.abs(ni.pitchClass - nj.pitchClass);
         const normalizedInterval = Math.min(interval, 12 - interval);
 
-        // Harmonic affinity: consonant = attract (< 1), dissonant = repel (> 1)
+        // Harmonic affinity: consonant = attract (< 1), dissonant/same = repel (> 1)
         let affinity = 1.0;
-        if (normalizedInterval === 0) affinity = 0.3;       // unison - strong attract
+        if (normalizedInterval === 0) affinity = 1.8;       // unison - like repels like
         else if (normalizedInterval === 5) affinity = 0.5;  // perfect 4th - attract
         else if (normalizedInterval === 7) affinity = 0.5;  // perfect 5th - attract
         else if (normalizedInterval === 3) affinity = 0.7;  // minor 3rd - mild attract
@@ -319,10 +329,24 @@ export class GraphSculptureEffect implements VisualEffect {
       nj.vy -= fy;
     }
 
-    // Center pull (weak, keeps graph centered)
+    // Center pull (weak, keeps graph centered horizontally)
     for (const node of this.nodes) {
       node.vx += (cx - node.x) * this.centerPull;
-      node.vy += (cy - node.y) * this.centerPull;
+      // Vertical center pull only for mid register
+      if (node.register === 'mid') {
+        node.vy += (cy - node.y) * this.centerPull;
+      }
+    }
+
+    // Register gravity: bass sinks, melody rises, mid floats
+    const gravity = 0.15;
+    for (const node of this.nodes) {
+      if (node.register === 'bass') {
+        node.vy += gravity;  // Pull down
+      } else if (node.register === 'melody') {
+        node.vy -= gravity;  // Pull up
+      }
+      // Mid: no gravity, floats freely
     }
 
     // Integration with damping
@@ -510,8 +534,14 @@ export class GraphSculptureEffect implements VisualEffect {
 
       const scaleX = this.width / contentW;
       const scaleY = this.height / contentH;
-      this.targetScale = Math.min(scaleX, scaleY, 1.5);  // cap zoom-in at 1.5x
-      this.targetScale = Math.max(this.targetScale, 0.3); // cap zoom-out at 0.3x
+      let neededScale = Math.min(scaleX, scaleY, 1.5);  // cap zoom-in at 1.5x
+      neededScale = Math.max(neededScale, 0.3); // cap zoom-out at 0.3x
+
+      // One-directional zoom: only zoom OUT, never back in
+      // This prevents jarring zoom-in when lone nodes are pruned
+      if (neededScale < this.targetScale) {
+        this.targetScale = neededScale;
+      }
 
       // Smooth interpolation
       this.currentScale += (this.targetScale - this.currentScale) * 0.05;
@@ -565,12 +595,27 @@ export class GraphSculptureEffect implements VisualEffect {
       // Live nodes (can still form connections) glow brighter
       const nodeAge = this.lastBarIndex - node.birthBar;
       const isLive = nodeAge <= maxLiveAge;
-      const liveBoost = isLive ? 1.4 : 1.0;
+      const liveBoost = isLive ? 1.3 : 1.0;
 
-      const alpha = (0.3 + node.brightness * 0.7) * fadeMultiplier * liveBoost;
+      // Register-based appearance:
+      // Bass: bigger, duller | Mid: normal | Melody: smaller, brighter
+      let registerSize = 1.0;
+      let registerBrightness = 1.0;
+      let coreBrightness = 50;
+      if (node.register === 'bass') {
+        registerSize = 1.8;
+        registerBrightness = 0.6;
+        coreBrightness = 30;
+      } else if (node.register === 'melody') {
+        registerSize = 0.7;
+        registerBrightness = 1.5;
+        coreBrightness = 100;
+      }
+
+      const alpha = (0.3 + node.brightness * 0.7) * fadeMultiplier * liveBoost * registerBrightness;
       if (alpha < 0.01) continue;  // Skip invisible nodes
 
-      const size = this.nodeSize * (isLive ? 1.15 : 1.0);  // Live nodes slightly larger
+      const size = this.nodeSize * registerSize * (isLive ? 1.1 : 1.0);
 
       // Outer glow
       ctx.beginPath();
@@ -587,9 +632,10 @@ export class GraphSculptureEffect implements VisualEffect {
       // Core
       ctx.beginPath();
       ctx.arc(node.x, node.y, size, 0, Math.PI * 2);
-      const coreR = Math.min(255, node.r + (isLive ? 80 : 50));
-      const coreG = Math.min(255, node.g + (isLive ? 80 : 50));
-      const coreB = Math.min(255, node.b + (isLive ? 80 : 50));
+      const coreBoost = isLive ? coreBrightness + 30 : coreBrightness;
+      const coreR = Math.min(255, node.r + coreBoost);
+      const coreG = Math.min(255, node.g + coreBoost);
+      const coreB = Math.min(255, node.b + coreBoost);
       ctx.fillStyle = `rgba(${coreR},${coreG},${coreB},${(alpha * 0.8).toFixed(3)})`;
       ctx.fill();
     }
@@ -608,6 +654,9 @@ export class GraphSculptureEffect implements VisualEffect {
     this.pitchSpawnedThisHalfBar.clear();
     this.lastHalfBarIndex = -1;
     this.lastBarIndex = -1;
+    // Reset zoom for fresh start
+    this.currentScale = 1;
+    this.targetScale = 1;
     this.awake = false;
     this.lastChordRoot = -1;
   }

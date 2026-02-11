@@ -33,6 +33,29 @@ interface Trail {
   to: number;    // MIDI note
   strength: number;
   age: number;
+  r: number;
+  g: number;
+  b: number;
+}
+
+// Spiral wave - travels along the spiral path from outer to inner
+interface SpiralWave {
+  position: number;    // 0-1 along spiral (0 = outer/low, 1 = inner/high)
+  alpha: number;       // opacity
+  color: [number, number, number];
+  speed: number;       // position units per second (0.5 = travels full spiral in 2s)
+  width: number;       // how many notes wide the wave affects
+  isDownbeat: boolean; // for special emphasis
+}
+
+// A melody trail segment
+interface MelodySegment {
+  fromMidi: number;
+  toMidi: number;
+  r: number;
+  g: number;
+  b: number;
+  age: number;
 }
 
 export class NoteSpiralEffect implements VisualEffect {
@@ -56,7 +79,12 @@ export class NoteSpiralEffect implements VisualEffect {
   // One node per MIDI note in range
   private nodes: SpiralNode[] = [];
   private trails: Trail[] = [];
-  private lastMidiByTrack: Map<number, number> = new Map(); // track → last MIDI note
+  private spiralWaves: SpiralWave[] = [];  // Waves traveling along spiral
+  private melodySegments: MelodySegment[] = [];  // Melody trail for grabbing
+  private lastMelodyMidi = -1;  // For tracking melody connections
+  private anticipationRing = 0;    // 0-1 intensity of outer glow (harmonic tension)
+  private anticipationColor: [number, number, number] = [255, 255, 255];
+  private lastBeatIndex = -1;      // Track beat changes (more reliable than onBeat)
   private time = 0;
   private key = 0;
   private keyMode: 'major' | 'minor' = 'major';
@@ -81,7 +109,7 @@ export class NoteSpiralEffect implements VisualEffect {
   private intensity = 1.0;
   private trailMax = 48;
   private darkBackdrop = true;
-  private glowOutlines = true;
+  private showSpine = false;  // spiral spine lines
   private spiralTightness = 1.25;  // power curve: lower = more bass space, higher = tighter
   private currentTension = 0;  // for tension-driven visuals
   private beatDuration = 0.5;  // for beat-synced effects
@@ -150,6 +178,43 @@ export class NoteSpiralEffect implements VisualEffect {
     return { x: pos.x, y: pos.y, r: pos.radius, scale: pos.scale };
   }
 
+  // Shared ring drawing - 3-layer glow effect (used by tension ring and metronomic waves)
+  private drawRing(
+    ctx: CanvasRenderingContext2D,
+    cx: number, cy: number,
+    radius: number,
+    alpha: number,
+    color: [number, number, number],
+    intensity: number = 1.0
+  ): void {
+    if (alpha < 0.02 || radius <= 0) return;
+
+    const [r, g, b] = color;
+    const effectiveAlpha = alpha * this.intensity * intensity;
+    const pulseWidth = 1 + alpha * 2;
+
+    // Soft outer glow
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${r},${g},${b},${(effectiveAlpha * 0.2).toFixed(3)})`;
+    ctx.lineWidth = pulseWidth + 3;
+    ctx.stroke();
+
+    // Main ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${r},${g},${b},${(effectiveAlpha * 0.5).toFixed(3)})`;
+    ctx.lineWidth = pulseWidth;
+    ctx.stroke();
+
+    // Bright inner edge
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255,255,255,${(effectiveAlpha * 0.35).toFixed(3)})`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
   // Pre-compute all note positions (cached, only updates when inputs change)
   private computeNotePositions(cx: number, cy: number, maxR: number): void {
     const rotationThreshold = 0.01;
@@ -212,8 +277,8 @@ export class NoteSpiralEffect implements VisualEffect {
       const semi = semitoneOffset(pc, this.key);
       const nextSemi = semitoneOffset(nextPc, this.key);
       const inKey = diatonicOffsets.has(semi) || diatonicOffsets.has(nextSemi);
-      const baseAlpha = inKey ? 0.4 : 0.15;
-      const lw = inKey ? 2.0 : 1.0;
+      const baseAlpha = inKey ? 0.10 : 0.03;
+      const lw = inKey ? 1.0 : 0.6;
 
       const p0 = this.notePositions[i];
       const p1 = this.notePositions[i + 1];
@@ -259,15 +324,15 @@ export class NoteSpiralEffect implements VisualEffect {
     // Fake shadow using offset darker circle
     bctx.beginPath();
     bctx.arc(cx + 8, discCy + 8, maxR * 0.98, 0, Math.PI * 2);
-    bctx.fillStyle = 'rgba(0,0,0,0.4)';
+    bctx.fillStyle = 'rgba(0,0,0,0.15)';
     bctx.fill();
 
     // Vertical gradient - warm gray at top, cool black at bottom
     const depthGrad = bctx.createLinearGradient(cx, discTop, cx, discBottom);
-    depthGrad.addColorStop(0, 'rgba(38,36,42,0.5)');
-    depthGrad.addColorStop(0.35, 'rgba(22,22,28,0.5)');
-    depthGrad.addColorStop(0.65, 'rgba(10,12,18,0.5)');
-    depthGrad.addColorStop(1, 'rgba(0,0,5,0.5)');
+    depthGrad.addColorStop(0, 'rgba(38,36,42,0.2)');
+    depthGrad.addColorStop(0.35, 'rgba(22,22,28,0.2)');
+    depthGrad.addColorStop(0.65, 'rgba(10,12,18,0.2)');
+    depthGrad.addColorStop(1, 'rgba(0,0,5,0.2)');
 
     bctx.beginPath();
     bctx.arc(cx, discCy, maxR * 0.98, 0, Math.PI * 2);
@@ -279,8 +344,8 @@ export class NoteSpiralEffect implements VisualEffect {
       cx, discCy + maxR * 0.4, 0,
       cx, discCy + maxR * 0.4, maxR * 0.8
     );
-    aoGrad.addColorStop(0, 'rgba(0,0,0,0.3)');
-    aoGrad.addColorStop(0.5, 'rgba(0,0,0,0.15)');
+    aoGrad.addColorStop(0, 'rgba(0,0,0,0.12)');
+    aoGrad.addColorStop(0.5, 'rgba(0,0,0,0.06)');
     aoGrad.addColorStop(1, 'rgba(0,0,0,0)');
     bctx.fillStyle = aoGrad;
     bctx.fill();
@@ -368,22 +433,34 @@ export class NoteSpiralEffect implements VisualEffect {
           ease: 'power2.out',
           overwrite: true,
         });
-
-        // Trail from previous note on same track
-        const lastMidi = this.lastMidiByTrack.get(voice.track) ?? -1;
-        if (lastMidi >= MIDI_LO && lastMidi < MIDI_HI && lastMidi !== voice.midi) {
-          this.trails.push({
-            from: lastMidi,
-            to: voice.midi,
-            strength: 1.0,
-            age: 0,
-          });
-          if (this.trails.length > this.trailMax) this.trails.shift();
-        }
-        this.lastMidiByTrack.set(voice.track, voice.midi);
       } else {
         // Sustained note - keep visible
         node.brightness = Math.max(node.brightness, minBrightness);
+      }
+    }
+
+    // Connect chord tones - draw lines between notes with simultaneous onsets
+    const onsetNotes = music.activeVoices
+      .filter(v => v.onset && v.midi >= MIDI_LO && v.midi < MIDI_HI)
+      .map(v => v.midi);
+
+    if (onsetNotes.length >= 2) {
+      // Connect each note to the next (sorted by pitch)
+      onsetNotes.sort((a, b) => a - b);
+      for (let i = 0; i < onsetNotes.length - 1; i++) {
+        const fromNode = this.nodes[onsetNotes[i] - MIDI_LO];
+        this.trails.push({
+          from: onsetNotes[i],
+          to: onsetNotes[i + 1],
+          strength: 1.0,
+          age: 0,
+          r: fromNode.r,
+          g: fromNode.g,
+          b: fromNode.b,
+        });
+      }
+      if (this.trails.length > this.trailMax) {
+        this.trails.splice(0, this.trails.length - this.trailMax);
       }
     }
 
@@ -394,6 +471,45 @@ export class NoteSpiralEffect implements VisualEffect {
     // Smooth loudness for brightness scaling (gradual response)
     const targetLoudness = music.loudness ?? 0;
     this.loudness += (targetLoudness - this.loudness) * 0.1;
+
+    // === MELODY HIGHLIGHT ===
+    // Make melody notes extra bright and colorful on onset
+    if (music.melodyOnset && music.melodyMidiNote >= MIDI_LO && music.melodyMidiNote < MIDI_HI) {
+      const idx = music.melodyMidiNote - MIDI_LO;
+      const node = this.nodes[idx];
+      // Boost brightness significantly for melody
+      node.brightness = Math.min(node.brightness + 2.0, 4.0);
+      node.velocity = Math.max(node.velocity, music.melodyVelocity);
+      node.lastHitTime = this.time;
+      // Vivid color for melody
+      const c = samplePaletteColor(music.melodyPitchClass, 0.9);
+      node.r = c[0]; node.g = c[1]; node.b = c[2];
+
+      // Track melody segment
+      if (this.lastMelodyMidi >= MIDI_LO && this.lastMelodyMidi < MIDI_HI) {
+        this.melodySegments.push({
+          fromMidi: this.lastMelodyMidi,
+          toMidi: music.melodyMidiNote,
+          r: c[0],
+          g: c[1],
+          b: c[2],
+          age: 0,
+        });
+        // Limit melody segments
+        if (this.melodySegments.length > 32) {
+          this.melodySegments.shift();
+        }
+      }
+      this.lastMelodyMidi = music.melodyMidiNote;
+    }
+
+    // Age and cleanup melody segments
+    for (let i = this.melodySegments.length - 1; i >= 0; i--) {
+      this.melodySegments[i].age += dt;
+      if (this.melodySegments[i].age > 3.0) {
+        this.melodySegments.splice(i, 1);
+      }
+    }
 
     // === GROOVE CURVES ===
     const beatArrival = music.beatArrival ?? 0;
@@ -406,6 +522,82 @@ export class NoteSpiralEffect implements VisualEffect {
       }
     }
 
+    // === HARMONIC TENSION RING ===
+    // Uses centralized tension tracking from music-mapper
+    // Ring glows with harmonicTensionSmooth, releases on onHarmonicRelease
+
+    // Build ring from smoothed tension (already computed in music-mapper)
+    const targetRing = music.harmonicTensionSmooth * 0.8;
+
+    // Smooth follow with asymmetric rates: fast build, slower decay
+    if (targetRing > this.anticipationRing) {
+      this.anticipationRing += (targetRing - this.anticipationRing) * dt * 8;
+    } else {
+      this.anticipationRing += (targetRing - this.anticipationRing) * dt * 3;
+    }
+
+    // Track color from tension color (blends tonic→dominant)
+    const tc = music.tensionColor;
+    this.anticipationColor = [tc[0], tc[1], tc[2]];
+
+    // Subtle pulse on active nodes when tension is high
+    if (music.tension > 0.5) {
+      const pulseAmt = music.tension * 0.03;
+      for (const node of this.nodes) {
+        if (node.brightness > 0.05) {
+          node.brightness = Math.min(1, node.brightness + pulseAmt * dt * 3);
+        }
+      }
+    }
+
+    // === METRONOMIC SPIRAL WAVES ===
+    // Detect beat changes via beatIndex (more reliable than single-frame onBeat)
+    // Spawns wave on MIDI grid, animator handles smooth visuals
+    const beatChanged = music.beatIndex !== this.lastBeatIndex && this.lastBeatIndex !== -1;
+
+    if (beatChanged) {
+      const isDownbeat = music.beatIndex === 0;
+
+      // Use tension color for harmonic context
+      const tc = music.tensionColor;
+      const tensionBoost = 1 + this.currentTension * 0.3;
+      const baseAlpha = isDownbeat ? 0.5 * tensionBoost : 0.3;
+
+      // Downbeats: blend tension color toward white for brightness
+      // Offbeats: use tension color directly but dimmer
+      const color: [number, number, number] = isDownbeat
+        ? [
+            Math.round(tc[0] * 0.6 + 255 * 0.4),
+            Math.round(tc[1] * 0.6 + 255 * 0.4),
+            Math.round(tc[2] * 0.6 + 255 * 0.4),
+          ]
+        : [tc[0], tc[1], tc[2]];
+
+      this.spiralWaves.push({
+        position: 0,
+        alpha: baseAlpha,
+        color,
+        speed: 0.4,
+        width: 8,
+        isDownbeat,
+      });
+
+      if (this.spiralWaves.length > 16) this.spiralWaves.shift();
+    }
+    this.lastBeatIndex = music.beatIndex;
+
+    // Update spiral waves - travel inward and fade
+    for (let i = this.spiralWaves.length - 1; i >= 0; i--) {
+      const wave = this.spiralWaves[i];
+      wave.position += wave.speed * dt;
+      wave.alpha *= Math.exp(-0.6 * dt);
+
+      // Remove when reached center or faded
+      if (wave.position >= 1 || wave.alpha < 0.02) {
+        this.spiralWaves.splice(i, 1);
+      }
+    }
+
     // Groove-driven pulse on active nodes (subtle)
     if (beatArrival > 0.1) {
       const arrivalPulse = beatArrival * 0.06;
@@ -414,18 +606,21 @@ export class NoteSpiralEffect implements VisualEffect {
       }
     }
 
-    // Decay nodes - long TTL so notes linger on spiral
-    const nodeDecay = 0.4 + music.tension * 0.3;
+    // Decay nodes - melody notes (bright) decay slower
+    const baseDecay = 0.4 + music.tension * 0.3;
     for (const node of this.nodes) {
-      node.brightness *= Math.exp(-nodeDecay * dt);
+      // Bright nodes (melody) decay slower - inversely proportional to brightness
+      const decayRate = baseDecay / (1 + node.brightness * 0.5);
+      node.brightness *= Math.exp(-decayRate * dt);
     }
 
-    // Decay trails (faster at high tension for more frantic feel)
-    const trailDecay = 0.08 + music.tension * 0.15;
+    // Decay trails - fast fade
+    const trailDecay = 0.8 + music.tension * 0.4;
     for (let i = this.trails.length - 1; i >= 0; i--) {
-      this.trails[i].strength *= Math.exp(-trailDecay * dt);
-      this.trails[i].age += dt;
-      if (this.trails[i].strength < 0.005) {
+      const trail = this.trails[i];
+      trail.strength *= Math.exp(-trailDecay * dt);
+      trail.age += dt;
+      if (trail.strength < 0.005) {
         this.trails.splice(i, 1);
       }
     }
@@ -460,25 +655,64 @@ export class NoteSpiralEffect implements VisualEffect {
     this.computeNotePositions(cx, cy, maxR * breath);
 
     // --- Draw cached spiral spine ---
-    this.updateSpineCache();
-    ctx.drawImage(this.spineCanvas, 0, 0);
+    if (this.showSpine) {
+      this.updateSpineCache();
+      ctx.drawImage(this.spineCanvas, 0, 0);
+    }
 
-    // --- Draw trails (stepwise follows curve, leaps are straight) ---
+    // --- Draw harmonic anticipation ring (shared ring style) ---
+    this.drawRing(ctx, cx, cy, maxR * 1.05, this.anticipationRing, this.anticipationColor, 0.6);
+
+    // --- Draw metronomic spiral waves ---
+    for (const wave of this.spiralWaves) {
+      const r = maxR * (1 - wave.position);
+      const intensityMult = wave.isDownbeat ? 0.65 : 0.5;
+      this.drawRing(ctx, cx, cy, r, wave.alpha, wave.color, intensityMult);
+    }
+
+    // --- Draw melody segments ---
+    for (const seg of this.melodySegments) {
+      if (seg.fromMidi < MIDI_LO || seg.fromMidi >= MIDI_HI) continue;
+      if (seg.toMidi < MIDI_LO || seg.toMidi >= MIDI_HI) continue;
+
+      const fromIdx = seg.fromMidi - MIDI_LO;
+      const toIdx = seg.toMidi - MIDI_LO;
+      const p0 = this.notePositions[fromIdx];
+      const p1 = this.notePositions[toIdx];
+
+      const baseAlpha = Math.max(0, 1 - seg.age * 0.33);
+      if (baseAlpha < 0.02) continue;
+
+      // Draw the melody segment
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.strokeStyle = `rgba(${seg.r},${seg.g},${seg.b},${(baseAlpha * 0.4 * this.intensity).toFixed(3)})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Glow
+      ctx.strokeStyle = `rgba(${seg.r},${seg.g},${seg.b},${(baseAlpha * 0.15 * this.intensity).toFixed(3)})`;
+      ctx.lineWidth = 6;
+      ctx.stroke();
+    }
+
+    // --- Draw trails ---
     for (const trail of this.trails) {
       if (trail.from < MIDI_LO || trail.from >= MIDI_HI) continue;
       if (trail.to < MIDI_LO || trail.to >= MIDI_HI) continue;
 
-      // Use pre-computed positions
-      const p0 = this.notePositions[trail.from - MIDI_LO];
-      const p1 = this.notePositions[trail.to - MIDI_LO];
+      const fromIdx = trail.from - MIDI_LO;
+      const toIdx = trail.to - MIDI_LO;
+      const p0 = this.notePositions[fromIdx];
+      const p1 = this.notePositions[toIdx];
 
-      const n0 = this.nodes[trail.from - MIDI_LO];
-      const n1 = this.nodes[trail.to - MIDI_LO];
-      const mr = Math.round((n0.r + n1.r) / 2);
-      const mg = Math.round((n0.g + n1.g) / 2);
-      const mb = Math.round((n0.b + n1.b) / 2);
-
+      const mr = trail.r;
+      const mg = trail.g;
+      const mb = trail.b;
       const s = trail.strength;
+      if (s < 0.02) continue;
+
       const interval = Math.abs(trail.to - trail.from);
 
       // Stepwise motion (1-3 semitones) follows the spiral curve
@@ -489,7 +723,6 @@ export class NoteSpiralEffect implements VisualEffect {
         ctx.beginPath();
 
         if (isStepwise && interval > 0) {
-          // Follow spiral curve for stepwise motion using pre-computed positions
           const minIdx = Math.min(trail.from, trail.to) - MIDI_LO;
           const maxIdx = Math.max(trail.from, trail.to) - MIDI_LO;
           const goingUp = trail.to > trail.from;
@@ -512,7 +745,6 @@ export class NoteSpiralEffect implements VisualEffect {
         }
       };
 
-      // Average scale for trail thickness
       const avgScale = (p0.scale + p1.scale) / 2;
 
       // Outer glow
@@ -955,22 +1187,13 @@ export class NoteSpiralEffect implements VisualEffect {
       // Dot: diatonic notes brighter, chromatic visible
       // Scale dot by depth (higher notes = larger = closer)
       const baseAlpha = inKey ? 0.25 : 0.10;
-      const dotAlpha = baseAlpha + alpha * 0.5;
+      const dotAlpha = (baseAlpha + alpha * 0.3) * 0.6;  // More transparent
       if (dotAlpha < 0.005) continue;
 
-      const baseDotR = inKey ? (4.0 + alpha * 4) : (2.5 + alpha * 3);
+      const baseDotR = inKey ? (2.5 + alpha * 2.5) : (1.5 + alpha * 2);  // Smaller
       const dotR = baseDotR * pos.scale;
 
-      // Soft glow outline around dot (scaled by depth)
-      if (this.glowOutlines && dotAlpha > 0.12) {
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, dotR + 3 * pos.scale, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255,255,255,${(dotAlpha * 0.25 * this.intensity).toFixed(3)})`;
-        ctx.lineWidth = 2.5 * pos.scale;
-        ctx.stroke();
-      }
-
-      // Use pre-computed attack/sustain colors (glowR, glowG, glowB)
+      // Draw dot
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, dotR, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(${glowR},${glowG},${glowB},${Math.min(1, dotAlpha * this.intensity).toFixed(3)})`;
@@ -1021,7 +1244,11 @@ export class NoteSpiralEffect implements VisualEffect {
   dispose(): void {
     this.ready = false;
     this.trails = [];
-    this.lastMidiByTrack.clear();
+    this.spiralWaves = [];
+    this.melodySegments = [];
+    this.lastMelodyMidi = -1;
+    this.anticipationRing = 0;
+    this.lastBeatIndex = -1;
     this.awake = false;
     this.initNodes();
   }
@@ -1029,11 +1256,8 @@ export class NoteSpiralEffect implements VisualEffect {
   getConfig(): EffectConfig[] {
     return [
       { key: 'activeShapes', label: 'Shapes', type: 'multi-toggle', value: Array.from(this.activeShapes).join(','), options: NoteSpiralEffect.SHAPES },
-      { key: 'spiralTightness', label: 'Tightness', type: 'range', value: this.spiralTightness, min: 0.5, max: 1.5, step: 0.05 },
-      { key: 'intensity', label: 'Intensity', type: 'range', value: this.intensity, min: 0.3, max: 2.0, step: 0.1 },
-      { key: 'trailMax', label: 'Trail Length', type: 'range', value: this.trailMax, min: 6, max: 48, step: 6 },
+      { key: 'showSpine', label: 'Spiral Lines', type: 'toggle', value: this.showSpine },
       { key: 'darkBackdrop', label: 'Dark Backdrop', type: 'toggle', value: this.darkBackdrop },
-      { key: 'glowOutlines', label: 'Glow Outlines', type: 'toggle', value: this.glowOutlines },
     ];
   }
 
@@ -1057,7 +1281,10 @@ export class NoteSpiralEffect implements VisualEffect {
     if (key === 'spiralTightness') this.spiralTightness = value as number;
     if (key === 'intensity') this.intensity = value as number;
     if (key === 'trailMax') this.trailMax = value as number;
+    if (key === 'showSpine') {
+      this.showSpine = value as boolean;
+      this.cachedSpineKey = -1; // invalidate cache
+    }
     if (key === 'darkBackdrop') this.darkBackdrop = value as boolean;
-    if (key === 'glowOutlines') this.glowOutlines = value as boolean;
   }
 }

@@ -6,7 +6,7 @@
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import {
   samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES, semitoneOffset,
-  SPIRAL_RADIUS_SCALE, spiralPos
+  SPIRAL_RADIUS_SCALE, spiralPos, CHROMATIC_DEGREES_MAJOR, CHROMATIC_DEGREES_MINOR
 } from './effect-utils.ts';
 import { gsap } from '../animation.ts';
 
@@ -20,14 +20,6 @@ interface ArcSegment {
 
 const ARC_TRAIL_MAX = 30;
 const ARC_TRAIL_LIFETIME = 3.1;
-
-// Chromatic (non-diatonic) degree labels
-const CHROMATIC_DEGREES_MAJOR: Record<number, string> = {
-  1: '♭II', 3: '♭III', 6: '♯IV', 8: '♭VI', 10: '♭VII'
-};
-const CHROMATIC_DEGREES_MINOR: Record<number, string> = {
-  1: '♭II', 4: '♯III', 6: '♯IV', 9: '♭VII', 11: 'VII'
-};
 
 export class BassClockEffect implements VisualEffect {
   readonly id = 'bass-clock';

@@ -116,7 +116,18 @@
       "Bash(else echo \"✗ $f \\(MISSING\\)\")",
       "Bash(strings:*)",
       "Bash(gh repo view:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:arxiv.org)",
+      "WebFetch(domain:paulcousin.net)",
+      "WebFetch(domain:mirdata.readthedocs.io)",
+      "WebFetch(domain:magenta.withgoogle.com)",
+      "Bash(npx ts-node:*)",
+      "WebFetch(domain:www.audiolabs-erlangen.de)",
+      "WebFetch(domain:musicinformationretrieval.com)",
+      "WebFetch(domain:meinardmueller.github.io)",
+      "WebFetch(domain:ar5iv.labs.arxiv.org)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

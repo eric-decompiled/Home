@@ -70,6 +70,14 @@ export const MINOR_OFFSETS = new Set([0, 2, 3, 5, 7, 8, 10]);
 export const MAJOR_DEGREES: Record<number, string> = { 0: 'I', 2: 'II', 4: 'III', 5: 'IV', 7: 'V', 9: 'VI', 11: 'VII' };
 export const MINOR_DEGREES: Record<number, string> = { 0: 'i', 2: 'ii', 3: 'III', 5: 'iv', 7: 'v', 8: 'VI', 10: 'VII' };
 
+/** Chromatic (non-diatonic) degree labels */
+export const CHROMATIC_DEGREES_MAJOR: Record<number, string> = {
+  1: '♭II', 3: '♭III', 6: '♯IV', 8: '♭VI', 10: '♭VII'
+};
+export const CHROMATIC_DEGREES_MINOR: Record<number, string> = {
+  1: '♭II', 4: '♯III', 6: '♯IV', 9: '♭VII', 11: 'VII'
+};
+
 /** Compute the pitch classes in a chord triad (+ optional 7th) */
 export function chordTriad(root: number, quality: string): Set<number> {
   const notes = new Set<number>();

@@ -1,4 +1,4 @@
-import type { ChordEvent, DrumHit, NoteEvent, TrackInfo, KeyRegion } from './midi-analyzer.ts';
+import type { ChordEvent, DrumHit, NoteEvent, TrackInfo, KeyRegion, BarDrumInfo } from './midi-analyzer.ts';
 import type { MusicParams, ActiveVoice, UpcomingNote, UpcomingChord, RGB } from './effects/effect-interface.ts';
 import { createMidiBeatSync, createIdleBeatSync, type BeatSync, type TempoEvent, type TimeSignatureEvent } from './beat-sync.ts';
 import { gsap } from './animation.ts';
@@ -138,6 +138,16 @@ let targetCenter: CValue = { ...getDefaultAnchor() };
 
 let currentTension = 0;
 let targetTension = 0;
+// Harmonic tension release tracking (for chromatic tension-driven effects)
+let tensionSmooth = 0;           // Slow-following average for comparison
+let tensionRelease = 0;          // 0-1 release intensity (peaks on drop, decays)
+let tensionReleaseArmed = true;  // Debounce flag
+let frameHarmonicRelease = false; // True on frame when release triggers
+// Rhythmic tension tracking (syncopation + anticipation → white rings)
+let rhythmicTension = 0;         // Current rhythmic tension
+let rhythmicTensionSmooth = 0;   // Slow-following average
+let rhythmicRelease = 0;         // Release intensity (peaks on strong beats)
+let frameRhythmicRelease = false; // True on frame when release triggers
 let currentPalette = 4;
 let currentFractalType = getDefaultAnchor().type;
 let currentPhoenixP = -0.5;
@@ -187,6 +197,17 @@ let currentChordQuality = 'major';
 let frameKick = false;
 let frameSnare = false;
 let frameHihat = false;
+let frameTom = false;
+let frameCrash = false;
+// Section detection state
+let currentDrumDensity = 0;
+let currentFillIntensity = 0;
+let currentIsBreakdown = false;
+let currentIsFill = false;
+let currentIsTransition = false;
+let currentEnergyDelta = 0;
+let currentNextTransitionIn = 0;
+let currentTransitionAnticipation = 0;
 let frameOnBeat = false;
 let frameOnBar = false;
 let currentBeatStability = 1.0;
@@ -506,7 +527,8 @@ export const musicMapper = {
     currentTime: number,
     chords: ChordEvent[],
     drums: DrumHit[],
-    notes: NoteEvent[]
+    notes: NoteEvent[],
+    barDrumInfo: BarDrumInfo[] = []
   ): FractalParams {
     // Store notes and chords for lookahead
     allNotes = notes;
@@ -561,10 +583,70 @@ export const musicMapper = {
     const decay = 1 - Math.exp(-smoothingRate * dt);
     currentTension += (effectiveTension - currentTension) * decay;
 
+    // === TENSION RELEASE DETECTION ===
+    // Track slow-moving average to detect when current tension drops below it
+    const tensionAvgRate = 2.0;  // ~0.5 second window
+    tensionSmooth += (currentTension - tensionSmooth) * tensionAvgRate * dt;
+
+    // Deviation: how much current tension is below the recent average
+    const tensionDeviation = tensionSmooth - currentTension;
+
+    // Trigger release when tension drops noticeably below average
+    frameHarmonicRelease = false;
+    if (tensionDeviation > 0.06 && tensionReleaseArmed && tensionSmooth > 0.15) {
+      // Fire release with intensity based on how much tension was built up
+      tensionRelease = Math.min(1, tensionSmooth + tensionDeviation);
+      tensionReleaseArmed = false;
+      frameHarmonicRelease = true;
+    }
+
+    // Decay release intensity
+    tensionRelease *= Math.exp(-4 * dt);
+
+    // Re-arm when tension stabilizes or rises
+    if (tensionDeviation < 0.02) {
+      tensionReleaseArmed = true;
+    }
+
+    // === RHYTHMIC TENSION (syncopation + anticipation → white rings) ===
+    // Build tension from: beat anticipation + off-beat activity
+    // Release on strong beats (1 and 3)
+
+    // Get beat state for rhythm calculations (will be computed again below but we need it here)
+    const rhythmBeat = beatSync.update(currentTime, 0); // peek without advancing
+
+    // Anticipation component: builds as we approach beats
+    const anticipationComponent = rhythmBeat.beatAnticipation * 0.6;
+
+    // Syncopation component: note activity on weak beat positions (off the grid)
+    // Off-beat = beatPhase between 0.3-0.7 (not near beat boundaries)
+    const isOffBeat = rhythmBeat.beatPhase > 0.2 && rhythmBeat.beatPhase < 0.8;
+    const offBeatActivity = (frameMelodyOnset && isOffBeat) ? 0.5 : 0;
+
+    // Combine into rhythmic tension
+    const targetRhythmicTension = Math.min(1, anticipationComponent + offBeatActivity);
+    rhythmicTension += (targetRhythmicTension - rhythmicTension) * 8 * dt;
+
+    // Smooth average for comparison
+    rhythmicTensionSmooth += (rhythmicTension - rhythmicTensionSmooth) * 3 * dt;
+
+    // Release on strong beats (beat 1 or 3) when there's tension built up
+    frameRhythmicRelease = false;
+    const isStrongBeat = rhythmBeat.onBeat && (rhythmBeat.beatIndex === 0 || rhythmBeat.beatIndex === 2);
+    if (isStrongBeat && rhythmicTensionSmooth > 0.15) {
+      rhythmicRelease = Math.min(1, rhythmicTensionSmooth + 0.3);
+      frameRhythmicRelease = true;
+    }
+
+    // Decay release
+    rhythmicRelease *= Math.exp(-5 * dt);
+
     // --- Process drum hits → rotation ---
     frameKick = false;
     frameSnare = false;
     frameHihat = false;
+    frameTom = false;
+    frameCrash = false;
     const noteLookback = 0.05;
     for (let i = lastDrumIndex + 1; i < drums.length; i++) {
       const d = drums[i];
@@ -585,7 +667,81 @@ export const musicMapper = {
       } else if (d.type === 'hihat') {
         rotationVelocity += (beatInBar % 2 === 0 ? 1 : -1) * 0.12;
         frameHihat = true;
+      } else if (d.type === 'tom') {
+        rotationVelocity += 0.3;  // Toms add forward momentum
+        frameTom = true;
+      } else if (d.type === 'crash') {
+        rotationVelocity += 0.8;  // Crash adds strong impulse
+        frameCrash = true;
       }
+    }
+
+    // --- Section detection from bar drum info ---
+    if (barDrumInfo.length > 0) {
+      // Find current bar
+      const barDuration = beatDuration * beatsPerBar;
+      const currentBarIndex = Math.floor(currentTime / barDuration);
+      const barInfo = barDrumInfo[Math.min(currentBarIndex, barDrumInfo.length - 1)];
+
+      if (barInfo) {
+        currentDrumDensity = barInfo.density;
+        currentIsBreakdown = barInfo.isBreakdown;
+        currentIsFill = barInfo.isFill;
+        currentIsTransition = barInfo.isTransition;
+        currentEnergyDelta = barInfo.energyDelta;
+
+        // Fill intensity: ramps up during fill bars, decays otherwise
+        if (barInfo.isFill) {
+          currentFillIntensity = Math.min(1, currentFillIntensity + dt * 4);
+        } else {
+          currentFillIntensity *= Math.exp(-3 * dt);
+        }
+
+        // Transition anticipation: look ahead to find next transition bar
+        if (barInfo.isTransition) {
+          // Currently in transition
+          currentNextTransitionIn = 0;
+          currentTransitionAnticipation = 1;
+        } else {
+          // Look ahead for next transition (max 8 bars = ~16 seconds)
+          let nextTransitionBar = -1;
+          for (let i = currentBarIndex + 1; i < Math.min(currentBarIndex + 8, barDrumInfo.length); i++) {
+            if (barDrumInfo[i].isTransition) {
+              nextTransitionBar = i;
+              break;
+            }
+          }
+
+          if (nextTransitionBar >= 0) {
+            // Time until next transition bar starts
+            const timeUntil = barDrumInfo[nextTransitionBar].startTime - currentTime;
+            currentNextTransitionIn = Math.max(0, timeUntil);
+
+            // Anticipation: build from 0 to 1 over ~2 bars before transition
+            // Accelerating curve (power of 2) for dramatic tension build
+            const anticipationWindow = barDuration * 2; // 2 bars
+            if (timeUntil <= anticipationWindow && timeUntil > 0) {
+              const progress = 1 - (timeUntil / anticipationWindow); // 0→1
+              currentTransitionAnticipation = progress * progress; // accelerate
+            } else {
+              currentTransitionAnticipation = 0;
+            }
+          } else {
+            currentNextTransitionIn = 999;
+            currentTransitionAnticipation = 0;
+          }
+        }
+      }
+    } else {
+      // No bar info - estimate from recent drum activity
+      currentDrumDensity = (frameKick || frameSnare ? 0.5 : 0) + (frameHihat ? 0.3 : 0) + (frameTom ? 0.2 : 0);
+      currentFillIntensity *= Math.exp(-3 * dt);
+      currentIsBreakdown = !frameKick && !frameSnare && !frameHihat && !frameTom;
+      currentIsFill = false;
+      currentIsTransition = frameCrash;  // Crash always signals transition
+      currentEnergyDelta = 0;
+      currentNextTransitionIn = 999;
+      currentTransitionAnticipation = 0;
     }
 
     // --- Get beat state from BeatSync ---
@@ -839,6 +995,13 @@ export const musicMapper = {
       chordDegree: currentChordDegree,
       chordQuality: currentChordQuality,
       tension: currentTension,
+      harmonicTensionSmooth: tensionSmooth,
+      harmonicTensionRelease: tensionRelease,
+      onHarmonicRelease: frameHarmonicRelease,
+      rhythmicTension: rhythmicTension,
+      rhythmicTensionSmooth: rhythmicTensionSmooth,
+      rhythmicRelease: rhythmicRelease,
+      onRhythmicRelease: frameRhythmicRelease,
       key: currentKey,
       keyMode: currentKeyMode,
       keyRotation: keyRotationState.value,
@@ -853,6 +1016,16 @@ export const musicMapper = {
       kick: frameKick,
       snare: frameSnare,
       hihat: frameHihat,
+      tom: frameTom,
+      crash: frameCrash,
+      drumDensity: currentDrumDensity,
+      fillIntensity: currentFillIntensity,
+      isBreakdown: currentIsBreakdown,
+      isFill: currentIsFill,
+      isTransition: currentIsTransition,
+      energyDelta: currentEnergyDelta,
+      nextTransitionIn: currentNextTransitionIn,
+      transitionAnticipation: currentTransitionAnticipation,
       loudness: audioPlayer.getLoudness(),
       paletteIndex: currentChordRoot,
       activeVoices: currentActiveVoices,
@@ -894,6 +1067,13 @@ export const musicMapper = {
       chordDegree: 1,
       chordQuality: 'major',
       tension: 0,
+      harmonicTensionSmooth: 0,
+      harmonicTensionRelease: 0,
+      onHarmonicRelease: false,
+      rhythmicTension: 0,
+      rhythmicTensionSmooth: 0,
+      rhythmicRelease: 0,
+      onRhythmicRelease: false,
       key: currentKey,
       keyMode: currentKeyMode,
       keyRotation: keyRotationState.value,
@@ -908,6 +1088,16 @@ export const musicMapper = {
       kick: false,
       snare: false,
       hihat: false,
+      tom: false,
+      crash: false,
+      drumDensity: 0,
+      fillIntensity: 0,
+      isBreakdown: true,  // No drums = breakdown
+      isFill: false,
+      isTransition: false,
+      energyDelta: 0,
+      nextTransitionIn: 999,
+      transitionAnticipation: 0,
       loudness: 0,
       paletteIndex: currentKey,
       activeVoices: [],
@@ -934,6 +1124,14 @@ export const musicMapper = {
     targetCenter = { ...def };
     currentTension = 0;
     targetTension = 0;
+    tensionSmooth = 0;
+    tensionRelease = 0;
+    tensionReleaseArmed = true;
+    frameHarmonicRelease = false;
+    rhythmicTension = 0;
+    rhythmicTensionSmooth = 0;
+    rhythmicRelease = 0;
+    frameRhythmicRelease = false;
     currentPalette = 4;
     currentFractalType = def.type;
     currentPhoenixP = -0.5;
