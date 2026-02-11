@@ -8,8 +8,8 @@ const distDir = path.join(rootDir, 'dist');
 const projects = {
   'fractals': 'Music visualization with fractals, physics, and procedural graphics driven by MIDI',
   'lissajous': 'Visualize Lissajous curves and their relationship to musical intervals',
-  'resonator': 'Real-time RLC resonator explorer for audio synthesis and visualization',
   'sound-synth': 'Interactive harmonics explorer for understanding sound and timbre',
+  'resonator': 'Real-time RLC resonator explorer for audio synthesis and visualization',
   'karplus-strong': 'Explore the Karplus-Strong algorithm to synth plucked string sounds',
   'intervals': 'Ear training for musical intervals with adaptive difficulty and Lissajous visualization',
 };
