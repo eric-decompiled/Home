@@ -300,9 +300,16 @@ app.innerHTML = `
           <button class="mobile-preset-btn" id="mobile-bar-sculpture">Sculpt</button>
         </div>
         <div class="transport-compact">
-          <button class="transport-btn" id="prev-btn" title="Previous track">&#x23EE;</button>
-          <button class="transport-btn" id="play-btn" disabled>&#9654;</button>
-          <button class="transport-btn" id="next-btn" title="Next track">&#x23ED;</button>
+          <button class="transport-btn" id="prev-btn" title="Previous track">
+            <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </button>
+          <button class="transport-btn" id="play-btn" disabled>
+            <svg viewBox="0 0 24 24" width="14" height="14" class="play-icon"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+            <svg viewBox="0 0 24 24" width="14" height="14" class="pause-icon" style="display:none"><path fill="currentColor" d="M6 19h4V5H6zm8-14v14h4V5z"/></svg>
+          </button>
+          <button class="transport-btn" id="next-btn" title="Next track">
+            <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M6 18l8.5-6L6 6v12zm2 0V6l6.5 6L8 18zM16 6v12h2V6z"/></svg>
+          </button>
         </div>
         <div class="playlist-category-wrap desktop-only">
           <button class="toggle-btn playlist-btn active" id="playlist-bossa" title="Bossa nova">Bossa</button>
@@ -473,6 +480,12 @@ function showToast(message: string, duration = 4000): void {
 const canvas = document.getElementById('canvas') as HTMLCanvasElement;
 const songPicker = document.getElementById('song-picker') as HTMLSelectElement;
 const playBtn = document.getElementById('play-btn') as HTMLButtonElement;
+const playIcon = playBtn.querySelector('.play-icon') as SVGElement;
+const pauseIcon = playBtn.querySelector('.pause-icon') as SVGElement;
+const setPlayBtnState = (playing: boolean) => {
+  playIcon.style.display = playing ? 'none' : 'block';
+  pauseIcon.style.display = playing ? 'block' : 'none';
+};
 const prevBtn = document.getElementById('prev-btn') as HTMLButtonElement;
 const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
 const seekBar = document.getElementById('seek-bar') as HTMLInputElement;
@@ -515,7 +528,7 @@ mobilePlayBtn.addEventListener('click', async () => {
   if (!isPlaying) {
     await audioPlayer.play();
     isPlaying = true;
-    playBtn.textContent = '\u23F8';
+    setPlayBtnState(true);
   }
 });
 
@@ -669,7 +682,7 @@ async function switchPlaylist(category: PlaylistCategory): Promise<void> {
   if (wasPlaying) {
     await audioPlayer.play();
     isPlaying = true;
-    playBtn.textContent = '\u23F8';
+    setPlayBtnState(true);
   }
 }
 
@@ -1756,7 +1769,7 @@ async function loadSong(index: number) {
   const song = getCurrentSongs()[index];
   audioPlayer.stop();
   isPlaying = false;
-  playBtn.textContent = '\u25B6';
+  setPlayBtnState(false);
   musicMapper.reset();
   compositor.resetAll();
   lastKeyRegionIndex = -1;
@@ -1828,7 +1841,7 @@ function updateTimeDisplay(currentTime: number) {
 async function loadMidiFile(file: File) {
   audioPlayer.stop();
   isPlaying = false;
-  playBtn.textContent = '\u25B6';
+  setPlayBtnState(false);
   musicMapper.reset();
   compositor.resetAll();
   lastKeyRegionIndex = -1;
@@ -1990,11 +2003,11 @@ playBtn.addEventListener('click', async () => {
   if (isPlaying) {
     audioPlayer.pause();
     isPlaying = false;
-    playBtn.textContent = '\u25B6';
+    setPlayBtnState(false);
   } else {
     await audioPlayer.play();
     isPlaying = true;
-    playBtn.textContent = '\u275A\u275A';
+    setPlayBtnState(true);
   }
 });
 
@@ -2198,13 +2211,13 @@ function loop(time: number): void {
         loadSong(nextIdx).then(() => {
           audioPlayer.play();
           isPlaying = true;
-          playBtn.textContent = '\u275A\u275A';
+          setPlayBtnState(true);
         });
       } else {
         // End of playlist
         audioPlayer.pause();
         isPlaying = false;
-        playBtn.textContent = '\u25B6';
+        setPlayBtnState(false);
         audioPlayer.seek(0);
         musicMapper.reset();
       }

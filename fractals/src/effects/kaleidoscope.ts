@@ -66,10 +66,12 @@ export class KaleidoscopeEffect implements VisualEffect {
     const beatArrival = music.beatArrival ?? 0;
     const barArrival = music.barArrival ?? 0;
 
-    // Chord degree → fold count (reduced variability: 6-9 range)
+    // Chord degree → fold count (curated per-degree)
     if (music.chordDegree !== this.lastChordDegree && music.chordDegree >= 0) {
       this.lastChordDegree = music.chordDegree;
-      const targetFolds = 6 + (music.chordDegree % 4); // 6,7,8,9
+      // I:6, ii:7, III:6, IV:8, V:6, vi:7, vii°:9
+      const foldMap = [6, 7, 6, 8, 6, 7, 9];
+      const targetFolds = foldMap[music.chordDegree] ?? 6;
       const beatDur = music.beatDuration || 0.5;
       gsap.to(this, {
         foldCount: targetFolds,
@@ -115,15 +117,15 @@ export class KaleidoscopeEffect implements VisualEffect {
     // Zoom pulse with asymmetric response: gentle attack, very slow decay
     if (this.zoomTarget > this.zoomPulse) {
       // Gentle attack
-      this.zoomPulse += (this.zoomTarget - this.zoomPulse) * (1 - Math.exp(-4.0 * dt));
+      this.zoomPulse += (this.zoomTarget - this.zoomPulse) * (1 - Math.exp(-3.0 * dt));
     } else {
       // Very slow decay - settle back gradually
-      this.zoomPulse += (this.zoomTarget - this.zoomPulse) * (1 - Math.exp(-0.8 * dt));
+      this.zoomPulse += (this.zoomTarget - this.zoomPulse) * (1 - Math.exp(-0.4 * dt));
     }
 
     // Rotation dynamics: base speed + groove modulation + impulse velocity
-    // Lower damping lets momentum carry through
-    this.rotationVelocity *= Math.exp(-1.5 * dt);
+    // Low damping lets momentum carry through smoothly
+    this.rotationVelocity *= Math.exp(-0.6 * dt);
     this.rotation += (this.rotationSpeed + grooveRotation + this.rotationVelocity) * dt;
   }
 

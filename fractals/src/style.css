@@ -52,7 +52,11 @@ body {
 .transport-compact .transport-btn {
   width: 32px;
   height: 32px;
-  font-size: 14px;
+}
+
+.transport-compact .transport-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 .song-picker-wrap select {
@@ -767,12 +771,17 @@ canvas {
   background: rgba(22, 199, 154, 0.2);
   border: 2px solid #16c79a;
   color: #16c79a;
-  font-size: 14px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.transport-btn svg {
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
 }
 
@@ -897,7 +906,11 @@ input[type="range"]::-moz-range-thumb {
   .transport-btn {
     width: 28px;
     height: 28px;
-    font-size: 12px;
+  }
+
+  .transport-btn svg {
+    width: 12px;
+    height: 12px;
   }
 
   .time-display {
@@ -982,7 +995,11 @@ input[type="range"]::-moz-range-thumb {
   .transport-btn {
     width: 26px;
     height: 26px;
-    font-size: 11px;
+  }
+
+  .transport-btn svg {
+    width: 11px;
+    height: 11px;
   }
 
   .preset-buttons {
@@ -1016,7 +1033,11 @@ input[type="range"]::-moz-range-thumb {
   .transport-btn {
     width: 24px;
     height: 24px;
-    font-size: 10px;
+  }
+
+  .transport-btn svg {
+    width: 10px;
+    height: 10px;
   }
 
   .time-display {
@@ -1063,7 +1084,11 @@ input[type="range"]::-moz-range-thumb {
   .transport-btn {
     width: 24px;
     height: 24px;
-    font-size: 10px;
+  }
+
+  .transport-btn svg {
+    width: 10px;
+    height: 10px;
   }
 
   .seek-wrap {
