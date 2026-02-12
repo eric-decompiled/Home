@@ -932,18 +932,14 @@ input[type="range"]::-moz-range-thumb {
     touch-action: pan-y pinch-zoom;
   }
 
-  /* Canvas fills available space with min dimensions (px to avoid zoom issues) */
   .canvas-wrap {
-    padding: 2px;
-    min-height: 400px;
+    padding: 0;
     overflow: visible;
   }
 
   canvas {
     border-radius: 0;
     border: none;
-    min-width: 300px;
-    min-height: 400px;
     touch-action: pan-x pan-y pinch-zoom;
   }
 
@@ -987,10 +983,6 @@ input[type="range"]::-moz-range-thumb {
     width: 26px;
     height: 26px;
     font-size: 11px;
-  }
-
-  .canvas-wrap {
-    padding: 0;
   }
 
   .preset-buttons {
@@ -1041,7 +1033,6 @@ input[type="range"]::-moz-range-thumb {
     font-size: 12px;
   }
 
-  /* Ensure main area fills remaining space properly */
   .main-area {
     flex: 1;
     min-height: 0;
@@ -1049,9 +1040,11 @@ input[type="range"]::-moz-range-thumb {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  /* Keep canvas-wrap expanding, align canvas to top (gap goes to bottom) */
   .canvas-wrap {
     flex: 1;
-    min-height: 0;
+    align-items: flex-start;
+    justify-content: center;
   }
 }
 
@@ -1081,16 +1074,12 @@ input[type="range"]::-moz-range-thumb {
     font-size: 9px;
   }
 
+  /* Shrink to fit canvas in landscape to avoid gaps */
   .canvas-wrap {
-    padding: 2px;
-    min-height: 250px;
-  }
-
-  canvas {
-    min-height: 240px;
-    min-width: 400px;
-    border: none;
-    border-radius: 0;
+    flex: 0 0 auto;
+    padding: 0;
+    align-items: flex-start;
+    justify-content: flex-start;
   }
 
   .mobile-presets {
@@ -1101,6 +1090,46 @@ input[type="range"]::-moz-range-thumb {
     bottom: 4px;
     right: max(4px, env(safe-area-inset-right, 0px));
   }
+}
+
+/* iOS landscape pseudo-fullscreen mode */
+body.ios-landscape-fullscreen .top-bar {
+  /* Position fixed so it overlays instead of pushing content */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  background: rgba(10, 10, 20, 0.95);
+}
+
+body.ios-landscape-fullscreen .top-bar.ios-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.ios-landscape-fullscreen .main-area {
+  /* Fill entire viewport */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+body.ios-landscape-fullscreen .canvas-wrap {
+  /* Maximize canvas area - override mobile flex: 0 0 auto */
+  padding: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 1 1 auto !important;
+}
+
+body.ios-landscape-fullscreen canvas {
+  border: none;
+  border-radius: 0;
 }
 
 /* --- Modal / Dialog --- */

@@ -840,6 +840,76 @@ canvas.addEventListener('touchmove', (e) => {
   }
 }, { passive: true });
 
+// --- iOS landscape pseudo-fullscreen ---
+// Hide our control bar in landscape on iOS (like true fullscreen)
+let iosLandscapeMode = false;
+let iosControlsTimeout: number | null = null;
+const IOS_CONTROLS_HIDE_DELAY = 2500;
+
+function isLandscape(): boolean {
+  return window.innerWidth > window.innerHeight;
+}
+
+function hideIOSControls(): void {
+  if (!iosLandscapeMode) return;
+  topBar.classList.add('ios-hidden');
+  // Trigger resize after transition to expand canvas
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 350);
+}
+
+function showIOSControls(): void {
+  if (!iosLandscapeMode) return;
+  topBar.classList.remove('ios-hidden');
+  // Reset hide timer
+  if (iosControlsTimeout) clearTimeout(iosControlsTimeout);
+  iosControlsTimeout = window.setTimeout(hideIOSControls, IOS_CONTROLS_HIDE_DELAY);
+}
+
+function enterIOSLandscapeMode(): void {
+  if (iosLandscapeMode) return;
+  iosLandscapeMode = true;
+  document.body.classList.add('ios-landscape-fullscreen');
+  // Trigger resize to use full viewport
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+  // Start hide timer
+  iosControlsTimeout = window.setTimeout(hideIOSControls, IOS_CONTROLS_HIDE_DELAY);
+}
+
+function exitIOSLandscapeMode(): void {
+  if (!iosLandscapeMode) return;
+  iosLandscapeMode = false;
+  document.body.classList.remove('ios-landscape-fullscreen');
+  topBar.classList.remove('ios-hidden');
+  if (iosControlsTimeout) {
+    clearTimeout(iosControlsTimeout);
+    iosControlsTimeout = null;
+  }
+  // Trigger resize to restore normal layout
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+}
+
+// Enable on iOS mobile devices
+const isMobileIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) && !isStandalone;
+if (isMobileIOS) {
+  function checkIOSOrientation(): void {
+    if (isLandscape()) {
+      enterIOSLandscapeMode();
+    } else {
+      exitIOSLandscapeMode();
+    }
+  }
+
+  // Listen for orientation changes
+  window.addEventListener('resize', checkIOSOrientation);
+  window.addEventListener('orientationchange', checkIOSOrientation);
+
+  // Show controls on any touch
+  canvas.addEventListener('touchstart', showIOSControls, { passive: true });
+
+  // Initial check
+  setTimeout(checkIOSOrientation, 100);
+}
+
 // --- Mouse tracking for interactive effects ---
 
 canvas.addEventListener('mousemove', (e) => {
