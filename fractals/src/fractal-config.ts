@@ -30,17 +30,198 @@ interface FractalFamily {
   label: string;
   typeNum: number;
   bounds: { rMin: number; rMax: number; iMin: number; iMax: number };
-  locus: (cr: number, ci: number, maxIter: number) => number;
+  locus: (cr: number, ci: number, maxIter: number, z0r?: number, z0i?: number) => number;
   julia: (fx: number, fy: number, jR: number, jI: number, maxIter: number) => number;
 }
+
+// Family information for the info modal
+interface FamilyInfo {
+  formula: string;
+  year: string;
+  creator: string;
+  category: string;
+  description: string;
+  traits: string[];
+  hotspots: string[];
+  tips: string;
+  related: string[];
+}
+
+const FAMILY_INFO: Record<string, FamilyInfo> = {
+  'classic': {
+    formula: 'z → z² + c',
+    year: '1980',
+    creator: 'Benoit Mandelbrot',
+    category: 'Quadratic Polynomial',
+    description: 'The original Mandelbrot/Julia set - the most famous fractal in mathematics. Discovered while Mandelbrot was studying iterative functions at IBM. It exhibits infinite complexity at all scales and has become an icon of mathematical beauty and chaos theory.',
+    traits: ['Smooth, rounded bulbs', 'Cardioid main body', 'Infinite spiraling detail', 'Self-similar at all zoom levels', 'Connected interior'],
+    hotspots: ['c = -0.75 (period-2 bulb)', 'c = -0.12 + 0.74i (spiral)', 'c = 0.28 + 0.01i (dendrite)', 'c = -1.0 (basilica)'],
+    tips: 'The boundary between black and color contains all the interesting detail. Look for "mini-brots" - tiny copies of the full set hidden in the spirals.',
+    related: ['Tricorn', 'Multicorn-3', 'Burning Ship'],
+  },
+  'burning-ship': {
+    formula: 'z → (|Re(z)| + i|Im(z)|)² + c',
+    year: '1992',
+    creator: 'Michael Michelitsch & Otto Rössler',
+    category: 'Absolute Value Variant',
+    description: 'Takes absolute values of real and imaginary parts before squaring, breaking the smooth symmetry of the classic set. The main structure resembles a burning ship with flames rising from its deck, hence the name. One of the most visually striking fractal variants.',
+    traits: ['Sharp angular edges', 'Asymmetric structure', 'Ship-like main body', 'Flame-like tendrils', 'Jagged coastlines'],
+    hotspots: ['c = -1.76 - 0.04i (ship hull)', 'c = -1.94 + 0.0i (flames)', 'c = -0.5 - 0.5i (spirals)'],
+    tips: 'The ship is upside down in standard orientation. Zoom into the "flames" rising from the mast for incredible detail. The antenna regions contain mini-ships.',
+    related: ['PerpBurn', 'Celtic', 'Buffalo'],
+  },
+  'buffalo': {
+    formula: 'z → |z|² - |z| + c',
+    year: '~2000s',
+    creator: 'Fractal community',
+    category: 'Absolute Value Variant',
+    description: 'A hybrid formula that subtracts the absolute magnitude of z after squaring. Creates distinctive horn-like protrusions that give it a buffalo or ox-like appearance. Known for its organic, almost biological-looking structures.',
+    traits: ['Horn-like extensions', 'Organic asymmetry', 'Dense interior detail', 'Complex boundary', 'Biological appearance'],
+    hotspots: ['c = -0.5 + 0.5i (horns)', 'c = -1.0 + 0.0i (body)', 'c = 0.0 - 0.8i (tail)'],
+    tips: 'Look for the "horns" emerging from the main body. The interior contains dense, hair-like structures. Works well with warm color palettes.',
+    related: ['Burning Ship', 'Celtic', 'PerpBurn'],
+  },
+  'celtic': {
+    formula: 'z → |Re(z²)| + i·Im(z²) + c',
+    year: '~2000s',
+    creator: 'Fractal community',
+    category: 'Partial Absolute Value',
+    description: 'Applies absolute value only to the real component after squaring, creating intricate interlocking patterns reminiscent of Celtic knotwork and illuminated manuscripts. The partial symmetry-breaking creates a unique aesthetic.',
+    traits: ['Interlocking knots', 'Symmetric patterns', 'Dense filaments', 'Celtic cross motifs', 'Woven textures'],
+    hotspots: ['c = -0.4 + 0.6i (knots)', 'c = -0.8 + 0.16i (crosses)', 'c = -0.45 - 0.5i (weave)'],
+    tips: 'Celtic patterns emerge best near the boundary. The "crosses" form where four regions meet. Try zooming into areas where filaments interweave.',
+    related: ['Burning Ship', 'Buffalo', 'PerpBurn'],
+  },
+  'phoenix': {
+    formula: 'z → z² + c + p·z₋₁',
+    year: '1988',
+    creator: 'Shigehiro Ushiki',
+    category: 'Memory-Based',
+    description: 'A unique fractal that incorporates memory - using the previous iteration\'s value weighted by parameter p (typically -0.5). This creates flowing, dynamic patterns with bird-like silhouettes. Named for the mythical phoenix due to its wing-like shapes.',
+    traits: ['Bird-like silhouettes', 'Memory effects', 'Feathered edges', 'Dynamic flow patterns', 'Wing structures'],
+    hotspots: ['c = 0.56 + 0.0i (classic phoenix)', 'c = -0.4 + 0.1i (feathers)', 'c = 0.3 - 0.3i (wings)'],
+    tips: 'The p parameter (memory weight) dramatically changes the character. At p = -0.5, bird shapes emerge. Watch how regions seem to "flow" into each other.',
+    related: ['Classic', 'Nova', 'Tricorn'],
+  },
+  'tricorn': {
+    formula: 'z → conj(z)² + c',
+    year: '1989',
+    creator: 'W.D. Crowe et al.',
+    category: 'Conjugate Variant',
+    description: 'Also called the Mandelbar set. Uses the complex conjugate before squaring, which flips the imaginary axis each iteration. This breaks two-fold symmetry into three-fold, creating the distinctive three-pointed "tricorn" shape.',
+    traits: ['Three-fold symmetry', 'Tricorn shape', 'Spiky protrusions', 'Mirror-like reflections', 'Pinched bulbs'],
+    hotspots: ['c = -0.1 + 0.9i (spike tip)', 'c = -1.0 + 0.0i (period-2)', 'c = 0.3 + 0.5i (mini-tricorn)'],
+    tips: 'The three main "horns" each contain infinite detail. Look for mini-tricorns in the boundary regions. The Julia sets are often more symmetric than the locus.',
+    related: ['Classic', 'Multicorn-3', 'Buffalo'],
+  },
+  'perp-burn': {
+    formula: 'z → (Re(z) + i|Im(z)|)² + c',
+    year: '~2000s',
+    creator: 'Fractal community',
+    category: 'Partial Absolute Value',
+    description: 'The Perpendicular Burning Ship applies absolute value only to the imaginary component, creating a hybrid between classic and Burning Ship aesthetics. Has strong vertical symmetry with flame-like structures.',
+    traits: ['Vertical symmetry', 'Flame structures', 'Perpendicular cuts', 'Hybrid characteristics', 'Layered flames'],
+    hotspots: ['c = -1.75 + 0.0i (main flame)', 'c = -0.5 + 0.5i (side burns)', 'c = -1.0 - 0.3i (embers)'],
+    tips: 'Compare directly with Burning Ship to see how the partial absolute value changes the structure. The vertical axis is a mirror line.',
+    related: ['Burning Ship', 'Celtic', 'Buffalo'],
+  },
+  'newton-3': {
+    formula: 'z → z - (z³-1)/(3z²)',
+    year: '1879 (method) / 1983 (fractal)',
+    creator: 'Isaac Newton / John Hubbard',
+    category: 'Root-Finding',
+    description: 'Applies Newton\'s root-finding method to z³ - 1 = 0, which has three cube roots of unity. Points are colored by which root they converge to, with boundaries showing chaotic behavior. Unlike escape-time fractals, this uses convergence.',
+    traits: ['Three-color basins', 'Fractal boundaries', 'Root convergence', 'No escape iteration', 'Basin interleaving'],
+    hotspots: ['Origin region (all three roots compete)', 'Unit circle (root boundaries)', 'z = 0 (critical point)'],
+    tips: 'This fractal doesn\'t use "escape" - instead colors show which root each point finds. The boundaries between basins are infinitely complex. c parameter is not used.',
+    related: ['Nova', 'Magnet', 'Barnsley-1'],
+  },
+  'nova': {
+    formula: 'z → z - (z³-1)/(3z²) + c',
+    year: '1997',
+    creator: 'Paul Derbyshire',
+    category: 'Newton Hybrid',
+    description: 'A creative fusion of Newton\'s method with Julia set iteration - adds a constant c after each Newton step. This creates parameterized Newton fractals where the c value controls basin shapes and interactions.',
+    traits: ['Parameterized Newton', 'Three attractors', 'Complex basins', 'Rich color mixing', 'Flowing boundaries'],
+    hotspots: ['c = 0.0 + 0.0i (pure Newton)', 'c = 1.0 + 0.0i (distorted basins)', 'c = 0.5 + 0.5i (swirling)'],
+    tips: 'Use the Clock button to distribute anchors around the unit circle for musical mapping. The three roots create natural triadic harmonies. Small c values give cleaner patterns.',
+    related: ['Newton-3', 'Phoenix', 'Magnet'],
+  },
+  'magnet': {
+    formula: 'z → ((z² + c - 1)/(2z + c - 2))²',
+    year: '1994',
+    creator: 'Derived from physics',
+    category: 'Physics-Derived',
+    description: 'Emerges from renormalization group equations describing magnetic phase transitions in physics. Unlike other fractals, it has a single attractor at z = 1 rather than infinity. The "magnetic domains" show where different initial conditions flow.',
+    traits: ['Physics-derived', 'Single attractor at z=1', 'Magnetic domains', 'Phase boundaries', 'Convergent iteration'],
+    hotspots: ['c = 0.0 + 0.0i (centered)', 'c = 2.0 + 0.0i (boundary)', 'c = 1.0 + 1.0i (distorted)'],
+    tips: 'Points converge to z = 1 rather than escaping to infinity. The "domains" represent different convergence speeds. Has connections to real physical systems.',
+    related: ['Newton-3', 'Nova', 'Classic'],
+  },
+  'barnsley-1': {
+    formula: 'z → (z-1)c if Re(z)≥0, else (z+1)c',
+    year: '1988',
+    creator: 'Michael Barnsley',
+    category: 'Conditional/IFS',
+    description: 'Michael Barnsley\'s conditional fractal uses different formulas based on the sign of the real part. Inspired by Iterated Function Systems (IFS), it creates fern-like, branching patterns similar to his famous Barnsley Fern.',
+    traits: ['Conditional iteration', 'Fern-like patterns', 'Branching structures', 'Asymmetric growth', 'Leaf-like shapes'],
+    hotspots: ['c = 0.6 + 1.1i (fern)', 'c = -0.5 + 0.8i (branches)', 'c = 0.9 + 0.0i (linear)'],
+    tips: 'The conditional nature creates natural-looking branching. Look for fern fronds and leaf structures. Best viewed with green/nature color palettes.',
+    related: ['Barnsley-2', 'Barnsley-3', 'Celtic'],
+  },
+  'barnsley-2': {
+    formula: 'z → (z±1)c based on Im(z·c)',
+    year: '1988',
+    creator: 'Michael Barnsley',
+    category: 'Conditional/IFS',
+    description: 'Barnsley\'s second variation changes the condition to depend on the product of z and c, creating different domain boundaries. Often produces more organic, flowing shapes than Barnsley-1.',
+    traits: ['Complex conditions', 'Organic shapes', 'Interleaved domains', 'Natural forms', 'Smooth boundaries'],
+    hotspots: ['c = 0.4 + 0.9i (organic)', 'c = -0.6 + 0.6i (interleaved)', 'c = 1.0 + 0.5i (flowing)'],
+    tips: 'The condition based on Im(z·c) creates more complex domain boundaries. Look for regions where the two formulas compete.',
+    related: ['Barnsley-1', 'Barnsley-3', 'Phoenix'],
+  },
+  'barnsley-3': {
+    formula: 'z → (z²-1) + c·(z+1) or (z²-1) + c',
+    year: '1988',
+    creator: 'Michael Barnsley',
+    category: 'Conditional/IFS',
+    description: 'The third Barnsley variant combines quadratic iteration with conditional c multiplication. Creates dense filament structures with multiple competing domains.',
+    traits: ['Quadratic hybrid', 'Dense filaments', 'Multiple domains', 'Complex dynamics', 'Hairlike structures'],
+    hotspots: ['c = 0.5 + 0.5i (filaments)', 'c = -0.8 + 0.2i (dense)', 'c = 0.3 - 0.7i (domains)'],
+    tips: 'The quadratic base gives familiar bulb shapes, but the conditional term adds chaos. Look for regions where filaments explode from bulb boundaries.',
+    related: ['Barnsley-1', 'Barnsley-2', 'Classic'],
+  },
+  'multicorn-3': {
+    formula: 'z → conj(z)³ + c',
+    year: '1989+',
+    creator: 'Extension of Tricorn',
+    category: 'Higher-Order Conjugate',
+    description: 'A higher-order version of the Tricorn (Mandelbar) using the cube instead of square. The conjugate combined with odd power creates distinctive multi-fold symmetry with pointed lobes radiating from the center.',
+    traits: ['Multi-fold symmetry', 'Pointed lobes', 'Conjugate dynamics', 'Higher-order effects', 'Star-like shapes'],
+    hotspots: ['c = 0.0 + 0.8i (star tips)', 'c = -0.5 + 0.5i (lobes)', 'c = 0.3 - 0.3i (mini-corns)'],
+    tips: 'The odd power (3) with conjugate creates different symmetry than even powers. Look for star-like patterns with multiple arms. Each arm contains self-similar detail.',
+    related: ['Tricorn', 'Classic', 'Phoenix'],
+  },
+  'mandelbrot': {
+    formula: 'z → z² + c (c = pixel)',
+    year: '1980 / Exploration Mode',
+    creator: 'Benoit Mandelbrot',
+    category: 'Parameter Space',
+    description: 'True Mandelbrot mode where c comes from the pixel position rather than being fixed. This shows the "parameter space" - each point represents a different Julia set. The z₀ sliders let you explore perturbed Mandelbrot sets with non-zero starting values.',
+    traits: ['Parameter space view', 'Adjustable initial z₀', 'Classic iteration', 'Exploration mode', 'Julia set catalog'],
+    hotspots: ['z₀ = 0 + 0i (classic)', 'z₀ = 0.5 + 0i (perturbed)', 'z₀ = 0 + 0.5i (imaginary shift)'],
+    tips: 'Each point in this view IS a Julia set. Black = connected Julia, colored = disconnected (Cantor dust). Adjust z₀ sliders to see how initial conditions change the boundary.',
+    related: ['Classic (Julia mode)', 'Tricorn', 'Burning Ship'],
+  },
+};
 
 const FAMILIES: FractalFamily[] = [
   {
     id: 'classic', label: 'Classic', typeNum: 0,
     bounds: { rMin: -2.0, rMax: 0.7, iMin: -1.3, iMax: 1.3 },
     // Classic Mandelbrot/Julia: z² + c - the iconic fractal
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
       for (let i = 0; i < maxIter; i++) {
         const x2 = x * x, y2 = y * y;
         if (x2 + y2 > 4) return i + 1;
@@ -63,8 +244,8 @@ const FAMILIES: FractalFamily[] = [
   {
     id: 'burning-ship', label: 'Burning Ship', typeNum: 3,
     bounds: { rMin: -2.2, rMax: 1.2, iMin: -2.0, iMax: 0.8 },
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
       for (let i = 0; i < maxIter; i++) {
         const ax = Math.abs(x), ay = Math.abs(y);
         x = ax * ax - ay * ay + cr;
@@ -87,8 +268,8 @@ const FAMILIES: FractalFamily[] = [
   {
     id: 'buffalo', label: 'Buffalo', typeNum: 9,
     bounds: { rMin: -1.6, rMax: 1.4, iMin: -1.4, iMax: 1.4 },
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
       for (let i = 0; i < maxIter; i++) {
         const ax = Math.abs(x), ay = Math.abs(y);
         x = ax * ax - ay * ay - ax + cr;
@@ -111,8 +292,8 @@ const FAMILIES: FractalFamily[] = [
   {
     id: 'celtic', label: 'Celtic', typeNum: 6,
     bounds: { rMin: -2.2, rMax: 1.5, iMin: -1.6, iMax: 1.6 },
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
       for (let i = 0; i < maxIter; i++) {
         const x2 = x * x, y2 = y * y;
         const nx = Math.abs(x2 - y2) + cr;
@@ -137,8 +318,8 @@ const FAMILIES: FractalFamily[] = [
   {
     id: 'phoenix', label: 'Phoenix', typeNum: 5,
     bounds: { rMin: -2.0, rMax: 1.5, iMin: -1.5, iMax: 1.5 },
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0, px = 0, py = 0;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i, px = 0, py = 0;
       const p = -0.5;
       for (let i = 0; i < maxIter; i++) {
         const nx = x * x - y * y + cr + p * px;
@@ -163,8 +344,8 @@ const FAMILIES: FractalFamily[] = [
   {
     id: 'tricorn', label: 'Tricorn', typeNum: 4,
     bounds: { rMin: -2.5, rMax: 1.5, iMin: -1.8, iMax: 1.8 },
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
       for (let i = 0; i < maxIter; i++) {
         const nx = x * x - y * y + cr;
         const ny = -2 * x * y + ci;
@@ -187,8 +368,8 @@ const FAMILIES: FractalFamily[] = [
   {
     id: 'perp-burn', label: 'PerpBurn', typeNum: 8,
     bounds: { rMin: -2.2, rMax: 1.2, iMin: -2.0, iMax: 0.8 },
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
       for (let i = 0; i < maxIter; i++) {
         const ay = Math.abs(y);
         const nx = x * x - ay * ay + cr;
@@ -214,8 +395,8 @@ const FAMILIES: FractalFamily[] = [
   {
     id: 'newton-3', label: 'Newton-3', typeNum: 10,
     bounds: { rMin: -2.0, rMax: 2.0, iMin: -2.0, iMax: 2.0 },
-    locus(cr, ci, maxIter) {
-      let x = cr, y = ci;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = cr + z0r, y = ci + z0i;
       const roots = [[1, 0], [-0.5, Math.sqrt(3)/2], [-0.5, -Math.sqrt(3)/2]];
       for (let i = 0; i < maxIter; i++) {
         const r2 = x * x + y * y;
@@ -246,8 +427,8 @@ const FAMILIES: FractalFamily[] = [
     bounds: { rMin: -2.0, rMax: 2.0, iMin: -2.0, iMax: 2.0 },
     // Nova: z = z - (z³-1)/(3z²) + c — algebraic form, no trig
     // Cubic roots at e^(2πik/3) for k=0,1,2: (1,0), (-0.5, 0.866), (-0.5, -0.866)
-    locus(cr, ci, maxIter) {
-      let x = cr, y = ci;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = cr + z0r, y = ci + z0i;
       const roots = [[1, 0], [-0.5, 0.866025], [-0.5, -0.866025]];
       for (let i = 0; i < maxIter; i++) {
         const x2 = x * x, y2 = y * y;
@@ -307,8 +488,8 @@ const FAMILIES: FractalFamily[] = [
   {
     id: 'magnet', label: 'Magnet-I', typeNum: 13,
     bounds: { rMin: -3.0, rMax: 3.0, iMin: -3.0, iMax: 3.0 },
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
       for (let i = 0; i < maxIter; i++) {
         const d1 = (x - 1) ** 2 + y ** 2;
         if (d1 < 0.0001) return i + 1;
@@ -349,8 +530,8 @@ const FAMILIES: FractalFamily[] = [
   {
     id: 'barnsley-1', label: 'Barnsley-1', typeNum: 14,
     bounds: { rMin: -2.0, rMax: 2.0, iMin: -2.0, iMax: 2.0 },
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
       for (let i = 0; i < maxIter; i++) {
         if (x * x + y * y > 100) return i + 1;
         const dr = x >= 0 ? x - 1 : x + 1;
@@ -373,8 +554,8 @@ const FAMILIES: FractalFamily[] = [
   {
     id: 'barnsley-2', label: 'Barnsley-2', typeNum: 15,
     bounds: { rMin: -2.0, rMax: 2.0, iMin: -2.0, iMax: 2.0 },
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
       for (let i = 0; i < maxIter; i++) {
         if (x * x + y * y > 100) return i + 1;
         const prod = x * ci + y * cr;
@@ -399,8 +580,8 @@ const FAMILIES: FractalFamily[] = [
   {
     id: 'barnsley-3', label: 'Barnsley-3', typeNum: 16,
     bounds: { rMin: -2.0, rMax: 2.0, iMin: -2.0, iMax: 2.0 },
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
       for (let i = 0; i < maxIter; i++) {
         if (x * x + y * y > 100) return i + 1;
         const z2r = x * x - y * y - 1;
@@ -435,8 +616,8 @@ const FAMILIES: FractalFamily[] = [
   {
     id: 'multicorn-3', label: 'Multicorn-3', typeNum: 17,
     bounds: { rMin: -1.5, rMax: 1.5, iMin: -1.5, iMax: 1.5 },
-    locus(cr, ci, maxIter) {
-      let x = 0, y = 0;
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
       for (let i = 0; i < maxIter; i++) {
         if (x * x + y * y > 100) return i + 1;
         const r = Math.sqrt(x * x + y * y);
@@ -456,6 +637,32 @@ const FAMILIES: FractalFamily[] = [
         const r3 = r * r * r;
         x = r3 * Math.cos(3 * theta) + jR;
         y = r3 * Math.sin(3 * theta) + jI;
+      }
+      return 0;
+    },
+  },
+  {
+    id: 'mandelbrot', label: 'Mandelbrot', typeNum: 18,
+    bounds: { rMin: -2.5, rMax: 1.0, iMin: -1.25, iMax: 1.25 },
+    // Mandelbrot: c = pixel, z₀ = slider (default 0)
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
+      for (let i = 0; i < maxIter; i++) {
+        const x2 = x * x, y2 = y * y;
+        if (x2 + y2 > 4) return i + 1;
+        y = 2 * x * y + ci;
+        x = x2 - y2 + cr;
+      }
+      return 0;
+    },
+    // Julia preview uses the selected c point
+    julia(fx, fy, jR, jI, maxIter) {
+      let x = fx, y = fy;
+      for (let i = 0; i < maxIter; i++) {
+        const x2 = x * x, y2 = y * y;
+        if (x2 + y2 > 4) return i + 1;
+        y = 2 * x * y + jI;
+        x = x2 - y2 + jR;
       }
       return 0;
     },
@@ -489,7 +696,6 @@ const DEFAULT_ORBIT_RADIUS = 0.08;
 const DEFAULT_ORBIT_SKEW = 1.0;     // circle
 const DEFAULT_ORBIT_ROTATION = 0;   // no rotation
 const DEFAULT_BEAT_SPREAD = Math.PI / 2;  // 90° between beat points
-const DEFAULT_ORBIT_MODE: 'orbit' | 'beats' = 'orbit';
 
 const PRESET_ANCHORS: FractalAnchor[] = [
   { type: 4, real: 0.1691, imag: -0.4957, orbitRadius: 0.15 },
@@ -512,7 +718,6 @@ interface InternalAnchor {
   orbitSkew: number;     // aspect ratio: 1=circle, <1=wide, >1=tall
   orbitRotation: number; // rotation in radians
   beatSpread: number;    // angle between beat points in radians (π/2 = 90°)
-  orbitMode: 'orbit' | 'beats';  // continuous orbit vs discrete beat jumps
 }
 
 // --- Fractal Config Panel Class ---
@@ -546,6 +751,7 @@ export class FractalConfigPanel {
   private previewPhase = 0;
   private previewLastTime = 0;
   private previewBpm = 120;
+  private previewScale = 1.0; // 0 = stopped, 1 = normal, 2 = big
 
   // Progression playback
   private progressionPlaying = false;
@@ -565,14 +771,8 @@ export class FractalConfigPanel {
   private showAtlasGrid = false;
   private dragDebounceTimer: number | null = null;
 
-  // Lock state - locked degrees are preserved during Surprise
-  private lockedCells: Set<string> = new Set();
-
   // Clock rotation offset (0-11 semitones, cycles on each click)
   private clockRotationOffset = 0;
-
-  // Temperature per degree (0-1, default 0.5) - controls reroll variation
-  private degreeTemperatures: Map<number, number> = new Map();
 
   // Thumbnail cache - key is "deg:familyIdx:real:imag" rounded to 3 decimals
   private thumbnailCache: Map<string, ImageData> = new Map();
@@ -594,11 +794,60 @@ export class FractalConfigPanel {
   // Callbacks
   public onSave: (() => void) | null = null;
 
-  /** Set global temperature for all degrees (0-1) */
-  public setGlobalTemperature(temp: number): void {
-    for (let deg = 0; deg <= 7; deg++) {
-      this.degreeTemperatures.set(deg, temp);
+  // Hotspot cycling index per degree
+  private hotspotIndices: Map<number, number> = new Map();
+
+  /** Parse a hotspot string like "c = -0.75 (period-2 bulb)" or "c = -0.12 + 0.74i (spiral)" */
+  private parseHotspot(hotspot: string): { real: number; imag: number } | null {
+    // Match patterns like "c = -0.75", "c = -0.12 + 0.74i", "c = 0.28 + 0.01i", "z₀ = 0 + 0i"
+    const match = hotspot.match(/=\s*([-\d.]+)\s*([+-]\s*([\d.]+)i)?/);
+    if (!match) return null;
+
+    const real = parseFloat(match[1]);
+    let imag = 0;
+    if (match[2]) {
+      const imagStr = match[2].replace(/\s/g, '').replace('i', '');
+      imag = parseFloat(imagStr);
     }
+
+    return { real, imag };
+  }
+
+  /** Cycle to next hotspot for a degree */
+  private cycleHotspot(deg: number): void {
+    const family = FAMILIES[this.selectedFamily];
+    const info = FAMILY_INFO[family.id];
+    const hotspots = info?.hotspots || [];
+
+    if (hotspots.length === 0) return;
+
+    // Get current index for this degree, default to -1 so first click goes to 0
+    const currentIdx = this.hotspotIndices.get(deg) ?? -1;
+    const nextIdx = (currentIdx + 1) % hotspots.length;
+    this.hotspotIndices.set(deg, nextIdx);
+
+    // Parse the hotspot
+    const parsed = this.parseHotspot(hotspots[nextIdx]);
+    if (!parsed) return;
+
+    // Update the anchor for this degree
+    const key = this.anchorKey(deg);
+    const anchor = this.anchors.get(key);
+    if (anchor) {
+      anchor.real = parsed.real;
+      anchor.imag = parsed.imag;
+      anchor.familyIdx = this.selectedFamily;
+      this.markAllThumbnailsDirty();
+    }
+
+    // Update status
+    const status = this.container.querySelector('#fc-status')!;
+    status.textContent = `${DEGREE_NAMES[deg]} → ${hotspots[nextIdx]}`;
+
+    // Refresh display
+    this.selectDegreeQuality(deg, 'major');
+    this.drawOverlay();
+    if (this.onSave) this.onSave();
   }
 
   /** Set orbit radius for a degree */
@@ -641,43 +890,56 @@ export class FractalConfigPanel {
     }
   }
 
-  /** Shake positions randomly by up to 25% of current zoom range */
-  private shakePositions(): void {
-    const bounds = this.viewBounds[this.selectedFamily];
-    const rangeR = (bounds.rMax - bounds.rMin) * 0.25;
-    const rangeI = (bounds.iMax - bounds.iMin) * 0.25;
-
-    this.markAllThumbnailsDirty();
-
-    let shaken = 0;
-    for (let deg = 1; deg <= 7; deg++) {
-      for (const q of QUALITIES) {
-        const key = this.anchorKey(deg, q.id);
-        if (this.lockedCells.has(key)) continue;
-
-        const anchor = this.anchors.get(key);
-        if (anchor && anchor.familyIdx === this.selectedFamily) {
-          anchor.real += (Math.random() - 0.5) * rangeR;
-          anchor.imag += (Math.random() - 0.5) * rangeI;
-          shaken++;
-        }
-      }
-    }
-
-    const status = this.container.querySelector('#fc-status')!;
-    status.textContent = `Shook ${shaken} anchors`;
-
-    this.syncOrbitSliders();
-    this.drawOverlay();
-    this.updateAssignments();
-  }
-
   /** Show clock button only for Nova family */
   private updateClockButtonVisibility(): void {
     const clockBtn = this.container.querySelector('.fc-clock-btn') as HTMLElement;
     if (!clockBtn) return;
     const family = FAMILIES[this.selectedFamily];
     clockBtn.style.display = family.id === 'nova' ? '' : 'none';
+  }
+
+  /** Show family information modal */
+  private showFamilyInfo(): void {
+    const family = FAMILIES[this.selectedFamily];
+    const info = FAMILY_INFO[family.id];
+
+    const modal = this.container.querySelector('#fc-info-modal') as HTMLElement;
+
+    // Basic info
+    this.container.querySelector('#fc-info-title')!.textContent = family.label;
+    this.container.querySelector('#fc-info-formula')!.textContent = info?.formula || 'z → z² + c';
+    this.container.querySelector('#fc-info-desc')!.textContent = info?.description || 'No description available.';
+
+    // Meta info
+    this.container.querySelector('#fc-info-year')!.textContent = info?.year || 'Unknown';
+    this.container.querySelector('#fc-info-creator')!.textContent = info?.creator || 'Unknown';
+    this.container.querySelector('#fc-info-category')!.textContent = info?.category || 'Fractal';
+
+    // Traits list
+    this.container.querySelector('#fc-info-traits-list')!.innerHTML = (info?.traits || [])
+      .map(t => `<li>${t}</li>`)
+      .join('');
+
+    // Hotspots list
+    this.container.querySelector('#fc-info-hotspots-list')!.innerHTML = (info?.hotspots || [])
+      .map(h => `<li><code>${h}</code></li>`)
+      .join('');
+
+    // Tips
+    this.container.querySelector('#fc-info-tips-text')!.textContent = info?.tips || 'Explore the boundary regions for the most detail.';
+
+    // Related families
+    this.container.querySelector('#fc-info-related-list')!.innerHTML = (info?.related || [])
+      .map(r => `<span class="fc-info-related-tag">${r}</span>`)
+      .join('');
+
+    modal.classList.add('visible');
+  }
+
+  /** Hide family information modal */
+  private hideFamilyInfo(): void {
+    const modal = this.container.querySelector('#fc-info-modal') as HTMLElement;
+    modal.classList.remove('visible');
   }
 
   /** Distribute anchors on clock positions (major scale semitones around a circle) */
@@ -696,8 +958,6 @@ export class FractalConfigPanel {
 
     for (let deg = 1; deg <= 7; deg++) {
       const key = this.anchorKey(deg);
-      if (this.lockedCells.has(key)) continue;
-
       const semitone = MAJOR_SEMITONES[deg - 1];
       // Apply rotation offset (cycles through 12 positions)
       const adjustedSemitone = (semitone + this.clockRotationOffset) % 12;
@@ -722,16 +982,6 @@ export class FractalConfigPanel {
     this.updateAssignments();
   }
 
-  /** Toggle orbit mode (orbit vs beats) for a degree */
-  private toggleOrbitMode(deg: number): void {
-    const key = this.anchorKey(deg);
-    const anchor = this.anchors.get(key);
-    if (anchor) {
-      anchor.orbitMode = anchor.orbitMode === 'orbit' ? 'beats' : 'orbit';
-      this.drawOverlay();
-    }
-  }
-
   /** Sync orbit sliders to current anchor values */
   private syncOrbitSliders(): void {
     for (let deg = 0; deg <= 7; deg++) {
@@ -746,20 +996,11 @@ export class FractalConfigPanel {
 
       if (radiusSlider) radiusSlider.value = String(Math.round(anchor.orbitRadius * 250));
       if (skewSlider) skewSlider.value = String(Math.round(anchor.orbitSkew * 100));
-      if (rotSlider) rotSlider.value = String(Math.round(anchor.orbitRotation * 100));
+      // Normalize rotation to 0-2π range for the slider
+      let normalizedRot = anchor.orbitRotation % (Math.PI * 2);
+      if (normalizedRot < 0) normalizedRot += Math.PI * 2;
+      if (rotSlider) rotSlider.value = String(Math.round(normalizedRot * 100));
       if (spreadSlider) spreadSlider.value = String(Math.round(anchor.beatSpread * 100));
-      this.updateOrbitModeButton(deg);
-    }
-  }
-
-  /** Update orbit mode button appearance */
-  private updateOrbitModeButton(deg: number): void {
-    const key = this.anchorKey(deg);
-    const anchor = this.anchors.get(key);
-    const btn = this.container.querySelector(`.fc-orbit-mode-btn[data-deg="${deg}"]`) as HTMLElement;
-    if (btn && anchor) {
-      btn.textContent = anchor.orbitMode === 'orbit' ? '◯' : '⁙';
-      btn.title = anchor.orbitMode === 'orbit' ? 'Orbit mode (continuous)' : 'Beats mode (discrete)';
     }
   }
 
@@ -816,22 +1057,14 @@ export class FractalConfigPanel {
       `<button class="fc-family-btn${i === 0 ? ' active' : ''}" data-family="${i}">${f.label}</button>`
     ).join('');
 
-    // Build degree × quality grid - multiple degrees per row
-    // Row 1: I, ii, iii  |  Row 2: IV, V, vi, vii
-    const degreeRows = [[1, 2, 3], [4, 5, 6, 7]];
+    // Build degree × quality grid - single row on desktop, wraps on mobile
+    const degreeRows = [[1, 2, 3, 4, 5, 6, 7]];
 
     const makeDegreeBlock = (deg: number) => {
       const name = DEGREE_NAMES[deg];
-      const cells = QUALITIES.map((q, qi) => {
+      const cells = QUALITIES.map(q => {
         const isActive = deg === 1 && q.id === 'major';
-        const deriveBtn = qi === 0
-          ? `<button class="fc-derive-btn" data-deg="${deg}" title="Generate variations from Major">🎲</button>`
-          : '';
-        return `<div class="fc-cell-buttons">
-          <button class="fc-cell-lock" data-deg="${deg}" data-quality="${q.id}" title="Lock/unlock">🔓</button>
-          ${deriveBtn}
-        </div>
-        <button class="fc-grid-cell${isActive ? ' active' : ''}"
+        return `<button class="fc-grid-cell${isActive ? ' active' : ''}"
           data-deg="${deg}" data-quality="${q.id}">
           <span class="fc-cell-dot" style="background:${DEGREE_COLORS[deg]}"></span>
         </button>`;
@@ -840,7 +1073,7 @@ export class FractalConfigPanel {
       return `
         <div class="fc-degree-block">
           <div class="fc-degree-header">
-            <button class="fc-row-lock-btn" data-deg="${deg}" title="Lock/unlock degree">🔓</button>
+            <button class="fc-hotspot-btn" data-deg="${deg}" title="Cycle through areas of interest">!</button>
             <div class="fc-grid-degree" data-deg="${deg}" title="Apply to all qualities">
               <span class="fc-deg-dot" style="background:${DEGREE_COLORS[deg]}"></span>${name}
             </div>
@@ -850,10 +1083,9 @@ export class FractalConfigPanel {
           </div>
           <div class="fc-orbit-controls">
             <label title="Orbit radius">⊕<input type="range" class="fc-radius-slider" data-deg="${deg}" min="1" max="100" value="20"></label>
-            <label title="Orbit skew (aspect ratio)">⬭<input type="range" class="fc-skew-slider" data-deg="${deg}" min="20" max="200" value="100"></label>
             <label title="Orbit rotation">↻<input type="range" class="fc-rotation-slider" data-deg="${deg}" min="0" max="628" value="0"></label>
-            <label title="Beat spread (angle between points)">∢<input type="range" class="fc-spread-slider" data-deg="${deg}" min="10" max="157" value="157"></label>
-            <button class="fc-orbit-mode-btn" data-deg="${deg}" title="Orbit mode (continuous)">◯</button>
+            <label title="Orbit skew (aspect ratio)">⬭<input type="range" class="fc-skew-slider" data-deg="${deg}" min="20" max="200" value="100"></label>
+            <label title="Beat spread (angle between points)">∢<input type="range" class="fc-spread-slider" data-deg="${deg}" min="10" max="200" value="157"></label>
           </div>
         </div>`;
     };
@@ -878,8 +1110,14 @@ export class FractalConfigPanel {
         </div>
 
         <div class="fc-toolbar">
-          <div class="fc-family-buttons">${familyButtons}</div>
-          <div class="fc-progression-controls">
+          <div class="fc-toolbar-section fc-family-section">
+            <div class="fc-family-buttons">${familyButtons}</div>
+            <button class="fc-btn fc-info-btn" title="Family information">ℹ️</button>
+            <button class="fc-btn fc-atlas-btn" title="Toggle atlas grid overlay">🗺️</button>
+          </div>
+          <div class="fc-toolbar-divider"></div>
+          <div class="fc-toolbar-section fc-player-section">
+            <span class="fc-section-label">Player</span>
             <select class="fc-progression-select" id="fc-progression-select">
               <option value="scale">Scale</option>
               <option value="pop">Pop I-V-vi-IV</option>
@@ -890,14 +1128,9 @@ export class FractalConfigPanel {
             <button class="fc-btn fc-play-btn" id="fc-play-btn" title="Play progression">▶️</button>
             <span class="fc-progression-display" id="fc-progression-display"></span>
           </div>
+          <div class="fc-toolbar-divider"></div>
           <div class="fc-actions">
             <button class="fc-btn fc-clock-btn" title="Distribute on clock (cycles rotation)" style="display:none;">🕐</button>
-            <button class="fc-btn fc-shake-btn" title="Shake positions randomly">🫨</button>
-            <button class="fc-btn fc-surprise-btn" title="Regenerate unlocked anchors">🎲</button>
-            <span class="fc-temp-inline">🔥<input type="range" class="fc-global-temp" min="0" max="100" value="50" title="Temperature: reroll variation"></span>
-            <button class="fc-btn fc-lock-all-btn fc-lock-toolbar locked" title="Lock all">🔒</button>
-            <button class="fc-btn fc-unlock-all-btn fc-lock-toolbar" title="Unlock all">🔓</button>
-            <button class="fc-btn fc-atlas-btn" title="Toggle atlas grid overlay">🗺️ Atlas</button>
             <button class="fc-btn fc-copy-btn" title="Copy as TypeScript">📋</button>
             <button class="fc-btn fc-recall-btn" title="Reset orbits to cross (N/E/S/W)">↩</button>
             <button class="fc-btn fc-reset-btn">Reset</button>
@@ -922,9 +1155,53 @@ export class FractalConfigPanel {
             </div>
             <canvas id="fc-julia-canvas" width="${JULIA_SIZE}" height="${JULIA_SIZE}"></canvas>
             <div class="fc-julia-info" id="fc-julia-info">Select an anchor to preview</div>
+            <div class="fc-preview-range">
+              <span>⏸</span>
+              <input type="range" id="fc-preview-scale" min="0" max="200" value="100" title="Preview movement range">
+              <span>🔄</span>
+            </div>
             <div class="fc-palette-bar">${paletteButtons}</div>
 
             <div class="fc-assignments" id="fc-assignments"></div>
+          </div>
+        </div>
+
+        <div class="fc-info-modal" id="fc-info-modal">
+          <div class="fc-info-content">
+            <div class="fc-info-header">
+              <h3 id="fc-info-title">Family Name</h3>
+              <button class="fc-info-close">&times;</button>
+            </div>
+
+            <div class="fc-info-meta">
+              <span class="fc-info-meta-item"><strong>Year:</strong> <span id="fc-info-year">1980</span></span>
+              <span class="fc-info-meta-item"><strong>Creator:</strong> <span id="fc-info-creator">Unknown</span></span>
+              <span class="fc-info-meta-item"><strong>Category:</strong> <span id="fc-info-category">Polynomial</span></span>
+            </div>
+
+            <div class="fc-info-formula" id="fc-info-formula">z → z² + c</div>
+
+            <p class="fc-info-desc" id="fc-info-desc">Description</p>
+
+            <div class="fc-info-section">
+              <strong>Visual Characteristics:</strong>
+              <ul id="fc-info-traits-list"></ul>
+            </div>
+
+            <div class="fc-info-section">
+              <strong>Interesting c-values to explore:</strong>
+              <ul id="fc-info-hotspots-list" class="fc-info-hotspots"></ul>
+            </div>
+
+            <div class="fc-info-tips">
+              <strong>💡 Tips:</strong>
+              <p id="fc-info-tips-text">Exploration tips will appear here.</p>
+            </div>
+
+            <div class="fc-info-related">
+              <strong>Related Families:</strong>
+              <span id="fc-info-related-list"></span>
+            </div>
           </div>
         </div>
       </div>
@@ -956,8 +1233,28 @@ export class FractalConfigPanel {
     // Clock button (distribute on clock positions)
     this.container.querySelector('.fc-clock-btn')!.addEventListener('click', () => this.distributeOnClock());
 
-    // Shake button (random perturbation)
-    this.container.querySelector('.fc-shake-btn')!.addEventListener('click', () => this.shakePositions());
+    // Info button (show family information modal)
+    this.container.querySelector('.fc-info-btn')!.addEventListener('click', () => this.showFamilyInfo());
+
+    // Info modal close button
+    this.container.querySelector('.fc-info-close')!.addEventListener('click', () => this.hideFamilyInfo());
+
+    // Close modal on backdrop click
+    this.container.querySelector('#fc-info-modal')!.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).classList.contains('fc-info-modal')) {
+        this.hideFamilyInfo();
+      }
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        const modal = this.container.querySelector('#fc-info-modal') as HTMLElement;
+        if (modal.classList.contains('visible')) {
+          this.hideFamilyInfo();
+        }
+      }
+    });
 
     // Grid cell clicks (select degree + quality)
     this.container.querySelectorAll('.fc-grid-cell').forEach(cell => {
@@ -977,39 +1274,12 @@ export class FractalConfigPanel {
       });
     });
 
-    // Row lock button clicks
-    this.container.querySelectorAll('.fc-row-lock-btn').forEach(btn => {
+    // Hotspot cycling buttons
+    this.container.querySelectorAll('.fc-hotspot-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const deg = parseInt((btn as HTMLElement).dataset.deg!);
-        this.toggleRowLock(deg);
+        this.cycleHotspot(deg);
       });
-    });
-
-    // Individual cell lock button clicks
-    this.container.querySelectorAll('.fc-cell-lock').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const el = btn as HTMLElement;
-        const deg = parseInt(el.dataset.deg!);
-        const quality = el.dataset.quality!;
-        this.toggleCellLock(deg, quality);
-      });
-    });
-
-    // Derive row variations from major
-    this.container.querySelectorAll('.fc-derive-btn').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const deg = parseInt((btn as HTMLElement).dataset.deg!);
-        this.deriveRowFromMajor(deg);
-      });
-    });
-
-    // Action buttons
-    this.container.querySelector('.fc-surprise-btn')!.addEventListener('click', () => this.generateSurprise());
-    this.container.querySelector('.fc-global-temp')!.addEventListener('input', (e) => {
-      const temp = parseInt((e.target as HTMLInputElement).value) / 100;
-      this.setGlobalTemperature(temp);
     });
 
     // Orbit radius sliders per degree
@@ -1052,17 +1322,6 @@ export class FractalConfigPanel {
       });
     });
 
-    // Orbit mode toggle buttons
-    this.container.querySelectorAll('.fc-orbit-mode-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const deg = parseInt((btn as HTMLElement).dataset.deg!);
-        this.toggleOrbitMode(deg);
-        this.updateOrbitModeButton(deg);
-      });
-    });
-
-    this.container.querySelector('.fc-lock-all-btn')!.addEventListener('click', () => this.lockAll());
-    this.container.querySelector('.fc-unlock-all-btn')!.addEventListener('click', () => this.unlockAll());
     this.container.querySelector('.fc-atlas-btn')!.addEventListener('click', () => this.toggleAtlasGrid());
     this.container.querySelector('.fc-copy-btn')!.addEventListener('click', () => this.copyToClipboard());
     this.container.querySelector('.fc-recall-btn')!.addEventListener('click', () => this.recallOrbits());
@@ -1075,6 +1334,12 @@ export class FractalConfigPanel {
     bpmInput.addEventListener('input', () => {
       const v = parseInt(bpmInput.value);
       if (v >= 30 && v <= 300) this.previewBpm = v;
+    });
+
+    // Preview scale slider (0 = stopped, 100 = normal, 200 = big)
+    const previewScaleSlider = this.container.querySelector('#fc-preview-scale') as HTMLInputElement;
+    previewScaleSlider.addEventListener('input', () => {
+      this.previewScale = parseInt(previewScaleSlider.value) / 100;
     });
 
     // Palette buttons
@@ -1134,16 +1399,18 @@ export class FractalConfigPanel {
         const a = this.anchors.get(key);
         if (!a || a.familyIdx !== this.selectedFamily) continue;
 
-        // Check 4 points around the orbit ellipse
-        const rx = a.orbitRadius;
-        const ry = a.orbitRadius * a.orbitSkew;
+        // Check 4 points around the orbit (backbeat emphasis: beats 1,3 use skew)
+        const baseRadius = a.orbitRadius;
         const cosR = Math.cos(a.orbitRotation);
         const sinR = Math.sin(a.orbitRotation);
         for (let oi = 0; oi < 4; oi++) {
           // Beat points at 0, spread, 2*spread, 3*spread
+          // Backbeat emphasis: beats 1 and 3 get scaled radius
+          const isBackbeat = (oi === 1 || oi === 3);
+          const r = isBackbeat ? baseRadius * a.orbitSkew : baseRadius;
           const angle = oi * a.beatSpread;
-          const px = rx * Math.cos(angle);
-          const py = ry * Math.sin(angle);
+          const px = r * Math.cos(angle);
+          const py = r * Math.sin(angle);
           const dr = px * cosR - py * sinR;
           const di = px * sinR + py * cosR;
           const op = this.cToPixel(a.real + dr, a.imag + di);
@@ -1197,17 +1464,26 @@ export class FractalConfigPanel {
         const key = this.anchorKey(hit.deg, hit.quality);
         const a = this.anchors.get(key)!;
         // Calculate initial offset from anchor center (the orbit point that was clicked)
-        const angle = hit.orbitIdx * a.beatSpread;
-        const rx = a.orbitRadius;
-        const ry = a.orbitRadius * a.orbitSkew;
-        const px = rx * Math.cos(angle);
-        const py = ry * Math.sin(angle);
+        const beatAngle = hit.orbitIdx * a.beatSpread;
+        // Backbeat emphasis: beats 1 and 3 get scaled radius
+        const isBackbeat = (hit.orbitIdx === 1 || hit.orbitIdx === 3);
+        const r = isBackbeat ? a.orbitRadius * a.orbitSkew : a.orbitRadius;
+        const px = r * Math.cos(beatAngle);
+        const py = r * Math.sin(beatAngle);
         const cosR = Math.cos(a.orbitRotation);
         const sinR = Math.sin(a.orbitRotation);
         const startOffsetR = px * cosR - py * sinR;
         const startOffsetI = px * sinR + py * cosR;
-        // Save original radius and initial offset for drag
-        this.dragStartData = { origRadius: a.orbitRadius, startOffsetR, startOffsetI };
+        // Save original values for drag: radius, rotation, skew, spread, and beat angle
+        this.dragStartData = {
+          origRadius: a.orbitRadius,
+          origRotation: a.orbitRotation,
+          origSkew: a.orbitSkew,
+          origSpread: a.beatSpread,
+          beatAngle,
+          startOffsetR,
+          startOffsetI
+        };
         this.isDragging = true;
         canvas.style.cursor = 'move';
       } else if (hit.type === 'center') {
@@ -1260,17 +1536,38 @@ export class FractalConfigPanel {
       const dragAnchor = this.anchors.get(dragKey);
 
       if (this.dragMode === 'orbit' && dragAnchor?.familyIdx === this.selectedFamily) {
-        // Calculate new radius as distance from anchor center to current mouse position
-        // Start offset + drag delta = new offset from anchor center
+        // Calculate new offset from anchor center
         const newOffsetR = this.dragStartData.startOffsetR + cDx;
         const newOffsetI = this.dragStartData.startOffsetI + cDy;
         const newRadius = Math.sqrt(newOffsetR * newOffsetR + newOffsetI * newOffsetI);
 
+        // Calculate angle from anchor center to current position
+        const mouseAngle = Math.atan2(newOffsetI, newOffsetR);
+
         // Track snap mode for visual feedback
         this.snapMode = e.shiftKey ? 'cross' : 'none';
 
-        // Update orbit radius (skew and rotation preserved)
-        dragAnchor.orbitRadius = Math.max(0.01, newRadius);
+        if (e.ctrlKey || e.metaKey) {
+          // Ctrl/Cmd+drag: adjust skew (vertical) and spread (horizontal)
+          // Vertical motion adjusts skew
+          const skewSensitivity = 3.0;
+          const newSkew = this.dragStartData.origSkew + cDy * skewSensitivity;
+          dragAnchor.orbitSkew = Math.max(0.2, Math.min(2.0, newSkew));
+
+          // Horizontal motion adjusts beat spread (angle between beat points)
+          // Range: 0.1 rad (~6°) to 2.0 rad (~115°) - covers tight to wide spreads
+          const spreadSensitivity = 4.0;
+          const newSpread = this.dragStartData.origSpread + cDx * spreadSensitivity;
+          dragAnchor.beatSpread = Math.max(0.1, Math.min(2.0, newSpread));
+
+          // Also update radius
+          dragAnchor.orbitRadius = Math.max(0.01, newRadius);
+        } else {
+          // Normal drag: adjust radius and rotation
+          const newRotation = mouseAngle - this.dragStartData.beatAngle;
+          dragAnchor.orbitRadius = Math.max(0.01, newRadius);
+          dragAnchor.orbitRotation = newRotation;
+        }
         this.debouncedDraw();
       } else if (this.dragMode === 'center' && dragAnchor?.familyIdx === this.selectedFamily) {
         dragAnchor.real = this.dragStartData.real + cDx;
@@ -1297,8 +1594,8 @@ export class FractalConfigPanel {
           const key = this.anchorKey(this.dragDeg, this.selectedQuality);
           const a = this.anchors.get(key);
           if (a) this.startPreview(a);
-        } else {
-          // Click on empty — place anchor for current selection
+        } else if (e.ctrlKey || e.metaKey) {
+          // Ctrl/Cmd+click on empty — place anchor for current selection
           const pos = getPos(e);
           const c = this.pixelToC(pos.x, pos.y);
           const existing = this.currentAnchor;
@@ -1311,7 +1608,6 @@ export class FractalConfigPanel {
             orbitSkew: existing?.orbitSkew ?? DEFAULT_ORBIT_SKEW,
             orbitRotation: existing?.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
             beatSpread: existing?.beatSpread ?? DEFAULT_BEAT_SPREAD,
-            orbitMode: existing?.orbitMode ?? DEFAULT_ORBIT_MODE,
           });
 
           this.startPreview(this.anchors.get(this.currentKey)!);
@@ -1322,6 +1618,8 @@ export class FractalConfigPanel {
         const key = this.anchorKey(this.dragDeg, this.selectedQuality);
         const a = this.anchors.get(key);
         if (a) this.startPreview(a);
+        // Sync sliders to reflect any changes from dragging
+        this.syncOrbitSliders();
       }
 
       this.dragMode = null;
@@ -1430,72 +1728,6 @@ export class FractalConfigPanel {
     this.updateAssignments();
   }
 
-  private toggleCellLock(deg: number, quality: string): void {
-    const key = this.anchorKey(deg, quality);
-    if (this.lockedCells.has(key)) {
-      this.lockedCells.delete(key);
-    } else {
-      this.lockedCells.add(key);
-    }
-    this.updateLockButtons();
-  }
-
-  private toggleRowLock(deg: number): void {
-    // Check if all cells in row are locked
-    const allLocked = QUALITIES.every(q => this.lockedCells.has(this.anchorKey(deg, q.id)));
-
-    for (const q of QUALITIES) {
-      const key = this.anchorKey(deg, q.id);
-      if (allLocked) {
-        this.lockedCells.delete(key);
-      } else {
-        this.lockedCells.add(key);
-      }
-    }
-    this.updateLockButtons();
-  }
-
-  private updateLockButtons(): void {
-    // Update row lock buttons
-    this.container.querySelectorAll('.fc-row-lock-btn').forEach(btn => {
-      const deg = parseInt((btn as HTMLElement).dataset.deg!);
-      const allLocked = QUALITIES.every(q => this.lockedCells.has(this.anchorKey(deg, q.id)));
-      const someLocked = QUALITIES.some(q => this.lockedCells.has(this.anchorKey(deg, q.id)));
-      btn.textContent = allLocked ? '🔒' : (someLocked ? '🔐' : '🔓');
-      btn.classList.toggle('locked', allLocked);
-      btn.classList.toggle('partial', someLocked && !allLocked);
-    });
-
-    // Update individual cell lock buttons
-    this.container.querySelectorAll('.fc-cell-lock').forEach(btn => {
-      const el = btn as HTMLElement;
-      const deg = parseInt(el.dataset.deg!);
-      const quality = el.dataset.quality!;
-      const key = this.anchorKey(deg, quality);
-      const isLocked = this.lockedCells.has(key);
-      btn.textContent = isLocked ? '🔒' : '🔓';
-      btn.classList.toggle('locked', isLocked);
-    });
-  }
-
-  private lockAll(): void {
-    for (let deg = 0; deg <= 7; deg++) {
-      for (const q of QUALITIES) {
-        this.lockedCells.add(this.anchorKey(deg, q.id));
-      }
-    }
-    this.updateLockButtons();
-    const status = this.container.querySelector('#fc-status')!;
-    status.textContent = 'All cells locked';
-  }
-
-  private unlockAll(): void {
-    this.lockedCells.clear();
-    this.updateLockButtons();
-    const status = this.container.querySelector('#fc-status')!;
-    status.textContent = 'All cells unlocked';
-  }
-
   private toggleAtlasGrid(): void {
     this.showAtlasGrid = !this.showAtlasGrid;
     const btn = this.container.querySelector('.fc-atlas-btn')!;
@@ -1503,176 +1735,6 @@ export class FractalConfigPanel {
     this.drawOverlay();
     const status = this.container.querySelector('#fc-status')!;
     status.textContent = this.showAtlasGrid ? 'Atlas grid ON - showing Julia previews' : 'Atlas grid OFF';
-  }
-
-  /**
-   * Sample a Julia set at a c-value and return shape characteristics.
-   * Returns: { interiorRatio, boundaryRatio, avgEscape }
-   * - interiorRatio: 0-1, how much is filled (bold)
-   * - boundaryRatio: 0-1, how much is boundary detail (elegant)
-   * - avgEscape: average escape time for exterior (complexity)
-   */
-  private sampleJuliaShape(family: FractalFamily, cr: number, ci: number): {
-    interiorRatio: number;
-    boundaryRatio: number;
-    avgEscape: number;
-  } {
-    const sampleSize = 24;  // 24x24 grid
-    const range = 3.0;
-    const step = range / sampleSize;
-    const iter = 80;
-
-    let interior = 0;
-    let exterior = 0;
-    let boundary = 0;
-    let escapeSum = 0;
-
-    for (let py = 0; py < sampleSize; py++) {
-      for (let px = 0; px < sampleSize; px++) {
-        const fx = -range / 2 + px * step;
-        const fy = -range / 2 + py * step;
-        const esc = family.julia(fx, fy, cr, ci, iter);
-
-        if (esc === 0) {
-          interior++;
-        } else {
-          exterior++;
-          escapeSum += esc;
-          // Boundary = escapes slowly (high detail region)
-          if (esc > iter * 0.3) boundary++;
-        }
-      }
-    }
-
-    const total = sampleSize * sampleSize;
-    return {
-      interiorRatio: interior / total,
-      boundaryRatio: boundary / total,
-      avgEscape: exterior > 0 ? escapeSum / exterior : 0,
-    };
-  }
-
-  /**
-   * Search nearby for a c-value matching target shape characteristics.
-   */
-  private findShapeMatch(
-    family: FractalFamily,
-    baseR: number, baseI: number,
-    targetInterior: number,  // Target interior ratio
-    _targetVariance: number,  // How much variance is acceptable (for future use)
-    searchRadius: number,
-    samples: number
-  ): { real: number; imag: number } {
-    let bestR = baseR, bestI = baseI;
-    let bestScore = Infinity;
-
-    for (let i = 0; i < samples; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const dist = Math.random() * searchRadius;
-      const testR = baseR + Math.cos(angle) * dist;
-      const testI = baseI + Math.sin(angle) * dist;
-
-      const shape = this.sampleJuliaShape(family, testR, testI);
-
-      // Score: how close to target interior ratio
-      const score = Math.abs(shape.interiorRatio - targetInterior);
-
-      // Bonus for having good boundary detail (elegant shapes)
-      const boundaryBonus = shape.boundaryRatio > 0.1 ? -0.05 : 0;
-
-      if (score + boundaryBonus < bestScore) {
-        bestScore = score + boundaryBonus;
-        bestR = testR;
-        bestI = testI;
-      }
-    }
-
-    return { real: bestR, imag: bestI };
-  }
-
-  /**
-   * Generate quality variations from the Major anchor for a given degree.
-   * Uses escape ratio sampling to find appropriate shapes:
-   * - Major: balanced boundary (elegant) ~20-40% interior
-   * - Minor: slightly more filled (bolder) ~30-50% interior
-   * - Dom7: boundary-rich, complex ~15-35% interior
-   * - Min7: between major/minor ~25-45% interior
-   * - Dim: sparse, fragmented (dissonant) ~5-20% interior
-   * - Aug: unusual, asymmetric ~10-30% interior
-   */
-  private deriveRowFromMajor(deg: number): void {
-    const majorKey = this.anchorKey(deg, 'major');
-    const majorAnchor = this.anchors.get(majorKey);
-
-    if (!majorAnchor) {
-      const status = this.container.querySelector('#fc-status')!;
-      status.textContent = 'No major anchor to derive from — set one first';
-      return;
-    }
-
-    const family = FAMILIES[majorAnchor.familyIdx];
-
-    // Get major's shape characteristics as baseline
-    const majorShape = this.sampleJuliaShape(family, majorAnchor.real, majorAnchor.imag);
-
-    // Quality targets based on research
-    // interiorTarget: target fill ratio (bold = high, sparse = low)
-    // orbitScale: how much to scale orbits
-    // asymmetry: orbit asymmetry (tension)
-    const qualityParams: Record<string, {
-      interiorTarget: number;
-      orbitScale: number;
-      asymmetry: number;
-      searchRadius: number;
-    }> = {
-      'major': { interiorTarget: majorShape.interiorRatio, orbitScale: 1.0, asymmetry: 0, searchRadius: 0 },
-      'minor': { interiorTarget: majorShape.interiorRatio + 0.1, orbitScale: 1.1, asymmetry: 0.15, searchRadius: 0.08 },
-      'dom7':  { interiorTarget: majorShape.interiorRatio - 0.05, orbitScale: 1.3, asymmetry: 0.3, searchRadius: 0.1 },
-      'min7':  { interiorTarget: majorShape.interiorRatio + 0.05, orbitScale: 1.15, asymmetry: 0.2, searchRadius: 0.06 },
-      'dim':   { interiorTarget: Math.max(0.05, majorShape.interiorRatio - 0.15), orbitScale: 1.5, asymmetry: 0.5, searchRadius: 0.15 },
-      'aug':   { interiorTarget: majorShape.interiorRatio - 0.1, orbitScale: 1.25, asymmetry: 0.35, searchRadius: 0.12 },
-    };
-
-    // Generate each quality variation
-    for (const q of QUALITIES) {
-      if (q.id === 'major') continue;  // Keep major as-is
-
-      const key = this.anchorKey(deg, q.id);
-      // Skip locked cells
-      if (this.lockedCells.has(key)) continue;
-
-      const params = qualityParams[q.id];
-
-      // Search for matching shape near major anchor
-      const pos = this.findShapeMatch(
-        family,
-        majorAnchor.real, majorAnchor.imag,
-        params.interiorTarget,
-        0.1,  // variance tolerance
-        params.searchRadius,
-        30    // samples
-      );
-
-      // Scale orbit radius
-      const newRadius = majorAnchor.orbitRadius * params.orbitScale;
-
-      this.anchors.set(key, {
-        familyIdx: majorAnchor.familyIdx,
-        real: pos.real,
-        imag: pos.imag,
-        orbitRadius: newRadius,
-        orbitSkew: majorAnchor.orbitSkew * params.orbitScale,
-        orbitRotation: majorAnchor.orbitRotation,
-        beatSpread: majorAnchor.beatSpread,
-        orbitMode: majorAnchor.orbitMode,
-      });
-    }
-
-    const status = this.container.querySelector('#fc-status')!;
-    status.textContent = `Generated variations for ${DEGREE_NAMES[deg]} (major: ${(majorShape.interiorRatio * 100).toFixed(0)}% fill)`;
-
-    this.drawOverlay();
-    this.updateAssignments();
   }
 
   /** Reset current anchor's orbits to cardinal cross pattern (N/E/S/W) */
@@ -1714,7 +1776,7 @@ export class FractalConfigPanel {
       if (!a) continue;
 
       const f = FAMILIES[a.familyIdx];
-      lines.push(`    ${deg}: { real: ${a.real.toFixed(4)}, imag: ${a.imag.toFixed(4)}, type: ${f.typeNum}, orbitRadius: ${a.orbitRadius.toFixed(4)}, orbitSkew: ${a.orbitSkew.toFixed(2)}, orbitRotation: ${a.orbitRotation.toFixed(2)}, beatSpread: ${a.beatSpread.toFixed(2)}, orbitMode: '${a.orbitMode}' },`);
+      lines.push(`    ${deg}: { real: ${a.real.toFixed(4)}, imag: ${a.imag.toFixed(4)}, type: ${f.typeNum}, orbitRadius: ${a.orbitRadius.toFixed(4)}, orbitSkew: ${a.orbitSkew.toFixed(2)}, orbitRotation: ${a.orbitRotation.toFixed(2)}, beatSpread: ${a.beatSpread.toFixed(2)} },`);
     }
 
     lines.push('  },');
@@ -1922,7 +1984,6 @@ export class FractalConfigPanel {
         orbitSkew: sourceAnchor.orbitSkew,
         orbitRotation: sourceAnchor.orbitRotation,
         beatSpread: sourceAnchor.beatSpread,
-        orbitMode: sourceAnchor.orbitMode,
       });
     }
 
@@ -1985,7 +2046,6 @@ export class FractalConfigPanel {
               orbitSkew: a.orbitSkew ?? DEFAULT_ORBIT_SKEW,
               orbitRotation: a.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
               beatSpread: a.beatSpread ?? DEFAULT_BEAT_SPREAD,
-              orbitMode: a.orbitMode === 'beats' ? 'beats' : DEFAULT_ORBIT_MODE,
             };
             // Apply to all qualities for this degree
             for (const q of QUALITIES) {
@@ -1997,7 +2057,6 @@ export class FractalConfigPanel {
                 orbitSkew: anchor.orbitSkew,
                 orbitRotation: anchor.orbitRotation,
                 beatSpread: anchor.beatSpread,
-                orbitMode: anchor.orbitMode,
               });
             }
           }
@@ -2024,7 +2083,6 @@ export class FractalConfigPanel {
         orbitSkew: p.orbitSkew ?? DEFAULT_ORBIT_SKEW,
         orbitRotation: p.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
         beatSpread: p.beatSpread ?? DEFAULT_BEAT_SPREAD,
-        orbitMode: p.orbitMode === 'beats' ? 'beats' : DEFAULT_ORBIT_MODE,
       };
       // Apply to all qualities for this degree
       for (const q of QUALITIES) {
@@ -2036,7 +2094,6 @@ export class FractalConfigPanel {
           orbitSkew: anchor.orbitSkew,
           orbitRotation: anchor.orbitRotation,
           beatSpread: anchor.beatSpread,
-          orbitMode: anchor.orbitMode,
         });
       }
     }
@@ -2062,7 +2119,6 @@ export class FractalConfigPanel {
         orbitSkew: a.orbitSkew,
         orbitRotation: a.orbitRotation,
         beatSpread: a.beatSpread,
-        orbitMode: a.orbitMode,
       };
     }
     saveFractalAnchors(out);
@@ -2070,180 +2126,8 @@ export class FractalConfigPanel {
     this.hide();
   }
 
-  private generateSurprise(): void {
-    this.markAllThumbnailsDirty();
-    // Use the currently selected family for all anchors
-    const fi = this.selectedFamily;
-    const degreeTension = [0.1, 0.1, 0.35, 0.5, 0.3, 0.7, 0.45, 0.85];
-
-    // Count how many cells will be regenerated
-    let regeneratedCount = 0;
-
-    // Generate surprise anchors for unlocked cells only
-    for (let deg = 0; deg <= 7; deg++) {
-      for (const q of QUALITIES) {
-        const key = this.anchorKey(deg, q.id);
-
-        // Skip locked cells
-        if (this.lockedCells.has(key)) continue;
-
-        regeneratedCount++;
-        const temp = this.degreeTemperatures.get(deg) ?? 0.5;
-
-        // Get existing anchor or use default position
-        const existing = this.anchors.get(key);
-        const pt = this.findBoundaryPointWithTemp(fi, existing, temp);
-
-        const tension = degreeTension[deg];
-        const orbitRadius = (0.06 + tension * 0.25) * (0.5 + temp) * (0.8 + Math.random() * 0.4 * temp);
-        // Random skew: low temp = more circular, high temp = more elliptical
-        const orbitSkew = 1.0 + (Math.random() - 0.5) * temp * 1.0;
-        // Random rotation
-        const orbitRotation = Math.random() * Math.PI * 2 * temp;
-        // Random beat spread: low temp = 90°, high temp = random 30°-90°
-        const beatSpread = (0.5 + 0.5 * (1 - temp)) * Math.PI / 2 + Math.random() * temp * Math.PI / 4;
-        // Random orbit mode at high temp
-        const orbitMode: 'orbit' | 'beats' = temp > 0.7 && Math.random() > 0.5 ? 'beats' : 'orbit';
-
-        this.anchors.set(key, { familyIdx: fi, real: pt.r, imag: pt.i, orbitRadius, orbitSkew, orbitRotation, beatSpread, orbitMode });
-      }
-    }
-
-    // Update status to show what was regenerated
-    const status = this.container.querySelector('#fc-status')!;
-    const familyName = FAMILIES[fi].label;
-    const totalCells = 8 * QUALITIES.length;
-    if (regeneratedCount === 0) {
-      status.textContent = 'All cells locked — unlock some to regenerate';
-    } else if (this.lockedCells.size > 0) {
-      status.textContent = `Regenerated ${regeneratedCount} ${familyName} (${this.lockedCells.size} locked)`;
-    } else {
-      status.textContent = `Generated ${familyName} anchors for all ${totalCells} cells`;
-    }
-
-    this.syncOrbitSliders();
-    this.drawOverlay();
-
-    // Select first unlocked cell, or keep current if all locked
-    for (let deg = 1; deg <= 7; deg++) {
-      for (const q of QUALITIES) {
-        if (!this.lockedCells.has(this.anchorKey(deg, q.id))) {
-          this.selectDegreeQuality(deg, q.id);
-          // Re-mark dirty and update to ensure all thumbnails render
-          this.markAllThumbnailsDirty();
-          this.updateAssignments();
-          return;
-        }
-      }
-    }
-    // If all locked, still update assignments
-    this.updateAssignments();
-  }
-
-  private findBoundaryPoint(familyIdx: number): { r: number; i: number } {
-    const f = FAMILIES[familyIdx];
-    const b = f.bounds;
-    const iter = 150;
-    const probeR = 0.03;
-
-    let bestR = 0, bestI = 0, bestScore = -1;
-
-    for (let attempt = 0; attempt < 400; attempt++) {
-      const cr = b.rMin + Math.random() * (b.rMax - b.rMin);
-      const ci = b.iMin + Math.random() * (b.iMax - b.iMin);
-
-      const probes: [number, number][] = [
-        [cr, ci],
-        [cr + probeR, ci], [cr - probeR, ci],
-        [cr, ci + probeR], [cr, ci - probeR],
-        [cr + probeR * 0.7, ci + probeR * 0.7], [cr - probeR * 0.7, ci + probeR * 0.7],
-        [cr + probeR * 0.7, ci - probeR * 0.7], [cr - probeR * 0.7, ci - probeR * 0.7],
-      ];
-
-      let interior = 0, exterior = 0, escSum = 0;
-      for (const [pr, pi] of probes) {
-        const esc = f.locus(pr, pi, iter);
-        if (esc === 0) interior++;
-        else { exterior++; escSum += esc; }
-      }
-
-      if (interior === 0 || exterior === 0) continue;
-      const mixScore = Math.min(interior, exterior) / probes.length;
-      const outsideBias = exterior > interior ? 1.2 : 1.0;
-      const avgEsc = exterior > 0 ? escSum / exterior : 0;
-      const escBonus = avgEsc > 5 && avgEsc < iter * 0.7 ? 1.3 : 1.0;
-      const score = mixScore * outsideBias * escBonus;
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestR = cr;
-        bestI = ci;
-      }
-    }
-
-    return { r: bestR, i: bestI };
-  }
-
-  /** Find boundary point with temperature control - low temp stays near existing */
-  private findBoundaryPointWithTemp(
-    familyIdx: number,
-    existing: InternalAnchor | undefined,
-    temp: number
-  ): { r: number; i: number } {
-    // High temp or no existing: full random search
-    if (temp > 0.7 || !existing) {
-      return this.findBoundaryPoint(familyIdx);
-    }
-
-    const f = FAMILIES[familyIdx];
-    const b = f.bounds;
-    const iter = 150;
-    const probeR = 0.03;
-
-    // Search radius based on temperature (0 = very close, 1 = full bounds)
-    const searchRadius = temp * Math.max(b.rMax - b.rMin, b.iMax - b.iMin) * 0.5;
-
-    let bestR = existing.real, bestI = existing.imag, bestScore = -1;
-
-    for (let attempt = 0; attempt < 200; attempt++) {
-      // Sample around existing position
-      const angle = Math.random() * Math.PI * 2;
-      const dist = Math.random() * searchRadius;
-      const cr = Math.max(b.rMin, Math.min(b.rMax, existing.real + dist * Math.cos(angle)));
-      const ci = Math.max(b.iMin, Math.min(b.iMax, existing.imag + dist * Math.sin(angle)));
-
-      const probes: [number, number][] = [
-        [cr, ci],
-        [cr + probeR, ci], [cr - probeR, ci],
-        [cr, ci + probeR], [cr, ci - probeR],
-      ];
-
-      let interior = 0, exterior = 0, escSum = 0;
-      for (const [pr, pi] of probes) {
-        const esc = f.locus(pr, pi, iter);
-        if (esc === 0) interior++;
-        else { exterior++; escSum += esc; }
-      }
-
-      if (interior === 0 || exterior === 0) continue;
-      const mixScore = Math.min(interior, exterior) / probes.length;
-      const avgEsc = exterior > 0 ? escSum / exterior : 0;
-      const escBonus = avgEsc > 5 && avgEsc < iter * 0.7 ? 1.2 : 1.0;
-      const score = mixScore * escBonus;
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestR = cr;
-        bestI = ci;
-      }
-    }
-
-    return { r: bestR, i: bestI };
-  }
-
   private getLocusCacheKey(): string {
     const b = this.viewBounds[this.selectedFamily];
-    // Round to 2 decimals for cache stability
     return `${this.selectedFamily}:${b.rMin.toFixed(2)}:${b.rMax.toFixed(2)}:${b.iMin.toFixed(2)}:${b.iMax.toFixed(2)}`;
   }
 
@@ -2337,6 +2221,7 @@ export class FractalConfigPanel {
     this.dragDebounceTimer = requestAnimationFrame(() => {
       this.dragDebounceTimer = null;
       this.drawOverlay();
+      this.syncOrbitSliders();
     });
   }
 
@@ -2470,52 +2355,33 @@ export class FractalConfigPanel {
           const col = degreeColors[deg];
           const alpha = isSelectedDeg ? (isSelectedQuality ? 1.0 : 0.7) : 0.3;
 
-          // Draw orbit visualization - mode determines continuous ellipse vs discrete points
-          const rx = a.orbitRadius;
-          const ry = a.orbitRadius * a.orbitSkew;
+          // Draw beat points visualization
+          // Skew acts as backbeat emphasis: beats 1 and 3 get scaled radius
+          const baseRadius = a.orbitRadius;
           const cosR = Math.cos(a.orbitRotation);
           const sinR = Math.sin(a.orbitRotation);
-          const isOrbitMode = a.orbitMode === 'orbit';
 
           this.locusCtx.globalAlpha = alpha;
 
-          // In orbit mode, draw continuous ellipse path
-          if (isOrbitMode) {
-            this.locusCtx.beginPath();
-            const segments = 64;
-            for (let i = 0; i <= segments; i++) {
-              const angle = (i / segments) * Math.PI * 2;
-              const ex = rx * Math.cos(angle);
-              const ey = ry * Math.sin(angle);
-              const dr = ex * cosR - ey * sinR;
-              const di = ex * sinR + ey * cosR;
-              const ep = this.cToPixel(a.real + dr, a.imag + di);
-              if (i === 0) this.locusCtx.moveTo(ep.x, ep.y);
-              else this.locusCtx.lineTo(ep.x, ep.y);
-            }
-            this.locusCtx.strokeStyle = col;
-            this.locusCtx.lineWidth = isSelected ? 2 : 1;
-            this.locusCtx.stroke();
-          }
-
-          // Draw beat points (with lines in beats mode) - only for selected degree
+          // Draw 4 beat points with lines - only for selected degree
           if (isSelectedDeg) {
             for (let oi = 0; oi < 4; oi++) {
+              const isBackbeat = (oi === 1 || oi === 3);
+              const r = isBackbeat ? baseRadius * a.orbitSkew : baseRadius;
               const angle = oi * a.beatSpread;
-              const px = rx * Math.cos(angle);
-              const py = ry * Math.sin(angle);
+              const px = r * Math.cos(angle);
+              const py = r * Math.sin(angle);
               const dr = px * cosR - py * sinR;
               const di = px * sinR + py * cosR;
               const op = this.cToPixel(a.real + dr, a.imag + di);
 
-              if (!isOrbitMode) {
-                this.locusCtx.beginPath();
-                this.locusCtx.moveTo(p.x, p.y);
-                this.locusCtx.lineTo(op.x, op.y);
-                this.locusCtx.strokeStyle = ORBIT_COLORS[oi];
-                this.locusCtx.lineWidth = isSelected ? 1.5 : 1;
-                this.locusCtx.stroke();
-              }
+              // Draw line from center to beat point
+              this.locusCtx.beginPath();
+              this.locusCtx.moveTo(p.x, p.y);
+              this.locusCtx.lineTo(op.x, op.y);
+              this.locusCtx.strokeStyle = ORBIT_COLORS[oi];
+              this.locusCtx.lineWidth = isSelected ? 1.5 : 1;
+              this.locusCtx.stroke();
 
               this.locusCtx.beginPath();
               this.locusCtx.arc(op.x, op.y, isSelected ? 5 : 3, 0, Math.PI * 2);
@@ -2749,15 +2615,14 @@ export class FractalConfigPanel {
       const t = Math.sin(Math.PI * beatFrac);
       const beatIdx = Math.floor(beatFloat) % 4;
 
-      // Choose angle based on orbit mode
-      // 'orbit': continuous motion, 'beats': snap to beat points
-      const orbitAngle = anchor.orbitMode === 'beats'
-        ? beatIdx * anchor.beatSpread
-        : beatFloat * Math.PI * 0.5;
-      const rx = anchor.orbitRadius;
-      const ry = anchor.orbitRadius * anchor.orbitSkew;
-      const px = rx * Math.cos(orbitAngle) * t;
-      const py = ry * Math.sin(orbitAngle) * t;
+      // Beat-driven angle: snap to 4 beat points
+      // Skew acts as backbeat emphasis: beats 1 and 3 get scaled radius
+      const isBackbeat = (beatIdx === 1 || beatIdx === 3);
+      const baseR = anchor.orbitRadius * this.previewScale;
+      const effectiveR = isBackbeat ? baseR * anchor.orbitSkew : baseR;
+      const orbitAngle = beatIdx * anchor.beatSpread;
+      const px = effectiveR * Math.cos(orbitAngle) * t;
+      const py = effectiveR * Math.sin(orbitAngle) * t;
       const cosR = Math.cos(anchor.orbitRotation);
       const sinR = Math.sin(anchor.orbitRotation);
       const cr = anchor.real + px * cosR - py * sinR;
@@ -2786,7 +2651,9 @@ export class FractalConfigPanel {
 
     for (let py = 0; py < JULIA_SIZE; py++) {
       for (let px = 0; px < JULIA_SIZE; px++) {
-        const esc = f.julia(-half + px * step, -half + py * step, jR, jI, JULIA_ITER);
+        const fx = -half + px * step;
+        const fy = -half + py * step;
+        const esc = f.julia(fx, fy, jR, jI, JULIA_ITER);
         const idx = (py * JULIA_SIZE + px) * 4;
         if (esc === 0) {
           d[idx] = d[idx + 1] = d[idx + 2] = 0;

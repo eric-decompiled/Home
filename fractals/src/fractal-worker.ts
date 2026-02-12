@@ -39,7 +39,6 @@ ctx.onmessage = (e: MessageEvent) => {
   const maxIter: number = msg.maxIterations;
   const fType: number = msg.fractalType;
   const pP: number = msg.phoenixP;
-
   const cLUT: Uint8Array = msg.colorLUT;
 
   const rangeW = BASE_RANGE / zoomVal;
@@ -75,8 +74,12 @@ ctx.onmessage = (e: MessageEvent) => {
       const fx = rcx + dx * cosA - dy * sinA;
       const ry = rcy + dx * sinA + dy * cosA;
 
-      let x = fx,
-        y = ry;
+      // Mandelbrot: z₀ = 0, c = pixel; Julia: z₀ = pixel, c = anchor
+      const isMandelbrot = fType === 18;
+      let x = isMandelbrot ? 0 : fx;
+      let y = isMandelbrot ? 0 : ry;
+      const cR = isMandelbrot ? fx : jR;
+      const cI = isMandelbrot ? ry : jI;
       let x2 = x * x,
         y2 = y * y;
       let iteration = 0;
@@ -261,6 +264,11 @@ ctx.onmessage = (e: MessageEvent) => {
             ny = r3 * Math.sin(3 * theta) + jI;
             break;
           }
+          case 18:
+            // Mandelbrot Classic: z² + c where c=pixel, z₀=slider
+            nx = x2 - y2 + cR;
+            ny = 2 * x * y + cI;
+            break;
           default:
             nx = x2 - y2 + jR;
             ny = 2 * x * y + jI;
@@ -279,7 +287,7 @@ ctx.onmessage = (e: MessageEvent) => {
       } else if (isConvergence && rootIndex >= 0) {
         // Convergence coloring (Newton, Magnet): color by root, brightness by speed
         const baseColor = ROOT_COLORS[rootIndex % ROOT_COLORS.length];
-        const brightness = 0.3 + 0.7 * (1 - iteration * invMaxIter);
+        const brightness = 0.1 + 0.35 * (1 - iteration * invMaxIter);
 
         const oR = Math.min(255, Math.max(0, (baseColor[0] * brightness) | 0));
         const oG = Math.min(255, Math.max(0, (baseColor[1] * brightness) | 0));

@@ -7,7 +7,7 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 | Slot | Purpose | Effects |
 |------|---------|---------|
 | **Background** | Full-canvas animated backdrop | Chladni, Domain Warp, Waves, Flow Field, Starfield |
-| **Foreground** | Main visual element | Graph Sculpture (default), Note Spiral, Fractal, Piano Roll, Tonnetz |
+| **Foreground** | Main visual element | Graph Chain, Note Spiral, Fractal, Piano Roll, Tonnetz |
 | **Overlay** | Post-process effects | Kaleidoscope |
 | **Melody** | Melodic visualization | Melody Aurora, Melody Web, Melody Clock |
 | **Bass** | Bass note tracking | Bass Clock, Bass Web |
@@ -17,16 +17,17 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 
 | Preset | Background | Foreground | Overlay | Bass | HUD |
 |--------|------------|------------|---------|------|-----|
-| **Sculpture** (default) | — | Graph Sculpture | — | — | Theory Bar |
-| **Spiral** | Starfield | Note Spiral | — | Bass Clock | Theory Bar |
 | **Warp** | Chladni | Note Spiral (ring) | Kaleidoscope | Bass Clock | — |
+| **Clock** | Starfield | Note Spiral | — | Bass Clock | — |
+| **Spiral** (default) | Starfield | Star Spiral | — | Bass Fire | — |
 | **Fractal** | Flow Field | Fractal | — | — | Theory Bar |
+| **Chain** | — | Graph Chain | — | — | Theory Bar |
 | **Piano** | Flow Field | Piano Roll | — | — | — |
 
 ## Effect Catalog
 
-### Graph Sculpture
-`src/effects/graph-sculpture.ts` — Force-directed graph that grows methodically with the music, creating a unique sculpture by song's end. Inspired by [znah/graphs](https://github.com/znah/graphs). Features:
+### Graph Chain
+`src/effects/graph-chain.ts` — Force-directed graph that grows methodically with the music, creating a unique chain structure by song's end. Inspired by [znah/graphs](https://github.com/znah/graphs). Features:
 
 - **Melody chain**: Sequential melody notes (C5+) connect as a spine, creating a clear melodic thread through time
 - **Time-windowed Tonnetz**: Nodes connect only if they're perfect 4ths/5ths apart AND born within 1 bar of each other—creates local harmonic clusters without distant tangles
@@ -34,7 +35,9 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 - **Lure drag**: Oldest node is dragged rightward based on BPM, structure trails behind like a fishing lure through water
 - **Register gravity**: Bass nodes sink, melody nodes rise, mid floats—creates vertical stratification
 - **Live node glow**: Nodes < 4 bars old glow brighter with white-hot cores
-- **Bar debounce**: One node per pitch class per bar prevents overwhelming density
+- **Half-bar debounce**: One node per pitch class per register per half-bar allows arpeggios to spawn multiple notes
+- **Velocity cap**: Max velocity of 15 prevents explosive motion when nodes spawn on top of each other
+- **Minimum repulsion distance**: Nodes closer than 20px use clamped distance to prevent extreme forces
 - **Disconnected node fade**: Nodes without edges fade out after 4 bars TTL
 - **Curved edges**: Subtle bezier bow with soft glow, blended colors
 - **Auto-zoom**: Camera follows the drifting structure, only zooms out (never jarring zoom-in)

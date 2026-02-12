@@ -1,7 +1,7 @@
-// --- Graph Sculpture Effect ---
+// --- Graph Chain Effect ---
 // A force-directed graph that grows methodically with the music.
 // Melody notes add nodes, Tonnetz neighbors get edges.
-// By song's end, a unique sculpture has emerged.
+// By song's end, a unique chain has emerged.
 //
 // Inspired by: https://github.com/znah/graphs
 // - Rule-based graph evolution with force-directed layout
@@ -51,9 +51,9 @@ interface GraphEdge {
   lastActive: number;
 }
 
-export class GraphSculptureEffect implements VisualEffect {
-  readonly id = 'graph-sculpture';
-  readonly name = 'Graph Sculpture';
+export class GraphChainEffect implements VisualEffect {
+  readonly id = 'graph-chain';
+  readonly name = 'Graph Chain';
   readonly isPostProcess = false;
   readonly defaultBlend: BlendMode = 'screen';
   readonly defaultOpacity = 1.0;
@@ -98,9 +98,10 @@ export class GraphSculptureEffect implements VisualEffect {
   // Time window for Tonnetz connections (bars)
   private tonnetzWindowBars = 1;
 
-  // Debounce: only one node per pitch class per bar
-  private pitchSpawnedThisBar: Set<number> = new Set();
+  // Debounce: only one node per pitch class per half-bar
+  private pitchSpawnedThisBar: Set<string> = new Set();  // "register:pc" keys
   private lastBarIndex = -1;
+  private lastHalfBarIndex = -1;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -308,7 +309,9 @@ export class GraphSculptureEffect implements VisualEffect {
         const nj = this.nodes[j];
         const dx = nj.x - ni.x;
         const dy = nj.y - ni.y;
-        const d2 = dx * dx + dy * dy + 1;
+        // Min distance of 20 prevents explosive forces when nodes spawn on top of each other
+        const d2Raw = dx * dx + dy * dy;
+        const d2 = Math.max(400, d2Raw);  // 400 = 20^2
         const d = Math.sqrt(d2);
 
         // Calculate interval between pitch classes
@@ -374,10 +377,20 @@ export class GraphSculptureEffect implements VisualEffect {
       // Mid: no gravity, floats freely
     }
 
-    // Integration with damping
+    // Integration with damping and velocity cap
+    const maxVelocity = 15;  // Prevent explosive motion when nodes spawn on top of each other
     for (const node of this.nodes) {
       node.vx *= this.damping;
       node.vy *= this.damping;
+
+      // Cap velocity to prevent chaos from high repulsion
+      const speed = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+      if (speed > maxVelocity) {
+        const scale = maxVelocity / speed;
+        node.vx *= scale;
+        node.vy *= scale;
+      }
+
       node.x += node.vx * dt * 60;
       node.y += node.vy * dt * 60;
 
@@ -393,12 +406,16 @@ export class GraphSculptureEffect implements VisualEffect {
       else return;
     }
 
-    // === BAR TRACKING: Reset debounce every bar ===
+    // === HALF-BAR TRACKING: Reset debounce every half-bar for faster arpeggios ===
     const beatsElapsed = music.currentTime / music.beatDuration;
+    const currentHalfBar = Math.floor(beatsElapsed / (music.beatsPerBar / 2));
     const currentBar = Math.floor(beatsElapsed / music.beatsPerBar);
 
-    if (currentBar !== this.lastBarIndex) {
+    if (currentHalfBar !== this.lastHalfBarIndex) {
       this.pitchSpawnedThisBar.clear();
+      this.lastHalfBarIndex = currentHalfBar;
+    }
+    if (currentBar !== this.lastBarIndex) {
       this.lastBarIndex = currentBar;
     }
 
@@ -408,10 +425,13 @@ export class GraphSculptureEffect implements VisualEffect {
       if (voice.midi < 21 || voice.midi > 108) continue;  // Piano range
 
       const pc = voice.midi % 12;
+      const register = getRegister(voice.midi);
 
-      // Debounce: only one node per pitch class per bar
-      if (this.pitchSpawnedThisBar.has(pc)) continue;
-      this.pitchSpawnedThisBar.add(pc);
+      // Debounce: only one node per pitch class per register per bar
+      // This allows bass C, mid C, and melody C to all spawn in same bar
+      const spawnKey = `${register}:${pc}`;
+      if (this.pitchSpawnedThisBar.has(spawnKey)) continue;
+      this.pitchSpawnedThisBar.add(spawnKey);
 
       const idx = this.addNode(voice.midi, voice.velocity);
       const newNode = this.nodes[idx];
@@ -691,6 +711,7 @@ export class GraphSculptureEffect implements VisualEffect {
     this.pitchToNodeIdx.clear();
     this.pitchSpawnedThisBar.clear();
     this.lastBarIndex = -1;
+    this.lastHalfBarIndex = -1;
     this.lastMelodyNodeIdx = -1;
     // Reset zoom for fresh start
     this.currentScale = 1;

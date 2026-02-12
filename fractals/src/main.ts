@@ -22,7 +22,7 @@ import { StarSpiralEffect } from './effects/star-spiral.ts';
 import { PianoRollEffect } from './effects/piano-roll.ts';
 import { TheoryBarEffect } from './effects/theory-bar.ts';
 import { StarFieldEffect } from './effects/star-field.ts';
-import { GraphSculptureEffect } from './effects/graph-sculpture.ts';
+import { GraphChainEffect } from './effects/graph-chain.ts';
 import { FeedbackTrailEffect } from './effects/feedback-trail.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
 import {
@@ -133,7 +133,7 @@ const playlists: Record<PlaylistCategory, SongEntry[]> = {
   video: videoSongs,
 };
 
-let currentPlaylist: PlaylistCategory = 'bossa';
+let currentPlaylist: PlaylistCategory = 'video';
 
 // --- State ---
 
@@ -184,7 +184,7 @@ const starSpiralEffect = new StarSpiralEffect();
 const pianoRollEffect = new PianoRollEffect();
 const theoryBarEffect = new TheoryBarEffect();
 const starFieldEffect = new StarFieldEffect();
-const graphSculptureEffect = new GraphSculptureEffect();
+const graphChainEffect = new GraphChainEffect();
 const feedbackTrailEffect = new FeedbackTrailEffect();
 
 // --- Layer slot definitions (mutually exclusive within each slot) ---
@@ -203,8 +203,8 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Foreground',
-    effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect, starSpiralEffect, graphSculptureEffect],
-    activeId: 'graph-sculpture',  // Graph Sculpture default
+    effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect, starSpiralEffect, graphChainEffect],
+    activeId: 'graph-chain',  // Graph Sculpture default
   },
   {
     name: 'Overlay',
@@ -260,9 +260,9 @@ function applyURLSettings(): { presetApplied?: string } {
   const urlState = urlToState(window.location.search);
   const result: { presetApplied?: string } = {};
 
-  // If no URL params, apply default Warp preset (including configs)
+  // If no URL params, apply default Spiral preset (including configs)
   if (!urlState) {
-    const defaultPreset = getPresetState('warp');
+    const defaultPreset = getPresetState('spiral');
     if (defaultPreset) {
       applyState(defaultPreset, layerSlots, getAllEffects());
     }
@@ -299,9 +299,9 @@ app.innerHTML = `
         </button>
         <div class="mobile-presets mobile-only">
           <button class="mobile-preset-btn" id="mobile-bar-warp">Warp</button>
-          <button class="mobile-preset-btn" id="mobile-bar-spiral">Spiral</button>
           <button class="mobile-preset-btn" id="mobile-bar-clock">Clock</button>
-          <button class="mobile-preset-btn" id="mobile-bar-sculpture">Sculpt</button>
+          <button class="mobile-preset-btn" id="mobile-bar-spiral">Spiral</button>
+          <button class="mobile-preset-btn" id="mobile-bar-chain">Chain</button>
         </div>
         <div class="transport-compact">
           <button class="transport-btn" id="prev-btn" title="Previous track">
@@ -316,14 +316,14 @@ app.innerHTML = `
           </button>
         </div>
         <div class="playlist-category-wrap desktop-only">
-          <button class="toggle-btn playlist-btn active" id="playlist-bossa" title="Bossa nova">Bossa</button>
+          <button class="toggle-btn playlist-btn" id="playlist-bossa" title="Bossa nova">Bossa</button>
           <button class="toggle-btn playlist-btn" id="playlist-classical" title="Classical">Classical</button>
           <button class="toggle-btn playlist-btn" id="playlist-pop" title="Pop & rock">Classics</button>
-          <button class="toggle-btn playlist-btn" id="playlist-video" title="Video games">Games</button>
+          <button class="toggle-btn playlist-btn active" id="playlist-video" title="Video games">Games</button>
         </div>
         <div class="song-picker-wrap">
           <select id="song-picker">
-            ${bossaSongs.map((s, i) => `<option value="${i}"${i === 3 ? ' selected' : ''}>${s.name}</option>`).join('')}
+            ${videoSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
           </select>
         </div>
         <div class="seek-wrap">
@@ -332,10 +332,10 @@ app.innerHTML = `
         </div>
         <div class="preset-buttons desktop-only">
           <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope">Warp</button>
-          <button class="toggle-btn preset-btn" id="preset-spiral" title="Starfield + Star Spiral + Bass Fire">Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-clock" title="Starfield + Note Spiral + Bass Clock">Clock</button>
+          <button class="toggle-btn preset-btn" id="preset-spiral" title="Starfield + Star Spiral + Bass Fire">Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar">Fractal</button>
-          <button class="toggle-btn preset-btn" id="preset-sculpture" title="Graph Sculpture + Theory Bar">Sculpture</button>
+          <button class="toggle-btn preset-btn" id="preset-chain" title="Chain + Theory Bar">Chain</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
           <button class="toggle-btn" id="layers-toggle">Custom</button>
           <div class="custom-presets-wrap" id="custom-presets"></div>
@@ -354,20 +354,20 @@ app.innerHTML = `
       <div class="mobile-menu-section">
         <div class="mobile-menu-label">Playlist</div>
         <div class="mobile-menu-buttons">
-          <button class="toggle-btn playlist-btn active" id="mobile-playlist-bossa">Bossa</button>
+          <button class="toggle-btn playlist-btn" id="mobile-playlist-bossa">Bossa</button>
           <button class="toggle-btn playlist-btn" id="mobile-playlist-classical">Classical</button>
           <button class="toggle-btn playlist-btn" id="mobile-playlist-pop">Classics</button>
-          <button class="toggle-btn playlist-btn" id="mobile-playlist-video">Games</button>
+          <button class="toggle-btn playlist-btn active" id="mobile-playlist-video">Games</button>
         </div>
       </div>
       <div class="mobile-menu-section">
         <div class="mobile-menu-label">View</div>
         <div class="mobile-menu-buttons">
           <button class="toggle-btn preset-btn" id="mobile-preset-warp">Warp</button>
-          <button class="toggle-btn preset-btn" id="mobile-preset-spiral">Spiral</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-clock">Clock</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-spiral">Spiral</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-fractal">Fractal</button>
-          <button class="toggle-btn preset-btn" id="mobile-preset-sculpture">Sculpture</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-chain">Chain</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-piano">Piano</button>
         </div>
       </div>
@@ -704,8 +704,8 @@ function updateBrowserURL(): void {
   const params = new URLSearchParams(baseQuery);
 
   // Playlist/track use short param names, separate from effect state
-  // Default is bossa playlist, track 0
-  if (currentPlaylist !== 'bossa') {
+  // Default is video (Games) playlist, track 0
+  if (currentPlaylist !== 'video') {
     params.set('l', currentPlaylist);
   }
   if (songPicker.value !== '0') {
@@ -942,9 +942,7 @@ canvas.addEventListener('mouseleave', () => {
 // --- Animations panel toggle ---
 
 let layerPanelOpen = false;
-// Set initial state
-layersToggle.classList.add('active');
-layerPanel.classList.add('open');
+// Layer panel closed by default
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
@@ -977,11 +975,9 @@ fractalConfigPanel.onSave = () => {
   dirty = true;
 };
 
-// --- GRA Config Panel (for graph-sculpture effect) ---
+// --- GRA Config Panel (for graph-chain effect) ---
 
 const graConfigPanel = new GRAConfigPanel();
-
-// Config panels start closed - user can open via Config buttons
 
 // --- Build layer panel UI ---
 
@@ -1018,18 +1014,18 @@ function buildLayerPanel(): void {
       select.appendChild(opt);
     }
 
-    // Config button for fractal and graph-sculpture effects (only in Foreground slot)
+    // Config button for fractal and graph-chain effects (only in Foreground slot)
     let configBtn: HTMLButtonElement | null = null;
     if (slot.name === 'Foreground') {
       configBtn = document.createElement('button');
       configBtn.className = 'slot-config-link';
       configBtn.textContent = 'Custom';
-      const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-sculpture';
+      const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-chain';
       configBtn.style.display = hasConfig ? 'block' : 'none';
       configBtn.addEventListener('click', () => {
         if (slot.activeId === 'fractal') {
           fractalConfigPanel.show();
-        } else if (slot.activeId === 'graph-sculpture') {
+        } else if (slot.activeId === 'graph-chain') {
           graConfigPanel.show();
         }
       });
@@ -1043,9 +1039,9 @@ function buildLayerPanel(): void {
       dirty = true;
       markUnsavedChanges();
       updateBrowserURL();
-      // Show/hide config button for fractal and graph-sculpture
+      // Show/hide config button for fractal and graph-chain
       if (configBtn) {
-        const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-sculpture';
+        const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-chain';
         configBtn.style.display = hasConfig ? 'block' : 'none';
       }
     });
@@ -1084,9 +1080,9 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
     presetBtns.className = 'fractal-preset-buttons';
 
     const presets = [
+      { id: 'beat-voyage', name: 'Beat Voyage' },
+      { id: 'celtic-knots', name: 'Celtic Knots' },
       { id: 'phoenix-journey', name: 'Phoenix Journey' },
-      { id: 'julia-classics', name: 'Julia Classics' },
-      { id: 'organic-flow', name: 'Organic Flow' },
     ];
 
     for (const preset of presets) {
@@ -1217,23 +1213,23 @@ buildLayerPanel();
 
 // --- Preset buttons ---
 
-type PresetName = 'spiral' | 'clock' | 'warp' | 'fractal' | 'piano' | 'sculpture';
+type PresetName = 'spiral' | 'warp' | 'clock' | 'fractal' | 'piano' | 'chain';
 const presetButtons: Record<PresetName, HTMLButtonElement> = {
   spiral: document.getElementById('preset-spiral') as HTMLButtonElement,
-  clock: document.getElementById('preset-clock') as HTMLButtonElement,
   warp: document.getElementById('preset-warp') as HTMLButtonElement,
+  clock: document.getElementById('preset-clock') as HTMLButtonElement,
   fractal: document.getElementById('preset-fractal') as HTMLButtonElement,
   piano: document.getElementById('preset-piano') as HTMLButtonElement,
-  sculpture: document.getElementById('preset-sculpture') as HTMLButtonElement,
+  chain: document.getElementById('preset-chain') as HTMLButtonElement,
 };
 
-// Highlight preset button based on URL settings or default to Sculpture
+// Highlight preset button based on URL settings or default to Spiral
 if (urlSettingsResult.presetApplied) {
   const btn = presetButtons[urlSettingsResult.presetApplied as PresetName];
   if (btn) btn.classList.add('active');
 } else if (!urlToState(window.location.search)) {
-  // Default to Sculpture if no URL params
-  presetButtons.sculpture.classList.add('active');
+  // Default to Spiral if no URL params
+  presetButtons.spiral.classList.add('active');
 }
 
 function applyPreset(preset: PresetName): void {
@@ -1285,11 +1281,11 @@ for (const [name, btn] of Object.entries(presetButtons)) {
 // Mobile preset buttons
 const mobilePresetButtons: Record<PresetName, HTMLButtonElement> = {
   spiral: document.getElementById('mobile-preset-spiral') as HTMLButtonElement,
-  clock: document.getElementById('mobile-preset-clock') as HTMLButtonElement,
   warp: document.getElementById('mobile-preset-warp') as HTMLButtonElement,
+  clock: document.getElementById('mobile-preset-clock') as HTMLButtonElement,
   fractal: document.getElementById('mobile-preset-fractal') as HTMLButtonElement,
   piano: document.getElementById('mobile-preset-piano') as HTMLButtonElement,
-  sculpture: document.getElementById('mobile-preset-sculpture') as HTMLButtonElement,
+  chain: document.getElementById('mobile-preset-chain') as HTMLButtonElement,
 };
 
 for (const [name, btn] of Object.entries(mobilePresetButtons)) {
@@ -1308,9 +1304,9 @@ if (urlSettingsResult.presetApplied) {
 // Mobile bar preset buttons (in top bar)
 const mobileBarPresets: Record<string, HTMLButtonElement> = {
   spiral: document.getElementById('mobile-bar-spiral') as HTMLButtonElement,
-  clock: document.getElementById('mobile-bar-clock') as HTMLButtonElement,
   warp: document.getElementById('mobile-bar-warp') as HTMLButtonElement,
-  sculpture: document.getElementById('mobile-bar-sculpture') as HTMLButtonElement,
+  clock: document.getElementById('mobile-bar-clock') as HTMLButtonElement,
+  chain: document.getElementById('mobile-bar-chain') as HTMLButtonElement,
 };
 
 for (const [name, btn] of Object.entries(mobileBarPresets)) {

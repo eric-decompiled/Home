@@ -66,7 +66,6 @@ export interface FractalAnchor {
   orbitSkew?: number;   // aspect ratio: 1=circle, <1=wide, >1=tall (default 1)
   orbitRotation?: number; // ellipse rotation in radians (default 0)
   beatSpread?: number;  // angle between beat points in radians (default π/2 = 90°)
-  orbitMode?: 'orbit' | 'beats';  // continuous orbit vs discrete beat jumps (default 'orbit')
 }
 
 // Full anchors for all degrees (0-7, where 0 mirrors 1)
@@ -194,7 +193,7 @@ export const PRESET_LAYERS: Record<string, (string | null)[]> = {
   warp: ['chladni', 'note-spiral', 'kaleidoscope', null, 'bass-clock', null],
   fractal: ['flowfield', 'fractal', null, null, null, 'theory-bar'],
   piano: ['flowfield', 'piano-roll', null, null, null, null],
-  sculpture: [null, 'graph-sculpture', null, null, null, 'theory-bar'],
+  chain: [null, 'graph-chain', null, null, null, 'theory-bar'],
 };
 
 // Preset-specific effect configs (applied when preset is selected)
@@ -209,10 +208,10 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
     'note-spiral': { setShapes: 'ring' },
   },
   fractal: {
-    'fractal': { preset: 'organic-flow:Organic Flow' },
+    'fractal': { preset: 'celtic-knots:Celtic Knots' },
   },
   piano: {},
-  sculpture: {},
+  chain: {},
 };
 
 // --- Default Config Values ---
@@ -780,20 +779,18 @@ const RADIUS_LARGE = 0.10;    // Stable families (Newton, Sine)
 // Each uses family-appropriate orbit radius based on boundary sensitivity
 export const BUILTIN_ANCHOR_PRESETS: AnchorPreset[] = [
   {
-    id: 'julia-classics',
-    name: 'Julia Classics',
+    id: 'beat-voyage',
+    name: 'Beat Voyage',
     builtIn: true,
     anchors: {
-      // Spread around Mandelbrot boundary - no crossing orbits
-      // Positioned in different quadrants/regions for visual variety
-      0: { real: 0.28, imag: 0.53, type: 0, orbitRadius: RADIUS_MEDIUM },     // chromatic: upper right filament
-      1: { real: -0.12, imag: 0.74, type: 0, orbitRadius: RADIUS_MEDIUM },    // I: top (seahorse valley)
-      2: { real: -0.75, imag: 0.11, type: 0, orbitRadius: RADIUS_MEDIUM },    // ii: left side cardioid edge
-      3: { real: -1.25, imag: 0.0, type: 0, orbitRadius: RADIUS_MEDIUM },     // iii: left antenna (black ok)
-      4: { real: -0.74, imag: -0.18, type: 0, orbitRadius: RADIUS_MEDIUM },   // IV: lower left cardioid
-      5: { real: 0.36, imag: -0.35, type: 0, orbitRadius: RADIUS_MEDIUM },    // V: lower right filament
-      6: { real: -0.16, imag: -0.65, type: 0, orbitRadius: RADIUS_MEDIUM },   // vi: bottom
-      7: { real: -1.0, imag: 0.27, type: 0, orbitRadius: RADIUS_MEDIUM },     // vii: period-2 bulb upper
+      0: { real: 0.2800, imag: 0.5300, type: 0, orbitRadius: 0.0500, orbitSkew: 1.00, orbitRotation: 0.00, beatSpread: 1.57 },
+      1: { real: -0.8649, imag: 0.2083, type: 6, orbitRadius: 0.3199, orbitSkew: 1.50, orbitRotation: 1.83, beatSpread: 0.16 },
+      2: { real: -0.8149, imag: 0.3799, type: 0, orbitRadius: 0.1094, orbitSkew: 1.00, orbitRotation: 4.00, beatSpread: 0.69 },
+      3: { real: -0.6572, imag: 0.7617, type: 8, orbitRadius: 0.2480, orbitSkew: 1.00, orbitRotation: -0.09, beatSpread: 0.46 },
+      4: { real: -0.6267, imag: -0.8198, type: 9, orbitRadius: 0.2671, orbitSkew: 0.62, orbitRotation: -1.43, beatSpread: 0.24 },
+      5: { real: 0.6866, imag: -0.5589, type: 9, orbitRadius: 0.4612, orbitSkew: 0.59, orbitRotation: -1.93, beatSpread: 0.31 },
+      6: { real: 0.4743, imag: -0.2137, type: 5, orbitRadius: 0.1000, orbitSkew: 2.00, orbitRotation: -1.02, beatSpread: 0.15 },
+      7: { real: -0.8474, imag: -0.4560, type: 0, orbitRadius: 0.1794, orbitSkew: 1.00, orbitRotation: 0.49, beatSpread: 0.57 },
     },
   },
   {
@@ -887,20 +884,20 @@ export const BUILTIN_ANCHOR_PRESETS: AnchorPreset[] = [
     },
   },
   {
-    id: 'organic-flow',
-    name: 'Organic Flow',
+    id: 'celtic-knots',
+    name: 'Celtic Knots',
     builtIn: true,
     anchors: {
-      // All Phoenix (5) - journey around parameter space
-      // Arranged like circle of fifths: tonic at "home", tension opposite
-      0: { real: 0.60, imag: 0.00, type: 5, orbitRadius: 0.14 },   // chromatic
-      1: { real: 0.55, imag: 0.30, type: 5, orbitRadius: 0.12 },   // I tonic
-      2: { real: -0.20, imag: 0.60, type: 5, orbitRadius: 0.16 },  // ii
-      3: { real: 0.30, imag: 0.55, type: 5, orbitRadius: 0.14 },   // iii
-      4: { real: 0.50, imag: -0.35, type: 5, orbitRadius: 0.12 },  // IV
-      5: { real: -0.45, imag: -0.45, type: 5, orbitRadius: 0.17 }, // V (tension)
-      6: { real: 0.15, imag: 0.60, type: 5, orbitRadius: 0.11 },   // vi
-      7: { real: -0.55, imag: 0.35, type: 5, orbitRadius: 0.19 },  // vii (max tension)
+      // All Celtic (6) - knot patterns spread across c-plane
+      // Larger orbits (0.18-0.35) for visible motion in Celtic family
+      0: { real: -0.40, imag: 0.60, type: 6, orbitRadius: 0.22 },   // chromatic: upper left
+      1: { real: -0.80, imag: 0.16, type: 6, orbitRadius: 0.20 },   // I tonic: cardioid edge
+      2: { real: -0.45, imag: -0.50, type: 6, orbitRadius: 0.25 },  // ii: lower left
+      3: { real: 0.30, imag: 0.55, type: 6, orbitRadius: 0.22 },    // iii: upper right
+      4: { real: -1.00, imag: 0.30, type: 6, orbitRadius: 0.28 },   // IV: far left bulb
+      5: { real: 0.35, imag: -0.40, type: 6, orbitRadius: 0.30 },   // V: lower right (tension)
+      6: { real: -0.20, imag: 0.70, type: 6, orbitRadius: 0.20 },   // vi: top
+      7: { real: -0.75, imag: -0.25, type: 6, orbitRadius: 0.35 },  // vii: lower far (max tension)
     },
   },
   {
