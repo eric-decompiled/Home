@@ -88,25 +88,8 @@ export class FractalEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    const presets = getAnchorPresets();
-    // Format: "id:Display Name" - id for lookup, name for display
-    const options: string[] = [
-      'current:Current',
-      ...presets.map(p => `${p.id}:${p.builtIn ? p.name : '★ ' + p.name}`),
-    ];
-
-    // Find current option string
-    const currentOption = options.find(o => o.startsWith(this.currentPresetId + ':')) || options[0];
-
-    return [
-      {
-        key: 'preset',
-        label: 'Anchor Preset',
-        type: 'select',
-        value: currentOption,
-        options,
-      },
-    ];
+    // Preset selection moved to sidebar buttons
+    return [];
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {

@@ -812,8 +812,8 @@ export class FractalConfigPanel {
   }
 
   private buildHTML(): string {
-    const familyOptions = FAMILIES.map((f, i) =>
-      `<option value="${i}">${f.label}</option>`
+    const familyButtons = FAMILIES.map((f, i) =>
+      `<button class="fc-family-btn${i === 0 ? ' active' : ''}" data-family="${i}">${f.label}</button>`
     ).join('');
 
     // Build degree × quality grid - multiple degrees per row
@@ -878,7 +878,7 @@ export class FractalConfigPanel {
         </div>
 
         <div class="fc-toolbar">
-          <select class="fc-family-select" id="fc-family-select">${familyOptions}</select>
+          <div class="fc-family-buttons">${familyButtons}</div>
           <div class="fc-progression-controls">
             <select class="fc-progression-select" id="fc-progression-select">
               <option value="scale">Scale</option>
@@ -940,13 +940,17 @@ export class FractalConfigPanel {
       if (e.target === this.container) this.hide();
     });
 
-    // Family select
-    const familySelect = this.container.querySelector('#fc-family-select') as HTMLSelectElement;
-    familySelect.addEventListener('change', () => {
-      this.selectedFamily = parseInt(familySelect.value);
-      this.updateClockButtonVisibility();
-      this.renderLocus();
-      this.drawOverlay();
+    // Family buttons
+    const familyBtns = this.container.querySelectorAll('.fc-family-btn');
+    familyBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        familyBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.selectedFamily = parseInt((btn as HTMLElement).dataset.family!);
+        this.updateClockButtonVisibility();
+        this.renderLocus();
+        this.drawOverlay();
+      });
     });
 
     // Clock button (distribute on clock positions)
@@ -1412,8 +1416,10 @@ export class FractalConfigPanel {
     if (a) {
       // Switch to this anchor's family
       this.selectedFamily = a.familyIdx;
-      const familySelect = this.container.querySelector('#fc-family-select') as HTMLSelectElement;
-      familySelect.value = String(a.familyIdx);
+      const familyBtns = this.container.querySelectorAll('.fc-family-btn');
+      familyBtns.forEach(b => b.classList.remove('active'));
+      const activeBtn = this.container.querySelector(`.fc-family-btn[data-family="${a.familyIdx}"]`);
+      activeBtn?.classList.add('active');
       this.updateClockButtonVisibility();
       this.renderLocus();
       this.startPreview(a);

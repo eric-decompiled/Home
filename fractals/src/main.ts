@@ -23,6 +23,7 @@ import { PianoRollEffect } from './effects/piano-roll.ts';
 import { TheoryBarEffect } from './effects/theory-bar.ts';
 import { StarFieldEffect } from './effects/star-field.ts';
 import { GraphSculptureEffect } from './effects/graph-sculpture.ts';
+import { FeedbackTrailEffect } from './effects/feedback-trail.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
 import {
   type VisualizerState,
@@ -44,6 +45,8 @@ import {
   migrateState,
   isFullExport,
   setCustomPresets,
+  getAnchorPresets,
+  applyAnchorPreset,
   type FullExport,
 } from './state.ts';
 import { FractalConfigPanel } from './fractal-config.ts';
@@ -182,6 +185,7 @@ const pianoRollEffect = new PianoRollEffect();
 const theoryBarEffect = new TheoryBarEffect();
 const starFieldEffect = new StarFieldEffect();
 const graphSculptureEffect = new GraphSculptureEffect();
+const feedbackTrailEffect = new FeedbackTrailEffect();
 
 // --- Layer slot definitions (mutually exclusive within each slot) ---
 
@@ -204,7 +208,7 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Overlay',
-    effects: [kaleidoscopeEffect],
+    effects: [kaleidoscopeEffect, feedbackTrailEffect],
     activeId: null,
   },
   {
@@ -330,7 +334,7 @@ app.innerHTML = `
           <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope">Warp</button>
           <button class="toggle-btn preset-btn" id="preset-spiral" title="Starfield + Star Spiral + Bass Fire">Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-clock" title="Starfield + Note Spiral + Bass Clock">Clock</button>
-          <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar" style="display:none;">Fractal</button>
+          <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar">Fractal</button>
           <button class="toggle-btn preset-btn" id="preset-sculpture" title="Graph Sculpture + Theory Bar">Sculpture</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
           <button class="toggle-btn" id="layers-toggle">Custom</button>
@@ -362,7 +366,7 @@ app.innerHTML = `
           <button class="toggle-btn preset-btn" id="mobile-preset-warp">Warp</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-spiral">Spiral</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-clock">Clock</button>
-          <button class="toggle-btn preset-btn" id="mobile-preset-fractal" style="display:none;">Fractal</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-fractal">Fractal</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-sculpture">Sculpture</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-piano">Piano</button>
         </div>
@@ -937,8 +941,10 @@ canvas.addEventListener('mouseleave', () => {
 
 // --- Animations panel toggle ---
 
-let layerPanelOpen = false;  // Closed by default
-// layersToggle and layerPanel start without 'active'/'open' classes
+let layerPanelOpen = false;
+// Set initial state
+layersToggle.classList.add('active');
+layerPanel.classList.add('open');
 layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
@@ -1017,7 +1023,7 @@ function buildLayerPanel(): void {
     if (slot.name === 'Foreground') {
       configBtn = document.createElement('button');
       configBtn.className = 'slot-config-link';
-      configBtn.textContent = 'Config';
+      configBtn.textContent = 'Custom';
       const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-sculpture';
       configBtn.style.display = hasConfig ? 'block' : 'none';
       configBtn.addEventListener('click', () => {
@@ -1069,11 +1075,42 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
   const effect = slot.effects.find(e => e.id === slot.activeId);
   if (!effect) return;
 
-  const configs = effect.getConfig();
-  if (configs.length === 0) return;
-
   const configDiv = document.createElement('div');
   configDiv.className = 'slot-config';
+
+  // Special handling for fractal presets - show quick buttons
+  if (slot.activeId === 'fractal') {
+    const presetBtns = document.createElement('div');
+    presetBtns.className = 'fractal-preset-buttons';
+
+    const presets = [
+      { id: 'phoenix-journey', name: 'Phoenix Journey' },
+      { id: 'julia-classics', name: 'Julia Classics' },
+      { id: 'organic-flow', name: 'Organic Flow' },
+    ];
+
+    for (const preset of presets) {
+      const btn = document.createElement('button');
+      btn.className = 'fractal-preset-btn';
+      btn.textContent = preset.name;
+      btn.addEventListener('click', () => {
+        const allPresets = getAnchorPresets();
+        const found = allPresets.find(p => p.id === preset.id);
+        if (found) {
+          applyAnchorPreset(found);
+          musicMapper.reloadAnchors();
+        }
+      });
+      presetBtns.appendChild(btn);
+    }
+
+    configDiv.appendChild(presetBtns);
+    container.appendChild(configDiv);
+    return;
+  }
+
+  const configs = effect.getConfig();
+  if (configs.length === 0) return;
 
   for (const cfg of configs) {
     const row = document.createElement('div');

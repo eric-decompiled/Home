@@ -531,6 +531,32 @@ a.toggle-btn {
   padding: 8px 0 2px 0;
 }
 
+.fractal-preset-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fractal-preset-btn {
+  padding: 8px 12px;
+  background: linear-gradient(135deg, #2a1a4a 0%, #1a2a3a 100%);
+  border: 1px solid #8844cc;
+  border-radius: 6px;
+  color: #cc88ff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.fractal-preset-btn:hover {
+  background: linear-gradient(135deg, #3a2a5a 0%, #2a3a4a 100%);
+  border-color: #aa66ee;
+  color: #eeccff;
+  transform: translateX(2px);
+}
+
 .config-row {
   display: flex;
   align-items: center;
@@ -1444,18 +1470,33 @@ body.ios-landscape-fullscreen canvas {
   flex-wrap: wrap;
 }
 
-.fc-family-select {
-  padding: 6px 10px;
+.fc-family-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 600px;
+}
+
+.fc-family-btn {
+  padding: 4px 8px;
   background: #1a1a2e;
   border: 1px solid #0f3460;
   border-radius: 4px;
-  color: #fff;
-  font-size: 13px;
+  color: #888;
+  font-size: 11px;
   cursor: pointer;
+  transition: all 0.15s;
 }
 
-.fc-family-select:focus {
-  outline: none;
+.fc-family-btn:hover {
+  background: #252540;
+  color: #fff;
+  border-color: #16c79a;
+}
+
+.fc-family-btn.active {
+  background: rgba(22, 199, 154, 0.2);
+  color: #16c79a;
   border-color: #16c79a;
 }
 

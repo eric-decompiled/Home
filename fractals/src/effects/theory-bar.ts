@@ -76,7 +76,7 @@ export class TheoryBarEffect implements VisualEffect {
   private beatPosition = 0;
 
   // Config
-  private barHeight = 64;
+  private barHeight = 72;
   private scale = 1; // Computed each frame based on barHeight
 
   private currentKey = '';
