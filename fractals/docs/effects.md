@@ -28,16 +28,16 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 ### Graph Sculpture
 `src/effects/graph-sculpture.ts` — Force-directed graph that grows methodically with the music, creating a unique sculpture by song's end. Inspired by [znah/graphs](https://github.com/znah/graphs). Features:
 
-- **Tonnetz-based connections**: Nodes only connect if their pitch classes are harmonic neighbors (intervals of 3, 4, 5, or 7 semitones—minor 3rd, major 3rd, perfect 4th, perfect 5th)
-- **Harmonic affinity physics**: Consonant intervals attract (unison 0.3x, P4/P5 0.5x, thirds 0.7x repulsion), dissonant intervals repel more (m2 1.4x, tritone 1.5x)
+- **Melody chain**: Sequential melody notes (C5+) connect as a spine, creating a clear melodic thread through time
+- **Time-windowed Tonnetz**: Nodes connect only if they're perfect 4ths/5ths apart AND born within 1 bar of each other—creates local harmonic clusters without distant tangles
+- **Harmonic affinity physics**: Consonant intervals attract (P4/P5 0.5x, thirds 0.7x repulsion), dissonant intervals repel more (m2 1.4x, tritone 1.5x, unison 1.8x)
 - **Lure drag**: Oldest node is dragged rightward based on BPM, structure trails behind like a fishing lure through water
-- **Connection gating**:
-  - Normally only nodes < 4 bars old can form new connections
-  - Every 4 bars: "connection window" opens allowing older nodes to bridge (both must be > 1 bar old)
-- **Live node glow**: Nodes < 4 bars old glow 40% brighter, are 15% larger, have brighter cores
-- **Half-bar debounce**: One node per pitch class per 2 beats prevents overwhelming density
+- **Register gravity**: Bass nodes sink, melody nodes rise, mid floats—creates vertical stratification
+- **Live node glow**: Nodes < 4 bars old glow brighter with white-hot cores
+- **Bar debounce**: One node per pitch class per bar prevents overwhelming density
 - **Disconnected node fade**: Nodes without edges fade out after 4 bars TTL
-- **Auto-zoom**: Camera follows the drifting structure
+- **Curved edges**: Subtle bezier bow with soft glow, blended colors
+- **Auto-zoom**: Camera follows the drifting structure, only zooms out (never jarring zoom-in)
 
 See `research/graph-evolution.md` for design notes and music mapping theory.
 

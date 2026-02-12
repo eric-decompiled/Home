@@ -254,48 +254,68 @@ The Graph Sculpture effect is implemented in `src/effects/graph-sculpture.ts`.
 ### Core Mechanics
 
 **Node Creation**:
-- All voice onsets create nodes (debounced: 1 per pitch class per half-bar)
-- Positioned on circle-of-fifths with randomness
+- All voice onsets create nodes (debounced: 1 per pitch class per bar)
+- Nodes tracked by register: bass (<C3), mid (C3-B4), melody (C5+)
 - Max 2000 nodes (configurable up to 4000)
 
-**Tonnetz-Based Connections**:
-- Edges only form between harmonic neighbors (intervals 3, 4, 5, 7 semitones)
-- This creates musically meaningful structure vs arbitrary sequential connections
+**Melody Chain**:
+- Sequential melody notes connect as a chain (spine of the sculpture)
+- Creates a clear temporal thread through the structure
+- Melody chain edges are slightly stronger than Tonnetz edges
+
+**Time-Windowed Tonnetz**:
+- Edges only form between perfect 4ths/5ths (intervals 5, 7 semitones)
+- Thirds removed to reduce connection density
+- **Time window**: Nodes must be born within 1 bar of each other
+- Creates local harmonic clusters without distant tangles
 
 **Harmonic Affinity Physics**:
 ```typescript
+// Like repels like (unison creates spacing)
+if (interval === 0) affinity = 1.8;       // unison - spread out
 // Consonant intervals reduce repulsion (attract)
-if (interval === 0) affinity = 0.3;       // unison
 else if (interval === 5 || interval === 7) affinity = 0.5;  // P4/P5
 else if (interval === 3 || interval === 4) affinity = 0.7;  // thirds
 // Dissonant intervals increase repulsion
 else if (interval === 1) affinity = 1.4;  // minor 2nd
+else if (interval === 2) affinity = 1.2;  // major 2nd
 else if (interval === 6) affinity = 1.5;  // tritone
 ```
 
-**Connection Gating**:
-- Normal mode: Only nodes < 4 bars old can form new connections
-- Connection window (every 4 bars): Older nodes can bridge, but both must be > 1 bar old
-- This allows separate "islands" to link during structural pauses
+**Register Gravity**:
+- Bass nodes sink downward (gravity pull)
+- Melody nodes rise upward (anti-gravity)
+- Mid register floats freely
+- Creates natural vertical stratification
 
 **Lure Drag**:
 - Oldest node is pulled rightward at BPM-scaled speed
 - Structure trails behind like a fishing lure through water
-- Auto-zoom follows the drifting graph
+- Auto-zoom follows the drifting graph (only zooms out, never in)
 
-**Visual Feedback**:
-- "Live" nodes (< 4 bars old) glow 40% brighter, 15% larger
+**Visual Rendering**:
+- Curved edges with subtle bezier bow
+- Soft outer glow + solid core on edges
+- Nodes rendered as layered circles with bright cores
+- "Live" nodes (< 4 bars old) have brighter, white-hot centers
 - Disconnected nodes fade out after 4-bar TTL
 - Kick drums create subtle outward physics impulse
 
 ### Physics Parameters (tuned values)
 ```typescript
-repulsion = 1600;      // Strong to prevent knots
-springK = 0.008;       // Very soft springs
-springRest = 120;      // Long rest length
+repulsion = 2200;      // Strong to prevent knots and create spacing
+springK = 0.008;       // Soft springs
+springRest = 120;      // Rest length for spacing
 damping = 0.82;        // High friction, smooth motion
 centerPull = 0.0003;   // Minimal centering
 ```
+
+### Config Options
+- **Connect Window (bars)**: Time window for Tonnetz connections (default 1)
+- **Max Nodes**: Maximum nodes before oldest are pruned (default 2000)
+- **Node Size**: Base node radius (default 3)
+- **Edge Width**: Base edge thickness (default 1.0)
+- **Glow**: Intensity of glow effects (default 1.0)
 
 ## References
 

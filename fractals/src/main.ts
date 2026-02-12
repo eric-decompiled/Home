@@ -519,6 +519,33 @@ mobilePlayBtn.addEventListener('click', async () => {
   }
 });
 
+// Helper to toggle theory bar and sync with layer panel
+function toggleTheoryBar(): void {
+  const layer = compositor.getLayer('theory-bar');
+  if (!layer) return;
+
+  const willShow = !layer.enabled;
+
+  // Update layerSlots to match
+  const hudSlot = layerSlots.find(s => s.name === 'HUD');
+  if (hudSlot) {
+    hudSlot.activeId = willShow ? 'theory-bar' : null;
+  }
+
+  if (willShow) {
+    compositor.setEnabled('theory-bar', true);
+    theoryBarEffect.animateIn();
+  } else {
+    theoryBarEffect.animateOut(() => {
+      compositor.setEnabled('theory-bar', false);
+    });
+  }
+
+  dirty = true;
+  buildLayerPanel();
+  updateBrowserURL();
+}
+
 // Triple-tap on canvas to toggle theory bar with slide animation
 let tapCount = 0;
 let tapTimeout: number | null = null;
@@ -530,22 +557,7 @@ canvas.addEventListener('touchend', (e) => {
   if (tapTimeout) clearTimeout(tapTimeout);
   tapTimeout = window.setTimeout(() => {
     if (tapCount >= 3) {
-      // Toggle theory bar with animation
-      const layer = compositor.getLayer('theory-bar');
-      if (layer) {
-        const willShow = !layer.enabled;
-        if (willShow) {
-          // Enable and animate in
-          compositor.setEnabled('theory-bar', true);
-          theoryBarEffect.animateIn();
-        } else {
-          // Animate out, then disable
-          theoryBarEffect.animateOut(() => {
-            compositor.setEnabled('theory-bar', false);
-          });
-        }
-        dirty = true;
-      }
+      toggleTheoryBar();
     }
     tapCount = 0;
   }, 500);
@@ -562,20 +574,7 @@ canvas.addEventListener('click', () => {
   if (clickTimeout) clearTimeout(clickTimeout);
   clickTimeout = window.setTimeout(() => {
     if (clickCount >= 3) {
-      // Toggle theory bar with animation
-      const layer = compositor.getLayer('theory-bar');
-      if (layer) {
-        const willShow = !layer.enabled;
-        if (willShow) {
-          compositor.setEnabled('theory-bar', true);
-          theoryBarEffect.animateIn();
-        } else {
-          theoryBarEffect.animateOut(() => {
-            compositor.setEnabled('theory-bar', false);
-          });
-        }
-        dirty = true;
-      }
+      toggleTheoryBar();
     }
     clickCount = 0;
   }, 400);

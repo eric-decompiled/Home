@@ -72,17 +72,17 @@ export class GraphSculptureEffect implements VisualEffect {
   private pitchToNodeIdx: Map<number, number> = new Map();
 
   // Physics parameters - tuned for calm, spread-out structure
-  private repulsion = 1600;     // strong repulsion to prevent knots
-  private springK = 0.008;      // very soft springs
-  private springRest = 120;     // long rest length for spacing
+  private repulsion = 2200;     // strong repulsion to prevent knots
+  private springK = 0.008;      // soft springs
+  private springRest = 120;     // rest length for spacing
   private damping = 0.82;       // high friction, smooth motion
   private centerPull = 0.0003;  // minimal centering
 
   // Config
   private maxNodes = 2000;
-  private nodeSize = 4;          // smaller, elegant nodes
-  private edgeWidth = 1.2;       // elegant lines
-  private glowIntensity = 0.8;
+  private nodeSize = 3;          // delicate nodes
+  private edgeWidth = 1.0;       // visible but elegant
+  private glowIntensity = 1.0;
 
   // Auto-zoom state
   private currentScale = 1;
@@ -93,11 +93,14 @@ export class GraphSculptureEffect implements VisualEffect {
   // State tracking
   private lastChordRoot = -1;
   private awake = false;
+  private lastMelodyNodeIdx = -1;  // For melody chain
 
-  // Debounce: only one node per pitch class per half-bar (2 beats)
-  private pitchSpawnedThisHalfBar: Set<number> = new Set();
-  private lastHalfBarIndex = -1;
-  private lastBarIndex = -1;  // Still track bars for node age calculations
+  // Time window for Tonnetz connections (bars)
+  private tonnetzWindowBars = 1;
+
+  // Debounce: only one node per pitch class per bar
+  private pitchSpawnedThisBar: Set<number> = new Set();
+  private lastBarIndex = -1;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -156,7 +159,39 @@ export class GraphSculptureEffect implements VisualEffect {
     this.nodes.push(node);
     this.pitchToNodeIdx.set(pc, idx);
 
+    // Melody chain: connect sequential melody notes
+    if (node.register === 'melody' && this.lastMelodyNodeIdx >= 0) {
+      this.addMelodyChainEdge(this.lastMelodyNodeIdx, idx);
+    }
+    if (node.register === 'melody') {
+      this.lastMelodyNodeIdx = idx;
+    }
+
     return idx;
+  }
+
+  // Special edge for melody chain - bypasses register restriction
+  private addMelodyChainEdge(fromIdx: number, toIdx: number): void {
+    if (fromIdx === toIdx || fromIdx < 0 || toIdx < 0) return;
+    if (fromIdx >= this.nodes.length || toIdx >= this.nodes.length) return;
+
+    // Check if edge already exists
+    for (const edge of this.edges) {
+      if ((edge.from === fromIdx && edge.to === toIdx) ||
+          (edge.from === toIdx && edge.to === fromIdx)) {
+        edge.strength += 0.5;
+        edge.lastActive = this.time;
+        return;
+      }
+    }
+
+    this.edges.push({
+      from: fromIdx,
+      to: toIdx,
+      strength: 1.5,  // Stronger than regular edges
+      birth: this.time,
+      lastActive: this.time,
+    });
   }
 
   private removeWeakestNode(): void {
@@ -199,15 +234,23 @@ export class GraphSculptureEffect implements VisualEffect {
       }
     }
 
+    // Update lastMelodyNodeIdx
+    if (this.lastMelodyNodeIdx === idx) {
+      this.lastMelodyNodeIdx = -1;
+    } else if (this.lastMelodyNodeIdx > idx) {
+      this.lastMelodyNodeIdx--;
+    }
+
     this.nodes.splice(idx, 1);
   }
 
-  // Check if two pitch classes are Tonnetz neighbors (connected by thirds or fifths)
+  // Check if two pitch classes are strongly related (perfect intervals only)
   private areTonnetzNeighbors(pc1: number, pc2: number): boolean {
     const interval = Math.abs(pc1 - pc2);
     const normalizedInterval = Math.min(interval, 12 - interval);
-    // Tonnetz neighbors: minor 3rd (3), major 3rd (4), perfect 4th (5), perfect 5th (7)
-    return normalizedInterval === 3 || normalizedInterval === 4 || normalizedInterval === 5 || normalizedInterval === 7;
+    // Only perfect intervals: perfect 4th (5), perfect 5th (7)
+    // Thirds create too many connections
+    return normalizedInterval === 5 || normalizedInterval === 7;
   }
 
   private addEdge(fromIdx: number, toIdx: number): void {
@@ -218,28 +261,10 @@ export class GraphSculptureEffect implements VisualEffect {
     const fromNode = this.nodes[fromIdx];
     const toNode = this.nodes[toIdx];
 
-    // Hierarchical connections: only connect across registers
-    // Bass connects to mid, mid connects to melody - no same-register connections
-    if (fromNode.register === toNode.register) return;
-
-    const fromAge = this.lastBarIndex - fromNode.birthBar;
-    const toAge = this.lastBarIndex - toNode.birthBar;
-
-    // Connection gating:
-    // - Normally: only nodes < 4 bars old can connect
-    // - Every 4 bars: "connection window" opens - older nodes can connect
-    //   (but exclude nodes from the last bar to focus on bridging old structures)
-    const maxAge = 4;
-    const isConnectionWindow = (this.lastBarIndex % 4) === 0 && this.lastBarIndex > 0;
-
-    if (isConnectionWindow) {
-      // During connection window: allow old nodes, but both must be > 1 bar old
-      // This bridges established structures, not fresh notes
-      if (fromAge < 1 || toAge < 1) return;
-    } else {
-      // Normal mode: both nodes must be young
-      if (fromAge > maxAge || toAge > maxAge) return;
-    }
+    // Time-windowed connections: only connect nodes born within N bars of each other
+    // This creates temporal locality - notes cluster with their contemporaries
+    const birthDiff = Math.abs(fromNode.birthBar - toNode.birthBar);
+    if (birthDiff > this.tonnetzWindowBars) return;
 
     // Mark both nodes as connected
     if (this.nodes[fromIdx]) this.nodes[fromIdx].lastConnectedBar = this.lastBarIndex;
@@ -368,16 +393,14 @@ export class GraphSculptureEffect implements VisualEffect {
       else return;
     }
 
-    // === HALF-BAR TRACKING: Reset debounce every 2 beats ===
+    // === BAR TRACKING: Reset debounce every bar ===
     const beatsElapsed = music.currentTime / music.beatDuration;
-    const currentHalfBar = Math.floor(beatsElapsed / 2);  // Every 2 beats
     const currentBar = Math.floor(beatsElapsed / music.beatsPerBar);
 
-    if (currentHalfBar !== this.lastHalfBarIndex) {
-      this.pitchSpawnedThisHalfBar.clear();
-      this.lastHalfBarIndex = currentHalfBar;
+    if (currentBar !== this.lastBarIndex) {
+      this.pitchSpawnedThisBar.clear();
+      this.lastBarIndex = currentBar;
     }
-    this.lastBarIndex = currentBar;  // Track bars for node age
 
     // === ALL VOICES: Add nodes for note onsets (debounced per pitch class per half-bar) ===
     for (const voice of music.activeVoices) {
@@ -386,16 +409,23 @@ export class GraphSculptureEffect implements VisualEffect {
 
       const pc = voice.midi % 12;
 
-      // Debounce: only one node per pitch class per half-bar
-      if (this.pitchSpawnedThisHalfBar.has(pc)) continue;
-      this.pitchSpawnedThisHalfBar.add(pc);
+      // Debounce: only one node per pitch class per bar
+      if (this.pitchSpawnedThisBar.has(pc)) continue;
+      this.pitchSpawnedThisBar.add(pc);
 
       const idx = this.addNode(voice.midi, voice.velocity);
+      const newNode = this.nodes[idx];
 
-      // Connect to Tonnetz neighbors (notes related by thirds/fifths)
+      // Connect to Tonnetz neighbors within time window
       for (const [otherPc, otherIdx] of this.pitchToNodeIdx) {
         if (otherIdx !== idx && this.areTonnetzNeighbors(pc, otherPc)) {
-          this.addEdge(otherIdx, idx);
+          const otherNode = this.nodes[otherIdx];
+          if (otherNode) {
+            const birthDiff = Math.abs(newNode.birthBar - otherNode.birthBar);
+            if (birthDiff <= this.tonnetzWindowBars) {
+              this.addEdge(otherIdx, idx);
+            }
+          }
         }
       }
     }
@@ -560,29 +590,42 @@ export class GraphSculptureEffect implements VisualEffect {
     ctx.translate(-this.viewCenterX, -this.viewCenterY);
 
     // === DRAW EDGES ===
+    ctx.lineCap = 'round';
     for (const edge of this.edges) {
       const n0 = this.nodes[edge.from];
       const n1 = this.nodes[edge.to];
       if (!n0 || !n1) continue;
 
-      const alpha = edge.strength * 0.4 * this.glowIntensity;
-      const mr = Math.round((n0.r + n1.r) / 2);
-      const mg = Math.round((n0.g + n1.g) / 2);
-      const mb = Math.round((n0.b + n1.b) / 2);
+      const alpha = Math.min(edge.strength * 0.6, 0.95) * this.glowIntensity;
+      const fadeAlpha = alpha * (1 - n0.fadeOut * 0.3) * (1 - n1.fadeOut * 0.3);
+      if (fadeAlpha < 0.02) continue;
 
-      // Outer glow - fixed width, no scaling
+      // Average color (fast bitwise)
+      const mr = (n0.r + n1.r) >> 1;
+      const mg = (n0.g + n1.g) >> 1;
+      const mb = (n0.b + n1.b) >> 1;
+
+      // Subtle curve
+      const midX = (n0.x + n1.x) * 0.5;
+      const midY = (n0.y + n1.y) * 0.5;
+      const dx = n1.x - n0.x;
+      const dy = n1.y - n0.y;
+      const cpX = midX - dy * 0.08;
+      const cpY = midY + dx * 0.08;
+
+      // Outer glow
       ctx.beginPath();
       ctx.moveTo(n0.x, n0.y);
-      ctx.lineTo(n1.x, n1.y);
-      ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(alpha * 0.2).toFixed(3)})`;
-      ctx.lineWidth = this.edgeWidth * 2.5;
+      ctx.quadraticCurveTo(cpX, cpY, n1.x, n1.y);
+      ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(fadeAlpha * 0.2).toFixed(3)})`;
+      ctx.lineWidth = this.edgeWidth * 3.5;
       ctx.stroke();
 
-      // Core - fixed width
+      // Core
       ctx.beginPath();
       ctx.moveTo(n0.x, n0.y);
-      ctx.lineTo(n1.x, n1.y);
-      ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(alpha * 0.6).toFixed(3)})`;
+      ctx.quadraticCurveTo(cpX, cpY, n1.x, n1.y);
+      ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(fadeAlpha * 0.85).toFixed(3)})`;
       ctx.lineWidth = this.edgeWidth;
       ctx.stroke();
     }
@@ -595,48 +638,43 @@ export class GraphSculptureEffect implements VisualEffect {
       // Live nodes (can still form connections) glow brighter
       const nodeAge = this.lastBarIndex - node.birthBar;
       const isLive = nodeAge <= maxLiveAge;
-      const liveBoost = isLive ? 1.3 : 1.0;
+      const liveBoost = isLive ? 1.2 : 1.0;
 
-      // Register-based appearance:
-      // Bass: bigger, duller | Mid: normal | Melody: smaller, brighter
+      // Register-based appearance
       let registerSize = 1.0;
       let registerBrightness = 1.0;
-      let coreBrightness = 50;
       if (node.register === 'bass') {
-        registerSize = 1.8;
-        registerBrightness = 0.6;
-        coreBrightness = 30;
+        registerSize = 1.6;
+        registerBrightness = 0.7;
       } else if (node.register === 'melody') {
-        registerSize = 0.7;
-        registerBrightness = 1.5;
-        coreBrightness = 100;
+        registerSize = 0.8;
+        registerBrightness = 1.4;
       }
 
-      const alpha = (0.3 + node.brightness * 0.7) * fadeMultiplier * liveBoost * registerBrightness;
-      if (alpha < 0.01) continue;  // Skip invisible nodes
+      const alpha = (0.4 + node.brightness * 0.6) * fadeMultiplier * liveBoost * registerBrightness;
+      if (alpha < 0.02) continue;
 
-      const size = this.nodeSize * registerSize * (isLive ? 1.1 : 1.0);
+      const size = this.nodeSize * registerSize;
 
       // Outer glow
       ctx.beginPath();
-      ctx.arc(node.x, node.y, size * 2, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${node.r},${node.g},${node.b},${(alpha * 0.1 * this.glowIntensity).toFixed(3)})`;
+      ctx.arc(node.x, node.y, size * 2.2, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${node.r},${node.g},${node.b},${(alpha * 0.15 * this.glowIntensity).toFixed(3)})`;
       ctx.fill();
 
       // Mid glow
       ctx.beginPath();
-      ctx.arc(node.x, node.y, size * 1.3, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${node.r},${node.g},${node.b},${(alpha * 0.3 * this.glowIntensity).toFixed(3)})`;
+      ctx.arc(node.x, node.y, size * 1.4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${node.r},${node.g},${node.b},${(alpha * 0.4 * this.glowIntensity).toFixed(3)})`;
       ctx.fill();
 
-      // Core
+      // Bright core
       ctx.beginPath();
       ctx.arc(node.x, node.y, size, 0, Math.PI * 2);
-      const coreBoost = isLive ? coreBrightness + 30 : coreBrightness;
-      const coreR = Math.min(255, node.r + coreBoost);
-      const coreG = Math.min(255, node.g + coreBoost);
-      const coreB = Math.min(255, node.b + coreBoost);
-      ctx.fillStyle = `rgba(${coreR},${coreG},${coreB},${(alpha * 0.8).toFixed(3)})`;
+      const coreR = isLive ? Math.min(255, node.r + 80) : Math.min(255, node.r + 40);
+      const coreG = isLive ? Math.min(255, node.g + 80) : Math.min(255, node.g + 40);
+      const coreB = isLive ? Math.min(255, node.b + 80) : Math.min(255, node.b + 40);
+      ctx.fillStyle = `rgba(${coreR},${coreG},${coreB},${(alpha * 0.9).toFixed(3)})`;
       ctx.fill();
     }
 
@@ -651,9 +689,9 @@ export class GraphSculptureEffect implements VisualEffect {
     this.nodes = [];
     this.edges = [];
     this.pitchToNodeIdx.clear();
-    this.pitchSpawnedThisHalfBar.clear();
-    this.lastHalfBarIndex = -1;
+    this.pitchSpawnedThisBar.clear();
     this.lastBarIndex = -1;
+    this.lastMelodyNodeIdx = -1;
     // Reset zoom for fresh start
     this.currentScale = 1;
     this.targetScale = 1;
@@ -663,6 +701,7 @@ export class GraphSculptureEffect implements VisualEffect {
 
   getConfig(): EffectConfig[] {
     return [
+      { key: 'tonnetzWindowBars', label: 'Connect Window (bars)', type: 'range', value: this.tonnetzWindowBars, min: 1, max: 8, step: 1 },
       { key: 'maxNodes', label: 'Max Nodes', type: 'range', value: this.maxNodes, min: 500, max: 4000, step: 250 },
       { key: 'nodeSize', label: 'Node Size', type: 'range', value: this.nodeSize, min: 2, max: 10, step: 0.5 },
       { key: 'edgeWidth', label: 'Edge Width', type: 'range', value: this.edgeWidth, min: 0.3, max: 3, step: 0.1 },
@@ -671,6 +710,7 @@ export class GraphSculptureEffect implements VisualEffect {
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
+    if (key === 'tonnetzWindowBars') this.tonnetzWindowBars = value as number;
     if (key === 'maxNodes') this.maxNodes = value as number;
     if (key === 'nodeSize') this.nodeSize = value as number;
     if (key === 'edgeWidth') this.edgeWidth = value as number;
