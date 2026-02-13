@@ -59,8 +59,8 @@ ctx.onmessage = (e: MessageEvent) => {
     fType === 1 ? Math.log(3) : fType === 2 ? Math.log(4) : Math.log(2);
   const lutMax = LUT_SIZE - 1;
 
-  // Convergence-based fractals (Newton, Nova, Magnet)
-  const isConvergence = fType === 10 || fType === 11 || fType === 13;
+  // Convergence-based fractals (Newton, Nova, Magnet I & II)
+  const isConvergence = fType === 10 || fType === 11 || fType === 13 || fType === 19;
 
   for (let row = 0; row < bandH; row++) {
     const py = yStart + row;
@@ -91,11 +91,13 @@ ctx.onmessage = (e: MessageEvent) => {
       while (x2 + y2 <= bailout && iteration < maxIter) {
 
         // Convergence check for Newton (type 10) and Nova (type 11) - cube roots of unity
+        // Nova uses tighter threshold for more detail (less washed out)
         if (fType === 10 || fType === 11) {
+          const convergenceThreshold = fType === 11 ? 0.000001 : 0.0001;
           for (let k = 0; k < 3; k++) {
             const dr = x - NEWTON_ROOTS_3[k][0];
             const di = y - NEWTON_ROOTS_3[k][1];
-            if (dr * dr + di * di < 0.0001) {
+            if (dr * dr + di * di < convergenceThreshold) {
               rootIndex = k;
               break;
             }
@@ -103,8 +105,8 @@ ctx.onmessage = (e: MessageEvent) => {
           if (rootIndex >= 0) break;
         }
 
-        // Convergence check for Magnet (type 13) - converges to z=1
-        if (fType === 13) {
+        // Convergence check for Magnet I & II (types 13, 19) - converges to z=1
+        if (fType === 13 || fType === 19) {
           const d1 = (x - 1) * (x - 1) + y * y;
           if (d1 < 0.0001) {
             rootIndex = 0;
@@ -269,6 +271,41 @@ ctx.onmessage = (e: MessageEvent) => {
             nx = x2 - y2 + cR;
             ny = 2 * x * y + cI;
             break;
+          case 19: {
+            // Magnet Type II: z = ((z³ + 3(c-1)z + (c-1)(c-2)) / (3z² + 3(c-2)z + (c-1)(c-2) + 1))²
+            // Let q = c - 1, r = c - 2
+            const qR = jR - 1, qI = jI;
+            const rR = jR - 2, rI = jI;
+            // qr = (c-1)(c-2)
+            const qrR = qR * rR - qI * rI;
+            const qrI = qR * rI + qI * rR;
+            // z³
+            const z3R = x * x2 - 3 * x * y2;
+            const z3I = 3 * x2 * y - y * y2;
+            // 3qz = 3(c-1)z
+            const tqzR = 3 * (qR * x - qI * y);
+            const tqzI = 3 * (qR * y + qI * x);
+            // Numerator: z³ + 3(c-1)z + (c-1)(c-2)
+            const numR = z3R + tqzR + qrR;
+            const numI = z3I + tqzI + qrI;
+            // 3z²
+            const tz2R = 3 * (x2 - y2);
+            const tz2I = 3 * 2 * x * y;
+            // 3rz = 3(c-2)z
+            const trzR = 3 * (rR * x - rI * y);
+            const trzI = 3 * (rR * y + rI * x);
+            // Denominator: 3z² + 3(c-2)z + (c-1)(c-2) + 1
+            const denR = tz2R + trzR + qrR + 1;
+            const denI = tz2I + trzI + qrI;
+            const den2 = denR * denR + denI * denI;
+            if (den2 < 1e-10) { nx = 1e10; ny = 1e10; break; }
+            const divR = (numR * denR + numI * denI) / den2;
+            const divI = (numI * denR - numR * denI) / den2;
+            // Square the result
+            nx = divR * divR - divI * divI;
+            ny = 2 * divR * divI;
+            break;
+          }
           default:
             nx = x2 - y2 + jR;
             ny = 2 * x * y + jI;
@@ -287,7 +324,7 @@ ctx.onmessage = (e: MessageEvent) => {
       } else if (isConvergence && rootIndex >= 0) {
         // Convergence coloring (Newton, Magnet): color by root, brightness by speed
         const baseColor = ROOT_COLORS[rootIndex % ROOT_COLORS.length];
-        const brightness = 0.1 + 0.35 * (1 - iteration * invMaxIter);
+        const brightness = 0.15 + 0.45 * (1 - iteration * invMaxIter);
 
         const oR = Math.min(255, Math.max(0, (baseColor[0] * brightness) | 0));
         const oG = Math.min(255, Math.max(0, (baseColor[1] * brightness) | 0));

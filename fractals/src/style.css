@@ -195,6 +195,10 @@ a.toggle-btn {
   color: #16c79a;
 }
 
+#layers-toggle {
+  border-color: #16c79a;
+}
+
 .config-link {
   padding: 5px 10px;
   background: rgba(22, 199, 154, 0.1);
@@ -303,6 +307,90 @@ a.toggle-btn {
   font-size: 12px;
 }
 
+/* Note Colors section */
+.colors-section {
+  margin-bottom: 12px;
+}
+
+.colors-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.colors-reset-btn {
+  background: transparent;
+  border: 1px solid #333;
+  color: #888;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.colors-reset-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #aaa;
+  border-color: #555;
+}
+
+.colors-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 4px;
+}
+
+.color-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.color-label {
+  font-size: 9px;
+  color: #666;
+}
+
+.color-swatch {
+  width: 28px;
+  height: 20px;
+  border: 1px solid #333;
+  border-radius: 3px;
+  cursor: grab;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.color-swatch:hover {
+  transform: scale(1.1);
+  border-color: #555;
+}
+
+.color-swatch.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+.color-swatch.drag-over {
+  transform: scale(1.2);
+  border-color: #16c79a;
+  box-shadow: 0 0 8px rgba(22, 199, 154, 0.5);
+}
+
+.color-input-hidden {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+}
+
 .export-import-row {
   display: flex;
   gap: 8px;
@@ -375,6 +463,31 @@ a.toggle-btn {
   font-size: 10px;
   color: rgba(136, 153, 170, 0.5);
   text-align: center;
+}
+
+.experimental-presets {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(136, 153, 170, 0.2);
+}
+
+.experimental-label {
+  font-size: 10px;
+  color: rgba(136, 153, 170, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.experimental-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.experimental-buttons .toggle-btn {
+  flex: 1;
+  font-size: 11px;
+  padding: 6px 10px;
 }
 
 /* --- Import Modal --- */
@@ -475,10 +588,7 @@ a.toggle-btn {
 }
 
 .slot-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  margin-bottom: 2px;
 }
 
 .slot-label {
@@ -489,20 +599,40 @@ a.toggle-btn {
   letter-spacing: 0.5px;
 }
 
-.slot-select {
-  padding: 4px 8px;
+.slot-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.slot-radio {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
   background: #1a1a2e;
   border: 1px solid #0f3460;
   border-radius: 4px;
-  color: #ccc;
-  font-size: 12px;
+  color: #888;
+  font-size: 11px;
   cursor: pointer;
-  min-width: 110px;
+  transition: all 0.15s;
 }
 
-.slot-select:focus {
-  outline: none;
+.slot-radio:hover {
+  background: #252545;
+  border-color: #1a5070;
+  color: #aaa;
+}
+
+.slot-radio.active {
+  background: rgba(22, 199, 154, 0.15);
   border-color: #16c79a;
+  color: #16c79a;
+}
+
+.slot-radio input[type="radio"] {
+  display: none;
 }
 
 .slot-config-link {
@@ -695,9 +825,9 @@ canvas {
   touch-action: pan-y;
 }
 
-/* --- Mobile play overlay --- */
+/* --- Play overlay --- */
 
-.mobile-play-overlay {
+.play-overlay {
   display: none;
   position: absolute;
   top: 0;
@@ -709,13 +839,14 @@ canvas {
   align-items: center;
   z-index: 50;
   border-radius: 4px;
+  cursor: pointer;
 }
 
-.mobile-play-overlay.visible {
+.play-overlay.visible {
   display: flex;
 }
 
-.mobile-play-btn {
+.play-overlay-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -726,17 +857,17 @@ canvas {
   border-radius: 16px;
   color: #16c79a;
   font-size: 18px;
-  cursor: pointer;
+  pointer-events: none;
   transition: all 0.2s ease;
 }
 
-.mobile-play-btn:hover,
-.mobile-play-btn:active {
+/* Highlight button when hovering anywhere on overlay */
+.play-overlay:hover .play-overlay-btn {
   background: rgba(22, 199, 154, 0.4);
   transform: scale(1.05);
 }
 
-.mobile-play-btn svg {
+.play-overlay-btn svg {
   filter: drop-shadow(0 0 8px rgba(22, 199, 154, 0.5));
 }
 
@@ -1406,7 +1537,7 @@ body.ios-landscape-fullscreen canvas {
 
 .fractal-config-overlay {
   position: fixed;
-  top: 0;
+  top: 48px; /* Below main app top bar */
   left: 0;
   right: 0;
   bottom: 0;
@@ -1460,6 +1591,37 @@ body.ios-landscape-fullscreen canvas {
   color: #fff;
 }
 
+.fc-preset-bar {
+  display: flex;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(15, 52, 96, 0.2);
+  border-bottom: 1px solid #0f3460;
+  flex-wrap: wrap;
+}
+
+.fc-preset-btn {
+  padding: 4px 12px;
+  background: rgba(30, 90, 160, 0.4);
+  border: 1px solid #1e5aa0;
+  border-radius: 4px;
+  color: #8ab4f8;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.fc-preset-btn:hover {
+  background: rgba(30, 90, 160, 0.7);
+  border-color: #4a9eff;
+  color: #fff;
+}
+
+.fc-preset-btn:active {
+  background: rgba(30, 90, 160, 0.9);
+  transform: scale(0.97);
+}
+
 .fc-toolbar {
   display: flex;
   align-items: center;
@@ -1491,10 +1653,6 @@ body.ios-landscape-fullscreen canvas {
 }
 
 .fc-family-section {
-  gap: 6px;
-}
-
-.fc-player-section {
   gap: 6px;
 }
 
@@ -1700,23 +1858,6 @@ body.ios-landscape-fullscreen canvas {
 .fc-orbit-controls input[type="range"] {
   width: 50px;
   height: 4px;
-}
-
-.fc-progression-select {
-  background: #1a1a2e;
-  border: 1px solid #0f3460;
-  color: #fff;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-family: monospace;
-  font-size: 11px;
-}
-
-.fc-progression-display {
-  font-size: 12px;
-  color: #16c79a;
-  font-weight: 600;
-  min-width: 60px;
 }
 
 /* Playing state highlight - bright glow */

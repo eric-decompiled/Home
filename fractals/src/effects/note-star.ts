@@ -1,4 +1,4 @@
-// --- Star Spiral Effect ---
+// --- Note Star Effect ---
 // Traveling star particles that spawn on note onsets and spiral inward to center.
 // Pulses with groove waves - beat 1 is brightest when both beat and bar grooves align.
 
@@ -22,17 +22,9 @@ interface TravelingStar {
   age: number;
 }
 
-// Beat ring - pulses outward on beat 1
-interface BeatRing {
-  position: number;      // 0 = outer, 1 = center
-  alpha: number;
-  color: [number, number, number];
-  speed: number;
-}
-
-export class StarSpiralEffect implements VisualEffect {
-  readonly id = 'star-spiral';
-  readonly name = 'Star Spiral';
+export class NoteStarEffect implements VisualEffect {
+  readonly id = 'note-star';
+  readonly name = 'Note Star';
   readonly isPostProcess = false;
   readonly defaultBlend: BlendMode = 'screen';
   readonly defaultOpacity = 1.0;
@@ -44,7 +36,6 @@ export class StarSpiralEffect implements VisualEffect {
   private ready = false;
 
   private stars: TravelingStar[] = [];
-  private beatRings: BeatRing[] = [];
   private time = 0;
   private key = 0;
   private keyRotation = 0;
@@ -52,13 +43,18 @@ export class StarSpiralEffect implements VisualEffect {
   private loudness = 0;
   private beatGrooveCurrent = 0.5;
   private barGrooveCurrent = 0.5;
-  private anticipationColor: [number, number, number] = [255, 255, 255];
   private awake = false;
+  private beatDuration = 0.5;
+  private bpm = 120;
 
   // Config
-  private showRings = true;
   private intensity = 1.0;
-  private maxStars = 128;
+  private maxStars = 384;
+
+  // Pulse-based anticipation: flash upcoming notes on beat boundaries
+  // This avoids timing issues with continuous tracking across different tempos
+  private anticipationPulses: Map<string, { alpha: number; midi: number; pitchClass: number }> = new Map();
+  private lastBeatIndex = -1;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -98,9 +94,45 @@ export class StarSpiralEffect implements VisualEffect {
     const targetLoudness = music.loudness ?? 0;
     this.loudness += (targetLoudness - this.loudness) * 0.1;
 
-    // Track tension color
-    const tc = music.tensionColor;
-    this.anticipationColor = [tc[0], tc[1], tc[2]];
+    // Track beat duration and BPM for speed scaling
+    this.beatDuration = Math.max(0.2, music.beatDuration);
+    this.bpm = music.bpm || 120;
+
+    // === PULSE-BASED ANTICIPATION ===
+    // On each beat, flash notes that will play in the next beat window
+    // This avoids timing issues with continuous tracking across different tempos
+    const currentBeatIndex = music.beatIndex;
+
+    // Trigger new pulses on beat boundary
+    if (currentBeatIndex !== this.lastBeatIndex && music.onBeat) {
+      this.lastBeatIndex = currentBeatIndex;
+
+      // Find notes that will play in the next beat
+      const nextBeatWindow = this.beatDuration * 1.1; // Slightly more than one beat
+      for (const note of music.upcomingNotes) {
+        if (note.midi < MIDI_LO || note.midi >= MIDI_HI) continue;
+        if (note.timeUntil <= 0 || note.timeUntil > nextBeatWindow) continue;
+
+        // Create unique key for this note instance
+        const key = `${note.midi}-${Math.round(note.time * 100)}`;
+        if (!this.anticipationPulses.has(key)) {
+          this.anticipationPulses.set(key, {
+            alpha: 0.8,
+            midi: note.midi,
+            pitchClass: note.midi % 12,
+          });
+        }
+      }
+    }
+
+    // Decay existing pulses
+    const decayRate = 5.0; // Fast decay - pulses last ~0.15s
+    for (const [key, pulse] of this.anticipationPulses) {
+      pulse.alpha *= Math.exp(-decayRate * dt);
+      if (pulse.alpha < 0.02) {
+        this.anticipationPulses.delete(key);
+      }
+    }
 
     // Groove intensity: off-beat lowest, beat 1 brightest (reduced variability)
     const grooveIntensity = 0.55 + this.beatGrooveCurrent * 0.25 + this.barGrooveCurrent * 0.25;
@@ -112,14 +144,17 @@ export class StarSpiralEffect implements VisualEffect {
 
       const loudnessFactor = 0.1 + this.loudness * 0.9;
       const c = samplePaletteColor(voice.pitchClass, 0.75);
-      const noteIntensity = voice.velocity * loudnessFactor * grooveIntensity;
+      // Compress velocity: boost quiet notes with a floor, leave loud notes as-is
+      // Floor of 0.35 + scaled sqrt: 0.1→0.56, 0.25→0.68, 0.5→0.81, 1.0→1.0
+      const compressedVel = 0.35 + 0.65 * Math.pow(voice.velocity, 0.5);
+      const noteIntensity = compressedVel * loudnessFactor * grooveIntensity;
 
       this.stars.push({
         pitchClass: voice.pitchClass,
         progress: 0,
         alpha: 1.5 * noteIntensity,
         color: [c[0], c[1], c[2]],
-        velocity: voice.velocity * grooveIntensity,
+        velocity: compressedVel * grooveIntensity,
         startMidi: voice.midi,
         age: 0,
       });
@@ -127,35 +162,12 @@ export class StarSpiralEffect implements VisualEffect {
       if (this.stars.length > this.maxStars) this.stars.shift();
     }
 
-    // Beat 1 rings
-    const beatArrival = music.beatArrival ?? 0;
-    if (this.showRings && music.beatIndex === 0 && beatArrival > 0.3) {
-      const hasRecentRing = this.beatRings.some(r => r.position < 0.1);
-      if (!hasRecentRing) {
-        this.beatRings.push({
-          position: 0,
-          alpha: 1.5,
-          color: [this.anticipationColor[0], this.anticipationColor[1], this.anticipationColor[2]],
-          speed: 0.08,
-        });
-        if (this.beatRings.length > 6) this.beatRings.shift();
-      }
-    }
-
-    // Update beat rings
-    for (let i = this.beatRings.length - 1; i >= 0; i--) {
-      const ring = this.beatRings[i];
-      ring.position += ring.speed * dt;
-      ring.alpha *= Math.exp(-0.08 * dt);
-      if (ring.position >= 1 || ring.alpha < 0.02) {
-        this.beatRings.splice(i, 1);
-      }
-    }
-
-    // Update stars
+    // Update stars - speed scales subtly with BPM
+    // Slower songs = slightly slower travel, faster songs = slightly faster
+    const speedScale = Math.pow(this.bpm / 120, 0.25);  // ~0.84x at 60bpm, ~1.11x at 180bpm
     for (let i = this.stars.length - 1; i >= 0; i--) {
       const star = this.stars[i];
-      star.progress += dt * 0.06;
+      star.progress += dt * 0.06 * speedScale;
       star.age += dt;
       const fadeRate = 0.08 + star.progress * 0.15;
       star.alpha *= Math.exp(-fadeRate * dt);
@@ -173,7 +185,7 @@ export class StarSpiralEffect implements VisualEffect {
     ctx.clearRect(0, 0, w, h);
 
     const cx = w / 2;
-    const cy = h / 2 + h * 0.04;
+    const cy = h / 2;  // centered
     const maxR = Math.min(w, h) / 2 * SPIRAL_RADIUS_SCALE;
 
     ctx.save();
@@ -195,10 +207,26 @@ export class StarSpiralEffect implements VisualEffect {
     ctx.lineWidth = 1;
     ctx.stroke();
 
-    // Draw beat rings
-    for (const ring of this.beatRings) {
-      const r = maxR * (1 - ring.position * 0.9);
-      this.drawRing(ctx, cx, cy, r, ring.alpha, ring.color);
+    // Draw anticipation pulses (beat-synced flashes)
+    for (const [, pulse] of this.anticipationPulses) {
+      const pos = spiralPos(pulse.midi, pulse.pitchClass, this.key, this.keyRotation, cx, cy, maxR, this.spiralTightness);
+      const c = samplePaletteColor(pulse.pitchClass, 0.75);
+      const alpha = pulse.alpha * this.intensity;
+
+      if (alpha < 0.02) continue;
+
+      // Fixed glow size (no growth - pulse fades out quickly)
+      const glowR = 10;
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, glowR, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(alpha * 0.4).toFixed(3)})`;
+      ctx.fill();
+
+      // Inner core
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, glowR * 0.4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${alpha.toFixed(3)})`;
+      ctx.fill();
     }
 
     // Groove pulse factor (reduced variability, same average)
@@ -253,59 +281,23 @@ export class StarSpiralEffect implements VisualEffect {
     return this.canvas;
   }
 
-  private drawRing(
-    ctx: CanvasRenderingContext2D,
-    cx: number, cy: number,
-    radius: number,
-    alpha: number,
-    color: [number, number, number]
-  ): void {
-    if (alpha < 0.02 || radius <= 0) return;
-
-    const [r, g, b] = color;
-    const effectiveAlpha = alpha * this.intensity;
-    const pulseWidth = 1 + alpha * 2;
-
-    // Soft outer glow
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(${r},${g},${b},${(effectiveAlpha * 0.3).toFixed(3)})`;
-    ctx.lineWidth = pulseWidth + 4;
-    ctx.stroke();
-
-    // Main ring
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(${r},${g},${b},${(effectiveAlpha * 0.6).toFixed(3)})`;
-    ctx.lineWidth = pulseWidth;
-    ctx.stroke();
-
-    // Bright inner edge
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(255,255,255,${(effectiveAlpha * 0.4).toFixed(3)})`;
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
-
   isReady(): boolean { return this.ready; }
 
   dispose(): void {
     this.ready = false;
     this.stars = [];
-    this.beatRings = [];
+    this.anticipationPulses.clear();
+    this.lastBeatIndex = -1;
     this.awake = false;
   }
 
   getConfig(): EffectConfig[] {
     return [
-      { key: 'showRings', label: 'Beat Rings', type: 'toggle', value: this.showRings },
       { key: 'intensity', label: 'Intensity', type: 'range', value: this.intensity, min: 0.1, max: 2, step: 0.1 },
     ];
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
-    if (key === 'showRings') this.showRings = value as boolean;
     if (key === 'intensity') this.intensity = value as number;
     if (key === 'spiralTightness') this.spiralTightness = value as number;
   }

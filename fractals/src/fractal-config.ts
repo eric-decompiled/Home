@@ -5,7 +5,7 @@
  * Each anchor defines a c-plane position and 4 orbit offsets for beat-synchronized motion.
  */
 
-import { loadFractalAnchors, saveFractalAnchors, type FractalAnchors, type FractalAnchor } from './state.ts';
+import { loadFractalAnchors, saveFractalAnchors, BUILTIN_ANCHOR_PRESETS, applyAnchorPreset, type FractalAnchors, type FractalAnchor } from './state.ts';
 
 // --- Constants ---
 
@@ -156,7 +156,18 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     traits: ['Physics-derived', 'Single attractor at z=1', 'Magnetic domains', 'Phase boundaries', 'Convergent iteration'],
     hotspots: ['c = 0.0 + 0.0i (centered)', 'c = 2.0 + 0.0i (boundary)', 'c = 1.0 + 1.0i (distorted)'],
     tips: 'Points converge to z = 1 rather than escaping to infinity. The "domains" represent different convergence speeds. Has connections to real physical systems.',
-    related: ['Newton-3', 'Nova', 'Classic'],
+    related: ['Magnet-II', 'Newton-3', 'Nova', 'Classic'],
+  },
+  'magnet-2': {
+    formula: 'z → ((z³ + 3(c-1)z + (c-1)(c-2)) / (3z² + 3(c-2)z + (c-1)(c-2) + 1))²',
+    year: '1994',
+    creator: 'Derived from physics',
+    category: 'Physics-Derived',
+    description: 'The second Magnet fractal from statistical mechanics. Uses cubic terms in the iteration, creating more intricate flame-like boundaries than Type I. Both types model magnetic phase transitions via renormalization group equations.',
+    traits: ['Cubic iteration', 'Flame-like tendrils', 'Single attractor at z=1', 'More intricate than Type I', 'Physics-derived'],
+    hotspots: ['c = 0.0 + 0.0i (centered)', 'c = 1.5 + 0.0i (boundary)', 'c = 0.5 + 0.5i (swirling)'],
+    tips: 'More complex than Magnet I due to cubic terms. The flame-like boundaries are characteristic. Converges to z = 1 like Type I.',
+    related: ['Magnet-I', 'Newton-3', 'Nova'],
   },
   'barnsley-1': {
     formula: 'z → (z-1)c if Re(z)≥0, else (z+1)c',
@@ -528,6 +539,74 @@ const FAMILIES: FractalFamily[] = [
     },
   },
   {
+    id: 'magnet-2', label: 'Magnet-II', typeNum: 19,
+    bounds: { rMin: -3.0, rMax: 3.0, iMin: -3.0, iMax: 3.0 },
+    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
+      let x = z0r, y = z0i;
+      const qR = cr - 1, qI = ci;
+      const rR = cr - 2, rI = ci;
+      const qrR = qR * rR - qI * rI;
+      const qrI = qR * rI + qI * rR;
+      for (let i = 0; i < maxIter; i++) {
+        const d1 = (x - 1) ** 2 + y ** 2;
+        if (d1 < 0.0001) return i + 1;
+        if (x * x + y * y > 1000) return i + 1;
+        const x2 = x * x, y2 = y * y;
+        const z3R = x * x2 - 3 * x * y2;
+        const z3I = 3 * x2 * y - y * y2;
+        const tqzR = 3 * (qR * x - qI * y);
+        const tqzI = 3 * (qR * y + qI * x);
+        const numR = z3R + tqzR + qrR;
+        const numI = z3I + tqzI + qrI;
+        const tz2R = 3 * (x2 - y2);
+        const tz2I = 6 * x * y;
+        const trzR = 3 * (rR * x - rI * y);
+        const trzI = 3 * (rR * y + rI * x);
+        const denR = tz2R + trzR + qrR + 1;
+        const denI = tz2I + trzI + qrI;
+        const den2 = denR * denR + denI * denI;
+        if (den2 < 1e-10) return i + 1;
+        const divR = (numR * denR + numI * denI) / den2;
+        const divI = (numI * denR - numR * denI) / den2;
+        x = divR * divR - divI * divI;
+        y = 2 * divR * divI;
+      }
+      return 0;
+    },
+    julia(fx, fy, jR, jI, maxIter) {
+      let x = fx, y = fy;
+      const qR = jR - 1, qI = jI;
+      const rR = jR - 2, rI = jI;
+      const qrR = qR * rR - qI * rI;
+      const qrI = qR * rI + qI * rR;
+      for (let i = 0; i < maxIter; i++) {
+        const d1 = (x - 1) ** 2 + y ** 2;
+        if (d1 < 0.0001) return i + 1;
+        if (x * x + y * y > 1000) return i + 1;
+        const x2 = x * x, y2 = y * y;
+        const z3R = x * x2 - 3 * x * y2;
+        const z3I = 3 * x2 * y - y * y2;
+        const tqzR = 3 * (qR * x - qI * y);
+        const tqzI = 3 * (qR * y + qI * x);
+        const numR = z3R + tqzR + qrR;
+        const numI = z3I + tqzI + qrI;
+        const tz2R = 3 * (x2 - y2);
+        const tz2I = 6 * x * y;
+        const trzR = 3 * (rR * x - rI * y);
+        const trzI = 3 * (rR * y + rI * x);
+        const denR = tz2R + trzR + qrR + 1;
+        const denI = tz2I + trzI + qrI;
+        const den2 = denR * denR + denI * denI;
+        if (den2 < 1e-10) return i + 1;
+        const divR = (numR * denR + numI * denI) / den2;
+        const divI = (numI * denR - numR * denI) / den2;
+        x = divR * divR - divI * divI;
+        y = 2 * divR * divI;
+      }
+      return 0;
+    },
+  },
+  {
     id: 'barnsley-1', label: 'Barnsley-1', typeNum: 14,
     bounds: { rMin: -2.0, rMax: 2.0, iMin: -2.0, iMax: 2.0 },
     locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
@@ -752,13 +831,6 @@ export class FractalConfigPanel {
   private previewLastTime = 0;
   private previewBpm = 120;
   private previewScale = 1.0; // 0 = stopped, 1 = normal, 2 = big
-
-  // Progression playback
-  private progressionPlaying = false;
-  private progressionIndex = 0;
-  private progressionTimer: number | null = null;
-  private audioCtx: AudioContext | null = null;
-  private currentChordOscs: OscillatorNode[] = [];
 
   // Drag state
   private dragMode: 'center' | 'orbit' | 'pan' | null = null;
@@ -1109,24 +1181,17 @@ export class FractalConfigPanel {
           <button class="fc-close-btn">&times;</button>
         </div>
 
+        <div class="fc-preset-bar">
+          ${BUILTIN_ANCHOR_PRESETS.map(p => `<button class="fc-preset-btn" data-preset-id="${p.id}">${p.name}</button>`).join('')}
+        </div>
+
         <div class="fc-toolbar">
           <div class="fc-toolbar-section fc-family-section">
             <div class="fc-family-buttons">${familyButtons}</div>
+            <span class="fc-section-label">Info:</span>
             <button class="fc-btn fc-info-btn" title="Family information">ℹ️</button>
+            <span class="fc-section-label">Atlas:</span>
             <button class="fc-btn fc-atlas-btn" title="Toggle atlas grid overlay">🗺️</button>
-          </div>
-          <div class="fc-toolbar-divider"></div>
-          <div class="fc-toolbar-section fc-player-section">
-            <span class="fc-section-label">Player</span>
-            <select class="fc-progression-select" id="fc-progression-select">
-              <option value="scale">Scale</option>
-              <option value="pop">Pop I-V-vi-IV</option>
-              <option value="jazz">Jazz ii-V-I</option>
-              <option value="blues">Blues</option>
-              <option value="circle">Circle of 5ths</option>
-            </select>
-            <button class="fc-btn fc-play-btn" id="fc-play-btn" title="Play progression">▶️</button>
-            <span class="fc-progression-display" id="fc-progression-display"></span>
           </div>
           <div class="fc-toolbar-divider"></div>
           <div class="fc-actions">
@@ -1211,6 +1276,21 @@ export class FractalConfigPanel {
   private setupEventHandlers(): void {
     // Close button
     this.container.querySelector('.fc-close-btn')!.addEventListener('click', () => this.hide());
+
+    // Preset buttons
+    this.container.querySelectorAll('.fc-preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const presetId = (btn as HTMLElement).dataset.presetId;
+        const preset = BUILTIN_ANCHOR_PRESETS.find(p => p.id === presetId);
+        if (preset) {
+          applyAnchorPreset(preset);
+          this.loadAnchors();
+          this.drawOverlay();
+          this.updateAssignments();
+          if (this.onSave) this.onSave();
+        }
+      });
+    });
 
     // Click overlay to close
     this.container.addEventListener('click', (e) => {
@@ -1327,7 +1407,6 @@ export class FractalConfigPanel {
     this.container.querySelector('.fc-recall-btn')!.addEventListener('click', () => this.recallOrbits());
     this.container.querySelector('.fc-reset-btn')!.addEventListener('click', () => this.resetToDefaults());
     this.container.querySelector('.fc-save-btn')!.addEventListener('click', () => this.save());
-    this.container.querySelector('.fc-play-btn')!.addEventListener('click', () => this.toggleProgression());
 
     // BPM input
     const bpmInput = this.container.querySelector('#fc-bpm') as HTMLInputElement;
@@ -1795,173 +1874,6 @@ export class FractalConfigPanel {
       const status = this.container.querySelector('#fc-status')!;
       status.textContent = 'Failed to copy - check console';
     });
-  }
-
-  // --- Progression Playback ---
-
-  private readonly PROGRESSIONS: Record<string, { degrees: number[]; qualities: string[] }> = {
-    'scale': {
-      degrees:   [1, 2, 3, 4, 5, 6, 7, 1],
-      qualities: ['major', 'minor', 'minor', 'major', 'major', 'minor', 'dim', 'major'],
-    },
-    'pop': {
-      degrees:   [1, 5, 6, 4],
-      qualities: ['major', 'major', 'minor', 'major'],
-    },
-    'jazz': {
-      degrees:   [2, 5, 1],
-      qualities: ['minor', 'dom7', 'major'],
-    },
-    'blues': {
-      degrees:   [1, 4, 1, 5, 4, 1],
-      qualities: ['dom7', 'dom7', 'dom7', 'dom7', 'dom7', 'dom7'],
-    },
-    'circle': {
-      degrees:   [1, 4, 7, 3, 6, 2, 5, 1],
-      qualities: ['major', 'major', 'dim', 'minor', 'minor', 'minor', 'major', 'major'],
-    },
-  };
-
-  // Scale degree -> semitones from root
-  private readonly DEGREE_SEMITONES = [0, 0, 2, 4, 5, 7, 9, 11];
-
-  // Quality -> chord intervals (semitones from root)
-  private readonly QUALITY_INTERVALS: Record<string, number[]> = {
-    'major': [0, 4, 7],
-    'minor': [0, 3, 7],
-    'dom7':  [0, 4, 7, 10],
-    'min7':  [0, 3, 7, 10],
-    'dim':   [0, 3, 6],
-    'aug':   [0, 4, 8],
-  };
-
-  private toggleProgression(): void {
-    if (this.progressionPlaying) {
-      this.stopProgression();
-    } else {
-      this.startProgression();
-    }
-  }
-
-  private startProgression(): void {
-    // Initialize audio context on user gesture
-    if (!this.audioCtx) {
-      this.audioCtx = new AudioContext();
-    }
-
-    const select = this.container.querySelector('#fc-progression-select') as HTMLSelectElement;
-    const progKey = select.value;
-    const prog = this.PROGRESSIONS[progKey];
-
-    this.progressionPlaying = true;
-    this.progressionIndex = 0;
-
-    const playBtn = this.container.querySelector('#fc-play-btn')!;
-    playBtn.textContent = '⏹️ Stop';
-
-    this.playProgressionStep(prog);
-  }
-
-  private stopProgression(): void {
-    this.progressionPlaying = false;
-    if (this.progressionTimer) {
-      clearTimeout(this.progressionTimer);
-      this.progressionTimer = null;
-    }
-    this.stopCurrentChord();
-
-    const playBtn = this.container.querySelector('#fc-play-btn')!;
-    playBtn.textContent = '▶️ Play';
-
-    const display = this.container.querySelector('#fc-progression-display')!;
-    display.textContent = '';
-
-    // Clear highlighting
-    this.container.querySelectorAll('.fc-grid-cell.playing').forEach(el => {
-      el.classList.remove('playing');
-    });
-  }
-
-  private playProgressionStep(prog: { degrees: number[]; qualities: string[] }): void {
-    if (!this.progressionPlaying || this.progressionIndex >= prog.degrees.length) {
-      this.stopProgression();
-      return;
-    }
-
-    const deg = prog.degrees[this.progressionIndex];
-    const quality = prog.qualities[this.progressionIndex];
-
-    // Update display
-    const display = this.container.querySelector('#fc-progression-display')!;
-    display.textContent = `${DEGREE_NAMES[deg]} (${quality})`;
-
-    // Highlight current cell
-    this.container.querySelectorAll('.fc-grid-cell.playing').forEach(el => {
-      el.classList.remove('playing');
-    });
-    const cell = this.container.querySelector(`.fc-grid-cell[data-deg="${deg}"][data-quality="${quality}"]`);
-    if (cell) {
-      cell.classList.add('playing');
-    }
-
-    // Select and preview this anchor
-    this.selectDegreeQuality(deg, quality);
-
-    // Play the chord sound
-    this.playChord(deg, quality);
-
-    this.progressionIndex++;
-
-    // Schedule next step
-    const beatDur = 60 / this.previewBpm * 1000;  // ms per beat
-    this.progressionTimer = window.setTimeout(() => {
-      this.playProgressionStep(prog);
-    }, beatDur * 2);  // 2 beats per chord
-  }
-
-  private playChord(deg: number, quality: string): void {
-    if (!this.audioCtx) return;
-
-    this.stopCurrentChord();
-
-    const baseFreq = 220;  // A3
-    const rootSemitones = this.DEGREE_SEMITONES[deg];
-    const intervals = this.QUALITY_INTERVALS[quality] || [0, 4, 7];
-
-    const now = this.audioCtx.currentTime;
-    const attackTime = 0.05;
-    const releaseTime = 0.3;
-    const duration = (60 / this.previewBpm) * 2;  // 2 beats
-
-    for (const interval of intervals) {
-      const freq = baseFreq * Math.pow(2, (rootSemitones + interval) / 12);
-
-      const osc = this.audioCtx.createOscillator();
-      const gain = this.audioCtx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.15 / intervals.length, now + attackTime);
-      gain.gain.setValueAtTime(0.15 / intervals.length, now + duration - releaseTime);
-      gain.gain.linearRampToValueAtTime(0, now + duration);
-
-      osc.connect(gain);
-      gain.connect(this.audioCtx.destination);
-
-      osc.start(now);
-      osc.stop(now + duration + 0.1);
-
-      this.currentChordOscs.push(osc);
-    }
-  }
-
-  private stopCurrentChord(): void {
-    for (const osc of this.currentChordOscs) {
-      try { osc.stop(); } catch (_e) { /* already stopped */ }
-    }
-    this.currentChordOscs = [];
   }
 
   private applyToAllQualities(deg: number): void {

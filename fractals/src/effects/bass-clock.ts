@@ -42,7 +42,7 @@ export class BassClockEffect implements VisualEffect {
   private lastPitchClass = -1;
   private initializedToKey = false;  // Track if we've set initial position to song key
   private initializedKey = -1;  // The key we initialized to (detect song key changes)
-  private handLength = 0.95; // Fixed at outer layer
+  private handLength = 0.80; // Shorter but stubby
   private colR = 150;
   private colG = 100;
   private colB = 200;
@@ -201,8 +201,8 @@ export class BassClockEffect implements VisualEffect {
       }
     }
 
-    // Hand length stays fixed at outer layer
-    this.handLength = 0.95;
+    // Hand length shorter but keeps stubby proportions
+    this.handLength = 0.80;
 
     // Track chromatic (non-key) numeral fades
     const diatonicOffsets = this.keyMode === 'minor' ? MINOR_OFFSETS : MAJOR_OFFSETS;
@@ -251,7 +251,7 @@ export class BassClockEffect implements VisualEffect {
     ctx.clearRect(0, 0, w, h);
 
     const cx = w / 2;
-    const cy = h / 2 + h * 0.04;  // shifted down to match note spiral
+    const cy = h / 2;  // centered
     const minDim = Math.min(cx, cy);
     // Use spiralPos to get consistent radius for outer ring (imaginary octave MIDI 113)
     const spiralMaxR = minDim * SPIRAL_RADIUS_SCALE;
@@ -274,7 +274,8 @@ export class BassClockEffect implements VisualEffect {
       y: cy + dirY * handLen * f + perpY * halfW,
     });
 
-    const sc = handLen / 200;
+    // Scale factor kept higher to maintain stubby proportions despite shorter hand
+    const sc = handLen / 168;
 
     ctx.save();
     ctx.globalCompositeOperation = 'screen';

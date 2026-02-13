@@ -2,7 +2,7 @@
 
 A layered music visualization system that transforms MIDI files into synchronized visual experiences. Combines fractal rendering, physics simulations, and procedural graphics—all driven by real-time harmonic analysis. Plays MIDI through a SoundFont synthesizer while mapping musical structure (key, chords, melody, bass, drums) to visual parameters across multiple composited effect layers.
 
-**Default preset**: Spiral (Starfield + Star Spiral + Bass Fire)
+**Default preset**: Spiral (Starfield + Note Star + Bass Fire)
 **Default playlist**: Games (video game music)
 
 ## Architecture
@@ -51,7 +51,7 @@ When cleaning up or resetting to sensible defaults, use these settings:
 
 **UI State**:
 - Custom/layer panel: closed by default (`layerPanelOpen = false`)
-- Fractal config panel: hidden by default
+- Fractal config panel: open by default
 - Preset button order: Warp, Clock, Spiral, Fractal, Chain, Piano
 - Default preset on fresh load: `spiral`
 - Default playlist: `video` (Games)

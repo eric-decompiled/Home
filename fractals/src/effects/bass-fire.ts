@@ -221,7 +221,7 @@ export class BassFireEffect implements VisualEffect {
 
     // Calculate center and radius for outer circle
     const cx = this.width / 2;
-    const cy = this.height / 2 + this.height * 0.04;
+    const cy = this.height / 2;  // centered
     const minDim = Math.min(cx, cy);
     const spiralMaxR = minDim * SPIRAL_RADIUS_SCALE;
     const outerPos = spiralPos(113, 0, this.key, this.keyRotation, cx, cy, spiralMaxR);

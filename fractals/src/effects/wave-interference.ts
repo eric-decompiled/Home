@@ -144,8 +144,8 @@ export class WaveInterferenceEffect implements VisualEffect {
   private sources: WaveSource[] = [];
   private maxSources = 6;
   private time = 0;
-  private wavelength = 80;
-  private decayRate = 3.0;
+  private wavelength = 100;
+  private decayRate = 8.0;
   private intensity = 1.0;
   private bassWaveAmp = 0;
   private bassWaveFreq = 10;
@@ -285,9 +285,9 @@ export class WaveInterferenceEffect implements VisualEffect {
     }
 
     // Tension → wave complexity
-    // Low tension: slow, wide ripples; High tension: tight, fast, interference-heavy
+    // Low tension: wide ripples; High tension: tighter ripples
     const tensionSq = music.tension * music.tension;
-    this.wavelength = 100 - music.tension * 50 - tensionSq * 20; // Tighter ripples at high tension
+    this.wavelength = 100 - music.tension * 50 - tensionSq * 20;
     const decayRate = 0.4 + music.tension * 0.6; // Faster decay = more transient/nervous
     // More reflection at high tension creates denser interference patterns
     this.reflection = Math.min(1.0, 0.3 + music.tension * 0.4 + tensionSq * 0.3);
@@ -383,7 +383,6 @@ export class WaveInterferenceEffect implements VisualEffect {
   getConfig(): EffectConfig[] {
     return [
       { key: 'maxSources', label: 'Max Waves', type: 'range', value: this.maxSources, min: 2, max: 8, step: 1 },
-      { key: 'wavelength', label: 'Wavelength', type: 'range', value: this.wavelength, min: 10, max: 80, step: 5 },
       { key: 'decayRate', label: 'Decay', type: 'range', value: this.decayRate, min: 1, max: 10, step: 0.5 },
       { key: 'intensity', label: 'Intensity', type: 'range', value: this.intensity, min: 0.2, max: 2, step: 0.1 },
       { key: 'reflection', label: 'Reflection', type: 'range', value: this.reflection, min: 0, max: 1, step: 0.1 },
@@ -394,9 +393,6 @@ export class WaveInterferenceEffect implements VisualEffect {
     switch (key) {
       case 'maxSources':
         this.maxSources = value as number;
-        break;
-      case 'wavelength':
-        this.wavelength = value as number;
         break;
       case 'decayRate':
         this.decayRate = value as number;

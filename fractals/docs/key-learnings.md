@@ -15,19 +15,25 @@
 - **Sine wave twist for spiral**: `Math.sin(fromRoot / 12 * Math.PI * 2) * 0.05` prevents angular discontinuity
 - **Neutral grey for C**: Good "home base" that doesn't compete with chromatic colors
 - **Orange for G#**: Bridges green (G) and red (A) naturally on color wheel
+- **Deep saturated palettes**: Forest green (G), deep red (A), deep blue (E) - rich and moody beats bright/washed-out
 
 ### Music Mapping
 - **Bar-level chord detection**: Stable, musically meaningful
 - **Chord root for bass tracking**: Following chord root provides harmonic stability (not individual bass notes)
+- **Power law for anticipation lookahead**: `10.0 * bpm^(-0.68)` scales perceptually across tempos. Derived from empirical testing on FF Prelude (82 BPM), Don't Stop Believing (112 BPM), Sweet Child O' Mine (128 BPM)
+- **Small lower bound gap (2.5%)**: Anticipation notes stay visible until 4-5ms before onset, minimizing visual discontinuity when transitioning to active note
+- **Per-pitch-class buffer for load shedding**: Allow up to 4 notes per pitch class in anticipation window. Only sheds when specific pitch is overloaded, letting bass octave doublings and chord voicings through
 - **Key modulation rotation**: Tween `keyRotation` so new tonic aligns to 12 o'clock. Shortest-path normalization prevents 360° spins
 - **Groove curves (anticipation/arrival)**: Based on two-phase dopamine response. Use `beatAnticipation` for glow buildup, `beatArrival` for pulse impact
 - **Bar-level groove for bass**: Bass/harmonic elements respond to `barAnticipation`/`barArrival` for weighty feel
 - **Generalized pulse driver**: Use `activeVoices` onsets + beat grid pulse + drums, not just drums. Works with any MIDI
+- **Pulse-based anticipation**: Flash upcoming notes on beat boundaries instead of continuous tracking. Avoids timing issues across different tempos, pulses fade quickly (~0.15s) so notes don't look "stuck"
 - **GSAP beat-relative timing for clocks**: Hand motion duration as fraction of beat (0.5 beats for melody, 1.0 beats for bass)
 - **Windup animation for chord changes**: Pull back 1/36 of movement over 3/4 beat before arriving—adds weight and anticipation
 - **Clock hand cutouts aligned to spiral**: Calculate positions dynamically in render using same spiralPos params as note spiral for exact alignment across all keys
 
 ### Physics & Animation
+- **Compass physics for clock hands**: Spring-damper system (springK=12, damping=5) creates weighty motion with natural overshoot and settle. Hand swings toward target, overshoots slightly, drifts back. New notes can interrupt mid-motion smoothly. Feels more physical than tweening
 - **Wave tank physics**: Model energy as waves with momentum—push creates motion that continues after input stops
 - **Spatial wave tanks**: Separate waves for bass (from bottom) and melody (from sides). Creates directional interest
 - **Pitch-weighted energy**: Higher notes contribute more energy (scale by `1 + (midi - 60) / 24`)
@@ -60,6 +66,7 @@
 - **Piano mode with immediate effect**: Stop all notes (`synth.stopAll`) before program changes
 - **CSS custom properties for smooth progress bars**: Use CSS variable (`--progress: 0-1`) with `linear-gradient`
 - **Octave-aware palette coloring**: Low octaves use darker stops (0-2), high octaves use brighter stops (3-5)
+- **Drag-and-drop color picker**: Let users swap colors between notes by dragging. No color theory knowledge needed to experiment
 
 ### URL Sharing
 - **URL query params for sharing**: Encode as short keys, use `history.replaceState()`. Default preset = clean URL
@@ -88,6 +95,7 @@
 - **Spring physics for music response**: Feels stiff/mechanical. Wave tank is more fluid
 - **Direct energy → parameter mapping**: Feels twitchy. Cascade through smoothing
 - **Strong groove modulation (40%+ swing)**: Looks flashy in demos but distracting on fast songs
+- **Simple tweening for clock hands**: Even with long durations and gentle easing, tweens feel weightless. Compass physics (spring-damper) adds inertia and overshoot that feels more physical
 
 ### Performance
 - **Heavy particle systems**: Crash framerate—keep overlays minimal
@@ -97,6 +105,11 @@
 ### Music Mapping
 - **Drum-only energy drivers**: Many MIDIs have no drums. Generalize to all note onsets + beat grid
 - **Bass clock tracking individual bass notes**: Too erratic. Follow chord root instead
+- **Discrete BPM presets for anticipation**: Causes jarring 50%+ drops at preset boundaries. Use continuous power law curve instead
+- **Per-pitch-class debounce (keeping only closest)**: Too aggressive—sheds bass notes and chord voicings. Use buffer with limit per pitch class instead
+- **Per-MIDI-note debounce**: Still too aggressive for dense arrangements. Octave doublings and chord voicings need to show
+- **Large lower bound gap (5%+)**: Creates visible discontinuity where anticipation disappears before note plays. Keep gap under 3%
+- **Continuous anticipation tracking**: Time-based lookahead with precise offsets causes timing issues on different tempos. Beat-synced pulses are more reliable and rhythmically appropriate
 - **Drum pulse circles around beat positions**: Despite multiple iterations with capacitor models, hihat accents, different radii—always felt either too heavy/sudden or didn't "land" visually. Better to let wave tanks respond to all onsets
 - **Pre-calculated tick fractions for clock cutouts**: Lookup tables and tweened fractions don't align perfectly across all keys. Calculate positions dynamically each frame using spiralPos directly
 - **Breath effect on clock elements**: Subtle pulsing looked more jittery than organic. Removed in favor of static sizing

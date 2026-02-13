@@ -1079,7 +1079,7 @@ const FRACTAL_TYPES = {
 | Burning Ship | "A Note on the Burning Ship" - https://mrob.com/pub/muency/burningship.html |
 | Tricorn | https://mathworld.wolfram.com/Tricorn.html |
 | Newton | https://en.wikipedia.org/wiki/Newton_fractal |
-| Magnet | https://mrob.com/pub/muency/magnet.html |
+| Magnet | https://paulbourke.net/fractals/magnet/ , https://mrob.com/pub/muency/magnet.html |
 | Collatz | "On the Existence of Collatz Fractals" - various arxiv papers |
 
 ---

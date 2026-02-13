@@ -6,6 +6,7 @@
  */
 
 import type { VisualEffect } from './effects/effect-interface.ts';
+import { getCustomColors, loadCustomColors } from './effects/effect-utils.ts';
 
 // --- Version & Migration ---
 
@@ -83,6 +84,7 @@ export interface VisualizerState {
   };
   configs: EffectConfigs;
   anchors?: FractalAnchors;  // Optional - only in JSON/localStorage, never in URL
+  customColors?: Record<number, string>;  // Optional - pitch class (0-11) to hex color
 }
 
 // --- Custom Presets ---
@@ -114,12 +116,15 @@ export type SlotKey = typeof SLOT_KEYS[number];
 // Effect ID ↔ short name for layer params (single words where possible)
 export const EFFECT_SHORT_NAMES: Record<string, string> = {
   'flowfield': 'flow',
+  'starfield': 'stars-bg',
   'note-spiral': 'spiral',
-  'star-spiral': 'stars',
+  'note-star': 'stars',
   'piano-roll': 'piano',
+  'graph-chain': 'chain',
   'domainwarp': 'warp',
   'chladni': 'chladni',
   'kaleidoscope': 'kaleido',
+  'feedback-trail': 'trail',
   'fractal': 'fractal',
   'bass-clock': 'clock',
   'bass-fire': 'fire',
@@ -139,12 +144,15 @@ export const SHORT_NAME_TO_EFFECT = Object.fromEntries(
 // Effect ID ↔ 2-letter prefix for config params
 export const EFFECT_PREFIXES: Record<string, string> = {
   'flowfield': 'ff',
+  'starfield': 'sf',
   'note-spiral': 'ns',
-  'star-spiral': 'ss',
+  'note-star': 'nt',
   'piano-roll': 'pr',
+  'graph-chain': 'gc',
   'domainwarp': 'dw',
   'chladni': 'ch',
   'kaleidoscope': 'ks',
+  'feedback-trail': 'ft',
   'fractal': 'fr',
   'bass-clock': 'bc',
   'bass-fire': 'bf',
@@ -155,7 +163,6 @@ export const EFFECT_PREFIXES: Record<string, string> = {
   'tonnetz': 'tn',
   'wave-interference': 'wi',
   'theory-bar': 'tb',
-  'starfield': 'sf',
 };
 
 export const PREFIX_TO_EFFECT = Object.fromEntries(
@@ -188,30 +195,43 @@ for (const [effectId, keys] of Object.entries(CONFIG_SHORTS)) {
 
 export const PRESET_LAYERS: Record<string, (string | null)[]> = {
   // [bg, fg, overlay, melody, bass, hud]
-  spiral: ['starfield', 'star-spiral', null, null, 'bass-fire', null],
-  clock: ['starfield', 'note-spiral', null, null, 'bass-clock', null],
-  warp: ['chladni', 'note-spiral', 'kaleidoscope', null, 'bass-clock', null],
+  spiral: ['starfield', 'note-star', null, null, 'bass-fire', null],
+  clock: ['flowfield', 'note-spiral', null, 'melody-clock', 'bass-clock', 'theory-bar'],
+  warp: ['chladni', 'note-spiral', 'kaleidoscope', 'melody-clock', 'bass-clock', null],
   fractal: ['flowfield', 'fractal', null, null, null, 'theory-bar'],
   piano: ['flowfield', 'piano-roll', null, null, null, null],
   chain: [null, 'graph-chain', null, null, null, 'theory-bar'],
+  'kali-graph': [null, 'graph-chain', 'kaleidoscope', null, null, null],
 };
 
 // Preset-specific effect configs (applied when preset is selected)
 export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
   spiral: {
-    'bass-fire': { showNumerals: false },
+    'bass-fire': { showNumerals: true },
   },
   clock: {
     'note-spiral': { setShapes: '' },
   },
   warp: {
-    'note-spiral': { setShapes: 'ring' },
+    'note-spiral': { setShapes: 'ring,trails' },
   },
   fractal: {
     'fractal': { preset: 'celtic-knots:Celtic Knots' },
   },
   piano: {},
   chain: {},
+  'kali-graph': {
+    'graph-chain': {
+      tonnetzWindowBars: 1,
+      maxNodes: 2000,
+      nodeSize: 3,
+      edgeWidth: 1,
+      glowIntensity: 1,
+    },
+    'kaleidoscope': {
+      foldCount: 12,
+    },
+  },
 };
 
 // --- Default Config Values ---
@@ -254,6 +274,8 @@ export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
     colorByChord: true,
   },
   'theory-bar': { barHeight: 64 },
+  'bass-fire': { showNumerals: false },
+  'wave-interference': { decayRate: 8 },
 };
 
 export function getDefaultConfigValue(effectId: string, key: string): unknown {
@@ -317,6 +339,12 @@ export function getCurrentState(
     }
   }
 
+  // Include custom colors if any are set
+  const customColors = getCustomColors();
+  if (Object.keys(customColors).length > 0) {
+    state.customColors = customColors;
+  }
+
   return state;
 }
 
@@ -347,6 +375,9 @@ export function applyState(
       }
     }
   }
+
+  // Apply custom colors
+  loadCustomColors(state.customColors);
 }
 
 // --- Preset Detection ---

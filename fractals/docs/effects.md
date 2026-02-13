@@ -19,7 +19,7 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 |--------|------------|------------|---------|------|-----|
 | **Warp** | Chladni | Note Spiral (ring) | Kaleidoscope | Bass Clock | — |
 | **Clock** | Starfield | Note Spiral | — | Bass Clock | — |
-| **Spiral** (default) | Starfield | Star Spiral | — | Bass Fire | — |
+| **Spiral** (default) | Starfield | Note Star | — | Bass Fire | — |
 | **Fractal** | Flow Field | Fractal | — | — | Theory Bar |
 | **Chain** | — | Graph Chain | — | — | Theory Bar |
 | **Piano** | Flow Field | Piano Roll | — | — | — |
@@ -77,7 +77,7 @@ See `research/graph-evolution.md` for design notes and music mapping theory.
 `src/effects/melody-web.ts` — Network graph of 12 pitch classes arranged in a circle as dots. Larger dots for diatonic scale degrees, smaller for chromatic. Edges connect recently-played notes, building a web of melodic relationships. Edge decay 0.9995 (~23s half-life at 60fps) with smoothstep alpha curve. Melody trail shows recent note sequence.
 
 ### Melody Clock
-`src/effects/melody-clock.ts` — Openwork Breguet/pomme-style clock hand tracking individual melody notes. Drawn as stroked outlines with transparent interiors (filigree style). Features: volute scrollwork, open ellipse moon window, teardrop, fleur-de-lis tip with three petals, crescent tail. Roman numeral markers at diatonic positions. Hand direction tracks actual MIDI pitch—ascending melody goes clockwise, descending counter-clockwise. Uses GSAP with **0.5 beat duration** and power2.out ease for smooth motion with some heft. Arc trail shows recent sweep path.
+`src/effects/melody-clock.ts` — Industrial station-clock style hand tracking individual melody notes. **Unified design with Bass Clock**: tapered rectangle hand with cutout holes at octave positions, counterweight with inner circle, comet-tail arc trail with loudness modulation. **Note name markers** (C, C#, D, etc.) at each pitch class position with glow on current note. Hand direction tracks actual MIDI pitch—ascending melody goes clockwise, descending counter-clockwise. Uses **compass physics** (spring-damper system, springK=12, damping=5) for weighty motion with natural overshoot and settle.
 
 ### Bass Clock
 `src/effects/bass-clock.ts` — Industrial station-clock style hand tracking **chord root** (not individual bass notes) for harmonic stability. Features:
@@ -145,4 +145,55 @@ this.energy += onsetEnergy;
 this.energy *= Math.exp(-3.0 * dt);
 // Slow follower (the "wave")
 this.smoothed += (this.energy - this.smoothed) * rate * dt;
+```
+
+### Note Anticipation (Power Law Scaling)
+
+Both Note Spiral and Note Star show upcoming notes before they play, with brightness ramping up to peak at the actual play time. The lookahead window uses a **power law fit** based on empirical testing (R² = 0.87):
+
+| BPM | Lookahead (beats) | Visible Window | Example Song |
+|-----|-------------------|----------------|--------------|
+| 60 | 0.61 | ~610ms | Slow ballads |
+| 82 | 0.50 | ~365ms | FF Prelude |
+| 112 | 0.41 | ~220ms | Don't Stop Believing |
+| 120 | 0.38 | ~191ms | Standard pop |
+| 128 | 0.37 | ~173ms | Sweet Child O' Mine |
+| 180 | 0.29 | ~97ms | Fast EDM |
+| 200 | 0.27 | ~80ms (min) | Extreme tempos |
+
+**Key features:**
+- **Power law curve**: `lookahead = 10.0 * bpm^(-0.68)` gives smooth, perceptually-correct scaling
+- **Minimum visibility**: 80ms guaranteed window even at extreme BPMs (~5 frames at 60fps)
+- **Exponential brightness**: Notes stay dim until close to play, then rapidly brighten
+- **Small lower bound (2.5%)**: Tight gap to onset reduces visual discontinuity
+- **Per-pitch-class buffer**: Up to 4 notes per pitch class—allows octave doublings and chord voicings while preventing spam
+
+Implementation:
+```typescript
+// Power law fit from empirical testing (R² = 0.87)
+// Tested on: FF Prelude, To Zanarkand, Don't Stop Believing, Sweet Child O' Mine
+const lookahead = 10.0 * Math.pow(bpm, -0.68);
+const lowerBound = lookahead / 40;  // 2.5% - tight gap to onset
+
+// Ensure minimum visibility window (80ms)
+const minVisibleSec = 0.08;
+if (lookahead - lowerBound < minVisibleSec) {
+  lookahead = lowerBound + minVisibleSec;
+}
+
+// Per-pitch-class buffer (load shedding)
+const MAX_PER_PITCH_CLASS = 4;
+const pitchClassCount = new Map<number, number>();
+for (const n of filtered) {
+  const pc = n.midi % 12;
+  const count = pitchClassCount.get(pc) || 0;
+  if (count < MAX_PER_PITCH_CLASS) {
+    accepted.push(n);
+    pitchClassCount.set(pc, count + 1);
+  }
+}
+
+// Exponential brightness ramp (dim at start, bright at play)
+const t = 1 - note.timeUntil / note.lookahead;
+const alpha = (Math.exp(t * 3) - 1) / (Math.E ** 3 - 1);
 ```

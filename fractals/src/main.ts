@@ -18,7 +18,7 @@ import { BassWebEffect } from './effects/bass-web.ts';
 import { BassClockEffect } from './effects/bass-clock.ts';
 import { BassFireEffect } from './effects/bass-fire.ts';
 import { NoteSpiralEffect } from './effects/note-spiral.ts';
-import { StarSpiralEffect } from './effects/star-spiral.ts';
+import { NoteStarEffect } from './effects/note-star.ts';
 import { PianoRollEffect } from './effects/piano-roll.ts';
 import { TheoryBarEffect } from './effects/theory-bar.ts';
 import { StarFieldEffect } from './effects/star-field.ts';
@@ -27,7 +27,6 @@ import { FeedbackTrailEffect } from './effects/feedback-trail.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
 import {
   type VisualizerState,
-  type CustomPreset,
   PRESET_LAYERS,
   DEFAULT_CONFIGS,
   getCurrentState,
@@ -35,22 +34,12 @@ import {
   getPresetState,
   urlToState,
   stateToURL,
-  getCustomPresets,
-  saveCustomPreset,
-  deleteCustomPreset,
-  deleteAllCustomPresets,
-  getFullState,
-  applyFullState,
-  validateStateSchema,
-  migrateState,
-  isFullExport,
-  setCustomPresets,
   getAnchorPresets,
   applyAnchorPreset,
-  type FullExport,
 } from './state.ts';
 import { FractalConfigPanel } from './fractal-config.ts';
 import { GRAConfigPanel } from './gra-config.ts';
+import { setCustomColor, clearCustomColors, getCustomColors, samplePaletteColor } from './effects/effect-utils.ts';
 
 // --- Song list ---
 
@@ -61,17 +50,18 @@ interface SongEntry {
 
 // --- Playlist Categories ---
 
-type PlaylistCategory = 'classical' | 'bossa' | 'pop' | 'video';
+type PlaylistCategory = 'classical' | 'pop' | 'video';
 
 const popSongs: SongEntry[] = [
-  // Pop & rock anthems (energy arc: groove → build → peak → epic finale)
-  { name: 'Africa (Toto)', file: 'toto-africa.mid' },                                     // iconic opener
-  { name: 'Billie Jean (Michael Jackson)', file: 'mj-billie-jean.mid' },                  // groove foundation
-  { name: 'Don\'t Stop Believin\' (Journey)', file: 'journey-dont-stop.mid' },            // building anthem
-  { name: 'Never Gonna Give You Up (Rick Astley)', file: 'rick-astley-never-gonna.mid' }, // fun energy
-  { name: 'Dancing Queen (ABBA)', file: 'abba-dancing-queen.mid' },                       // disco high
-  { name: 'Stayin\' Alive (Bee Gees)', file: 'bee-gees-stayin-alive.mid' },               // disco high
+  // Classics (energy arc: groove → build → peak → epic finale)
+  { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid' },                // bossa classic
   { name: 'Eye of the Tiger (Survivor)', file: 'survivor-eye-of-tiger.mid' },             // pump up
+  { name: 'Never Gonna Give You Up (Rick Astley)', file: 'rick-astley-never-gonna.mid' }, // fun energy
+  { name: 'Billie Jean (Michael Jackson)', file: 'mj-billie-jean.mid' },                  // groove foundation
+  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },         // bossa classic
+  { name: 'Dancing Queen (ABBA)', file: 'abba-dancing-queen.mid' },                       // disco high
+  { name: 'Money Money Money (ABBA)', file: 'abba-money-money-money.mid' },               // disco drama
+  { name: 'Stayin\' Alive (Bee Gees)', file: 'bee-gees-stayin-alive.mid' },               // disco high
   { name: 'The Final Countdown (Europe)', file: 'europe-final-countdown.mid' },           // dramatic
   { name: 'Livin\' on a Prayer (Bon Jovi)', file: 'bon-jovi-livin-prayer.mid' },          // PEAK anthem
   { name: 'Sweet Child O\' Mine (Guns N\' Roses)', file: 'gnr-sweet-child.mid' },         // rock sustain
@@ -80,7 +70,7 @@ const popSongs: SongEntry[] = [
 
 const videoSongs: SongEntry[] = [
   // Video game classics (energy arc: setup → build → peak at 2/3 → release)
-  { name: 'Prelude (Final Fantasy VII)', file: 'ff7-prelude.mid' },                       // iconic arpeggio opener
+  { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // emotional opener
   { name: 'Great Fairy Fountain (Zelda: OoT)', file: 'zelda-great-fairy-fountain.mid' }, // ethereal
   { name: 'Corridors of Time (Chrono Trigger)', file: 'corridors-of-time.mid' },         // dreamy
   { name: 'Pollyanna (Earthbound)', file: 'earthbound-pollyanna.mid' },                  // heartfelt
@@ -90,24 +80,7 @@ const videoSongs: SongEntry[] = [
   { name: 'Gerudo Valley (Zelda: OoT)', file: 'zelda-gerudo-valley.mid' },               // high energy
   { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },                        // PEAK battle
   { name: 'Battle Theme (Golden Sun)', file: 'golden-sun-battle.mid' },                  // RPG intensity
-  { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // emotional cooldown
   { name: 'Aquatic Ambiance (Donkey Kong Country)', file: 'dkc-aquatic-ambiance.mid' },  // serene ending ♡
-];
-
-const bossaSongs: SongEntry[] = [
-  // Bossa Nova & Brazilian Jazz (energy arc: intimate → build → peak → playful end)
-  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },        // iconic opener
-  { name: 'Corcovado (Jobim)', file: 'jobim-corcovado.mid' },                            // intimate
-  { name: 'Meditation (Jobim)', file: 'jobim-meditation.mid' },                          // gentle
-  { name: 'How Insensitive (Jobim)', file: 'jobim-how-insensitive.mid' },                // melancholic
-  { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid' },               // beautiful lift
-  { name: 'Este Seu Olhar (Jobim)', file: 'jobim-este-seu-olhar.mid' },                  // romantic
-  { name: 'Gabriela Theme (Jobim)', file: 'jobim-gabriela.mid' },                        // cinematic
-  { name: 'Blue Bossa (Kenny Dorham)', file: 'dorham-blue-bossa.mid' },                  // grooving jazz
-  { name: 'Mas Que Nada (Jorge Ben)', file: 'jorge-ben-mas-que-nada.mid' },              // HIGH PEAK
-  { name: 'Tico Tico (Zequinha Abreu)', file: 'abreu-tico-tico.mid' },                   // high energy
-  { name: 'So Nice / Summer Samba (Valle)', file: 'valle-so-nice.mid' },                 // upbeat cooldown
-  { name: 'New Wave Bossa Nova (Zelda MM)', file: 'zelda-new-wave-bossa.mid' },          // playful ending ♡
 ];
 
 const classicalSongs: SongEntry[] = [
@@ -128,12 +101,11 @@ const classicalSongs: SongEntry[] = [
 
 const playlists: Record<PlaylistCategory, SongEntry[]> = {
   classical: classicalSongs,
-  bossa: bossaSongs,
   pop: popSongs,
   video: videoSongs,
 };
 
-let currentPlaylist: PlaylistCategory = 'video';
+let currentPlaylist: PlaylistCategory = 'pop';
 
 // --- State ---
 
@@ -180,7 +152,7 @@ const bassWebEffect = new BassWebEffect();
 const bassClockEffect = new BassClockEffect();
 const bassFireEffect = new BassFireEffect();
 const noteSpiralEffect = new NoteSpiralEffect();
-const starSpiralEffect = new StarSpiralEffect();
+const noteStarEffect = new NoteStarEffect();
 const pianoRollEffect = new PianoRollEffect();
 const theoryBarEffect = new TheoryBarEffect();
 const starFieldEffect = new StarFieldEffect();
@@ -203,7 +175,7 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Foreground',
-    effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect, starSpiralEffect, graphChainEffect],
+    effects: [pianoRollEffect, tonnetzEffect, fractalEffect, noteSpiralEffect, noteStarEffect, graphChainEffect],
     activeId: 'graph-chain',  // Graph Sculpture default
   },
   {
@@ -267,7 +239,7 @@ function applyURLSettings(): { presetApplied?: string } {
       applyState(defaultPreset, layerSlots, getAllEffects());
     }
     applySlotSelections();
-    result.presetApplied = 'warp';
+    result.presetApplied = 'spiral';
     return result;
   }
 
@@ -303,6 +275,16 @@ app.innerHTML = `
           <button class="mobile-preset-btn" id="mobile-bar-spiral">Spiral</button>
           <button class="mobile-preset-btn" id="mobile-bar-chain">Chain</button>
         </div>
+        <div class="playlist-category-wrap desktop-only">
+          <button class="toggle-btn playlist-btn active" id="playlist-pop" title="Pop & rock">Classics</button>
+          <button class="toggle-btn playlist-btn" id="playlist-classical" title="Classical">Classical</button>
+          <button class="toggle-btn playlist-btn" id="playlist-video" title="Video games">Games</button>
+        </div>
+        <div class="song-picker-wrap">
+          <select id="song-picker">
+            ${popSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
+          </select>
+        </div>
         <div class="transport-compact">
           <button class="transport-btn" id="prev-btn" title="Previous track">
             <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
@@ -315,31 +297,16 @@ app.innerHTML = `
             <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M6 18l8.5-6L6 6v12zm2 0V6l6.5 6L8 18zM16 6v12h2V6z"/></svg>
           </button>
         </div>
-        <div class="playlist-category-wrap desktop-only">
-          <button class="toggle-btn playlist-btn" id="playlist-bossa" title="Bossa nova">Bossa</button>
-          <button class="toggle-btn playlist-btn" id="playlist-classical" title="Classical">Classical</button>
-          <button class="toggle-btn playlist-btn" id="playlist-pop" title="Pop & rock">Classics</button>
-          <button class="toggle-btn playlist-btn active" id="playlist-video" title="Video games">Games</button>
-        </div>
-        <div class="song-picker-wrap">
-          <select id="song-picker">
-            ${videoSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('')}
-          </select>
-        </div>
         <div class="seek-wrap">
           <input type="range" id="seek-bar" min="0" max="100" step="0.1" value="0" disabled>
           <span class="time-display" id="time-display">0:00 / 0:00</span>
         </div>
         <div class="preset-buttons desktop-only">
-          <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope">Warp</button>
+          <button class="toggle-btn preset-btn" id="preset-spiral" title="Starfield + Note Star + Bass Fire">Spiral</button>
           <button class="toggle-btn preset-btn" id="preset-clock" title="Starfield + Note Spiral + Bass Clock">Clock</button>
-          <button class="toggle-btn preset-btn" id="preset-spiral" title="Starfield + Star Spiral + Bass Fire">Spiral</button>
-          <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar">Fractal</button>
-          <button class="toggle-btn preset-btn" id="preset-chain" title="Chain + Theory Bar">Chain</button>
+          <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope">Warp</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
           <button class="toggle-btn" id="layers-toggle">Custom</button>
-          <div class="custom-presets-wrap" id="custom-presets"></div>
-          <button class="reset-presets-btn" id="reset-presets-btn" title="Delete all custom presets" style="display:none;">Reset</button>
         </div>
         <button class="transport-btn" id="fullscreen-btn" title="Fullscreen">&#x26F6;</button>
       </div>
@@ -354,21 +321,25 @@ app.innerHTML = `
       <div class="mobile-menu-section">
         <div class="mobile-menu-label">Playlist</div>
         <div class="mobile-menu-buttons">
-          <button class="toggle-btn playlist-btn" id="mobile-playlist-bossa">Bossa</button>
+          <button class="toggle-btn playlist-btn active" id="mobile-playlist-pop">Classics</button>
           <button class="toggle-btn playlist-btn" id="mobile-playlist-classical">Classical</button>
-          <button class="toggle-btn playlist-btn" id="mobile-playlist-pop">Classics</button>
-          <button class="toggle-btn playlist-btn active" id="mobile-playlist-video">Games</button>
+          <button class="toggle-btn playlist-btn" id="mobile-playlist-video">Games</button>
         </div>
       </div>
       <div class="mobile-menu-section">
         <div class="mobile-menu-label">View</div>
         <div class="mobile-menu-buttons">
-          <button class="toggle-btn preset-btn" id="mobile-preset-warp">Warp</button>
-          <button class="toggle-btn preset-btn" id="mobile-preset-clock">Clock</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-spiral">Spiral</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-clock">Clock</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-warp">Warp</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-piano">Piano</button>
+        </div>
+      </div>
+      <div class="mobile-menu-section">
+        <div class="mobile-menu-label">Experimental</div>
+        <div class="mobile-menu-buttons">
           <button class="toggle-btn preset-btn" id="mobile-preset-fractal">Fractal</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-chain">Chain</button>
-          <button class="toggle-btn preset-btn" id="mobile-preset-piano">Piano</button>
         </div>
       </div>
       <div class="mobile-menu-section">
@@ -385,25 +356,31 @@ app.innerHTML = `
         </div>
         <div id="layer-list"></div>
         <div class="layer-panel-footer">
-          <button class="save-preset-btn" id="save-preset-btn" title="Save current configuration as a preset">+ Save Preset</button>
-          <div class="export-import-row">
-            <div class="export-split-btn">
-              <button class="export-file-btn" id="export-file-btn" title="Download as file">Export</button>
-              <button class="export-copy-btn" id="export-copy-btn" title="Copy to clipboard">📋</button>
+          <div class="colors-section" id="colors-section">
+            <div class="colors-header">
+              <span>Note Colors</span>
+              <button class="colors-reset-btn" id="colors-reset-btn" title="Reset to defaults">Reset</button>
             </div>
-            <button class="import-btn" id="import-btn" title="Import configuration from JSON">Import</button>
+            <div class="colors-grid" id="colors-grid"></div>
           </div>
-          <div class="export-import-warning">Alpha – configs may break across versions</div>
+          <div class="experimental-presets">
+            <div class="experimental-label">Experimental</div>
+            <div class="experimental-buttons">
+              <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar">Fractal</button>
+              <button class="toggle-btn preset-btn" id="preset-chain" title="Chain + Theory Bar">Chain</button>
+              <button class="toggle-btn preset-btn" id="preset-kali-graph" title="Graph Chain + Kaleidoscope">Kali-Graph</button>
+            </div>
+          </div>
         </div>
       </div>
       <div class="canvas-wrap">
         <canvas id="canvas"></canvas>
-        <div class="mobile-play-overlay" id="mobile-play-overlay">
-          <button class="mobile-play-btn" id="mobile-play-btn">
+        <div class="play-overlay visible" id="play-overlay">
+          <button class="play-overlay-btn" id="play-overlay-btn">
             <svg viewBox="0 0 24 24" width="64" height="64">
               <path fill="currentColor" d="M8 5v14l11-7z"/>
             </svg>
-            <span>Tap to Play</span>
+            <span>Click to Play</span>
           </button>
         </div>
       </div>
@@ -429,43 +406,6 @@ app.innerHTML = `
     </div>
   </div>
 
-  <!-- Modal overlay -->
-  <div class="modal-overlay" id="modal-overlay">
-    <div class="modal-box">
-      <div class="modal-title" id="modal-title">Modal Title</div>
-      <div class="modal-message" id="modal-message"></div>
-      <input type="text" class="modal-input" id="modal-input" style="display: none;" placeholder="Preset name...">
-      <div class="modal-buttons">
-        <button class="modal-btn modal-btn-cancel" id="modal-cancel">Cancel</button>
-        <button class="modal-btn modal-btn-primary" id="modal-confirm">Confirm</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- Import modal -->
-  <div class="modal-overlay" id="import-modal-overlay">
-    <div class="modal-box import-modal-box">
-      <div class="modal-title">Import Configuration</div>
-      <div class="import-tabs">
-        <button class="import-tab active" data-tab="paste">Paste JSON</button>
-        <button class="import-tab" data-tab="file">Upload File</button>
-      </div>
-      <div class="import-tab-content" id="import-paste-tab">
-        <textarea class="import-textarea" id="import-textarea" placeholder="Paste JSON configuration here..."></textarea>
-      </div>
-      <div class="import-tab-content" id="import-file-tab" style="display: none;">
-        <label class="import-file-label" id="import-file-label">
-          <input type="file" id="import-file-input" accept=".json,application/json" style="display: none;">
-          <span class="import-file-text">Click to select a JSON file</span>
-        </label>
-      </div>
-      <div class="import-error" id="import-error"></div>
-      <div class="modal-buttons">
-        <button class="modal-btn modal-btn-cancel" id="import-cancel">Cancel</button>
-        <button class="modal-btn modal-btn-primary" id="import-confirm">Import</button>
-      </div>
-    </div>
-  </div>
   <div id="toast" class="toast"></div>
 `;
 
@@ -489,6 +429,10 @@ const pauseIcon = playBtn.querySelector('.pause-icon') as SVGElement;
 const setPlayBtnState = (playing: boolean) => {
   playIcon.style.display = playing ? 'none' : 'block';
   pauseIcon.style.display = playing ? 'block' : 'none';
+  // Dismiss play overlay whenever playback starts
+  if (playing) {
+    document.getElementById('play-overlay')?.classList.remove('visible');
+  }
 };
 const prevBtn = document.getElementById('prev-btn') as HTMLButtonElement;
 const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
@@ -501,14 +445,14 @@ const fpsDisplay = document.getElementById('fps-display')!;
 const layersToggle = document.getElementById('layers-toggle') as HTMLButtonElement;
 const layerPanel = document.getElementById('layer-panel')!;
 const layerList = document.getElementById('layer-list')!;
+const colorsGrid = document.getElementById('colors-grid')!;
+const colorsResetBtn = document.getElementById('colors-reset-btn') as HTMLButtonElement;
 const fullscreenBtn = document.getElementById('fullscreen-btn') as HTMLButtonElement;
 const debugOverlay = document.getElementById('debug-overlay') as HTMLElement;
 const playlistClassicalBtn = document.getElementById('playlist-classical') as HTMLButtonElement;
-const playlistBossaBtn = document.getElementById('playlist-bossa') as HTMLButtonElement;
 const playlistPopBtn = document.getElementById('playlist-pop') as HTMLButtonElement;
 const playlistVideoBtn = document.getElementById('playlist-video') as HTMLButtonElement;
-const mobilePlayOverlay = document.getElementById('mobile-play-overlay')!;
-const mobilePlayBtn = document.getElementById('mobile-play-btn')!;
+const playOverlay = document.getElementById('play-overlay')!;
 
 // Mobile menu elements
 const hamburgerBtn = document.getElementById('hamburger-btn')!;
@@ -519,15 +463,11 @@ const mobileMenuBackdrop = document.getElementById('mobile-menu-backdrop')!;
 // Debug overlay visibility state
 let debugOverlayVisible = false;
 
-// --- Mobile play overlay ---
-// Show on touch devices to ensure clean user gesture for audio unlock
-const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-if (isTouchDevice) {
-  mobilePlayOverlay.classList.add('visible');
-}
-
-mobilePlayBtn.addEventListener('click', async () => {
-  mobilePlayOverlay.classList.remove('visible');
+// --- Play overlay ---
+// Show on all platforms to ensure clean user gesture for audio unlock
+// Click anywhere on overlay to start playback
+playOverlay.addEventListener('click', async () => {
+  playOverlay.classList.remove('visible');
   // Trigger play which will unlock audio
   if (!isPlaying) {
     await audioPlayer.play();
@@ -630,10 +570,6 @@ mobileMenu.addEventListener('touchend', (e) => {
 }, { passive: true });
 
 // Mobile menu playlist buttons
-document.getElementById('mobile-playlist-bossa')!.addEventListener('click', () => {
-  switchPlaylist('bossa');
-  updateMobilePlaylistButtons();
-});
 document.getElementById('mobile-playlist-classical')!.addEventListener('click', () => {
   switchPlaylist('classical');
   updateMobilePlaylistButtons();
@@ -648,7 +584,6 @@ document.getElementById('mobile-playlist-video')!.addEventListener('click', () =
 });
 
 function updateMobilePlaylistButtons(): void {
-  document.getElementById('mobile-playlist-bossa')!.classList.toggle('active', currentPlaylist === 'bossa');
   document.getElementById('mobile-playlist-classical')!.classList.toggle('active', currentPlaylist === 'classical');
   document.getElementById('mobile-playlist-pop')!.classList.toggle('active', currentPlaylist === 'pop');
   document.getElementById('mobile-playlist-video')!.classList.toggle('active', currentPlaylist === 'video');
@@ -669,7 +604,6 @@ async function switchPlaylist(category: PlaylistCategory): Promise<void> {
 
   // Update button states
   playlistClassicalBtn.classList.toggle('active', category === 'classical');
-  playlistBossaBtn.classList.toggle('active', category === 'bossa');
   playlistPopBtn.classList.toggle('active', category === 'pop');
   playlistVideoBtn.classList.toggle('active', category === 'video');
 
@@ -979,6 +913,140 @@ fractalConfigPanel.onSave = () => {
 
 const graConfigPanel = new GRAConfigPanel();
 
+// --- Note names for color pickers ---
+const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+// --- Build colors grid UI with drag-and-drop ---
+let dragSourcePc: number | null = null;
+
+function getColorValue(pc: number, customColors: Record<number, string>): string {
+  if (customColors[pc]) return customColors[pc];
+  const defaultColor = samplePaletteColor(pc, 0.65);
+  return '#' + defaultColor.map(c => c.toString(16).padStart(2, '0')).join('');
+}
+
+function buildColorsGrid(): void {
+  colorsGrid.innerHTML = '';
+
+  const customColors = getCustomColors();
+
+  for (let pc = 0; pc < 12; pc++) {
+    const row = document.createElement('div');
+    row.className = 'color-row';
+    row.dataset.pitchClass = String(pc);
+
+    const label = document.createElement('span');
+    label.className = 'color-label';
+    label.textContent = NOTE_NAMES[pc];
+    row.appendChild(label);
+
+    // Color swatch (draggable visual indicator)
+    const swatch = document.createElement('div');
+    swatch.className = 'color-swatch';
+    swatch.draggable = true;
+    swatch.dataset.pitchClass = String(pc);
+
+    // Get default color from palette (sample at 0.65 for representative color)
+    const defaultColor = samplePaletteColor(pc, 0.65);
+    const defaultHex = '#' + defaultColor.map(c => c.toString(16).padStart(2, '0')).join('');
+
+    // Use custom color if set, otherwise default
+    const currentColor = customColors[pc] ?? defaultHex;
+    swatch.style.backgroundColor = currentColor;
+    swatch.dataset.defaultColor = defaultHex;
+
+    // Hidden color input for picking colors
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.className = 'color-input-hidden';
+    input.value = currentColor;
+    input.dataset.pitchClass = String(pc);
+    input.dataset.defaultColor = defaultHex;
+
+    // Click swatch to open color picker
+    swatch.addEventListener('click', (e) => {
+      e.stopPropagation();
+      input.click();
+    });
+
+    input.addEventListener('input', () => {
+      const pitchClass = Number(input.dataset.pitchClass);
+      const defaultColor = input.dataset.defaultColor!;
+      swatch.style.backgroundColor = input.value;
+      // If user picked the default color, clear the custom color
+      if (input.value.toLowerCase() === defaultColor.toLowerCase()) {
+        setCustomColor(pitchClass, null);
+      } else {
+        setCustomColor(pitchClass, input.value);
+      }
+      markUnsavedChanges();
+      updateBrowserURL();
+    });
+
+    // Drag and drop handlers
+    swatch.addEventListener('dragstart', (e) => {
+      dragSourcePc = pc;
+      swatch.classList.add('dragging');
+      e.dataTransfer!.effectAllowed = 'move';
+      e.dataTransfer!.setData('text/plain', String(pc));
+    });
+
+    swatch.addEventListener('dragend', () => {
+      swatch.classList.remove('dragging');
+      dragSourcePc = null;
+      // Remove all drag-over states
+      document.querySelectorAll('.color-swatch.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+    });
+
+    swatch.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = 'move';
+      if (dragSourcePc !== null && dragSourcePc !== pc) {
+        swatch.classList.add('drag-over');
+      }
+    });
+
+    swatch.addEventListener('dragleave', () => {
+      swatch.classList.remove('drag-over');
+    });
+
+    swatch.addEventListener('drop', (e) => {
+      e.preventDefault();
+      swatch.classList.remove('drag-over');
+
+      if (dragSourcePc === null || dragSourcePc === pc) return;
+
+      // Swap colors between source and target
+      const customColors = getCustomColors();
+      const sourceColor = getColorValue(dragSourcePc, customColors);
+      const targetColor = getColorValue(pc, customColors);
+
+      // Set new colors (these become custom regardless of defaults)
+      setCustomColor(dragSourcePc, targetColor);
+      setCustomColor(pc, sourceColor);
+
+      // Rebuild grid to show swapped colors
+      buildColorsGrid();
+      markUnsavedChanges();
+      updateBrowserURL();
+    });
+
+    row.appendChild(swatch);
+    row.appendChild(input);
+    colorsGrid.appendChild(row);
+  }
+}
+
+// Reset colors to defaults
+colorsResetBtn.addEventListener('click', () => {
+  clearCustomColors();
+  buildColorsGrid();
+  markUnsavedChanges();
+  updateBrowserURL();
+});
+
 // --- Build layer panel UI ---
 
 function buildLayerPanel(): void {
@@ -996,22 +1064,35 @@ function buildLayerPanel(): void {
     label.className = 'slot-label';
     label.textContent = slot.name;
 
-    // Effect picker dropdown
-    const select = document.createElement('select');
-    select.className = 'slot-select';
+    // Effect picker radio buttons
+    const radioGroup = document.createElement('div');
+    radioGroup.className = 'slot-radios';
+    const slotId = slot.name.toLowerCase().replace(/\s+/g, '-');
 
-    const noneOpt = document.createElement('option');
-    noneOpt.value = '';
-    noneOpt.textContent = 'None';
-    if (!slot.activeId) noneOpt.selected = true;
-    select.appendChild(noneOpt);
+    // "None" option
+    const noneLabel = document.createElement('label');
+    noneLabel.className = 'slot-radio' + (!slot.activeId ? ' active' : '');
+    const noneInput = document.createElement('input');
+    noneInput.type = 'radio';
+    noneInput.name = `slot-${slotId}`;
+    noneInput.value = '';
+    noneInput.checked = !slot.activeId;
+    noneLabel.appendChild(noneInput);
+    noneLabel.appendChild(document.createTextNode('None'));
+    radioGroup.appendChild(noneLabel);
 
+    // Effect options
     for (const effect of slot.effects) {
-      const opt = document.createElement('option');
-      opt.value = effect.id;
-      opt.textContent = effect.name;
-      if (effect.id === slot.activeId) opt.selected = true;
-      select.appendChild(opt);
+      const effLabel = document.createElement('label');
+      effLabel.className = 'slot-radio' + (effect.id === slot.activeId ? ' active' : '');
+      const effInput = document.createElement('input');
+      effInput.type = 'radio';
+      effInput.name = `slot-${slotId}`;
+      effInput.value = effect.id;
+      effInput.checked = effect.id === slot.activeId;
+      effLabel.appendChild(effInput);
+      effLabel.appendChild(document.createTextNode(effect.name));
+      radioGroup.appendChild(effLabel);
     }
 
     // Config button for fractal and graph-chain effects (only in Foreground slot)
@@ -1031,8 +1112,13 @@ function buildLayerPanel(): void {
       });
     }
 
-    select.addEventListener('change', () => {
-      slot.activeId = select.value || null;
+    // Radio change handler
+    radioGroup.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      slot.activeId = target.value || null;
+      // Update active class on labels
+      radioGroup.querySelectorAll('.slot-radio').forEach(lbl => lbl.classList.remove('active'));
+      target.parentElement?.classList.add('active');
       applySlotSelections();
       buildConfigSection(slotDiv, slot);
       clearPresetHighlights();
@@ -1047,8 +1133,8 @@ function buildLayerPanel(): void {
     });
 
     header.appendChild(label);
-    header.appendChild(select);
     slotDiv.appendChild(header);
+    slotDiv.appendChild(radioGroup);
 
     // Config button on its own line (for effects with config panels)
     if (configBtn) {
@@ -1210,10 +1296,11 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
 }
 
 buildLayerPanel();
+buildColorsGrid();
 
 // --- Preset buttons ---
 
-type PresetName = 'spiral' | 'warp' | 'clock' | 'fractal' | 'piano' | 'chain';
+type PresetName = 'spiral' | 'warp' | 'clock' | 'fractal' | 'piano' | 'chain' | 'kali-graph';
 const presetButtons: Record<PresetName, HTMLButtonElement> = {
   spiral: document.getElementById('preset-spiral') as HTMLButtonElement,
   warp: document.getElementById('preset-warp') as HTMLButtonElement,
@@ -1221,6 +1308,7 @@ const presetButtons: Record<PresetName, HTMLButtonElement> = {
   fractal: document.getElementById('preset-fractal') as HTMLButtonElement,
   piano: document.getElementById('preset-piano') as HTMLButtonElement,
   chain: document.getElementById('preset-chain') as HTMLButtonElement,
+  'kali-graph': document.getElementById('preset-kali-graph') as HTMLButtonElement,
 };
 
 // Highlight preset button based on URL settings or default to Spiral
@@ -1251,6 +1339,7 @@ function applyPreset(preset: PresetName): void {
 
   applySlotSelections();
   buildLayerPanel();
+  buildColorsGrid();
   dirty = true;
   clearUnsavedChanges();
 
@@ -1279,13 +1368,14 @@ for (const [name, btn] of Object.entries(presetButtons)) {
 }
 
 // Mobile preset buttons
-const mobilePresetButtons: Record<PresetName, HTMLButtonElement> = {
+const mobilePresetButtons: Partial<Record<PresetName, HTMLButtonElement>> = {
   spiral: document.getElementById('mobile-preset-spiral') as HTMLButtonElement,
   warp: document.getElementById('mobile-preset-warp') as HTMLButtonElement,
   clock: document.getElementById('mobile-preset-clock') as HTMLButtonElement,
   fractal: document.getElementById('mobile-preset-fractal') as HTMLButtonElement,
   piano: document.getElementById('mobile-preset-piano') as HTMLButtonElement,
   chain: document.getElementById('mobile-preset-chain') as HTMLButtonElement,
+  // kali-graph not in mobile menu (experimental only)
 };
 
 for (const [name, btn] of Object.entries(mobilePresetButtons)) {
@@ -1333,389 +1423,10 @@ function clearPresetHighlights(): void {
   document.querySelectorAll('.custom-preset-btn').forEach(btn => btn.classList.remove('active'));
 }
 
-// --- Modal helpers ---
 
-const modalOverlay = document.getElementById('modal-overlay')!;
-const modalTitle = document.getElementById('modal-title')!;
-const modalMessage = document.getElementById('modal-message')!;
-const modalInput = document.getElementById('modal-input') as HTMLInputElement;
-const modalCancel = document.getElementById('modal-cancel')!;
-const modalConfirm = document.getElementById('modal-confirm')!;
-
-let modalResolve: ((value: string | null) => void) | null = null;
-
-function showModal(options: {
-  title: string;
-  message?: string;
-  showInput?: boolean;
-  inputValue?: string;
-  confirmText?: string;
-  confirmClass?: 'primary' | 'danger';
-}): Promise<string | null> {
-  modalTitle.textContent = options.title;
-  modalMessage.textContent = options.message || '';
-  modalMessage.style.display = options.message ? 'block' : 'none';
-
-  if (options.showInput) {
-    modalInput.style.display = 'block';
-    modalInput.value = options.inputValue || '';
-    setTimeout(() => modalInput.focus(), 50);
-  } else {
-    modalInput.style.display = 'none';
-  }
-
-  modalConfirm.textContent = options.confirmText || 'Confirm';
-  modalConfirm.className = 'modal-btn modal-btn-' + (options.confirmClass || 'primary');
-
-  modalOverlay.classList.add('visible');
-
-  return new Promise(resolve => {
-    modalResolve = resolve;
-  });
-}
-
-function hideModal(result: string | null): void {
-  modalOverlay.classList.remove('visible');
-  if (modalResolve) {
-    modalResolve(result);
-    modalResolve = null;
-  }
-}
-
-modalCancel.addEventListener('click', () => hideModal(null));
-modalConfirm.addEventListener('click', () => {
-  const value = modalInput.style.display !== 'none' ? modalInput.value : 'confirmed';
-  hideModal(value);
-});
-modalOverlay.addEventListener('click', (e) => {
-  if (e.target === modalOverlay) hideModal(null);
-});
-modalInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') {
-    hideModal(modalInput.value);
-  } else if (e.key === 'Escape') {
-    hideModal(null);
-  }
-});
-
-// --- Custom Presets UI ---
-
-const customPresetsWrap = document.getElementById('custom-presets')!;
-const savePresetBtn = document.getElementById('save-preset-btn')!;
-const resetPresetsBtn = document.getElementById('reset-presets-btn')!;
-
-let activeCustomPresetId: string | null = null;
-let hasUnsavedChanges = false;
-
-function markUnsavedChanges(): void {
-  if (!hasUnsavedChanges) {
-    hasUnsavedChanges = true;
-    savePresetBtn.classList.add('has-changes');
-  }
-}
-
-function clearUnsavedChanges(): void {
-  hasUnsavedChanges = false;
-  savePresetBtn.classList.remove('has-changes');
-}
-
-function renderCustomPresets(): void {
-  const presets = getCustomPresets();
-  customPresetsWrap.innerHTML = '';
-
-  for (const preset of presets) {
-    const btn = document.createElement('button');
-    btn.className = 'custom-preset-btn' + (preset.id === activeCustomPresetId ? ' active' : '');
-    btn.title = `Load "${preset.name}"`;
-
-    const nameSpan = document.createElement('span');
-    nameSpan.textContent = preset.name;
-    btn.appendChild(nameSpan);
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'custom-preset-delete';
-    deleteBtn.innerHTML = '&times;';
-    deleteBtn.title = 'Delete preset';
-    deleteBtn.addEventListener('click', async (e) => {
-      e.stopPropagation();
-      const result = await showModal({
-        title: 'Delete Preset',
-        message: `Delete "${preset.name}"? This cannot be undone.`,
-        confirmText: 'Delete',
-        confirmClass: 'danger',
-      });
-      if (result) {
-        deleteCustomPreset(preset.id);
-        if (activeCustomPresetId === preset.id) {
-          activeCustomPresetId = null;
-        }
-        renderCustomPresets();
-      }
-    });
-    btn.appendChild(deleteBtn);
-
-    btn.addEventListener('click', () => {
-      applyCustomPreset(preset);
-    });
-
-    customPresetsWrap.appendChild(btn);
-  }
-
-  // Show/hide reset button based on whether there are presets
-  resetPresetsBtn.style.display = presets.length > 0 ? 'block' : 'none';
-}
-
-function applyCustomPreset(preset: CustomPreset): void {
-  // Reset to defaults first
-  for (const [effectId, defaults] of Object.entries(DEFAULT_CONFIGS)) {
-    const effect = getAllEffects().get(effectId);
-    if (effect) {
-      for (const [key, value] of Object.entries(defaults)) {
-        effect.setConfigValue(key, value as string | number | boolean);
-      }
-    }
-  }
-
-  // Apply the preset state (including fractal anchors if present)
-  applyFullState(preset.state, layerSlots, getAllEffects());
-  applySlotSelections();
-  buildLayerPanel();
-  dirty = true;
-  clearUnsavedChanges();
-
-  // Update highlights
-  clearPresetHighlights();
-  activeCustomPresetId = preset.id;
-  renderCustomPresets();
-
-  updateBrowserURL();
-}
-
-savePresetBtn.addEventListener('click', async () => {
-  const result = await showModal({
-    title: 'Save Preset',
-    message: 'Enter a name for this preset:',
-    showInput: true,
-    inputValue: '',
-    confirmText: 'Save',
-  });
-  if (result && result.trim()) {
-    const state = getFullState(layerSlots);
-    const preset = saveCustomPreset(result.trim(), state);
-    activeCustomPresetId = preset.id;
-    clearPresetHighlights();
-    clearUnsavedChanges();
-    renderCustomPresets();
-  }
-});
-
-resetPresetsBtn.addEventListener('click', async () => {
-  const presets = getCustomPresets();
-  const result = await showModal({
-    title: 'Reset All Custom Presets',
-    message: `This will permanently delete all ${presets.length} custom preset${presets.length === 1 ? '' : 's'}. This action cannot be undone.`,
-    confirmText: 'Delete All',
-    confirmClass: 'danger',
-  });
-  if (result) {
-    deleteAllCustomPresets();
-    activeCustomPresetId = null;
-    renderCustomPresets();
-  }
-});
-
-// --- Export/Import ---
-
-const exportFileBtn = document.getElementById('export-file-btn')!;
-const exportCopyBtn = document.getElementById('export-copy-btn')!;
-const importBtn = document.getElementById('import-btn')!;
-const importModalOverlay = document.getElementById('import-modal-overlay')!;
-const importTextarea = document.getElementById('import-textarea') as HTMLTextAreaElement;
-const importFileInput = document.getElementById('import-file-input') as HTMLInputElement;
-const importFileLabel = document.getElementById('import-file-label')!;
-const importError = document.getElementById('import-error')!;
-const importCancel = document.getElementById('import-cancel')!;
-const importConfirm = document.getElementById('import-confirm')!;
-const importTabs = document.querySelectorAll('.import-tab');
-const importPasteTab = document.getElementById('import-paste-tab')!;
-const importFileTab = document.getElementById('import-file-tab')!;
-
-let importedFileContent: string | null = null;
-
-// Create full export data
-function createExportData(): FullExport {
-  return {
-    exportVersion: 1,
-    currentState: getFullState(layerSlots),
-    customPresets: getCustomPresets(),
-    exportedAt: Date.now(),
-  };
-}
-
-// Export file - download JSON
-exportFileBtn.addEventListener('click', () => {
-  const exportData = createExportData();
-  const json = JSON.stringify(exportData, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `fractured-jukebox-config-${Date.now()}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-});
-
-// Export copy - copy JSON to clipboard
-exportCopyBtn.addEventListener('click', async () => {
-  const exportData = createExportData();
-  const json = JSON.stringify(exportData, null, 2);
-  try {
-    await navigator.clipboard.writeText(json);
-  } catch {
-    // Fallback for older browsers
-    const textarea = document.createElement('textarea');
-    textarea.value = json;
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textarea);
-  }
-  exportCopyBtn.classList.add('copied');
-  exportCopyBtn.textContent = '✓';
-  setTimeout(() => {
-    exportCopyBtn.classList.remove('copied');
-    exportCopyBtn.textContent = '📋';
-  }, 1000);
-});
-
-// Import button - show modal
-importBtn.addEventListener('click', () => {
-  importTextarea.value = '';
-  importFileInput.value = '';
-  importedFileContent = null;
-  importError.textContent = '';
-  importFileLabel.classList.remove('has-file');
-  importFileLabel.querySelector('.import-file-text')!.textContent = 'Click to select a JSON file';
-  // Reset to paste tab
-  importTabs.forEach(t => t.classList.remove('active'));
-  importTabs[0].classList.add('active');
-  importPasteTab.style.display = 'block';
-  importFileTab.style.display = 'none';
-  importModalOverlay.classList.add('visible');
-});
-
-// Tab switching
-importTabs.forEach(tab => {
-  tab.addEventListener('click', () => {
-    const tabName = tab.getAttribute('data-tab');
-    importTabs.forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    importPasteTab.style.display = tabName === 'paste' ? 'block' : 'none';
-    importFileTab.style.display = tabName === 'file' ? 'block' : 'none';
-    importError.textContent = '';
-  });
-});
-
-// File input change
-importFileInput.addEventListener('change', () => {
-  const file = importFileInput.files?.[0];
-  if (file) {
-    importFileLabel.classList.add('has-file');
-    importFileLabel.querySelector('.import-file-text')!.textContent = file.name;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      importedFileContent = e.target?.result as string;
-      importError.textContent = '';
-    };
-    reader.onerror = () => {
-      importError.textContent = 'Failed to read file';
-      importedFileContent = null;
-    };
-    reader.readAsText(file);
-  }
-});
-
-// Cancel import
-importCancel.addEventListener('click', () => {
-  importModalOverlay.classList.remove('visible');
-});
-
-// Click outside to close
-importModalOverlay.addEventListener('click', (e) => {
-  if (e.target === importModalOverlay) {
-    importModalOverlay.classList.remove('visible');
-  }
-});
-
-// Confirm import
-importConfirm.addEventListener('click', () => {
-  const activeTab = document.querySelector('.import-tab.active')?.getAttribute('data-tab');
-  let jsonString: string;
-
-  if (activeTab === 'paste') {
-    jsonString = importTextarea.value.trim();
-  } else {
-    if (!importedFileContent) {
-      importError.textContent = 'Please select a file first';
-      return;
-    }
-    jsonString = importedFileContent;
-  }
-
-  if (!jsonString) {
-    importError.textContent = 'Please enter or upload JSON configuration';
-    return;
-  }
-
-  // Try to parse JSON
-  let data: unknown;
-  try {
-    data = JSON.parse(jsonString);
-  } catch {
-    importError.textContent = 'Invalid JSON format';
-    return;
-  }
-
-  // Validate schema
-  const validationError = validateStateSchema(data);
-  if (validationError) {
-    importError.textContent = validationError;
-    return;
-  }
-
-  // Apply the state - handle both FullExport and legacy VisualizerState formats
-  if (isFullExport(data)) {
-    // New format with presets
-    const state = migrateState(data.currentState);
-    applyFullState(state, layerSlots, getAllEffects());
-
-    // Import custom presets
-    if (data.customPresets && data.customPresets.length > 0) {
-      setCustomPresets(data.customPresets);
-    }
-  } else {
-    // Legacy format - just state
-    const state = migrateState(data as VisualizerState);
-    applyFullState(state, layerSlots, getAllEffects());
-  }
-
-  applySlotSelections();
-  buildLayerPanel();
-  dirty = true;
-  clearUnsavedChanges();
-  clearPresetHighlights();
-  activeCustomPresetId = null;
-  renderCustomPresets();
-  updateBrowserURL();
-
-  // Close modal
-  importModalOverlay.classList.remove('visible');
-});
-
-// Initial render
-renderCustomPresets();
+// Custom presets disabled - using built-in presets only
+function markUnsavedChanges(): void {}
+function clearUnsavedChanges(): void {}
 
 // --- Canvas sizing ---
 
@@ -1938,7 +1649,6 @@ async function loadMidiFile(file: File) {
 
 // Playlist category buttons
 playlistClassicalBtn.addEventListener('click', () => switchPlaylist('classical'));
-playlistBossaBtn.addEventListener('click', () => switchPlaylist('bossa'));
 playlistPopBtn.addEventListener('click', () => switchPlaylist('pop'));
 playlistVideoBtn.addEventListener('click', () => switchPlaylist('video'));
 
@@ -2328,7 +2038,6 @@ if (urlList && playlists[urlList]) {
   currentPlaylist = urlList;
   // Update button states
   playlistClassicalBtn.classList.toggle('active', urlList === 'classical');
-  playlistBossaBtn.classList.toggle('active', urlList === 'bossa');
   playlistPopBtn.classList.toggle('active', urlList === 'pop');
   playlistVideoBtn.classList.toggle('active', urlList === 'video');
   // Rebuild song picker

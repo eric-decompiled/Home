@@ -2,8 +2,68 @@
 
 import { palettes } from '../palettes.ts';
 
+// --- Custom colors per pitch class ---
+// Map from pitch class (0-11) to hex color string (e.g., '#ff0000')
+const customColors = new Map<number, string>();
+
+/** Set a custom color for a pitch class */
+export function setCustomColor(pitchClass: number, hex: string | null): void {
+  if (hex === null) {
+    customColors.delete(pitchClass);
+  } else {
+    customColors.set(pitchClass, hex);
+  }
+}
+
+/** Get all custom colors as a record */
+export function getCustomColors(): Record<number, string> {
+  const result: Record<number, string> = {};
+  customColors.forEach((hex, pc) => { result[pc] = hex; });
+  return result;
+}
+
+/** Load custom colors from a record */
+export function loadCustomColors(colors: Record<number, string> | undefined): void {
+  customColors.clear();
+  if (colors) {
+    for (const [pc, hex] of Object.entries(colors)) {
+      customColors.set(Number(pc), hex);
+    }
+  }
+}
+
+/** Clear all custom colors */
+export function clearCustomColors(): void {
+  customColors.clear();
+}
+
+/** Convert hex color to RGB tuple */
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace('#', '');
+  return [
+    parseInt(h.substring(0, 2), 16),
+    parseInt(h.substring(2, 4), 16),
+    parseInt(h.substring(4, 6), 16),
+  ];
+}
+
 /** Sample a color from a palette at a given position (0-1) */
 export function samplePaletteColor(paletteIdx: number, pos: number): [number, number, number] {
+  // Check for custom color override
+  const pc = paletteIdx % 12;
+  const customHex = customColors.get(pc);
+  if (customHex) {
+    // For custom colors, use luminance to apply the position
+    // Higher pos = brighter, lower pos = darker
+    const base = hexToRgb(customHex);
+    // Apply a simple brightness curve based on pos
+    const factor = 0.2 + pos * 0.8; // range 0.2 to 1.0
+    return [
+      Math.round(base[0] * factor),
+      Math.round(base[1] * factor),
+      Math.round(base[2] * factor),
+    ];
+  }
   const p = palettes[paletteIdx % palettes.length];
   const stops = p.stops;
   let s0 = stops[0], s1 = stops[stops.length - 1];

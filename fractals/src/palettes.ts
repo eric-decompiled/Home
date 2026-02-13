@@ -54,15 +54,15 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [100, 50, 190] },
     ],
   },
-  { // 4 - E - Ocean Blue
+  { // 4 - E - Deep Blue
     name: 'E',
     stops: [
-      { pos: 0.0,  color: [0, 3, 18] },
-      { pos: 0.15, color: [0, 22, 65] },
-      { pos: 0.4,  color: [0, 65, 140] },
-      { pos: 0.65, color: [25, 110, 180] },
-      { pos: 0.85, color: [50, 150, 210] },
-      { pos: 1.0,  color: [15, 75, 145] },
+      { pos: 0.0,  color: [0, 0, 8] },
+      { pos: 0.15, color: [0, 10, 45] },
+      { pos: 0.4,  color: [5, 35, 100] },
+      { pos: 0.65, color: [15, 60, 140] },
+      { pos: 0.85, color: [30, 90, 180] },
+      { pos: 1.0,  color: [10, 45, 110] },
     ],
   },
   { // 5 - F - Aqua/Cyan (more green-leaning for contrast with E)
@@ -87,15 +87,15 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [75, 155, 130] },
     ],
   },
-  { // 7 - G - Green (Emerald)
+  { // 7 - G - Green (Deep Forest)
     name: 'G',
     stops: [
-      { pos: 0.0,  color: [0, 0, 0] },
-      { pos: 0.15, color: [0, 24, 16] },
-      { pos: 0.4,  color: [15, 160, 120] },
-      { pos: 0.65, color: [50, 210, 165] },
-      { pos: 0.85, color: [95, 240, 195] },
-      { pos: 1.0,  color: [55, 195, 155] },
+      { pos: 0.0,  color: [0, 3, 0] },
+      { pos: 0.15, color: [2, 25, 5] },
+      { pos: 0.4,  color: [10, 65, 20] },
+      { pos: 0.65, color: [20, 95, 35] },
+      { pos: 0.85, color: [35, 130, 50] },
+      { pos: 1.0,  color: [15, 80, 28] },
     ],
   },
   { // 8 - G# - Orange (between green and red)
@@ -109,15 +109,15 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [180, 80, 5] },
     ],
   },
-  { // 9 - A - Red (Fire)
+  { // 9 - A - Red (Deep)
     name: 'A',
     stops: [
-      { pos: 0.0,  color: [0, 0, 0] },
-      { pos: 0.2,  color: [100, 0, 0] },
-      { pos: 0.45, color: [220, 50, 0] },
-      { pos: 0.7,  color: [255, 180, 30] },
-      { pos: 0.85, color: [255, 220, 80] },
-      { pos: 1.0,  color: [220, 120, 10] },
+      { pos: 0.0,  color: [3, 0, 0] },
+      { pos: 0.15, color: [40, 5, 5] },
+      { pos: 0.4,  color: [120, 15, 10] },
+      { pos: 0.65, color: [170, 25, 20] },
+      { pos: 0.85, color: [210, 40, 30] },
+      { pos: 1.0,  color: [140, 20, 15] },
     ],
   },
   { // 10 - A# - Dusty Mauve (purple-shifted to contrast with red A)
