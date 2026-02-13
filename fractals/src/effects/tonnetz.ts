@@ -476,6 +476,10 @@ export class TonnetzEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return { hexSize: 50, historyLength: 8 };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'hexSize') this.hexSize = value as number;
     if (key === 'historyLength') this.maxHistoryLength = value as number;

@@ -181,6 +181,12 @@ export const CONFIG_SHORTS: Record<string, Record<string, string>> = {
     'glowOutlines': 'g',
   },
   'piano-roll': { 'pianoSound': 'p' },
+  'graph-chain': {
+    'tonnetzWindowBars': 'w',
+    'nodeSize': 'n',
+    'edgeWidth': 'e',
+    'glowIntensity': 'g',
+  },
 };
 
 // Build reverse mappings
@@ -195,7 +201,7 @@ for (const [effectId, keys] of Object.entries(CONFIG_SHORTS)) {
 
 export const PRESET_LAYERS: Record<string, (string | null)[]> = {
   // [bg, fg, overlay, melody, bass, hud]
-  spiral: ['starfield', 'note-star', null, null, 'bass-fire', null],
+  stars: ['starfield', 'note-star', null, null, 'bass-fire', null],
   clock: ['flowfield', 'note-spiral', null, 'melody-clock', 'bass-clock', 'theory-bar'],
   warp: ['chladni', 'note-spiral', 'kaleidoscope', 'melody-clock', 'bass-clock', null],
   fractal: ['flowfield', 'fractal', null, null, null, 'theory-bar'],
@@ -206,9 +212,7 @@ export const PRESET_LAYERS: Record<string, (string | null)[]> = {
 
 // Preset-specific effect configs (applied when preset is selected)
 export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
-  spiral: {
-    'bass-fire': { showNumerals: true },
-  },
+  stars: {},
   clock: {
     'note-spiral': { setShapes: '' },
   },
@@ -223,7 +227,6 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
   'kali-graph': {
     'graph-chain': {
       tonnetzWindowBars: 1,
-      maxNodes: 2000,
       nodeSize: 3,
       edgeWidth: 1,
       glowIntensity: 1,
@@ -235,12 +238,16 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
 };
 
 // --- Default Config Values ---
+// NOTE: Effects now provide their own defaults via getDefaults().
+// DEFAULT_CONFIGS is kept for URL encoding (stateToURL) to filter out default values.
+// Keep this synced with effect getDefaults() methods.
 
 export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
   'starfield': {
-    density: 1.0,
-    twinkleAmount: 0.25,
-    shimmerSpeed: 1.5,
+    density: 1.2,
+    twinkleAmount: 0.3,
+    nebulaOpacity: 0.55,
+    parallaxStrength: 0.12,
   },
   'flowfield': {
     particleCount: 800,
@@ -254,11 +261,15 @@ export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
     setShapes: 'firefly',
     spiralTightness: 1.25,
     intensity: 1.0,
-    trailMax: 48,
+    trailMax: 24,
     darkBackdrop: true,
     glowOutlines: true,
   },
-  'piano-roll': { pianoSound: false },
+  'piano-roll': {
+    fallDuration: 3.0,
+    keyboardHeight: 0.12,
+    pianoSound: false,
+  },
   'bass-clock': { radius: 0.45 },
   'chladni': { lineWidth: 0.08 },
   'kaleidoscope': {
@@ -273,14 +284,18 @@ export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
     warpScale: 3.5,
     colorByChord: true,
   },
-  'theory-bar': { barHeight: 64 },
-  'bass-fire': { showNumerals: false },
+  'theory-bar': { barHeight: 72 },
+  'bass-fire': { showNumerals: true },
   'wave-interference': { decayRate: 8 },
+  'note-star': { intensity: 1.0 },
+  'melody-clock': { radius: 0.85 },
+  'graph-chain': {
+    tonnetzWindowBars: 1,
+    nodeSize: 3,
+    edgeWidth: 1.0,
+    glowIntensity: 1.0,
+  },
 };
-
-export function getDefaultConfigValue(effectId: string, key: string): unknown {
-  return DEFAULT_CONFIGS[effectId]?.[key];
-}
 
 // --- State Helpers ---
 
@@ -309,6 +324,7 @@ export function getCurrentState(
       const effect = slot.effects.find(e => e.id === slot.activeId);
       if (effect) {
         const configs = effect.getConfig();
+        const defaults = effect.getDefaults();
         const effectConfigs: Record<string, string | number | boolean> = {};
         let hasNonDefault = false;
 
@@ -316,7 +332,7 @@ export function getCurrentState(
           // Skip action buttons and specially-handled keys
           if (cfg.key === 'setShapes' || cfg.key === 'activeShapes') continue;
 
-          const defaultVal = getDefaultConfigValue(effect.id, cfg.key);
+          const defaultVal = defaults[cfg.key];
           if (cfg.value !== defaultVal) {
             effectConfigs[cfg.key] = cfg.value as string | number | boolean;
             hasNonDefault = true;
@@ -326,7 +342,7 @@ export function getCurrentState(
         // Special case: serialize shapes for note-spiral (use setShapes to match PRESET_CONFIGS)
         if (effect.id === 'note-spiral') {
           const shapeCfg = configs.find(c => c.key === 'activeShapes');
-          if (shapeCfg && shapeCfg.value !== 'firefly') {
+          if (shapeCfg && shapeCfg.value !== defaults['setShapes']) {
             effectConfigs['setShapes'] = shapeCfg.value as string;
             hasNonDefault = true;
           }
@@ -455,9 +471,10 @@ export function stateToURL(state: VisualizerState): string {
     }
   }
 
-  if (matchedPreset) {
+  // Only include preset param if not the default (stars)
+  if (matchedPreset && matchedPreset !== 'stars') {
     params.set('preset', matchedPreset);
-  } else {
+  } else if (!matchedPreset) {
     // Encode layers using short names (only non-null)
     for (let i = 0; i < SLOT_KEYS.length; i++) {
       const effectId = layersArray[i];

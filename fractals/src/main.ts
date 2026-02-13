@@ -28,7 +28,6 @@ import type { VisualEffect } from './effects/effect-interface.ts';
 import {
   type VisualizerState,
   PRESET_LAYERS,
-  DEFAULT_CONFIGS,
   getCurrentState,
   applyState,
   getPresetState,
@@ -134,6 +133,7 @@ const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', '
 // --- Compositor + effects ---
 
 const compositor = new Compositor();
+(window as any).compositor = compositor; // Expose for profiling
 const fractalEffect = new FractalEffect();
 // Notify musicMapper when fractal anchor preset changes
 fractalEffect.setPresetChangeCallback(() => {
@@ -234,12 +234,12 @@ function applyURLSettings(): { presetApplied?: string } {
 
   // If no URL params, apply default Spiral preset (including configs)
   if (!urlState) {
-    const defaultPreset = getPresetState('spiral');
+    const defaultPreset = getPresetState('stars');
     if (defaultPreset) {
       applyState(defaultPreset, layerSlots, getAllEffects());
     }
     applySlotSelections();
-    result.presetApplied = 'spiral';
+    result.presetApplied = 'stars';
     return result;
   }
 
@@ -272,7 +272,7 @@ app.innerHTML = `
         <div class="mobile-presets mobile-only">
           <button class="mobile-preset-btn" id="mobile-bar-warp">Warp</button>
           <button class="mobile-preset-btn" id="mobile-bar-clock">Clock</button>
-          <button class="mobile-preset-btn" id="mobile-bar-spiral">Spiral</button>
+          <button class="mobile-preset-btn" id="mobile-bar-stars">Stars</button>
           <button class="mobile-preset-btn" id="mobile-bar-chain">Chain</button>
         </div>
         <div class="playlist-category-wrap desktop-only">
@@ -302,7 +302,7 @@ app.innerHTML = `
           <span class="time-display" id="time-display">0:00 / 0:00</span>
         </div>
         <div class="preset-buttons desktop-only">
-          <button class="toggle-btn preset-btn" id="preset-spiral" title="Starfield + Note Star + Bass Fire">Spiral</button>
+          <button class="toggle-btn preset-btn" id="preset-stars" title="Starfield + Note Star + Bass Fire">Stars</button>
           <button class="toggle-btn preset-btn" id="preset-clock" title="Starfield + Note Spiral + Bass Clock">Clock</button>
           <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope">Warp</button>
           <button class="toggle-btn preset-btn" id="preset-piano" title="Flow Field + Piano Roll">Piano</button>
@@ -329,7 +329,7 @@ app.innerHTML = `
       <div class="mobile-menu-section">
         <div class="mobile-menu-label">View</div>
         <div class="mobile-menu-buttons">
-          <button class="toggle-btn preset-btn" id="mobile-preset-spiral">Spiral</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-stars">Stars</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-clock">Clock</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-warp">Warp</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-piano">Piano</button>
@@ -369,6 +369,14 @@ app.innerHTML = `
               <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar">Fractal</button>
               <button class="toggle-btn preset-btn" id="preset-chain" title="Chain + Theory Bar">Chain</button>
               <button class="toggle-btn preset-btn" id="preset-kali-graph" title="Graph Chain + Kaleidoscope">Kali-Graph</button>
+            </div>
+          </div>
+          <div class="quality-presets">
+            <div class="quality-label">Render Quality</div>
+            <div class="quality-buttons">
+              <button class="toggle-btn quality-btn" id="quality-low" title="50% resolution - fastest">Fast</button>
+              <button class="toggle-btn quality-btn active" id="quality-medium" title="75% resolution - balanced">Balanced</button>
+              <button class="toggle-btn quality-btn" id="quality-high" title="100% resolution - sharpest">Sharp</button>
             </div>
           </div>
         </div>
@@ -638,8 +646,8 @@ function updateBrowserURL(): void {
   const params = new URLSearchParams(baseQuery);
 
   // Playlist/track use short param names, separate from effect state
-  // Default is video (Games) playlist, track 0
-  if (currentPlaylist !== 'video') {
+  // Default is pop (Classics) playlist, track 0
+  if (currentPlaylist !== 'pop') {
     params.set('l', currentPlaylist);
   }
   if (songPicker.value !== '0') {
@@ -651,6 +659,18 @@ function updateBrowserURL(): void {
     ? `${window.location.pathname}?${queryString}`
     : window.location.pathname;
   history.replaceState(null, '', newURL);
+}
+
+// Debounced version for continuous inputs (sliders)
+let urlUpdateTimeout: number | null = null;
+function updateBrowserURLDebounced(): void {
+  if (urlUpdateTimeout !== null) {
+    clearTimeout(urlUpdateTimeout);
+  }
+  urlUpdateTimeout = window.setTimeout(() => {
+    updateBrowserURL();
+    urlUpdateTimeout = null;
+  }, 150);
 }
 
 // --- Fullscreen toggle ---
@@ -925,6 +945,16 @@ function getColorValue(pc: number, customColors: Record<number, string>): string
   return '#' + defaultColor.map(c => c.toString(16).padStart(2, '0')).join('');
 }
 
+// Update a single swatch's color without rebuilding the grid
+function updateSwatchColor(pitchClass: number, color: string): void {
+  const row = colorsGrid.querySelector(`[data-pitch-class="${pitchClass}"]`) as HTMLElement;
+  if (!row) return;
+  const swatch = row.querySelector('.color-swatch') as HTMLElement;
+  const input = row.querySelector('.color-input-hidden') as HTMLInputElement;
+  if (swatch) swatch.style.backgroundColor = color;
+  if (input) input.value = color;
+}
+
 function buildColorsGrid(): void {
   colorsGrid.innerHTML = '';
 
@@ -980,7 +1010,7 @@ function buildColorsGrid(): void {
         setCustomColor(pitchClass, input.value);
       }
       markUnsavedChanges();
-      updateBrowserURL();
+      updateBrowserURLDebounced();  // Debounced for continuous color drag
     });
 
     // Drag and drop handlers
@@ -1027,8 +1057,9 @@ function buildColorsGrid(): void {
       setCustomColor(dragSourcePc, targetColor);
       setCustomColor(pc, sourceColor);
 
-      // Rebuild grid to show swapped colors
-      buildColorsGrid();
+      // Update only the two swapped swatches (avoid full rebuild)
+      updateSwatchColor(dragSourcePc, targetColor);
+      updateSwatchColor(pc, sourceColor);
       markUnsavedChanges();
       updateBrowserURL();
     });
@@ -1218,7 +1249,7 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
         valDisplay.textContent = String(v);
         clearPresetHighlights();
         markUnsavedChanges();
-        updateBrowserURL();
+        updateBrowserURLDebounced();  // Debounced for continuous slider drag
       });
       row.appendChild(input);
       row.appendChild(valDisplay);
@@ -1300,9 +1331,9 @@ buildColorsGrid();
 
 // --- Preset buttons ---
 
-type PresetName = 'spiral' | 'warp' | 'clock' | 'fractal' | 'piano' | 'chain' | 'kali-graph';
+type PresetName = 'stars' | 'warp' | 'clock' | 'fractal' | 'piano' | 'chain' | 'kali-graph';
 const presetButtons: Record<PresetName, HTMLButtonElement> = {
-  spiral: document.getElementById('preset-spiral') as HTMLButtonElement,
+  stars: document.getElementById('preset-stars') as HTMLButtonElement,
   warp: document.getElementById('preset-warp') as HTMLButtonElement,
   clock: document.getElementById('preset-clock') as HTMLButtonElement,
   fractal: document.getElementById('preset-fractal') as HTMLButtonElement,
@@ -1317,17 +1348,15 @@ if (urlSettingsResult.presetApplied) {
   if (btn) btn.classList.add('active');
 } else if (!urlToState(window.location.search)) {
   // Default to Spiral if no URL params
-  presetButtons.spiral.classList.add('active');
+  presetButtons.stars.classList.add('active');
 }
 
 function applyPreset(preset: PresetName): void {
   // Reset all effect configs to defaults first
-  for (const [effectId, defaults] of Object.entries(DEFAULT_CONFIGS)) {
-    const effect = getAllEffects().get(effectId);
-    if (effect) {
-      for (const [key, value] of Object.entries(defaults)) {
-        effect.setConfigValue(key, value as string | number | boolean);
-      }
+  for (const effect of getAllEffects().values()) {
+    const defaults = effect.getDefaults();
+    for (const [key, value] of Object.entries(defaults)) {
+      effect.setConfigValue(key, value);
     }
   }
 
@@ -1369,7 +1398,7 @@ for (const [name, btn] of Object.entries(presetButtons)) {
 
 // Mobile preset buttons
 const mobilePresetButtons: Partial<Record<PresetName, HTMLButtonElement>> = {
-  spiral: document.getElementById('mobile-preset-spiral') as HTMLButtonElement,
+  stars: document.getElementById('mobile-preset-stars') as HTMLButtonElement,
   warp: document.getElementById('mobile-preset-warp') as HTMLButtonElement,
   clock: document.getElementById('mobile-preset-clock') as HTMLButtonElement,
   fractal: document.getElementById('mobile-preset-fractal') as HTMLButtonElement,
@@ -1393,7 +1422,7 @@ if (urlSettingsResult.presetApplied) {
 
 // Mobile bar preset buttons (in top bar)
 const mobileBarPresets: Record<string, HTMLButtonElement> = {
-  spiral: document.getElementById('mobile-bar-spiral') as HTMLButtonElement,
+  stars: document.getElementById('mobile-bar-stars') as HTMLButtonElement,
   warp: document.getElementById('mobile-bar-warp') as HTMLButtonElement,
   clock: document.getElementById('mobile-bar-clock') as HTMLButtonElement,
   chain: document.getElementById('mobile-bar-chain') as HTMLButtonElement,
@@ -1406,6 +1435,33 @@ for (const [name, btn] of Object.entries(mobileBarPresets)) {
 // Sync mobile bar presets on initial load
 if (urlSettingsResult.presetApplied && mobileBarPresets[urlSettingsResult.presetApplied]) {
   mobileBarPresets[urlSettingsResult.presetApplied].classList.add('active');
+}
+
+// Quality buttons for render scale
+type QualityLevel = 'low' | 'medium' | 'high';
+const qualityButtons: Record<QualityLevel, HTMLButtonElement> = {
+  low: document.getElementById('quality-low') as HTMLButtonElement,
+  medium: document.getElementById('quality-medium') as HTMLButtonElement,
+  high: document.getElementById('quality-high') as HTMLButtonElement,
+};
+const qualityScales: Record<QualityLevel, number> = {
+  low: 0.5,
+  medium: 0.75,
+  high: 1.0,
+};
+
+function setQuality(level: QualityLevel): void {
+  compositor.renderScale = qualityScales[level];
+  // Update button states
+  for (const [name, btn] of Object.entries(qualityButtons)) {
+    btn.classList.toggle('active', name === level);
+  }
+  // Trigger resize to apply new scale
+  resizeCanvas();
+}
+
+for (const [name, btn] of Object.entries(qualityButtons)) {
+  btn.addEventListener('click', () => setQuality(name as QualityLevel));
 }
 
 // Clear preset highlights when manual changes are made
@@ -1575,9 +1631,15 @@ async function loadSong(index: number) {
   dirty = true;
 }
 
+let lastDisplayedSecond = -1;
 function updateTimeDisplay(currentTime: number) {
-  const total = timeline?.duration ?? 0;
-  timeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(total)}`;
+  const currentSecond = Math.floor(currentTime);
+  // Only update DOM when the displayed second changes
+  if (currentSecond !== lastDisplayedSecond) {
+    lastDisplayedSecond = currentSecond;
+    const total = timeline?.duration ?? 0;
+    timeDisplay.textContent = `${formatTime(currentTime)} / ${formatTime(total)}`;
+  }
 }
 
 // --- Custom MIDI file loading ---
@@ -1936,9 +1998,11 @@ fractalEngine.onFrameReady = (renderMs: number) => {
 
 // --- Animation / render loop ---
 
+let seekBarFrameCount = 0;
 function loop(time: number): void {
   const dt = lastTime === 0 ? 0 : (time - lastTime) / 1000;
   lastTime = time;
+  seekBarFrameCount++;
 
   if (isPlaying && timeline) {
     // --- MIDI mode ---
@@ -1965,7 +2029,8 @@ function loop(time: number): void {
         musicMapper.reset();
       }
     } else {
-      if (!seeking) {
+      // Throttle seek bar updates to every 4 frames (~15fps)
+      if (!seeking && (seekBarFrameCount & 3) === 0) {
         seekBar.value = String(currentTime);
         seekBar.style.setProperty('--progress', String(currentTime / timeline.duration));
       }
@@ -1990,8 +2055,11 @@ function loop(time: number): void {
 
       dirty = true;
     }
+  } else if (timeline) {
+    // Paused with a song loaded - freeze completely, no updates or renders
+    // Just keep the animation frame running to resume smoothly
   } else {
-    // Idle (paused or no song)
+    // No song loaded - show idle animation
     const idle = musicMapper.getIdleAnchor();
     idlePhase += 0.3 * dt;
     const t = Math.sin(Math.PI * idlePhase);
@@ -2002,18 +2070,10 @@ function loop(time: number): void {
     fractalEffect.setFractalParams(
       cr, ci, 1.0, 150, renderFidelity,
       idle.type, -0.5, idlePhase * 0.3,
-      timeline ? timeline.key : 0  // Default to C (tonic) when no song loaded
+      0  // Default to C (tonic) when no song loaded
     );
 
-    // When paused with a timeline, still show chord/key data at current position
-    let idleMusic;
-    if (timeline) {
-      const pausedTime = parseFloat(seekBar.value) || 0;
-      idleMusic = musicMapper.getMusicParams(dt, pausedTime);
-    } else {
-      idleMusic = musicMapper.getIdleMusicParams(dt);
-    }
-
+    const idleMusic = musicMapper.getIdleMusicParams(dt);
     compositor.update(dt, idleMusic);
 
     dirty = true;

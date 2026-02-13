@@ -142,11 +142,11 @@ export class NoteStarEffect implements VisualEffect {
       if (voice.midi < MIDI_LO || voice.midi >= MIDI_HI) continue;
       if (!voice.onset) continue;
 
-      const loudnessFactor = 0.1 + this.loudness * 0.9;
+      const loudnessFactor = 0.25 + this.loudness * 0.75;
       const c = samplePaletteColor(voice.pitchClass, 0.75);
-      // Compress velocity: boost quiet notes with a floor, leave loud notes as-is
-      // Floor of 0.35 + scaled sqrt: 0.1→0.56, 0.25→0.68, 0.5→0.81, 1.0→1.0
-      const compressedVel = 0.35 + 0.65 * Math.pow(voice.velocity, 0.5);
+      // Compress velocity: high floor, narrow range for consistent brightness
+      // Floor of 0.5 + scaled sqrt: 0.1→0.66, 0.25→0.75, 0.5→0.85, 1.0→1.0
+      const compressedVel = 0.5 + 0.5 * Math.pow(voice.velocity, 0.5);
       const noteIntensity = compressedVel * loudnessFactor * grooveIntensity;
 
       this.stars.push({
@@ -244,18 +244,18 @@ export class NoteStarEffect implements VisualEffect {
       const totalRotation = this.keyRotation + spiralTwist;
       const pos = spiralPos(effectiveMidi, star.pitchClass, this.key, totalRotation, cx, cy, maxR, this.spiralTightness);
 
-      // Pulse size and alpha with groove
-      const baseSize = 4 + star.velocity * 6 * (1 - eased * 0.85);
+      // Pulse size and alpha with groove (compressed for softer look)
+      const baseSize = 4 + star.velocity * 5 * (1 - eased * 0.85);
       const size = baseSize * groovePulse;
-      const alpha = Math.min(1, star.alpha * this.intensity * groovePulse);
+      const alpha = Math.min(0.75, star.alpha * this.intensity * groovePulse * 0.7);
 
       if (alpha < 0.01) continue;
 
-      // Subtle outer glow
-      const glowSize = size * (1.5 + groovePulse * 0.5);
+      // Layer 1: Soft outer glow
+      const glowSize = size * (1.6 + groovePulse * 0.4);
       const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowSize);
-      grad.addColorStop(0, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${alpha.toFixed(3)})`);
-      grad.addColorStop(0.4, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.6).toFixed(3)})`);
+      grad.addColorStop(0, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.5).toFixed(3)})`);
+      grad.addColorStop(0.35, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.25).toFixed(3)})`);
       grad.addColorStop(1, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},0)`);
 
       ctx.beginPath();
@@ -263,16 +263,23 @@ export class NoteStarEffect implements VisualEffect {
       ctx.fillStyle = grad;
       ctx.fill();
 
-      // Solid colored core
+      // Layer 2: Mid ring (softer colored halo)
+      const midSize = size * 1.2;
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, size, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${alpha.toFixed(3)})`;
+      ctx.arc(pos.x, pos.y, midSize, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.35).toFixed(3)})`;
       ctx.fill();
 
-      // Bright center dot
+      // Layer 3: Solid colored core
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, size * 0.4, 0, Math.PI * 2);
-      const centerAlpha = Math.min(1, alpha * (0.8 + groovePulse * 0.4));
+      ctx.arc(pos.x, pos.y, size, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.8).toFixed(3)})`;
+      ctx.fill();
+
+      // Layer 4: Center highlight (toned down)
+      ctx.beginPath();
+      ctx.arc(pos.x, pos.y, size * 0.3, 0, Math.PI * 2);
+      const centerAlpha = Math.min(0.7, alpha * (0.6 + groovePulse * 0.25));
       ctx.fillStyle = `rgba(255,255,255,${centerAlpha.toFixed(3)})`;
       ctx.fill();
     }
@@ -295,6 +302,10 @@ export class NoteStarEffect implements VisualEffect {
     return [
       { key: 'intensity', label: 'Intensity', type: 'range', value: this.intensity, min: 0.1, max: 2, step: 0.1 },
     ];
+  }
+
+  getDefaults(): Record<string, number | string | boolean> {
+    return { intensity: 1.0 };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {

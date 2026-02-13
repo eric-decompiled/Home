@@ -85,8 +85,9 @@ let frameStartTime = 0;
 let pendingCanvas: HTMLCanvasElement | null = null;
 let pendingDisplayW = 0;
 let pendingDisplayH = 0;
-// Assembled pixel buffer for the current frame
+// Assembled pixel buffer for the current frame (pooled to avoid allocation)
 let frameBuffer: Uint8ClampedArray | null = null;
+let frameBufferSize = 0;  // Track allocated size for reuse
 let frameW = 0;
 let frameH = 0;
 
@@ -200,7 +201,13 @@ export const fractalEngine = {
     const h = Math.max(1, Math.floor(displayHeight * fidelity));
     frameW = w;
     frameH = h;
-    frameBuffer = new Uint8ClampedArray(w * h * 4);
+
+    // Reuse frame buffer if size matches, only reallocate if needed
+    const requiredSize = w * h * 4;
+    if (!frameBuffer || frameBufferSize < requiredSize) {
+      frameBuffer = new Uint8ClampedArray(requiredSize);
+      frameBufferSize = requiredSize;
+    }
 
     // Snapshot LUT for workers
     const lutSnapshot = new Uint8Array(colorLUT);

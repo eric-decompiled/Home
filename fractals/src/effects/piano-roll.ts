@@ -88,6 +88,7 @@ export class PianoRollEffect implements VisualEffect {
   private emittedNotes: Set<string> = new Set(); // track "midi-time" to avoid duplicate emissions
   private endedNotes: Set<string> = new Set(); // track note-off emissions
   private sustainEmitTimers: Map<string, number> = new Map(); // for sustained particle emission
+  private activeNotes: Set<number> = new Set(); // reused each update to avoid allocation
 
 
   // Visual settings
@@ -126,11 +127,11 @@ export class PianoRollEffect implements VisualEffect {
     this.beatGroove = music.beatGroove ?? 0;
     this.barGroove = music.barGroove ?? 0;
 
-    // Track which notes are currently active
-    const activeNotes = new Set<number>();
+    // Track which notes are currently active (reuse Set, clear instead of allocate)
+    this.activeNotes.clear();
     for (const voice of music.activeVoices) {
       if (voice.midi < MIDI_LO || voice.midi > MIDI_HI) continue;
-      activeNotes.add(voice.midi);
+      this.activeNotes.add(voice.midi);
       const state = this.keyStates.get(voice.midi) || { brightness: 0 };
       if (voice.onset) {
         state.brightness = 1.0;
@@ -143,7 +144,7 @@ export class PianoRollEffect implements VisualEffect {
 
     // Decay brightness for notes no longer active
     for (const [midi, state] of this.keyStates) {
-      if (!activeNotes.has(midi)) {
+      if (!this.activeNotes.has(midi)) {
         state.brightness *= Math.exp(-4.0 * dt); // decay for visible return
       }
       if (state.brightness < 0.01) {
@@ -574,7 +575,15 @@ export class PianoRollEffect implements VisualEffect {
   }
 
   isReady(): boolean { return this.ready; }
-  dispose(): void { this.ready = false; }
+  dispose(): void {
+    this.ready = false;
+    this.activeNotes.clear();
+    this.emittedNotes.clear();
+    this.endedNotes.clear();
+    this.sustainEmitTimers.clear();
+    this.keyStates.clear();
+    this.particles.length = 0;
+  }
 
   getConfig(): EffectConfig[] {
     return [
@@ -582,6 +591,14 @@ export class PianoRollEffect implements VisualEffect {
       { key: 'keyboardHeight', label: 'Keyboard Size', type: 'range', value: this.keyboardHeight, min: 0.08, max: 0.2, step: 0.01 },
       { key: 'pianoSound', label: 'Piano Sound', type: 'toggle', value: audioPlayer.isPianoMode() },
     ];
+  }
+
+  getDefaults(): Record<string, number | string | boolean> {
+    return {
+      fallDuration: 3.0,
+      keyboardHeight: 0.12,
+      pianoSound: false,
+    };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {

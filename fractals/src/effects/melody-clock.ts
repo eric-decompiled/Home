@@ -455,6 +455,10 @@ export class MelodyClockEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return { radius: 0.85 };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'radius') this.radius = value as number;
   }

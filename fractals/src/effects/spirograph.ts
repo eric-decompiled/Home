@@ -408,6 +408,10 @@ export class SpirographEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return { trailLength: 800 };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'trailLength') {
       this.trailLength = value as number;

@@ -1098,6 +1098,17 @@ export class NoteSpiralEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return {
+      setShapes: 'firefly',
+      spiralTightness: 1.25,
+      intensity: 1.0,
+      trailMax: 24,
+      darkBackdrop: true,
+      glowOutlines: true,
+    };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'activeShapes') {
       // Toggle the shape on/off

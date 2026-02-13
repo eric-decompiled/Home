@@ -222,6 +222,10 @@ export class MelodyAuroraEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return { maxRibbons: 12, fadeSpeed: 0.15, waveScale: 1.0, intensity: 1.0 };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'maxRibbons') this.maxRibbons = value as number;
     if (key === 'fadeSpeed') this.fadeSpeed = value as number;

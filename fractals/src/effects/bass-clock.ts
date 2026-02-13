@@ -658,6 +658,10 @@ export class BassClockEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return { radius: 0.45 };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'radius') this.radius = value as number;
   }

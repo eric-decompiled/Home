@@ -312,6 +312,10 @@ export class BassWebEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return { radius: 0.85, intensity: 1.0 };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'radius') this.radius = value as number;
     if (key === 'intensity') this.intensity = value as number;

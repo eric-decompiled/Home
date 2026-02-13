@@ -151,6 +151,10 @@ export class FeedbackTrailEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return { decay: 0.92, zoom: 1.008, rotation: 0.003 };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'decay') this.decay = value as number;
     if (key === 'zoom') this.zoom = value as number;

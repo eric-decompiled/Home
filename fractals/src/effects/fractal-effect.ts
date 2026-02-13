@@ -92,6 +92,10 @@ export class FractalEffect implements VisualEffect {
     return [];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return {};
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'preset' && typeof value === 'string') {
       // Parse "id:name" format

@@ -167,6 +167,7 @@ export interface VisualEffect {
   dispose(): void;
 
   getConfig(): EffectConfig[];
+  getDefaults(): Record<string, number | string | boolean>;
   setConfigValue(key: string, value: number | string | boolean): void;
 }
 

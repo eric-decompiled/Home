@@ -31,6 +31,11 @@ export class KaleidoscopeEffect implements VisualEffect {
   // Reference to compositor's composite canvas (set externally)
   private sourceCanvas: HTMLCanvasElement | null = null;
 
+  // Cached clip path (recomputed when foldCount or size changes)
+  private clipPath: Path2D | null = null;
+  private clipPathFolds = 0;
+  private clipPathRadius = 0;
+
   constructor() {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d')!;
@@ -142,6 +147,22 @@ export class KaleidoscopeEffect implements VisualEffect {
 
     const sliceAngle = (Math.PI * 2) / this.foldCount;
 
+    // Tighter radius: just enough to cover canvas diagonal + offset + zoom margin
+    const diagonal = Math.sqrt(w * w + h * h);
+    const offsetMargin = Math.max(Math.abs(this.centerOffsetX), Math.abs(this.centerOffsetY));
+    const r = (diagonal / 2 + offsetMargin) * 1.15; // 15% margin for zoom
+
+    // Cache clip path if parameters changed
+    if (!this.clipPath || this.clipPathFolds !== this.foldCount || Math.abs(this.clipPathRadius - r) > 1) {
+      this.clipPath = new Path2D();
+      this.clipPath.moveTo(0, 0);
+      this.clipPath.lineTo(r, 0);
+      this.clipPath.arc(0, 0, r, 0, sliceAngle);
+      this.clipPath.closePath();
+      this.clipPathFolds = this.foldCount;
+      this.clipPathRadius = r;
+    }
+
     ctx.save();
     ctx.translate(cx, cy);
 
@@ -154,14 +175,8 @@ export class KaleidoscopeEffect implements VisualEffect {
         ctx.scale(1, -1);
       }
 
-      // Clip to wedge
-      ctx.beginPath();
-      ctx.moveTo(0, 0);
-      const r = Math.max(w, h) * 1.5;
-      ctx.lineTo(r, 0);
-      ctx.arc(0, 0, r, 0, sliceAngle);
-      ctx.closePath();
-      ctx.clip();
+      // Clip to cached wedge path
+      ctx.clip(this.clipPath);
 
       // Draw source scaled by zoom pulse
       const scale = this.zoomPulse;
@@ -193,6 +208,16 @@ export class KaleidoscopeEffect implements VisualEffect {
       { key: 'centerOffsetX', label: 'Center X', type: 'range', value: this.centerOffsetX, min: -200, max: 200, step: 10 },
       { key: 'centerOffsetY', label: 'Center Y', type: 'range', value: this.centerOffsetY, min: -200, max: 200, step: 10 },
     ];
+  }
+
+  getDefaults(): Record<string, number | string | boolean> {
+    return {
+      foldCount: 7,
+      rotationSpeed: 0.2,
+      mirrorMode: 'rotate',
+      centerOffsetX: 0,
+      centerOffsetY: 0,
+    };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {

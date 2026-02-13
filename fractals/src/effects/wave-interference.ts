@@ -389,6 +389,15 @@ export class WaveInterferenceEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return {
+      maxSources: 6,
+      decayRate: 8.0,
+      intensity: 1.0,
+      reflection: 0.5,
+    };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     switch (key) {
       case 'maxSources':

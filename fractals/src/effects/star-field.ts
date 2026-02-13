@@ -65,9 +65,15 @@ export class StarFieldEffect implements VisualEffect {
   private tension = 0;
   private smoothTension = 0;
   private paletteIdx = 0;
+  private lastPaletteIdx = -1;
   private chordRoot = 0;
   private parallaxX = 0;
   private parallaxY = 0;
+
+  // Cached nebula canvas (expensive gradients, rarely changes)
+  private nebulaCanvas: HTMLCanvasElement;
+  private nebulaCtx: CanvasRenderingContext2D;
+  private nebulaDirty = true;
 
   // Config - tuned for better defaults
   private density = 1.2;
@@ -79,6 +85,8 @@ export class StarFieldEffect implements VisualEffect {
   constructor() {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d')!;
+    this.nebulaCanvas = document.createElement('canvas');
+    this.nebulaCtx = this.nebulaCanvas.getContext('2d')!;
   }
 
   init(width: number, height: number): void {
@@ -90,9 +98,12 @@ export class StarFieldEffect implements VisualEffect {
     this.height = height;
     this.canvas.width = width;
     this.canvas.height = height;
+    this.nebulaCanvas.width = width;
+    this.nebulaCanvas.height = height;
     this.spawnClusters();
     this.spawnNebulae();
     this.spawnStars();
+    this.nebulaDirty = true;
     this.ready = true;
   }
 
@@ -261,8 +272,12 @@ export class StarFieldEffect implements VisualEffect {
     this.tension = music.tension ?? 0;
     this.smoothTension += (this.tension - this.smoothTension) * this.shimmerSpeed * dt;
 
-    // Palette from key
+    // Palette from key - mark nebula dirty if changed
     this.paletteIdx = music.key ?? 0;
+    if (this.paletteIdx !== this.lastPaletteIdx) {
+      this.nebulaDirty = true;
+      this.lastPaletteIdx = this.paletteIdx;
+    }
     this.chordRoot = music.chordRoot ?? 0;
 
     // Parallax from melody/bass position (subtle drift based on active notes)
@@ -294,8 +309,20 @@ export class StarFieldEffect implements VisualEffect {
     ctx.fillStyle = 'rgb(0, 0, 0)';
     ctx.fillRect(0, 0, this.width, this.height);
 
-    // Draw nebulae first (background)
-    this.renderNebulae(ctx);
+    // Render nebulae to cache if dirty
+    if (this.nebulaDirty) {
+      this.renderNebulaeToCache();
+      this.nebulaDirty = false;
+    }
+
+    // Blit cached nebulae with parallax offset
+    const px = this.parallaxX * this.parallaxStrength * 8;
+    const py = this.parallaxY * this.parallaxStrength * 8;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.7 + this.smoothTension * 0.3;
+    ctx.drawImage(this.nebulaCanvas, px, py);
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
 
     // Draw stars
     this.renderStars(ctx);
@@ -303,16 +330,18 @@ export class StarFieldEffect implements VisualEffect {
     return this.canvas;
   }
 
-  private renderNebulae(ctx: CanvasRenderingContext2D): void {
+  /** Pre-render nebulae to cache (called only when palette changes or on resize) */
+  private renderNebulaeToCache(): void {
+    const ctx = this.nebulaCtx;
+
+    // Clear cache
+    ctx.clearRect(0, 0, this.width, this.height);
     ctx.globalCompositeOperation = 'lighter';
 
     for (const nebula of this.nebulae) {
-      // Parallax offset (nebulae are far, minimal movement)
-      const px = this.parallaxX * this.parallaxStrength * 8;
-      const py = this.parallaxY * this.parallaxStrength * 8;
-
-      const baseX = nebula.x + px;
-      const baseY = nebula.y + py;
+      // No parallax in cache - applied during blit
+      const baseX = nebula.x;
+      const baseY = nebula.y;
 
       // Render each blob
       for (const blob of nebula.blobs) {
@@ -320,11 +349,11 @@ export class StarFieldEffect implements VisualEffect {
         const y = baseY + blob.offsetY;
 
         // Sample color from palette with blob's color shift
-        const colorPos = ((nebula.baseColorPos + blob.colorShift + this.chordRoot / 12) % 1 + 1) % 1;
+        const colorPos = ((nebula.baseColorPos + blob.colorShift) % 1 + 1) % 1;
         const [r, g, b] = samplePaletteColor(this.paletteIdx, colorPos);
 
-        // Opacity modulated by tension
-        const opacity = blob.opacity * this.nebulaOpacity * (0.7 + this.smoothTension * 0.3);
+        // Base opacity (tension modulation applied during blit)
+        const opacity = blob.opacity * this.nebulaOpacity;
 
         ctx.save();
         ctx.translate(x, y);
@@ -366,23 +395,21 @@ export class StarFieldEffect implements VisualEffect {
       // Skip if off-screen (with margin)
       if (x < -10 || x > this.width + 10 || y < -10 || y > this.height + 10) continue;
 
-      // Twinkle - use multiple frequencies for more organic feel
+      // Twinkle - simplified to single frequency
       const twinkleTime = this.time * star.twinkleSpeed * tensionSpeedMult;
-      const twinkle1 = Math.sin(twinkleTime + star.twinklePhase);
-      const twinkle2 = Math.sin(twinkleTime * 1.7 + star.twinklePhase * 2.3) * 0.3;
-      const twinkleFactor = 0.65 + 0.25 * twinkle1 + 0.1 * twinkle2;
+      const twinkleFactor = 0.7 + 0.3 * Math.sin(twinkleTime + star.twinklePhase);
 
       // Shimmer boost
-      const shimmerBoost = star.shimmer * (0.3 + 0.3 * Math.sin(this.time * 6 * tensionSpeedMult + star.twinklePhase));
+      const shimmerBoost = star.shimmer * 0.4;
 
       // Final brightness
-      const brightness = star.baseBrightness * twinkleFactor + shimmerBoost * 0.5;
+      const brightness = star.baseBrightness * twinkleFactor + shimmerBoost;
       const alpha = Math.min(1, brightness);
 
       // Size
       const size = star.baseSize * (1 + shimmerBoost * 0.3);
 
-      // Color from palette - blend between star's base color and tension shift
+      // Color from palette
       const tensionShift = this.smoothTension * 0.25;
       const colorPos = ((star.colorPos + tensionShift + this.chordRoot / 24) % 1 + 1) % 1;
       const [pr, pg, pb] = samplePaletteColor(this.paletteIdx, colorPos);
@@ -393,34 +420,19 @@ export class StarFieldEffect implements VisualEffect {
       const g = Math.round(255 * (1 - saturation) + pg * saturation);
       const b = Math.round(255 * (1 - saturation) + pb * saturation);
 
-      // Bright stars get diffraction spikes
-      if (size > 1.5 && alpha > 0.5) {
-        const spikeLen = size * 4 * alpha;
-        const spikeAlpha = alpha * 0.25;
-        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${spikeAlpha})`;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        // Horizontal spike
-        ctx.moveTo(x - spikeLen, y);
-        ctx.lineTo(x + spikeLen, y);
-        // Vertical spike
-        ctx.moveTo(x, y - spikeLen);
-        ctx.lineTo(x, y + spikeLen);
-        ctx.stroke();
+      // Small stars: just a filled rect (much faster than arc)
+      if (size < 1.0) {
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        ctx.fillRect(x - size * 0.5, y - size * 0.5, size, size);
+        continue;
       }
 
-      // Glow for brighter/larger stars
-      if (size > 1.0 || shimmerBoost > 0.1) {
-        // Outer glow
+      // Medium/large stars: glow + core (2 circles max)
+      if (size > 1.2) {
+        // Single glow
         ctx.beginPath();
-        ctx.arc(x, y, size * 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.04})`;
-        ctx.fill();
-
-        // Middle glow
-        ctx.beginPath();
-        ctx.arc(x, y, size * 2, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.12})`;
+        ctx.arc(x, y, size * 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.08})`;
         ctx.fill();
       }
 
@@ -429,14 +441,6 @@ export class StarFieldEffect implements VisualEffect {
       ctx.arc(x, y, size, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
       ctx.fill();
-
-      // Hot white center for bright stars
-      if (size > 1.2 && alpha > 0.6) {
-        ctx.beginPath();
-        ctx.arc(x, y, size * 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.7})`;
-        ctx.fill();
-      }
     }
   }
 
@@ -458,6 +462,15 @@ export class StarFieldEffect implements VisualEffect {
       { key: 'nebulaOpacity', label: 'Nebula', type: 'range', value: this.nebulaOpacity, min: 0, max: 1, step: 0.1 },
       { key: 'parallaxStrength', label: 'Parallax', type: 'range', value: this.parallaxStrength, min: 0, max: 0.5, step: 0.05 },
     ];
+  }
+
+  getDefaults(): Record<string, number | string | boolean> {
+    return {
+      density: 1.2,
+      twinkleAmount: 0.3,
+      nebulaOpacity: 0.55,
+      parallaxStrength: 0.12,
+    };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {

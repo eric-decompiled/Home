@@ -79,7 +79,6 @@ export class GraphChainEffect implements VisualEffect {
   private centerPull = 0.0003;  // minimal centering
 
   // Config
-  private maxNodes = 2000;
   private nodeSize = 3;          // delicate nodes
   private edgeWidth = 1.0;       // visible but elegant
   private glowIntensity = 1.0;
@@ -103,9 +102,57 @@ export class GraphChainEffect implements VisualEffect {
   private lastBarIndex = -1;
   private lastHalfBarIndex = -1;
 
+  // Spatial hash grid for O(1) neighbor lookups instead of O(n²)
+  private spatialCellSize = 300;  // Same as repulsion cutoff
+  private spatialGrid: Map<number, number[]> = new Map();  // cellKey -> node indices
+  private spatialCols = 0;
+  private spatialRows = 0;
+
   constructor() {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d')!;
+  }
+
+  /** Build spatial hash grid for current node positions */
+  private buildSpatialGrid(): void {
+    this.spatialGrid.clear();
+    this.spatialCols = Math.ceil(this.width / this.spatialCellSize);
+    this.spatialRows = Math.ceil(this.height / this.spatialCellSize);
+
+    for (let i = 0; i < this.nodes.length; i++) {
+      const node = this.nodes[i];
+      const col = Math.floor(node.x / this.spatialCellSize);
+      const row = Math.floor(node.y / this.spatialCellSize);
+      // Clamp to grid bounds (nodes can be outside canvas)
+      const clampedCol = Math.max(0, Math.min(this.spatialCols - 1, col));
+      const clampedRow = Math.max(0, Math.min(this.spatialRows - 1, row));
+      const key = clampedRow * this.spatialCols + clampedCol;
+
+      let cell = this.spatialGrid.get(key);
+      if (!cell) {
+        cell = [];
+        this.spatialGrid.set(key, cell);
+      }
+      cell.push(i);
+    }
+  }
+
+  /** Get all node indices in cell and 8 adjacent cells */
+  private getNearbyCells(col: number, row: number): number[][] {
+    const cells: number[][] = [];
+    for (let dr = -1; dr <= 1; dr++) {
+      for (let dc = -1; dc <= 1; dc++) {
+        const c = col + dc;
+        const r = row + dr;
+        if (c >= 0 && c < this.spatialCols && r >= 0 && r < this.spatialRows) {
+          const cell = this.spatialGrid.get(r * this.spatialCols + c);
+          if (cell && cell.length > 0) {
+            cells.push(cell);
+          }
+        }
+      }
+    }
+    return cells;
   }
 
   init(width: number, height: number): void {
@@ -151,11 +198,6 @@ export class GraphChainEffect implements VisualEffect {
       r: color[0], g: color[1], b: color[2],
     };
 
-    // Remove oldest node if at capacity
-    if (this.nodes.length >= this.maxNodes) {
-      this.removeWeakestNode();
-    }
-
     const idx = this.nodes.length;
     this.nodes.push(node);
     this.pitchToNodeIdx.set(pc, idx);
@@ -193,26 +235,6 @@ export class GraphChainEffect implements VisualEffect {
       birth: this.time,
       lastActive: this.time,
     });
-  }
-
-  private removeWeakestNode(): void {
-    if (this.nodes.length === 0) return;
-
-    // Find weakest node (lowest strength, oldest)
-    let weakestIdx = 0;
-    let weakestScore = Infinity;
-
-    for (let i = 0; i < this.nodes.length; i++) {
-      const node = this.nodes[i];
-      const age = this.time - node.birth;
-      const score = node.strength / (1 + age * 0.1);
-      if (score < weakestScore) {
-        weakestScore = score;
-        weakestIdx = i;
-      }
-    }
-
-    this.removeNode(weakestIdx);
   }
 
   private removeNode(idx: number): void {
@@ -300,42 +322,63 @@ export class GraphChainEffect implements VisualEffect {
     // Cap dt to prevent instability
     dt = Math.min(dt, 0.05);
 
-    // Repulsion between all nodes, modulated by harmonic interval
+    // Repulsion between nearby nodes, modulated by harmonic interval
     // Consonant intervals (thirds, fourths, fifths) attract slightly
     // Dissonant intervals (seconds, tritone, sevenths) repel more
+    // Optimization: spatial hash grid for O(n) instead of O(n²)
+    const repulsionCutoff2 = 90000;  // d=300, force ~25x weaker than at min distance
+
+    // Build spatial grid for fast neighbor lookup
+    this.buildSpatialGrid();
+
     for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        const ni = this.nodes[i];
-        const nj = this.nodes[j];
-        const dx = nj.x - ni.x;
-        const dy = nj.y - ni.y;
-        // Min distance of 20 prevents explosive forces when nodes spawn on top of each other
-        const d2Raw = dx * dx + dy * dy;
-        const d2 = Math.max(400, d2Raw);  // 400 = 20^2
-        const d = Math.sqrt(d2);
+      const ni = this.nodes[i];
+      const col = Math.floor(ni.x / this.spatialCellSize);
+      const row = Math.floor(ni.y / this.spatialCellSize);
+      const clampedCol = Math.max(0, Math.min(this.spatialCols - 1, col));
+      const clampedRow = Math.max(0, Math.min(this.spatialRows - 1, row));
 
-        // Calculate interval between pitch classes
-        const interval = Math.abs(ni.pitchClass - nj.pitchClass);
-        const normalizedInterval = Math.min(interval, 12 - interval);
+      // Check only nodes in nearby cells
+      const nearbyCells = this.getNearbyCells(clampedCol, clampedRow);
+      for (const cell of nearbyCells) {
+        for (const j of cell) {
+          if (j <= i) continue;  // Only process each pair once (j > i)
 
-        // Harmonic affinity: consonant = attract (< 1), dissonant/same = repel (> 1)
-        let affinity = 1.0;
-        if (normalizedInterval === 0) affinity = 1.8;       // unison - like repels like
-        else if (normalizedInterval === 5) affinity = 0.5;  // perfect 4th - attract
-        else if (normalizedInterval === 7) affinity = 0.5;  // perfect 5th - attract
-        else if (normalizedInterval === 3) affinity = 0.7;  // minor 3rd - mild attract
-        else if (normalizedInterval === 4) affinity = 0.7;  // major 3rd - mild attract
-        else if (normalizedInterval === 1) affinity = 1.4;  // minor 2nd - repel
-        else if (normalizedInterval === 2) affinity = 1.2;  // major 2nd - mild repel
-        else if (normalizedInterval === 6) affinity = 1.5;  // tritone - strong repel
+          const nj = this.nodes[j];
+          const dx = nj.x - ni.x;
+          const dy = nj.y - ni.y;
+          const d2Raw = dx * dx + dy * dy;
 
-        const f = this.repulsion * affinity / d2;
-        const fx = f * dx / d;
-        const fy = f * dy / d;
-        ni.vx -= fx;
-        ni.vy -= fy;
-        nj.vx += fx;
-        nj.vy += fy;
+          // Skip if beyond cutoff - force contribution is negligible
+          if (d2Raw > repulsionCutoff2) continue;
+
+          // Min distance of 20 prevents explosive forces when nodes spawn on top of each other
+          const d2 = Math.max(400, d2Raw);  // 400 = 20^2
+          const d = Math.sqrt(d2);
+
+          // Calculate interval between pitch classes
+          const interval = Math.abs(ni.pitchClass - nj.pitchClass);
+          const normalizedInterval = Math.min(interval, 12 - interval);
+
+          // Harmonic affinity: consonant = attract (< 1), dissonant/same = repel (> 1)
+          let affinity = 1.0;
+          if (normalizedInterval === 0) affinity = 1.8;       // unison - like repels like
+          else if (normalizedInterval === 5) affinity = 0.5;  // perfect 4th - attract
+          else if (normalizedInterval === 7) affinity = 0.5;  // perfect 5th - attract
+          else if (normalizedInterval === 3) affinity = 0.7;  // minor 3rd - mild attract
+          else if (normalizedInterval === 4) affinity = 0.7;  // major 3rd - mild attract
+          else if (normalizedInterval === 1) affinity = 1.4;  // minor 2nd - repel
+          else if (normalizedInterval === 2) affinity = 1.2;  // major 2nd - mild repel
+          else if (normalizedInterval === 6) affinity = 1.5;  // tritone - strong repel
+
+          const f = this.repulsion * affinity / d2;
+          const fx = f * dx / d;
+          const fy = f * dy / d;
+          ni.vx -= fx;
+          ni.vy -= fy;
+          nj.vx += fx;
+          nj.vy += fy;
+        }
       }
     }
 
@@ -723,16 +766,23 @@ export class GraphChainEffect implements VisualEffect {
   getConfig(): EffectConfig[] {
     return [
       { key: 'tonnetzWindowBars', label: 'Connect Window (bars)', type: 'range', value: this.tonnetzWindowBars, min: 1, max: 8, step: 1 },
-      { key: 'maxNodes', label: 'Max Nodes', type: 'range', value: this.maxNodes, min: 500, max: 4000, step: 250 },
       { key: 'nodeSize', label: 'Node Size', type: 'range', value: this.nodeSize, min: 2, max: 10, step: 0.5 },
       { key: 'edgeWidth', label: 'Edge Width', type: 'range', value: this.edgeWidth, min: 0.3, max: 3, step: 0.1 },
       { key: 'glowIntensity', label: 'Glow', type: 'range', value: this.glowIntensity, min: 0.2, max: 1.5, step: 0.1 },
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return {
+      tonnetzWindowBars: 1,
+      nodeSize: 3,
+      edgeWidth: 1.0,
+      glowIntensity: 1.0,
+    };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'tonnetzWindowBars') this.tonnetzWindowBars = value as number;
-    if (key === 'maxNodes') this.maxNodes = value as number;
     if (key === 'nodeSize') this.nodeSize = value as number;
     if (key === 'edgeWidth') this.edgeWidth = value as number;
     if (key === 'glowIntensity') this.glowIntensity = value as number;

@@ -16,6 +16,7 @@
 - **Neutral grey for C**: Good "home base" that doesn't compete with chromatic colors
 - **Orange for G#**: Bridges green (G) and red (A) naturally on color wheel
 - **Deep saturated palettes**: Forest green (G), deep red (A), deep blue (E) - rich and moody beats bright/washed-out
+- **Dynamic range compression for brightness**: High floor (0.5) + capped ceiling (0.75 alpha) creates consistent visibility. Quiet notes still visible, loud notes don't blow out. Use sqrt for perceptual scaling: `floor + range * sqrt(velocity)`
 
 ### Music Mapping
 - **Bar-level chord detection**: Stable, musically meaningful
@@ -58,6 +59,12 @@
 - **Two-palette-stop gradients for keys**: Pick two actual palette colors rather than darkening/lightening one
 - **Key depression with smooth return**: Decay brightness at exp(-4.0 * dt), threshold at 0.1
 - **Time interpolation for smooth seek bar**: Interpolate using `audioContext.currentTime` delta
+- **Resolution scaling for compositor**: Render at 75% internal resolution, upscale at final blit. 2x speedup with minimal visual impact. Use `imageSmoothingQuality = 'high'` for clean upscale
+- **Path2D caching for clip paths**: Cache complex paths (kaleidoscope wedges) instead of recreating each frame. 42% faster for kaleidoscope effect
+- **Nebula caching for starfield**: Pre-render expensive radial gradients to off-screen canvas. Only re-render when nebula count changes
+- **Canvas state batching**: Track `globalAlpha` and `globalCompositeOperation` to avoid redundant state changes
+- **Profiling infrastructure**: Expose `compositor.profileEnabled` and `getProfileStats()` for per-effect timing. Essential for finding bottlenecks
+- **Spatial hash grid for graph physics**: Instead of O(n²) all-pairs repulsion, hash nodes into grid cells matching cutoff distance (300px). Each node checks only 9 adjacent cells. Enables unlimited nodes with linear scaling - no pruning needed
 
 ### UI/UX
 - **Fullscreen with PWA fallback**: Fullscreen API doesn't work on iOS Safari. Provide "Add to Home Screen"
@@ -101,6 +108,12 @@
 - **Heavy particle systems**: Crash framerate—keep overlays minimal
 - **Shadow blur for glow effects**: Extremely expensive, causes frame drops
 - **Radial gradients per particle**: Too expensive at scale. Use simple filled circles
+- **WebGL post-process with Canvas2D source**: Texture upload (`texImage2D`) every frame is slower than Canvas2D drawImage. WebGL only wins if entire pipeline is GPU-based
+- **ImageData batching for particles**: `getImageData`/`putImageData` copies entire canvas buffer (~16MB at high res). Simple `fillRect` calls are faster for sparse particles
+- **Internal downscale+upscale for post-process**: Adding extra drawImage calls for downscale/upscale overhead exceeds savings from smaller intermediate draws
+- **Dirty tracking for music-reactive effects**: Effects driven by continuous music params change every frame anyway. Dirty flags add complexity without benefit
+- **Oversized clip radius**: Kaleidoscope was using `max(w,h) * 1.5` when `diagonal/2 * 1.15` suffices. Tighter radius reduces wasted clipping work
+- **AABB source region for clipped draws**: Computing bounding box of visible wedge and using `drawImage(src, sx, sy, sw, sh, ...)` doesn't help - Canvas2D doesn't optimize source region reads, and the overhead negates any savings
 
 ### Music Mapping
 - **Drum-only energy drivers**: Many MIDIs have no drums. Generalize to all note onsets + beat grid

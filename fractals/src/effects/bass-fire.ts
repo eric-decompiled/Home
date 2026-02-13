@@ -468,6 +468,10 @@ export class BassFireEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return { showNumerals: true };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'showNumerals') this.showNumerals = value as boolean;
   }

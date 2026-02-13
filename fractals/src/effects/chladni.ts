@@ -326,6 +326,10 @@ export class ChladniEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return { lineWidth: 0.08 };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'lineWidth') this.lineWidth = value as number;
   }

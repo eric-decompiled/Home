@@ -827,6 +827,10 @@ export class TheoryBarEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return { barHeight: 72 };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'barHeight' && typeof value === 'number') {
       this.barHeight = value;

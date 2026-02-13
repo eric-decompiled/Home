@@ -2,8 +2,8 @@
 
 A layered music visualization system that transforms MIDI files into synchronized visual experiences. Combines fractal rendering, physics simulations, and procedural graphics—all driven by real-time harmonic analysis. Plays MIDI through a SoundFont synthesizer while mapping musical structure (key, chords, melody, bass, drums) to visual parameters across multiple composited effect layers.
 
-**Default preset**: Spiral (Starfield + Note Star + Bass Fire)
-**Default playlist**: Games (video game music)
+**Default preset**: Stars (Starfield + Note Star + Bass Fire)
+**Default playlist**: Classics (pop & rock)
 
 ## Architecture
 
@@ -25,7 +25,7 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 
 ## Docs
 
-`docs/`: effects.md, music-analysis.md, state-schema.md, fractal-engine.md, key-learnings.md, future-ideas.md, playlist.md
+`docs/`: effects.md, music-analysis.md, state-schema.md, fractal-engine.md, key-learnings.md, future-ideas.md, playlist.md, performance.md
 
 `research/`: fractal-theory.md (primary fractal ref), harmonic-analysis-theory.md, groove-and-visualizers.md, fractal-families.md, playlist-theory.md, graph-evolution.md (Graph Chain design)
 
@@ -33,7 +33,7 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 
 **Layers**: Background (Chladni, Domain Warp, Waves, Flow Field, Starfield) | Foreground (Graph Chain, Note Spiral, Fractal, Piano Roll, Tonnetz) | Overlay (Kaleidoscope) | HUD (Theory Bar) | Melody/Bass clocks and webs
 
-**Presets**: `warp`, `clock`, `spiral` (default), `fractal`, `chain`, `piano`
+**Presets**: `warp`, `clock`, `stars` (default), `fractal`, `chain`, `piano`
 
 **MIDIs**: Place in `public/midi/`, must start with `MThd` bytes (not RIFF-wrapped)
 
@@ -52,9 +52,9 @@ When cleaning up or resetting to sensible defaults, use these settings:
 **UI State**:
 - Custom/layer panel: closed by default (`layerPanelOpen = false`)
 - Fractal config panel: open by default
-- Preset button order: Warp, Clock, Spiral, Fractal, Chain, Piano
-- Default preset on fresh load: `spiral`
-- Default playlist: `video` (Games)
+- Preset button order: Warp, Clock, Stars, Fractal, Chain, Piano
+- Default preset on fresh load: `stars`
+- Default playlist: `pop` (Classics)
 
 **Mobile/Canvas**:
 - Device pixel ratio: use `devicePixelRatio` capped at 2 for sharp rendering
@@ -75,3 +75,14 @@ Use `showToast(message, duration?)` for user feedback:
 - Auto-dismisses after `duration` ms (default 4000)
 - Used for MIDI load errors, import failures, etc.
 - CSS class `.toast` with `.toast.show` for visibility
+
+## Performance Testing
+
+Run automated performance analysis with headless Chrome:
+
+```bash
+npm run perf              # 30s test, stars preset
+npm run perf -- 15 clock  # 15s test, clock preset
+```
+
+Outputs FPS, render time, memory usage, and long task counts. See [`docs/performance.md`](docs/performance.md) for details and optimization history.

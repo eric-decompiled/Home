@@ -130,7 +130,18 @@
       "Bash(git commit:*)",
       "WebFetch(domain:www.midishow.com)",
       "Bash(npx midi-file-info:*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(npm run perf:*)",
+      "Bash(for preset in spiral clock warp fractal chain piano)",
+      "Bash(do echo \"=== $preset ===\")",
+      "Bash(# Check for temp files ls -la /Users/eric/dsp/fractals/*.png /Users/eric/dsp/fractals/*.json)",
+      "Bash(for f in src/effects/bass-web.ts src/effects/melody-web.ts src/effects/melody-aurora.ts src/effects/tonnetz.ts src/effects/feedback-trail.ts)",
+      "Bash(do echo \"=== $f ===\" grep -A5 \"getConfig\\(\\)\" \"$f\")",
+      "Bash(npm search:*)",
+      "Bash(npx excalidraw-to-svg:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx excalidraw-brute-export-cli:*)",
+      "Bash(npx playwright install:*)"
     ]
   }
 }

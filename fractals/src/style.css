@@ -490,6 +490,31 @@ a.toggle-btn {
   padding: 6px 10px;
 }
 
+.quality-presets {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(136, 153, 170, 0.2);
+}
+
+.quality-label {
+  font-size: 10px;
+  color: rgba(136, 153, 170, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.quality-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.quality-buttons .toggle-btn {
+  flex: 1;
+  font-size: 11px;
+  padding: 6px 10px;
+}
+
 /* --- Import Modal --- */
 
 .import-modal-box {

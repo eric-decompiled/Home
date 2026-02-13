@@ -369,6 +369,10 @@ export class ChordWebEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return { radius: 0.85, edgeDecay: 0.998, webIntensity: 1.0 };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'radius') this.radius = value as number;
     if (key === 'edgeDecay') this.edgeDecay = value as number;

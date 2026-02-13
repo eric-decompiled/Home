@@ -440,6 +440,14 @@ export class DomainWarpEffect implements VisualEffect {
     ];
   }
 
+  getDefaults(): Record<string, number | string | boolean> {
+    return {
+      warpAmount: 2.0,
+      warpScale: 3.5,
+      colorByChord: true,
+    };
+  }
+
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'warpAmount') this.currentWarp = value as number;
     if (key === 'warpScale') this.currentScale = value as number;

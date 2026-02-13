@@ -146,6 +146,11 @@ export class FlowFieldEffect implements VisualEffect {
   }
 
   update(dt: number, music: MusicParams): void {
+    // Ensure particles exist (handles cases where effect wasn't properly initialized)
+    if (this.particles.length === 0 && this.width > 0 && this.height > 0) {
+      this.spawnParticles();
+    }
+
     // Music mapping
     this.noiseOffset += dt * 0.1;
 
@@ -302,6 +307,17 @@ export class FlowFieldEffect implements VisualEffect {
       { key: 'mouseStrength', label: 'Mouse Range', type: 'range', value: this.mouseStrength, min: 50, max: 400, step: 25 },
       { key: 'useWhite', label: 'White Only', type: 'toggle', value: this.useWhite },
     ];
+  }
+
+  getDefaults(): Record<string, number | string | boolean> {
+    return {
+      particleCount: 800,
+      flowSpeed: 0.4,
+      noiseScale: 0.003,
+      fadeRate: 0.018,
+      mouseStrength: 60,
+      useWhite: false,
+    };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
