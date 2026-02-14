@@ -10,26 +10,26 @@ export interface PaletteDef {
 }
 
 export const palettes: PaletteDef[] = [
-  { // 0 - C - Silver Grey
+  { // 0 - C - Deep Gold
     name: 'C',
     stops: [
-      { pos: 0.0,  color: [3, 3, 4] },
-      { pos: 0.15, color: [35, 38, 45] },
-      { pos: 0.4,  color: [100, 108, 120] },
-      { pos: 0.65, color: [150, 160, 175] },
-      { pos: 0.85, color: [200, 210, 225] },
-      { pos: 1.0,  color: [130, 140, 155] },
+      { pos: 0.0,  color: [4, 2, 0] },
+      { pos: 0.15, color: [45, 28, 0] },
+      { pos: 0.4,  color: [140, 90, 5] },
+      { pos: 0.65, color: [175, 115, 10] },
+      { pos: 0.85, color: [210, 145, 20] },
+      { pos: 1.0,  color: [160, 100, 5] },
     ],
   },
-  { // 1 - C# - Cool Mauve (muted purple-grey)
+  { // 1 - C# - Pastel Yellow
     name: 'C\u266F',
     stops: [
-      { pos: 0.0,  color: [3, 2, 4] },
-      { pos: 0.15, color: [35, 28, 45] },
-      { pos: 0.4,  color: [85, 70, 105] },
-      { pos: 0.65, color: [120, 100, 140] },
-      { pos: 0.85, color: [150, 130, 170] },
-      { pos: 1.0,  color: [105, 85, 125] },
+      { pos: 0.0,  color: [4, 4, 2] },
+      { pos: 0.15, color: [55, 55, 30] },
+      { pos: 0.4,  color: [200, 195, 110] },
+      { pos: 0.65, color: [230, 225, 150] },
+      { pos: 0.85, color: [255, 250, 180] },
+      { pos: 1.0,  color: [220, 215, 130] },
     ],
   },
   { // 2 - D - Deep Purple
@@ -98,15 +98,15 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [15, 80, 28] },
     ],
   },
-  { // 8 - G# - Orange (between green and red)
+  { // 8 - G# - Warm Sage (pastel green with orange undertones)
     name: 'G\u266F',
     stops: [
-      { pos: 0.0,  color: [4, 1, 0] },
-      { pos: 0.15, color: [50, 20, 0] },
-      { pos: 0.4,  color: [160, 70, 0] },
-      { pos: 0.65, color: [210, 100, 10] },
-      { pos: 0.85, color: [240, 140, 30] },
-      { pos: 1.0,  color: [180, 80, 5] },
+      { pos: 0.0,  color: [4, 4, 2] },
+      { pos: 0.15, color: [50, 55, 25] },
+      { pos: 0.4,  color: [140, 170, 85] },
+      { pos: 0.65, color: [175, 205, 115] },
+      { pos: 0.85, color: [205, 230, 145] },
+      { pos: 1.0,  color: [160, 185, 100] },
     ],
   },
   { // 9 - A - Red (Deep)
@@ -131,15 +131,15 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [165, 100, 90] },
     ],
   },
-  { // 11 - B - Deep Pink
+  { // 11 - B - Orange
     name: 'B',
     stops: [
-      { pos: 0.0,  color: [5, 0, 2] },
-      { pos: 0.15, color: [45, 0, 25] },
-      { pos: 0.4,  color: [140, 10, 75] },
-      { pos: 0.65, color: [185, 30, 110] },
-      { pos: 0.85, color: [220, 60, 145] },
-      { pos: 1.0,  color: [165, 35, 100] },
+      { pos: 0.0,  color: [4, 1, 0] },
+      { pos: 0.15, color: [50, 20, 0] },
+      { pos: 0.4,  color: [160, 70, 0] },
+      { pos: 0.65, color: [210, 100, 10] },
+      { pos: 0.85, color: [240, 140, 30] },
+      { pos: 1.0,  color: [180, 80, 5] },
     ],
   },
 ];
