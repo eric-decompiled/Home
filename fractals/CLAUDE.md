@@ -1,6 +1,6 @@
 # Fractured Jukebox
 
-A layered music visualization system that transforms MIDI files into synchronized visual experiences. Combines fractal rendering, physics simulations, and procedural graphics—all driven by real-time harmonic analysis. Plays MIDI through a SoundFont synthesizer while mapping musical structure (key, chords, melody, bass, drums) to visual parameters across multiple composited effect layers.
+A customizable MIDI file music visualizer. See the structure of music. Uses MIDI analysis to extract rhythmic and harmonic information to drive a variety of visual effects.
 
 **Default preset**: Stars (Starfield + Note Star + Bass Fire)
 **Default playlist**: Classics (pop & rock)
