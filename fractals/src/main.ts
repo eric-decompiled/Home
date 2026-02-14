@@ -354,6 +354,7 @@ app.innerHTML = `
         <div class="mobile-menu-buttons">
           <button class="toggle-btn preset-btn" id="mobile-preset-fractal">Fractal</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-chain">Chain</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-kali-graph">Kali</button>
         </div>
       </div>
       <div class="mobile-menu-section">
@@ -1215,12 +1216,14 @@ function buildLayerPanel(): void {
     }
 
     // Config button for fractal and graph-chain effects (only in Foreground slot)
+    // Fractal config is desktop-only due to complexity
     let configBtn: HTMLButtonElement | null = null;
     if (slot.name === 'Foreground') {
       configBtn = document.createElement('button');
       configBtn.className = 'slot-config-link';
       configBtn.textContent = 'Custom';
-      const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-chain';
+      const isMobile = window.innerWidth <= 768;
+      const hasConfig = (slot.activeId === 'fractal' && !isMobile) || slot.activeId === 'graph-chain';
       configBtn.style.display = hasConfig ? 'block' : 'none';
       configBtn.addEventListener('click', () => {
         if (slot.activeId === 'fractal') {
@@ -1244,9 +1247,10 @@ function buildLayerPanel(): void {
       dirty = true;
       markUnsavedChanges();
       updateBrowserURL();
-      // Show/hide config button for fractal and graph-chain
+      // Show/hide config button for fractal and graph-chain (fractal config is desktop-only)
       if (configBtn) {
-        const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-chain';
+        const isMobile = window.innerWidth <= 768;
+        const hasConfig = (slot.activeId === 'fractal' && !isMobile) || slot.activeId === 'graph-chain';
         configBtn.style.display = hasConfig ? 'block' : 'none';
       }
     });
@@ -1492,7 +1496,7 @@ const mobilePresetButtons: Partial<Record<PresetName, HTMLButtonElement>> = {
   fractal: document.getElementById('mobile-preset-fractal') as HTMLButtonElement,
   piano: document.getElementById('mobile-preset-piano') as HTMLButtonElement,
   chain: document.getElementById('mobile-preset-chain') as HTMLButtonElement,
-  // kali-graph not in mobile menu (experimental only)
+  'kali-graph': document.getElementById('mobile-preset-kali-graph') as HTMLButtonElement,
 };
 
 for (const [name, btn] of Object.entries(mobilePresetButtons)) {

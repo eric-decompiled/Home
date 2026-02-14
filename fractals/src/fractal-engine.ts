@@ -202,9 +202,9 @@ export const fractalEngine = {
     frameW = w;
     frameH = h;
 
-    // Reuse frame buffer if size matches, only reallocate if needed
+    // Reallocate frame buffer if size changed (ImageData requires exact match)
     const requiredSize = w * h * 4;
-    if (!frameBuffer || frameBufferSize < requiredSize) {
+    if (!frameBuffer || frameBufferSize !== requiredSize) {
       frameBuffer = new Uint8ClampedArray(requiredSize);
       frameBufferSize = requiredSize;
     }
