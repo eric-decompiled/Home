@@ -141,7 +141,9 @@
       "Bash(npx excalidraw-to-svg:*)",
       "Bash(npm uninstall:*)",
       "Bash(npx excalidraw-brute-export-cli:*)",
-      "Bash(npx playwright install:*)"
+      "Bash(npx playwright install:*)",
+      "WebFetch(domain:numanme.co.uk)",
+      "WebFetch(domain:www.mididb.com)"
     ]
   }
 }

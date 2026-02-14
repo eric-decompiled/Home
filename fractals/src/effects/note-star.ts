@@ -20,6 +20,8 @@ interface TravelingStar {
   velocity: number;
   startMidi: number;
   age: number;
+  sustained: boolean;    // true if note is still held
+  hasBeam: boolean;      // true once note qualifies for beam (held 2+ beats)
 }
 
 export class NoteStarEffect implements VisualEffect {
@@ -55,6 +57,9 @@ export class NoteStarEffect implements VisualEffect {
   // This avoids timing issues with continuous tracking across different tempos
   private anticipationPulses: Map<string, { alpha: number; midi: number; pitchClass: number }> = new Map();
   private lastBeatIndex = -1;
+
+  // Beam constants - solid lines for sustained notes
+  private static readonly SUSTAIN_THRESHOLD_BEATS = 2; // only beam notes held 2+ beats
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -137,15 +142,36 @@ export class NoteStarEffect implements VisualEffect {
     // Groove intensity: off-beat lowest, beat 1 brightest (reduced variability)
     const grooveIntensity = 0.55 + this.beatGrooveCurrent * 0.25 + this.barGrooveCurrent * 0.25;
 
+    // Track which notes are currently active (for sustain detection)
+    const activeNotes = new Set<number>();
+    for (const voice of music.activeVoices) {
+      if (voice.midi >= MIDI_LO && voice.midi < MIDI_HI) {
+        activeNotes.add(voice.midi);
+      }
+    }
+
+    // Update sustained status for existing stars
+    for (const star of this.stars) {
+      star.sustained = activeNotes.has(star.startMidi);
+    }
+
     // Spawn stars on note onsets
+    const beamThresholdSec = this.beatDuration * NoteStarEffect.SUSTAIN_THRESHOLD_BEATS;
+
     for (const voice of music.activeVoices) {
       if (voice.midi < MIDI_LO || voice.midi >= MIDI_HI) continue;
       if (!voice.onset) continue;
 
+      // Look up note duration from upcomingNotes (timeUntil <= 0 means currently playing)
+      const matchingNote = music.upcomingNotes.find(
+        n => n.midi === voice.midi && n.timeUntil <= 0 && n.timeUntil > -0.1
+      );
+      const noteDuration = matchingNote?.duration ?? 0;
+      const qualifiesForBeam = noteDuration >= beamThresholdSec;
+
       const loudnessFactor = 0.25 + this.loudness * 0.75;
       const c = samplePaletteColor(voice.pitchClass, 0.75);
       // Compress velocity: high floor, narrow range for consistent brightness
-      // Floor of 0.5 + scaled sqrt: 0.1→0.66, 0.25→0.75, 0.5→0.85, 1.0→1.0
       const compressedVel = 0.5 + 0.5 * Math.pow(voice.velocity, 0.5);
       const noteIntensity = compressedVel * loudnessFactor * grooveIntensity;
 
@@ -157,6 +183,8 @@ export class NoteStarEffect implements VisualEffect {
         velocity: compressedVel * grooveIntensity,
         startMidi: voice.midi,
         age: 0,
+        sustained: true,
+        hasBeam: qualifiesForBeam, // Set immediately based on note duration
       });
 
       if (this.stars.length > this.maxStars) this.stars.shift();
@@ -165,12 +193,21 @@ export class NoteStarEffect implements VisualEffect {
     // Update stars - speed scales subtly with BPM
     // Slower songs = slightly slower travel, faster songs = slightly faster
     const speedScale = Math.pow(this.bpm / 120, 0.25);  // ~0.84x at 60bpm, ~1.11x at 180bpm
+
     for (let i = this.stars.length - 1; i >= 0; i--) {
       const star = this.stars[i];
-      star.progress += dt * 0.06 * speedScale;
+
+      // Sustained notes: slower travel, don't fade
+      const isSustained = star.sustained;
+      const starSpeed = isSustained ? 0.03 : 0.06;
+      star.progress += dt * starSpeed * speedScale;
       star.age += dt;
-      const fadeRate = 0.08 + star.progress * 0.15;
-      star.alpha *= Math.exp(-fadeRate * dt);
+
+      // Only fade if note is released
+      if (!isSustained) {
+        const fadeRate = 0.08 + star.progress * 0.15;
+        star.alpha *= Math.exp(-fadeRate * dt);
+      }
 
       if (star.progress >= 1 || star.alpha < 0.01) {
         this.stars.splice(i, 1);
@@ -232,7 +269,10 @@ export class NoteStarEffect implements VisualEffect {
     // Groove pulse factor (reduced variability, same average)
     const groovePulse = 0.85 + this.beatGrooveCurrent * 0.2 + this.barGrooveCurrent * 0.15;
 
-    // Draw stars
+    // Draw stars with comet trails
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
     for (const star of this.stars) {
       const eased = 1 - Math.pow(1 - star.progress, 2);
       const effectiveMidi = MIDI_LO + (star.startMidi - MIDI_LO) * (1 - eased);
@@ -251,6 +291,75 @@ export class NoteStarEffect implements VisualEffect {
 
       if (alpha < 0.01) continue;
 
+      // === SOLID LIGHT BEAM following spiral (sustained notes 2+ beats) ===
+      if (star.hasBeam && star.progress > 0.01) {
+        const loudnessFactor = 0.3 + this.loudness * 0.7;
+        // Attack curve: bright on strike, settles to sustain level
+        // Peak at ~0.1s, then exponential decay to 40% sustain
+        const attackPeak = Math.min(1, star.age / 0.1); // Rise 0->1 over 0.1s
+        const decayFactor = 0.4 + 0.6 * Math.exp(-star.age * 3); // 1.0 -> 0.4 over ~0.5s
+        const attackEnvelope = attackPeak * decayFactor;
+        const beamAlpha = alpha * loudnessFactor * attackEnvelope;
+
+        // Sample points along the spiral from spawn (progress=0) to head
+        const trailEnd = star.progress; // Trail ends at head position
+        const numSegments = Math.max(8, Math.floor(trailEnd * 40)); // More segments as beam grows
+        const points: { x: number; y: number }[] = [];
+
+        for (let s = 0; s <= numSegments; s++) {
+          const t = (s / numSegments) * trailEnd; // 0 to trailEnd
+          const segEased = 1 - Math.pow(1 - t, 2);
+          const segMidi = MIDI_LO + (star.startMidi - MIDI_LO) * (1 - segEased);
+          const segTraveled = star.startMidi - segMidi;
+          const segTwist = (segTraveled / 48) * Math.PI * 2;
+          const segRotation = this.keyRotation + segTwist;
+          const segPos = spiralPos(segMidi, star.pitchClass, this.key, segRotation, cx, cy, maxR, this.spiralTightness);
+          points.push({ x: segPos.x, y: segPos.y });
+        }
+
+        // Draw beam as smooth curve through spiral points
+        const drawBeamPath = () => {
+          ctx.beginPath();
+          ctx.moveTo(points[0].x, points[0].y);
+          // Use quadratic curves through midpoints for smooth spiral
+          for (let p = 1; p < points.length - 1; p++) {
+            const midX = (points[p].x + points[p + 1].x) / 2;
+            const midY = (points[p].y + points[p + 1].y) / 2;
+            ctx.quadraticCurveTo(points[p].x, points[p].y, midX, midY);
+          }
+          // Final segment to last point
+          if (points.length > 1) {
+            const last = points[points.length - 1];
+            ctx.lineTo(last.x, last.y);
+          }
+        };
+
+        // Wide outer glow
+        drawBeamPath();
+        ctx.strokeStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(beamAlpha * 0.2).toFixed(3)})`;
+        ctx.lineWidth = 16;
+        ctx.stroke();
+
+        // Mid glow
+        drawBeamPath();
+        ctx.strokeStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(beamAlpha * 0.4).toFixed(3)})`;
+        ctx.lineWidth = 8;
+        ctx.stroke();
+
+        // Bright core
+        drawBeamPath();
+        ctx.strokeStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(beamAlpha * 0.7).toFixed(3)})`;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        // Hot white center
+        drawBeamPath();
+        ctx.strokeStyle = `rgba(255,255,255,${(beamAlpha * 0.5).toFixed(3)})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      // === STAR HEAD ===
       // Layer 1: Soft outer glow
       const glowSize = size * (1.6 + groovePulse * 0.4);
       const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowSize);

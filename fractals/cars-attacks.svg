@@ -1,0 +1,264 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 400" style="background:#1a1a2e">
+  <defs>
+    <style>
+      .bar-line { stroke: #444; stroke-width: 1; }
+      .beat-line { stroke: #333; stroke-width: 0.5; stroke-dasharray: 2,4; }
+      .label { font-family: monospace; font-size: 10px; fill: #888; }
+      .bar-num { font-family: monospace; font-size: 12px; fill: #aaa; font-weight: bold; }
+      .track-label { font-family: monospace; font-size: 11px; fill: #ccc; }
+      .title { font-family: sans-serif; font-size: 14px; fill: #fff; font-weight: bold; }
+      .attack { opacity: 0.9; }
+      .synth { fill: #00d4ff; }
+      .bass { fill: #ff6b00; }
+      .drums { fill: #ff0080; }
+      .pad { fill: #00ff88; }
+      .fill { fill: #ffcc00; }
+      .sub { fill: #8844ff; }
+    </style>
+  </defs>
+
+  <!-- Title -->
+  <text x="450" y="25" class="title" text-anchor="middle">Gary Numan - Cars: Attack Pattern (Bars 9-12, 127 BPM)</text>
+
+  <!-- Track labels -->
+  <text x="10" y="72" class="track-label">Synth (D-C#-G-A)</text>
+  <text x="10" y="117" class="track-label">Bass</text>
+  <text x="10" y="162" class="track-label">Kick</text>
+  <text x="10" y="207" class="track-label">Snare</text>
+  <text x="10" y="252" class="track-label">Hi-Hat</text>
+  <text x="10" y="297" class="track-label">Pad (A5)</text>
+  <text x="10" y="342" class="track-label">Fill</text>
+
+  <!-- Bar numbers -->
+  <text x="130" y="385" class="bar-num">Bar 9</text>
+  <text x="330" y="385" class="bar-num">Bar 10</text>
+  <text x="530" y="385" class="bar-num">Bar 11</text>
+  <text x="730" y="385" class="bar-num">Bar 12</text>
+
+  <!-- Beat labels -->
+  <g class="label">
+    <text x="130" y="370">1</text><text x="180" y="370">2</text><text x="230" y="370">3</text><text x="280" y="370">4</text>
+    <text x="330" y="370">1</text><text x="380" y="370">2</text><text x="430" y="370">3</text><text x="480" y="370">4</text>
+    <text x="530" y="370">1</text><text x="580" y="370">2</text><text x="630" y="370">3</text><text x="680" y="370">4</text>
+    <text x="730" y="370">1</text><text x="780" y="370">2</text><text x="830" y="370">3</text><text x="880" y="370">4</text>
+  </g>
+
+  <!-- Grid: Bar lines -->
+  <g class="bar-line">
+    <line x1="100" y1="45" x2="100" y2="355"/>
+    <line x1="300" y1="45" x2="300" y2="355"/>
+    <line x1="500" y1="45" x2="500" y2="355"/>
+    <line x1="700" y1="45" x2="700" y2="355"/>
+    <line x1="900" y1="45" x2="900" y2="355"/>
+  </g>
+
+  <!-- Grid: Beat lines -->
+  <g class="beat-line">
+    <!-- Bar 1 -->
+    <line x1="150" y1="45" x2="150" y2="355"/>
+    <line x1="200" y1="45" x2="200" y2="355"/>
+    <line x1="250" y1="45" x2="250" y2="355"/>
+    <!-- Bar 2 -->
+    <line x1="350" y1="45" x2="350" y2="355"/>
+    <line x1="400" y1="45" x2="400" y2="355"/>
+    <line x1="450" y1="45" x2="450" y2="355"/>
+    <!-- Bar 3 -->
+    <line x1="550" y1="45" x2="550" y2="355"/>
+    <line x1="600" y1="45" x2="600" y2="355"/>
+    <line x1="650" y1="45" x2="650" y2="355"/>
+    <!-- Bar 4 -->
+    <line x1="750" y1="45" x2="750" y2="355"/>
+    <line x1="800" y1="45" x2="800" y2="355"/>
+    <line x1="850" y1="45" x2="850" y2="355"/>
+  </g>
+
+  <!-- Track separator lines -->
+  <g stroke="#333" stroke-width="0.5">
+    <line x1="100" y1="90" x2="900" y2="90"/>
+    <line x1="100" y1="135" x2="900" y2="135"/>
+    <line x1="100" y1="180" x2="900" y2="180"/>
+    <line x1="100" y1="225" x2="900" y2="225"/>
+    <line x1="100" y1="270" x2="900" y2="270"/>
+    <line x1="100" y1="315" x2="900" y2="315"/>
+  </g>
+
+  <!-- SYNTH TRACK (D→C#→G→A→A→A pattern) - Row 1 -->
+  <!-- Bar 1: D(1) C#(1.5) G(2) A(2.5) A(3.5) A(4) -->
+  <circle cx="100" cy="68" r="6" class="attack synth"/><text x="100" y="58" class="label" text-anchor="middle">D</text>
+  <circle cx="125" cy="68" r="5" class="attack synth"/><text x="125" y="58" class="label" text-anchor="middle">C#</text>
+  <circle cx="150" cy="68" r="6" class="attack synth"/><text x="150" y="58" class="label" text-anchor="middle">G</text>
+  <circle cx="175" cy="68" r="6" class="attack synth"/><text x="175" y="58" class="label" text-anchor="middle">A</text>
+  <circle cx="225" cy="68" r="6" class="attack synth"/><text x="225" y="58" class="label" text-anchor="middle">A</text>
+  <circle cx="250" cy="68" r="5" class="attack synth"/><text x="250" y="58" class="label" text-anchor="middle">A</text>
+  <!-- Bar 2 -->
+  <circle cx="300" cy="68" r="6" class="attack synth"/>
+  <circle cx="325" cy="68" r="5" class="attack synth"/>
+  <circle cx="350" cy="68" r="6" class="attack synth"/>
+  <circle cx="375" cy="68" r="6" class="attack synth"/>
+  <circle cx="425" cy="68" r="6" class="attack synth"/>
+  <circle cx="450" cy="68" r="5" class="attack synth"/>
+  <!-- Bar 3 -->
+  <circle cx="500" cy="68" r="6" class="attack synth"/>
+  <circle cx="525" cy="68" r="5" class="attack synth"/>
+  <circle cx="550" cy="68" r="6" class="attack synth"/>
+  <circle cx="575" cy="68" r="6" class="attack synth"/>
+  <circle cx="625" cy="68" r="6" class="attack synth"/>
+  <circle cx="650" cy="68" r="5" class="attack synth"/>
+  <!-- Bar 4 -->
+  <circle cx="700" cy="68" r="6" class="attack synth"/>
+  <circle cx="725" cy="68" r="5" class="attack synth"/>
+  <circle cx="750" cy="68" r="6" class="attack synth"/>
+  <circle cx="775" cy="68" r="6" class="attack synth"/>
+  <circle cx="825" cy="68" r="6" class="attack synth"/>
+  <circle cx="850" cy="68" r="5" class="attack synth"/>
+  <circle cx="875" cy="68" r="5" class="attack synth"/><text x="875" y="58" class="label" text-anchor="middle">F#</text>
+
+  <!-- BASS TRACK (ch7) - Row 2 -->
+  <!-- Bar 1: D(1) C#(1.5) G(2) A(2.5) A(3.5) A(4) -->
+  <rect x="97" y="105" width="6" height="12" class="attack bass"/>
+  <rect x="122" y="107" width="6" height="10" class="attack bass"/>
+  <rect x="147" y="105" width="6" height="12" class="attack bass"/>
+  <rect x="172" y="103" width="6" height="14" class="attack bass"/>
+  <rect x="222" y="104" width="6" height="13" class="attack bass"/>
+  <rect x="247" y="106" width="6" height="11" class="attack bass"/>
+  <!-- Bar 2 -->
+  <rect x="297" y="104" width="6" height="13" class="attack bass"/>
+  <rect x="322" y="106" width="6" height="11" class="attack bass"/>
+  <rect x="347" y="105" width="6" height="12" class="attack bass"/>
+  <rect x="372" y="107" width="6" height="10" class="attack bass"/>
+  <rect x="422" y="104" width="6" height="13" class="attack bass"/>
+  <rect x="447" y="106" width="6" height="11" class="attack bass"/>
+  <!-- Bar 3 -->
+  <rect x="497" y="105" width="6" height="12" class="attack bass"/>
+  <rect x="522" y="107" width="6" height="10" class="attack bass"/>
+  <rect x="547" y="107" width="6" height="10" class="attack bass"/>
+  <rect x="572" y="104" width="6" height="13" class="attack bass"/>
+  <rect x="622" y="104" width="6" height="13" class="attack bass"/>
+  <rect x="647" y="105" width="6" height="12" class="attack bass"/>
+  <!-- Bar 4 -->
+  <rect x="697" y="105" width="6" height="12" class="attack bass"/>
+  <rect x="722" y="106" width="6" height="11" class="attack bass"/>
+  <rect x="747" y="105" width="6" height="12" class="attack bass"/>
+  <rect x="772" y="105" width="6" height="12" class="attack bass"/>
+  <rect x="822" y="104" width="6" height="13" class="attack bass"/>
+  <rect x="847" y="106" width="6" height="11" class="attack bass"/>
+  <rect x="872" y="103" width="6" height="14" class="attack bass"/>
+
+  <!-- KICK (36) - Row 3 -->
+  <!-- Bar 1: 1, 2.5, 3.5, 4.25 -->
+  <polygon points="100,155 107,165 93,165" class="attack drums"/>
+  <polygon points="175,155 182,165 168,165" class="attack drums"/>
+  <polygon points="225,155 232,165 218,165" class="attack drums"/>
+  <polygon points="262,155 269,165 255,165" class="attack drums"/>
+  <!-- Bar 2 -->
+  <polygon points="300,155 307,165 293,165" class="attack drums"/>
+  <polygon points="375,155 382,165 368,165" class="attack drums"/>
+  <polygon points="425,155 432,165 418,165" class="attack drums"/>
+  <polygon points="462,155 469,165 455,165" class="attack drums"/>
+  <!-- Bar 3 -->
+  <polygon points="500,155 507,165 493,165" class="attack drums"/>
+  <polygon points="575,155 582,165 568,165" class="attack drums"/>
+  <polygon points="625,155 632,165 618,165" class="attack drums"/>
+  <polygon points="662,155 669,165 655,165" class="attack drums"/>
+  <!-- Bar 4 -->
+  <polygon points="700,155 707,165 693,165" class="attack drums"/>
+  <polygon points="775,155 782,165 768,165" class="attack drums"/>
+  <polygon points="825,155 832,165 818,165" class="attack drums"/>
+  <polygon points="862,155 869,165 855,165" class="attack drums"/>
+
+  <!-- SNARE (38) - Row 4 -->
+  <!-- Bar 1: 2, 4 -->
+  <rect x="147" y="198" width="10" height="10" rx="2" class="attack drums" style="fill:#ff4488"/>
+  <rect x="247" y="198" width="10" height="10" rx="2" class="attack drums" style="fill:#ff4488"/>
+  <!-- Bar 2 -->
+  <rect x="347" y="198" width="10" height="10" rx="2" class="attack drums" style="fill:#ff4488"/>
+  <rect x="447" y="198" width="10" height="10" rx="2" class="attack drums" style="fill:#ff4488"/>
+  <!-- Bar 3 -->
+  <rect x="547" y="198" width="10" height="10" rx="2" class="attack drums" style="fill:#ff4488"/>
+  <rect x="647" y="198" width="10" height="10" rx="2" class="attack drums" style="fill:#ff4488"/>
+  <!-- Bar 4 -->
+  <rect x="747" y="198" width="10" height="10" rx="2" class="attack drums" style="fill:#ff4488"/>
+  <rect x="847" y="198" width="10" height="10" rx="2" class="attack drums" style="fill:#ff4488"/>
+
+  <!-- HI-HAT (42) - Row 5 (eighth notes) -->
+  <!-- Bar 1 -->
+  <line x1="100" y1="240" x2="100" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="125" y1="240" x2="125" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="150" y1="240" x2="150" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="175" y1="240" x2="175" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="200" y1="240" x2="200" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="225" y1="240" x2="225" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="250" y1="240" x2="250" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="275" y1="240" x2="275" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <!-- Bar 2 -->
+  <line x1="300" y1="240" x2="300" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="325" y1="240" x2="325" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="350" y1="240" x2="350" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="375" y1="240" x2="375" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="400" y1="240" x2="400" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="425" y1="240" x2="425" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="450" y1="240" x2="450" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="475" y1="240" x2="475" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <!-- Bar 3 -->
+  <line x1="500" y1="240" x2="500" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="525" y1="240" x2="525" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="550" y1="240" x2="550" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="575" y1="240" x2="575" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="600" y1="240" x2="600" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="625" y1="240" x2="625" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="650" y1="240" x2="650" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="675" y1="240" x2="675" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <!-- Bar 4 -->
+  <line x1="700" y1="240" x2="700" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="725" y1="240" x2="725" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="750" y1="240" x2="750" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="775" y1="240" x2="775" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="800" y1="240" x2="800" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="825" y1="240" x2="825" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="850" y1="240" x2="850" y2="255" stroke="#ff0080" stroke-width="2"/>
+  <line x1="875" y1="240" x2="875" y2="255" stroke="#ff0080" stroke-width="2"/>
+
+  <!-- PAD (sustained A5) - Row 6 -->
+  <!-- Sustained note from beat 1, bar 1 -->
+  <rect x="100" y="283" width="795" height="18" rx="3" class="attack pad" opacity="0.6"/>
+  <text x="104" y="296" class="label" fill="#000">A5 (sustained)</text>
+
+  <!-- FILL (ch10 chord B-C-D) - Row 7 -->
+  <!-- Bar 1 beat 4, Bar 2 beat 4, etc -->
+  <g class="attack fill">
+    <rect x="248" y="328" width="4" height="18" rx="1"/>
+    <rect x="253" y="328" width="4" height="18" rx="1"/>
+    <rect x="258" y="328" width="4" height="18" rx="1"/>
+  </g>
+  <g class="attack fill">
+    <rect x="448" y="328" width="4" height="18" rx="1"/>
+    <rect x="453" y="328" width="4" height="18" rx="1"/>
+    <rect x="458" y="328" width="4" height="18" rx="1"/>
+  </g>
+  <g class="attack fill">
+    <rect x="648" y="328" width="4" height="18" rx="1"/>
+    <rect x="653" y="328" width="4" height="18" rx="1"/>
+    <rect x="658" y="328" width="4" height="18" rx="1"/>
+  </g>
+  <g class="attack fill">
+    <rect x="848" y="328" width="4" height="18" rx="1"/>
+    <rect x="853" y="328" width="4" height="18" rx="1"/>
+    <rect x="858" y="328" width="4" height="18" rx="1"/>
+  </g>
+
+  <!-- Legend -->
+  <g transform="translate(100, 395)">
+    <circle cx="5" cy="0" r="4" class="synth"/>
+    <text x="15" y="4" class="label">Synth</text>
+    <rect x="60" y="-4" width="8" height="8" class="bass"/>
+    <text x="75" y="4" class="label">Bass</text>
+    <polygon points="125,-4 132,4 118,4" class="drums"/>
+    <text x="140" y="4" class="label">Kick</text>
+    <rect x="175" y="-4" width="8" height="8" rx="1" style="fill:#ff4488"/>
+    <text x="190" y="4" class="label">Snare</text>
+    <line x1="235" y1="-4" x2="235" y2="4" stroke="#ff0080" stroke-width="2"/>
+    <text x="245" y="4" class="label">HH</text>
+    <rect x="275" y="-4" width="20" height="8" rx="2" class="pad" opacity="0.6"/>
+    <text x="300" y="4" class="label">Pad</text>
+  </g>
+</svg>

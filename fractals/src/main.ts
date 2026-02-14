@@ -68,6 +68,8 @@ const popSongs: SongEntry[] = [
   { name: 'The Final Countdown (Europe)', file: 'europe-final-countdown.mid' },
   // Guns N' Roses
   { name: 'Sweet Child O\' Mine (Guns N\' Roses)', file: 'gnr-sweet-child.mid' },
+  // Gary Numan
+  { name: 'Cars (Gary Numan)', file: 'gary-numan-cars.mid' },
   // Jobim
   { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },
   // Michael Jackson
@@ -591,22 +593,28 @@ hamburgerBtn.addEventListener('click', openMobileMenu);
 mobileMenuClose.addEventListener('click', closeMobileMenu);
 mobileMenuBackdrop.addEventListener('click', closeMobileMenu);
 
-// Swipe to close mobile menu
+// Swipe to close mobile menu (works on menu or backdrop)
 let menuTouchStartX = 0;
 let menuTouchStartY = 0;
-mobileMenu.addEventListener('touchstart', (e) => {
+
+function handleMenuTouchStart(e: TouchEvent): void {
   menuTouchStartX = e.touches[0].clientX;
   menuTouchStartY = e.touches[0].clientY;
-}, { passive: true });
+}
 
-mobileMenu.addEventListener('touchend', (e) => {
+function handleMenuTouchEnd(e: TouchEvent): void {
   const deltaX = e.changedTouches[0].clientX - menuTouchStartX;
   const deltaY = e.changedTouches[0].clientY - menuTouchStartY;
-  // Swipe left to close (must be mostly horizontal)
-  if (deltaX < -50 && Math.abs(deltaY) < Math.abs(deltaX)) {
+  // Swipe left to close (reduced threshold, relaxed angle)
+  if (deltaX < -30 && Math.abs(deltaY) < Math.abs(deltaX) * 1.5) {
     closeMobileMenu();
   }
-}, { passive: true });
+}
+
+mobileMenu.addEventListener('touchstart', handleMenuTouchStart, { passive: true });
+mobileMenu.addEventListener('touchend', handleMenuTouchEnd, { passive: true });
+mobileMenuBackdrop.addEventListener('touchstart', handleMenuTouchStart, { passive: true });
+mobileMenuBackdrop.addEventListener('touchend', handleMenuTouchEnd, { passive: true });
 
 // Mobile menu playlist buttons
 document.getElementById('mobile-playlist-classical')!.addEventListener('click', () => {

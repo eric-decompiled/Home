@@ -35,6 +35,9 @@
 - **GSAP beat-relative timing for clocks**: Hand motion duration as fraction of beat (0.5 beats for melody, 1.0 beats for bass)
 - **Windup animation for chord changes**: Pull back 1/36 of movement over 3/4 beat before arriving—adds weight and anticipation
 - **Clock hand cutouts aligned to spiral**: Calculate positions dynamically in render using same spiralPos params as note spiral for exact alignment across all keys
+- **Attack envelope for sustained trails**: Use star.age to create attack curve (rise 0-0.1s, exponential decay to 40% sustain). Trails punch bright on note attack then settle to softer sustain
+- **Quadratic curves for spiral trails**: `quadraticCurveTo` through midpoints creates smooth curves following spiral path. Avoids visible line segments from `lineTo`
+- **Trail connected to head**: Trail should end at `star.progress` (not offset behind) so it stays attached as they travel together
 
 ### Physics & Animation
 - **Compass physics for clock hands**: Spring-damper system (springK=12, damping=5) creates weighty motion with natural overshoot and settle. Hand swings toward target, overshoots slightly, drifts back. New notes can interrupt mid-motion smoothly. Feels more physical than tweening
@@ -129,3 +132,8 @@
 - **Drum pulse circles around beat positions**: Despite multiple iterations with capacitor models, hihat accents, different radii—always felt either too heavy/sudden or didn't "land" visually. Better to let wave tanks respond to all onsets
 - **Pre-calculated tick fractions for clock cutouts**: Lookup tables and tweened fractions don't align perfectly across all keys. Calculate positions dynamically each frame using spiralPos directly
 - **Breath effect on clock elements**: Subtle pulsing looked more jittery than organic. Removed in favor of static sizing
+
+### Note Star Trails
+- **Segmented comet trails**: Splitting trail into sections (tail/mid/head) with different alpha/width multipliers adds complexity and draw calls without clear visual benefit over uniform trails
+- **Per-segment groove brightness modulation**: Recording groove samples as star travels and modulating each segment's brightness is complex and the visual effect wasn't impactful enough to justify overhead
+- **Segment-by-segment beam drawing**: Drawing line segments individually instead of one smooth path increases draw calls significantly. Use single-path quadratic curves instead
