@@ -840,6 +840,28 @@ a.toggle-btn {
   cursor: none;
 }
 
+/* Android fullscreen: controls visible by default, hide after inactivity */
+.android #app:fullscreen .top-bar {
+  transform: translateY(0);
+}
+
+.android #app:fullscreen .top-bar.android-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.android #app:fullscreen .main-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.android #app:fullscreen canvas {
+  width: auto;
+  height: auto;
+}
+
 canvas {
   display: block;
   max-width: 100%;
@@ -974,6 +996,12 @@ canvas {
 .transport-btn:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+/* Fullscreen button - stays right when row wraps */
+#fullscreen-btn {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .transport-btn,
@@ -2642,6 +2670,13 @@ body.ios-landscape-fullscreen canvas {
   padding: 10px 12px;
 }
 
+/* Custom Layers button - match menu button size */
+#mobile-layers-toggle {
+  width: 100%;
+  padding: 10px 12px;
+  text-align: center;
+}
+
 /* Show hamburger and mobile menu on small screens */
 @media (max-width: 700px) {
   .hamburger-btn {
@@ -2693,4 +2728,8 @@ body.ios-landscape-fullscreen canvas {
 .toast.show {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+.toast.info {
+  background: rgba(22, 119, 199, 0.95);
 }

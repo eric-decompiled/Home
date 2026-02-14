@@ -216,7 +216,7 @@ export class NoteStarEffect implements VisualEffect {
       if (alpha < 0.02) continue;
 
       // Fixed glow size (no growth - pulse fades out quickly)
-      const glowR = 10;
+      const glowR = 6;
       ctx.beginPath();
       ctx.arc(pos.x, pos.y, glowR, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(alpha * 0.4).toFixed(3)})`;
@@ -245,7 +245,7 @@ export class NoteStarEffect implements VisualEffect {
       const pos = spiralPos(effectiveMidi, star.pitchClass, this.key, totalRotation, cx, cy, maxR, this.spiralTightness);
 
       // Pulse size and alpha with groove (compressed for softer look)
-      const baseSize = 4 + star.velocity * 5 * (1 - eased * 0.85);
+      const baseSize = 2.5 + star.velocity * 3 * (1 - eased * 0.85);
       const size = baseSize * groovePulse;
       const alpha = Math.min(0.75, star.alpha * this.intensity * groovePulse * 0.7);
 

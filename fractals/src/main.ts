@@ -52,19 +52,29 @@ interface SongEntry {
 type PlaylistCategory = 'classical' | 'pop' | 'video';
 
 const popSongs: SongEntry[] = [
-  // Classics (energy arc: groove → build → peak → epic finale)
-  { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid' },                // bossa classic
-  { name: 'Eye of the Tiger (Survivor)', file: 'survivor-eye-of-tiger.mid' },             // pump up
-  { name: 'Never Gonna Give You Up (Rick Astley)', file: 'rick-astley-never-gonna.mid' }, // fun energy
-  { name: 'Billie Jean (Michael Jackson)', file: 'mj-billie-jean.mid' },                  // groove foundation
-  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },         // bossa classic
-  { name: 'Dancing Queen (ABBA)', file: 'abba-dancing-queen.mid' },                       // disco high
-  { name: 'Money Money Money (ABBA)', file: 'abba-money-money-money.mid' },               // disco drama
-  { name: 'Stayin\' Alive (Bee Gees)', file: 'bee-gees-stayin-alive.mid' },               // disco high
-  { name: 'The Final Countdown (Europe)', file: 'europe-final-countdown.mid' },           // dramatic
-  { name: 'Livin\' on a Prayer (Bon Jovi)', file: 'bon-jovi-livin-prayer.mid' },          // PEAK anthem
-  { name: 'Sweet Child O\' Mine (Guns N\' Roses)', file: 'gnr-sweet-child.mid' },         // rock sustain
-  { name: 'Bohemian Rhapsody (Queen)', file: 'queen-bohemian-rhapsody.mid' },             // epic finale ♡
+  // Classics - grouped by artist (with featured openers)
+  { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid' },
+  { name: 'Eye of the Tiger (Survivor)', file: 'survivor-eye-of-tiger.mid' },
+  { name: 'Never Gonna Give You Up (Rick Astley)', file: 'rick-astley-never-gonna.mid' },
+  // ABBA
+  { name: 'Money Money Money (ABBA)', file: 'abba-money-money-money.mid' },
+  // Bee Gees
+  { name: 'Stayin\' Alive (Bee Gees)', file: 'bee-gees-stayin-alive.mid' },
+  // Bon Jovi
+  { name: 'Livin\' on a Prayer (Bon Jovi)', file: 'bon-jovi-livin-prayer.mid' },
+  // Bonnie Tyler
+  { name: 'Total Eclipse of the Heart (Bonnie Tyler)', file: 'bonnie-tyler-total-eclipse.mid' },
+  // Europe
+  { name: 'The Final Countdown (Europe)', file: 'europe-final-countdown.mid' },
+  // Guns N' Roses
+  { name: 'Sweet Child O\' Mine (Guns N\' Roses)', file: 'gnr-sweet-child.mid' },
+  // Jobim
+  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },
+  // Michael Jackson
+  { name: 'Billie Jean (Michael Jackson)', file: 'mj-billie-jean.mid' },
+  { name: 'Thriller (Michael Jackson)', file: 'mj-thriller.mid' },
+  // Queen
+  { name: 'Bohemian Rhapsody (Queen)', file: 'queen-bohemian-rhapsody.mid' },
 ];
 
 const videoSongs: SongEntry[] = [
@@ -83,19 +93,23 @@ const videoSongs: SongEntry[] = [
 ];
 
 const classicalSongs: SongEntry[] = [
-  // Classical masters (energy arc: dreamy → build → triumphant peak → dramatic end)
-  { name: 'Clair de Lune (Debussy)', file: 'clair-de-lune.mid' },                        // dreamy opening
-  { name: 'Nocturne Op.9 No.2 (Chopin)', file: 'chopin-nocturne.mid' },                  // gentle, romantic
-  { name: 'Prelude in C Major (Bach)', file: 'bach-prelude-c.mid' },                     // flowing
-  { name: 'Für Elise (Beethoven)', file: 'beethoven-fur-elise.mid' },                    // familiar, gentle
-  { name: 'Dance of Sugar Plum Fairy (Tchaikovsky)', file: 'tchaikovsky-sugar-plum.mid' }, // delicate lift
-  { name: 'Canon in D (Pachelbel)', file: 'pachelbel-canon.mid' },                       // building
-  { name: 'Eine Kleine Nachtmusik (Mozart)', file: 'mozart-eine-kleine.mid' },           // bright energy
-  { name: 'Hall of Mountain King (Grieg)', file: 'grieg-mountain-king.mid' },            // dramatic build
-  { name: 'Spring - Four Seasons (Vivaldi)', file: 'vivaldi-spring.mid' },               // high energy
-  { name: 'Ode to Joy (Beethoven)', file: 'beethoven-ode-to-joy.mid' },                  // TRIUMPHANT PEAK
-  { name: 'Lacrimosa - Requiem (Mozart)', file: 'mozart-lacrimosa.mid' },                // emotional cooldown
-  { name: 'Toccata & Fugue (Bach)', file: 'bach-toccata-fugue.mid' },                    // dramatic finale ♡
+  // Grouped by composer (chronological era)
+  // Baroque
+  { name: 'Toccata & Fugue (Bach)', file: 'bach-toccata-fugue.mid' },
+  { name: 'Prelude in C Major (Bach)', file: 'bach-prelude-c.mid' },
+  { name: 'Canon in D (Pachelbel)', file: 'pachelbel-canon.mid' },
+  { name: 'Spring - Four Seasons (Vivaldi)', file: 'vivaldi-spring.mid' },
+  // Classical
+  { name: 'Eine Kleine Nachtmusik (Mozart)', file: 'mozart-eine-kleine.mid' },
+  { name: 'Lacrimosa - Requiem (Mozart)', file: 'mozart-lacrimosa.mid' },
+  { name: 'Für Elise (Beethoven)', file: 'beethoven-fur-elise.mid' },
+  { name: 'Pathetique Adagio (Beethoven)', file: 'beethoven-pathetique-adagio.mid' },
+  { name: 'Ode to Joy (Beethoven)', file: 'beethoven-ode-to-joy.mid' },
+  // Romantic
+  { name: 'Nocturne Op.9 No.2 (Chopin)', file: 'chopin-nocturne.mid' },
+  { name: 'Dance of Sugar Plum Fairy (Tchaikovsky)', file: 'tchaikovsky-sugar-plum.mid' },
+  // Impressionist
+  { name: 'Clair de Lune (Debussy)', file: 'clair-de-lune.mid' },
 ];
 
 const playlists: Record<PlaylistCategory, SongEntry[]> = {
@@ -345,6 +359,14 @@ app.innerHTML = `
       <div class="mobile-menu-section">
         <button class="toggle-btn" id="mobile-layers-toggle">Custom Layers</button>
       </div>
+      <div class="mobile-menu-section">
+        <div class="mobile-menu-label">Quality</div>
+        <div class="mobile-menu-buttons">
+          <button class="toggle-btn quality-btn" id="mobile-quality-low">Fast</button>
+          <button class="toggle-btn quality-btn" id="mobile-quality-medium">Balanced</button>
+          <button class="toggle-btn quality-btn active" id="mobile-quality-high">Sharp</button>
+        </div>
+      </div>
     </div>
     <div class="mobile-menu-backdrop" id="mobile-menu-backdrop"></div>
 
@@ -375,8 +397,8 @@ app.innerHTML = `
             <div class="quality-label">Render Quality</div>
             <div class="quality-buttons">
               <button class="toggle-btn quality-btn" id="quality-low" title="50% resolution - fastest">Fast</button>
-              <button class="toggle-btn quality-btn active" id="quality-medium" title="75% resolution - balanced">Balanced</button>
-              <button class="toggle-btn quality-btn" id="quality-high" title="100% resolution - sharpest">Sharp</button>
+              <button class="toggle-btn quality-btn" id="quality-medium" title="75% resolution - balanced">Balanced</button>
+              <button class="toggle-btn quality-btn active" id="quality-high" title="100% resolution - sharpest">Sharp</button>
             </div>
           </div>
         </div>
@@ -418,10 +440,11 @@ app.innerHTML = `
 `;
 
 // --- Toast notification ---
-function showToast(message: string, duration = 4000): void {
+function showToast(message: string, duration = 4000, type: 'error' | 'info' = 'error'): void {
   const toast = document.getElementById('toast')!;
   toast.textContent = message;
-  toast.classList.add('show');
+  toast.classList.remove('error', 'info');
+  toast.classList.add('show', type);
   setTimeout(() => {
     toast.classList.remove('show');
   }, duration);
@@ -500,6 +523,13 @@ function toggleTheoryBar(): void {
   if (willShow) {
     compositor.setEnabled('theory-bar', true);
     theoryBarEffect.animateIn();
+
+    // Show hint toast on first open
+    if (!localStorage.getItem('theoryBarHintShown')) {
+      localStorage.setItem('theoryBarHintShown', '1');
+      const gesture = 'ontouchstart' in window ? 'Triple-tap' : 'Triple-click';
+      showToast(`${gesture} to toggle theory bar`, 4000, 'info');
+    }
   } else {
     theoryBarEffect.animateOut(() => {
       compositor.setEnabled('theory-bar', false);
@@ -688,6 +718,15 @@ const isStandalone = window.matchMedia('(display-mode: standalone)').matches || 
 // TODO: iOS web fullscreen - PWA works but need better UX for prompting "Add to Home Screen"
 // Hide fullscreen button on iOS Safari (no fullscreen API support)
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+const isAndroid = /Android/.test(navigator.userAgent);
+
+// Android doesn't render ⛶ well, use SVG icons instead
+const fullscreenExpandIcon = isAndroid
+  ? '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>'
+  : '&#x26F6;';
+const fullscreenExitIcon = isAndroid
+  ? '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>'
+  : '&#x2715;';
 if (!requestFS && isIOS && !isStandalone) {
   fullscreenBtn.style.display = 'none';
 }
@@ -695,6 +734,12 @@ if (!requestFS && isIOS && !isStandalone) {
 // In standalone mode, hide button (already fullscreen)
 if (isStandalone) {
   fullscreenBtn.style.display = 'none';
+}
+
+// Set initial icon for Android (HTML has Unicode fallback)
+if (isAndroid) {
+  fullscreenBtn.innerHTML = fullscreenExpandIcon;
+  document.body.classList.add('android');
 }
 
 fullscreenBtn.addEventListener('click', () => {
@@ -707,16 +752,49 @@ fullscreenBtn.addEventListener('click', () => {
   }
 });
 
+// Android fullscreen: auto-hide controls after inactivity (like iOS landscape)
+let androidControlsTimeout: number | null = null;
+const ANDROID_CONTROLS_HIDE_DELAY = 2500;
+
+function hideAndroidControls(): void {
+  if (!isAndroid || !getFullscreenEl()) return;
+  const topBar = document.querySelector('.top-bar') as HTMLElement;
+  topBar.classList.add('android-hidden');
+}
+
+function showAndroidControls(): void {
+  if (!isAndroid || !getFullscreenEl()) return;
+  const topBar = document.querySelector('.top-bar') as HTMLElement;
+  topBar.classList.remove('android-hidden');
+  // Reset hide timer
+  if (androidControlsTimeout) clearTimeout(androidControlsTimeout);
+  androidControlsTimeout = window.setTimeout(hideAndroidControls, ANDROID_CONTROLS_HIDE_DELAY);
+}
+
 function onFullscreenChange() {
   const topBar = document.querySelector('.top-bar') as HTMLElement;
   if (getFullscreenEl()) {
-    fullscreenBtn.innerHTML = '&#x2715;'; // ✕ exit
+    fullscreenBtn.innerHTML = fullscreenExitIcon;
     fullscreenBtn.title = 'Exit fullscreen (Esc)';
+    // Android: start visible, then auto-hide
+    if (isAndroid) {
+      topBar.classList.remove('android-hidden');
+      if (androidControlsTimeout) clearTimeout(androidControlsTimeout);
+      androidControlsTimeout = window.setTimeout(hideAndroidControls, ANDROID_CONTROLS_HIDE_DELAY);
+    }
   } else {
-    fullscreenBtn.innerHTML = '&#x26F6;'; // ⛶ expand
+    fullscreenBtn.innerHTML = fullscreenExpandIcon;
     fullscreenBtn.title = 'Fullscreen';
     canvas.classList.remove('cursor-hidden');
     topBar.classList.remove('visible');
+    // Android: clear state
+    if (isAndroid) {
+      topBar.classList.remove('android-hidden');
+      if (androidControlsTimeout) {
+        clearTimeout(androidControlsTimeout);
+        androidControlsTimeout = null;
+      }
+    }
   }
 }
 
@@ -785,15 +863,19 @@ let touchStartY = 0;
 
 canvas.addEventListener('touchstart', (e) => {
   touchStartY = e.touches[0].clientY;
-  // Tap near top reveals controls
-  if (getFullscreenEl() && touchStartY < TOP_REVEAL_ZONE) {
+  // Android: any touch shows controls
+  if (isAndroid && getFullscreenEl()) {
+    showAndroidControls();
+  }
+  // Tap near top reveals controls (non-Android)
+  else if (getFullscreenEl() && touchStartY < TOP_REVEAL_ZONE) {
     topBar.classList.add('visible');
   }
 }, { passive: true });
 
 canvas.addEventListener('touchend', () => {
-  // Hide controls after delay if shown by touch
-  if (getFullscreenEl() && topBar.classList.contains('visible')) {
+  // Hide controls after delay if shown by touch (non-Android)
+  if (!isAndroid && getFullscreenEl() && topBar.classList.contains('visible')) {
     if (controlsTimeout) clearTimeout(controlsTimeout);
     controlsTimeout = window.setTimeout(() => {
       topBar.classList.remove('visible');
@@ -803,6 +885,11 @@ canvas.addEventListener('touchend', () => {
 
 canvas.addEventListener('touchmove', (e) => {
   if (!getFullscreenEl()) return;
+  // Android: any touch shows controls
+  if (isAndroid) {
+    showAndroidControls();
+    return;
+  }
   const deltaY = e.touches[0].clientY - touchStartY;
   // Swipe down from top edge reveals controls
   if (touchStartY < 50 && deltaY > 30) {
@@ -1116,6 +1203,7 @@ function buildLayerPanel(): void {
     for (const effect of slot.effects) {
       const effLabel = document.createElement('label');
       effLabel.className = 'slot-radio' + (effect.id === slot.activeId ? ' active' : '');
+      if (effect.id === 'fractal') effLabel.style.display = 'none';
       const effInput = document.createElement('input');
       effInput.type = 'radio';
       effInput.name = `slot-${slotId}`;
@@ -1444,6 +1532,11 @@ const qualityButtons: Record<QualityLevel, HTMLButtonElement> = {
   medium: document.getElementById('quality-medium') as HTMLButtonElement,
   high: document.getElementById('quality-high') as HTMLButtonElement,
 };
+const mobileQualityButtons: Record<QualityLevel, HTMLButtonElement> = {
+  low: document.getElementById('mobile-quality-low') as HTMLButtonElement,
+  medium: document.getElementById('mobile-quality-medium') as HTMLButtonElement,
+  high: document.getElementById('mobile-quality-high') as HTMLButtonElement,
+};
 const qualityScales: Record<QualityLevel, number> = {
   low: 0.5,
   medium: 0.75,
@@ -1452,8 +1545,11 @@ const qualityScales: Record<QualityLevel, number> = {
 
 function setQuality(level: QualityLevel): void {
   compositor.renderScale = qualityScales[level];
-  // Update button states
+  // Update button states (desktop and mobile)
   for (const [name, btn] of Object.entries(qualityButtons)) {
+    btn.classList.toggle('active', name === level);
+  }
+  for (const [name, btn] of Object.entries(mobileQualityButtons)) {
     btn.classList.toggle('active', name === level);
   }
   // Trigger resize to apply new scale
@@ -1461,6 +1557,9 @@ function setQuality(level: QualityLevel): void {
 }
 
 for (const [name, btn] of Object.entries(qualityButtons)) {
+  btn.addEventListener('click', () => setQuality(name as QualityLevel));
+}
+for (const [name, btn] of Object.entries(mobileQualityButtons)) {
   btn.addEventListener('click', () => setQuality(name as QualityLevel));
 }
 
@@ -1976,6 +2075,25 @@ function updateKeyDisplay(currentTime: number) {
 
 // --- Worker frame callback ---
 
+// --- Animation pause (for background tabs / performance issues) ---
+let animationPaused = false;
+
+// Pause animation when tab is hidden (audio continues)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    animationPaused = true;
+  } else {
+    animationPaused = false;
+    lastTime = 0; // Reset delta time to avoid jump
+    lowFpsStartTime = null; // Reset low FPS detection
+  }
+});
+
+// Low FPS detection - pause + warn after sustained poor performance
+let lowFpsStartTime: number | null = null;
+const LOW_FPS_THRESHOLD = 20;
+const LOW_FPS_DURATION = 3000; // 3 seconds
+
 fractalEngine.onFrameReady = (renderMs: number) => {
   currentRenderMs = renderMs;
   fpsFrameCount++;
@@ -1993,6 +2111,22 @@ fractalEngine.onFrameReady = (renderMs: number) => {
     fpsFrameCount = 0;
     fpsLastSample = now;
     fpsDisplay.textContent = `${currentFps} fps | ${currentRenderMs.toFixed(0)}ms | ${renderFidelity.toFixed(2)}x`;
+
+    // Low FPS detection (only when tab is visible and playing)
+    if (isPlaying && !document.hidden && currentFps < LOW_FPS_THRESHOLD) {
+      if (!lowFpsStartTime) {
+        lowFpsStartTime = now;
+      } else if (now - lowFpsStartTime > LOW_FPS_DURATION) {
+        // Sustained low FPS - pause and warn
+        audioPlayer.pause();
+        isPlaying = false;
+        setPlayBtnState(false);
+        showToast('Performance issue - try Fast quality or simpler preset');
+        lowFpsStartTime = null;
+      }
+    } else {
+      lowFpsStartTime = null;
+    }
   }
 };
 
@@ -2000,6 +2134,12 @@ fractalEngine.onFrameReady = (renderMs: number) => {
 
 let seekBarFrameCount = 0;
 function loop(time: number): void {
+  // Skip rendering when animation is paused (tab hidden), but keep loop alive
+  if (animationPaused) {
+    requestAnimationFrame(loop);
+    return;
+  }
+
   const dt = lastTime === 0 ? 0 : (time - lastTime) / 1000;
   lastTime = time;
   seekBarFrameCount++;

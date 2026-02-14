@@ -15,8 +15,8 @@ export class Compositor {
   bgColorMode: BgColorMode = 'black';
 
   // Render scale: 1.0 = full resolution, 0.5 = half resolution (4x faster)
-  // Default to 0.75 (medium) for balanced performance
-  private _renderScale = 0.75;
+  // Default to 1.0 (sharp) for best quality
+  private _renderScale = 1.0;
 
   // State tracking to avoid redundant canvas state changes
   private currentAlpha = 1;

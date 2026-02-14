@@ -16,6 +16,9 @@
 - **Neutral grey for C**: Good "home base" that doesn't compete with chromatic colors
 - **Orange for G#**: Bridges green (G) and red (A) naturally on color wheel
 - **Deep saturated palettes**: Forest green (G), deep red (A), deep blue (E) - rich and moody beats bright/washed-out
+- **Muted accidentals**: Sharps/flats use dusty/pastel versions of neighboring colors. C# = cool mauve, D# = dusty violet, F# = dusty cyan, A# = dusty coral. Creates visual hierarchy where natural notes pop and accidentals recede
+- **Deep natural notes**: Primary pitches (C, D, E, F, G, A, B) use rich saturated colors. Deeper tones read better than bright/washed versions
+- **Color swapping for better flow**: Sometimes swapping adjacent colors (e.g., D↔D#, F↔F#) creates better chromatic transitions. Test by ear—if colors feel "wrong" for a key, try swapping
 - **Dynamic range compression for brightness**: High floor (0.5) + capped ceiling (0.75 alpha) creates consistent visibility. Quiet notes still visible, loud notes don't blow out. Use sqrt for perceptual scaling: `floor + range * sqrt(velocity)`
 
 ### Music Mapping
