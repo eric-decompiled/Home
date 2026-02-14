@@ -1709,7 +1709,7 @@ async function loadSong(index: number) {
     timeline.tempoEvents,
     timeline.timeSignatureEvents
   );
-  musicMapper.setKey(timeline.key, timeline.keyMode);
+  musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
   musicMapper.setKeyRegions(timeline.keyRegions);
   musicMapper.setTracks(timeline.tracks);
   musicMapper.setSongDuration(timeline.duration, timeline.chords);
@@ -1766,7 +1766,7 @@ async function loadMidiFile(file: File) {
       timeline.tempoEvents,
       timeline.timeSignatureEvents
     );
-    musicMapper.setKey(timeline.key, timeline.keyMode);
+    musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
     musicMapper.setKeyRegions(timeline.keyRegions);
     musicMapper.setTracks(timeline.tracks);
     audioPlayer.loadMidi(midiBuffer);
@@ -1959,7 +1959,7 @@ seekBar.addEventListener('input', () => {
       timeline.tempoEvents,
       timeline.timeSignatureEvents
     );
-    musicMapper.setKey(timeline.key, timeline.keyMode);
+    musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
     musicMapper.setKeyRegions(timeline.keyRegions);
   }
 

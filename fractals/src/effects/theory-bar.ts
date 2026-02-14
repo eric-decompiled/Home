@@ -3,9 +3,7 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode, UpcomingChord } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
-import { samplePaletteEqualized } from './effect-utils.ts';
-
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+import { samplePaletteEqualized, getNoteName } from './effect-utils.ts';
 
 const QUALITY_LABELS: Record<string, string> = {
   major: '', minor: 'm', dim: 'dim', aug: 'aug',
@@ -63,6 +61,7 @@ export class TheoryBarEffect implements VisualEffect {
   private paletteIndex = 0;
   private keyPitchClass = 0;
   private keyMode: 'major' | 'minor' = 'major';
+  private useFlats = false;
 
   // Pitch histogram
   private pitchHistogram: number[] = new Array(12).fill(0);
@@ -181,7 +180,8 @@ export class TheoryBarEffect implements VisualEffect {
     // Key display
     this.keyPitchClass = music.key ?? 0;
     this.keyMode = music.keyMode ?? 'major';
-    const keyName = NOTE_NAMES[this.keyPitchClass];
+    this.useFlats = music.useFlats ?? false;
+    const keyName = getNoteName(this.keyPitchClass, this.useFlats);
     const modeLabel = this.keyMode === 'minor' ? 'm' : '';
     this.currentKey = `${keyName}${modeLabel}`;
 
@@ -355,7 +355,7 @@ export class TheoryBarEffect implements VisualEffect {
       }
 
       // Build chord name
-      const root = NOTE_NAMES[chord.root];
+      const root = getNoteName(chord.root, this.useFlats);
       const chordName = `${root}${QUALITY_LABELS[chord.quality] ?? ''}`;
       const chordText = isCurrent ? chordName : chordName.slice(0, 2);
 
@@ -697,7 +697,7 @@ export class TheoryBarEffect implements VisualEffect {
       const brightness = 0.15 + value * 0.85;
 
       ctx.fillStyle = `rgba(${pcColor[0]}, ${pcColor[1]}, ${pcColor[2]}, ${brightness})`;
-      ctx.fillText(NOTE_NAMES[pc], centerX, labelY);
+      ctx.fillText(getNoteName(pc, this.useFlats), centerX, labelY);
     }
   }
 

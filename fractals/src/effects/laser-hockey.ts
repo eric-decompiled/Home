@@ -4,8 +4,7 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
-
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+import { getNoteName } from './effect-utils.ts';
 
 interface HexCoord {
   q: number;
@@ -71,6 +70,7 @@ export class LaserHockeyEffect implements VisualEffect {
   // Beat pulse
   private beatPulse = 0;
   private barPulse = 0;
+  private useFlats = false;
 
   // Puck - the target beams aim for
   private puckX = 0;
@@ -231,6 +231,7 @@ export class LaserHockeyEffect implements VisualEffect {
   update(dt: number, music: MusicParams): void {
     dt = Math.min(dt, 0.1);
     this.time += dt;
+    this.useFlats = music.useFlats ?? false;
 
     this.activePitchClasses.clear();
     for (const voice of music.activeVoices) {
@@ -696,7 +697,7 @@ export class LaserHockeyEffect implements VisualEffect {
         ctx.font = `bold ${Math.max(10, nodeRadius * 0.8)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(NOTE_NAMES[pc], x, y);
+        ctx.fillText(getNoteName(pc, this.useFlats), x, y);
       }
     }
   }

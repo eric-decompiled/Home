@@ -84,6 +84,7 @@ export interface MusicParams {
 
   key: number;             // pitch class 0-11
   keyMode: 'major' | 'minor';
+  useFlats: boolean;       // true if key signature uses flats (F, Bb, Eb, etc.)
   keyRotation: number;     // rotation offset in radians to align tonic at 12 o'clock (tweened on modulation)
   onModulation: boolean;   // true on frame when key modulation detected
 

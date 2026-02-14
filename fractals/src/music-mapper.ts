@@ -226,6 +226,7 @@ let currentBassMidi = -1;
 let currentBassVel = 0;
 let currentKey = 0;
 let currentKeyMode: 'major' | 'minor' = 'major';
+let currentUseFlats = false;
 let currentBpm = 120;
 let hasPlayedOnce = false;  // Track if playback has ever started (for BPM display)
 
@@ -486,9 +487,10 @@ export const musicMapper = {
     rotationFriction = 1.2 + Math.max(0, (bpm - 100) / 60) * 1.5;
   },
 
-  setKey(pitchClass: number, mode: 'major' | 'minor') {
+  setKey(pitchClass: number, mode: 'major' | 'minor', useFlats: boolean = false) {
     currentKey = pitchClass;
     currentKeyMode = mode;
+    currentUseFlats = useFlats;
     // Initialize chord root to tonic until actual chords play
     currentChordRoot = pitchClass;
     currentChordDegree = 1;
@@ -990,6 +992,7 @@ export const musicMapper = {
       onRhythmicRelease: frameRhythmicRelease,
       key: currentKey,
       keyMode: currentKeyMode,
+      useFlats: currentUseFlats,
       keyRotation: keyRotationState.value,
       onModulation: frameOnModulation,
       melodyPitchClass: currentMelodyPC,
@@ -1062,6 +1065,7 @@ export const musicMapper = {
       onRhythmicRelease: false,
       key: currentKey,
       keyMode: currentKeyMode,
+      useFlats: currentUseFlats,
       keyRotation: keyRotationState.value,
       onModulation: false,
       melodyPitchClass: -1,

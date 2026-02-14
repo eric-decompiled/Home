@@ -86,6 +86,7 @@ export interface MusicTimeline {
   timeSignatureEvents: TimeSignatureEvent[]; // all time sig changes
   key: number;           // pitch class 0-11
   keyMode: 'major' | 'minor';
+  useFlats: boolean;     // true if key signature uses flats (F, Bb, Eb, etc.)
   keyRegions: KeyRegion[];                // local key changes (modulations)
   duration: number;      // total seconds
   chords: ChordEvent[];
@@ -1078,6 +1079,15 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
   // confidenceThreshold=0.15: require higher confidence difference
   const keyRegions = detectKeyRegions(notes, totalDuration, barDuration, 4, 1.0, 3, 0.15);
 
+  // Determine if key uses flats based on key signature conventions
+  // Major keys using flats: F(5), Bb(10), Eb(3), Ab(8), Db(1), Gb(6), Cb(11)
+  // Minor keys using flats: D(2), G(7), C(0), F(5), Bb(10), Eb(3), Ab(8)
+  const flatMajorKeys = [5, 10, 3, 8, 1, 6, 11];
+  const flatMinorKeys = [2, 7, 0, 5, 10, 3, 8];
+  const useFlats = keyMode === 'major'
+    ? flatMajorKeys.includes(key)
+    : flatMinorKeys.includes(key);
+
   return {
     name: songName,
     tempo,
@@ -1086,6 +1096,7 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
     timeSignatureEvents,
     key,
     keyMode,
+    useFlats,
     keyRegions,
     duration: totalDuration,
     chords,

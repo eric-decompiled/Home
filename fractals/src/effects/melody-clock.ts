@@ -5,10 +5,8 @@
 // note name markers, compass physics for responsive motion.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { samplePaletteColor, SPIRAL_RADIUS_SCALE, spiralPos } from './effect-utils.ts';
+import { samplePaletteColor, SPIRAL_RADIUS_SCALE, spiralPos, getNoteName } from './effect-utils.ts';
 import { gsap } from '../animation.ts';
-
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 interface ArcSegment {
   angle: number;
@@ -40,6 +38,7 @@ export class MelodyClockEffect implements VisualEffect {
   private handBrightness = 0;
   private key = 0;
   private keyRotation = 0;
+  private useFlats = false;
   private lastMidiNote = -1;
   private lastPitchClass = -1;
   private colR = 200;
@@ -80,6 +79,7 @@ export class MelodyClockEffect implements VisualEffect {
     this.time += dt;
     this.key = music.key;
     this.keyRotation = music.keyRotation;
+    this.useFlats = music.useFlats;
 
     if (music.kick) this.energy += 0.3;
     if (music.snare) this.energy += 0.2;
@@ -293,7 +293,7 @@ export class MelodyClockEffect implements VisualEffect {
       const isCurrent = i === this.lastPitchClass;
       const tc = samplePaletteColor(i, 0.6);
       const tickAlpha = isCurrent ? 0.55 + this.handBrightness * 0.25 : 0.18;
-      const noteName = NOTE_NAMES[i];
+      const noteName = getNoteName(i, this.useFlats);
       // Smaller font than bass clock numerals
       const fontSize = Math.max(9, Math.round(r * 0.065));
 

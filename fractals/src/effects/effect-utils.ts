@@ -2,6 +2,39 @@
 
 import { palettes } from '../palettes.ts';
 
+// --- Note naming with sharps/flats based on key signature ---
+
+const NOTE_NAMES_SHARP = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const NOTE_NAMES_FLAT = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+
+/**
+ * Get the note name for a pitch class, respecting key signature.
+ * @param pitchClass - 0-11 (C=0, C#/Db=1, etc.)
+ * @param useFlats - true for flat keys (F, Bb, Eb, Ab, Db, Gb), false for sharp keys
+ */
+export function getNoteName(pitchClass: number, useFlats: boolean): string {
+  return useFlats ? NOTE_NAMES_FLAT[pitchClass] : NOTE_NAMES_SHARP[pitchClass];
+}
+
+/**
+ * Determine whether a key conventionally uses flats or sharps.
+ * @param keyPitchClass - 0-11 (C=0)
+ * @param mode - 'major' or 'minor'
+ * @returns true if the key uses flats
+ */
+export function keyUsesFlats(keyPitchClass: number, mode: 'major' | 'minor' = 'major'): boolean {
+  // Major keys using flats: F(5), Bb(10), Eb(3), Ab(8), Db(1), Gb(6)
+  // Minor keys using flats: D(2), G(7), C(0), F(5), Bb(10), Eb(3), Ab(8)
+  // Note: Some keys are enharmonic (Db=C#, Gb=F#) - we default to the flat spelling for those
+  if (mode === 'major') {
+    // Flat major keys: F, Bb, Eb, Ab, Db, Gb, Cb(11)
+    return [5, 10, 3, 8, 1, 6, 11].includes(keyPitchClass);
+  } else {
+    // Flat minor keys: D, G, C, F, Bb, Eb, Ab
+    return [2, 7, 0, 5, 10, 3, 8].includes(keyPitchClass);
+  }
+}
+
 // --- Custom colors per pitch class ---
 // Map from pitch class (0-11) to hex color string (e.g., '#ff0000')
 const customColors = new Map<number, string>();

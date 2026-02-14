@@ -1,6 +1,7 @@
 // --- Chromatic Color Palettes ---
 // 12 palettes indexed by pitch class (C=0 .. B=11)
-// Anchors: A=red(Fire), E=blue(Ocean), G=green(Emerald)
+// Circle of Fifths rainbow: C=Silver, A=Red, E=Blue
+// Flow: Silver→Yellow→Gold→Red→Blue→Indigo→Violet→Purple→Magenta→Pink→Coral→Orange→Silver
 
 export type RGB = [number, number, number];
 
@@ -10,48 +11,48 @@ export interface PaletteDef {
 }
 
 export const palettes: PaletteDef[] = [
-  { // 0 - C - Deep Gold
+  { // 0 - C - Silver Grey
     name: 'C',
     stops: [
-      { pos: 0.0,  color: [4, 2, 0] },
-      { pos: 0.15, color: [45, 28, 0] },
-      { pos: 0.4,  color: [140, 90, 5] },
-      { pos: 0.65, color: [175, 115, 10] },
-      { pos: 0.85, color: [210, 145, 20] },
-      { pos: 1.0,  color: [160, 100, 5] },
+      { pos: 0.0,  color: [3, 3, 4] },
+      { pos: 0.15, color: [35, 38, 45] },
+      { pos: 0.4,  color: [100, 108, 120] },
+      { pos: 0.65, color: [150, 160, 175] },
+      { pos: 0.85, color: [200, 210, 225] },
+      { pos: 1.0,  color: [130, 140, 155] },
     ],
   },
-  { // 1 - C# - Pastel Yellow
+  { // 1 - C# - Orange
     name: 'C\u266F',
     stops: [
-      { pos: 0.0,  color: [4, 4, 2] },
-      { pos: 0.15, color: [55, 55, 30] },
-      { pos: 0.4,  color: [200, 195, 110] },
-      { pos: 0.65, color: [230, 225, 150] },
-      { pos: 0.85, color: [255, 250, 180] },
-      { pos: 1.0,  color: [220, 215, 130] },
+      { pos: 0.0,  color: [4, 1, 0] },
+      { pos: 0.15, color: [50, 20, 0] },
+      { pos: 0.4,  color: [160, 70, 0] },
+      { pos: 0.65, color: [210, 100, 10] },
+      { pos: 0.85, color: [240, 140, 30] },
+      { pos: 1.0,  color: [180, 80, 5] },
     ],
   },
-  { // 2 - D - Deep Purple
+  { // 2 - D - Dark Purple
     name: 'D',
     stops: [
-      { pos: 0.0,  color: [4, 0, 6] },
-      { pos: 0.15, color: [30, 5, 50] },
-      { pos: 0.4,  color: [85, 20, 130] },
-      { pos: 0.65, color: [120, 40, 170] },
-      { pos: 0.85, color: [155, 70, 200] },
-      { pos: 1.0,  color: [105, 45, 150] },
+      { pos: 0.0,  color: [3, 0, 4] },
+      { pos: 0.15, color: [25, 5, 35] },
+      { pos: 0.4,  color: [65, 15, 95] },
+      { pos: 0.65, color: [90, 25, 130] },
+      { pos: 0.85, color: [120, 40, 165] },
+      { pos: 1.0,  color: [80, 20, 115] },
     ],
   },
-  { // 3 - D# - Dusty Violet (muted accidental)
+  { // 3 - D# - Pastel Violet
     name: 'D\u266F',
     stops: [
-      { pos: 0.0,  color: [3, 1, 5] },
-      { pos: 0.15, color: [35, 20, 55] },
-      { pos: 0.4,  color: [90, 55, 130] },
-      { pos: 0.65, color: [125, 85, 160] },
-      { pos: 0.85, color: [155, 115, 185] },
-      { pos: 1.0,  color: [110, 75, 145] },
+      { pos: 0.0,  color: [4, 2, 6] },
+      { pos: 0.15, color: [50, 30, 65] },
+      { pos: 0.4,  color: [160, 110, 190] },
+      { pos: 0.65, color: [195, 145, 225] },
+      { pos: 0.85, color: [225, 175, 250] },
+      { pos: 1.0,  color: [180, 130, 210] },
     ],
   },
   { // 4 - E - Deep Blue
@@ -65,26 +66,26 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [10, 45, 110] },
     ],
   },
-  { // 5 - F - Deep Teal
+  { // 5 - F - Deep Gold
     name: 'F',
     stops: [
-      { pos: 0.0,  color: [0, 3, 3] },
-      { pos: 0.15, color: [0, 25, 28] },
-      { pos: 0.4,  color: [5, 75, 80] },
-      { pos: 0.65, color: [15, 110, 115] },
-      { pos: 0.85, color: [30, 145, 150] },
-      { pos: 1.0,  color: [10, 95, 100] },
+      { pos: 0.0,  color: [4, 2, 0] },
+      { pos: 0.15, color: [45, 28, 0] },
+      { pos: 0.4,  color: [140, 90, 5] },
+      { pos: 0.65, color: [175, 115, 10] },
+      { pos: 0.85, color: [210, 145, 20] },
+      { pos: 1.0,  color: [160, 100, 5] },
     ],
   },
-  { // 6 - F# - Dusty Cyan (muted accidental)
+  { // 6 - F# - Yellow
     name: 'F\u266F',
     stops: [
-      { pos: 0.0,  color: [2, 4, 5] },
-      { pos: 0.15, color: [25, 50, 55] },
-      { pos: 0.4,  color: [70, 130, 140] },
-      { pos: 0.65, color: [100, 165, 175] },
-      { pos: 0.85, color: [130, 195, 205] },
-      { pos: 1.0,  color: [90, 150, 160] },
+      { pos: 0.0,  color: [4, 4, 0] },
+      { pos: 0.15, color: [55, 50, 5] },
+      { pos: 0.4,  color: [200, 180, 15] },
+      { pos: 0.65, color: [235, 215, 30] },
+      { pos: 0.85, color: [255, 240, 50] },
+      { pos: 1.0,  color: [215, 195, 25] },
     ],
   },
   { // 7 - G - Green (Deep Forest)
@@ -98,15 +99,15 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [15, 80, 28] },
     ],
   },
-  { // 8 - G# - Warm Sage (pastel green with orange undertones)
+  { // 8 - G# - Teal
     name: 'G\u266F',
     stops: [
-      { pos: 0.0,  color: [4, 4, 2] },
-      { pos: 0.15, color: [50, 55, 25] },
-      { pos: 0.4,  color: [140, 170, 85] },
-      { pos: 0.65, color: [175, 205, 115] },
-      { pos: 0.85, color: [205, 230, 145] },
-      { pos: 1.0,  color: [160, 185, 100] },
+      { pos: 0.0,  color: [0, 3, 4] },
+      { pos: 0.15, color: [5, 35, 40] },
+      { pos: 0.4,  color: [15, 110, 120] },
+      { pos: 0.65, color: [25, 150, 160] },
+      { pos: 0.85, color: [40, 190, 200] },
+      { pos: 1.0,  color: [20, 130, 140] },
     ],
   },
   { // 9 - A - Red (Deep)
@@ -120,26 +121,26 @@ export const palettes: PaletteDef[] = [
       { pos: 1.0,  color: [140, 20, 15] },
     ],
   },
-  { // 10 - A# - Dusty Coral (warm muted accidental)
+  { // 10 - A# - Coral (CoF position 10)
     name: 'A\u266F',
     stops: [
-      { pos: 0.0,  color: [4, 2, 2] },
-      { pos: 0.15, color: [50, 25, 25] },
-      { pos: 0.4,  color: [145, 75, 70] },
-      { pos: 0.65, color: [180, 110, 100] },
-      { pos: 0.85, color: [210, 145, 130] },
-      { pos: 1.0,  color: [165, 100, 90] },
+      { pos: 0.0,  color: [5, 2, 2] },
+      { pos: 0.15, color: [55, 28, 25] },
+      { pos: 0.4,  color: [190, 95, 80] },
+      { pos: 0.65, color: [225, 130, 110] },
+      { pos: 0.85, color: [250, 165, 140] },
+      { pos: 1.0,  color: [210, 115, 95] },
     ],
   },
-  { // 11 - B - Orange
+  { // 11 - B - Lime
     name: 'B',
     stops: [
-      { pos: 0.0,  color: [4, 1, 0] },
-      { pos: 0.15, color: [50, 20, 0] },
-      { pos: 0.4,  color: [160, 70, 0] },
-      { pos: 0.65, color: [210, 100, 10] },
-      { pos: 0.85, color: [240, 140, 30] },
-      { pos: 1.0,  color: [180, 80, 5] },
+      { pos: 0.0,  color: [2, 4, 0] },
+      { pos: 0.15, color: [30, 50, 5] },
+      { pos: 0.4,  color: [100, 160, 20] },
+      { pos: 0.65, color: [140, 200, 35] },
+      { pos: 0.85, color: [180, 235, 50] },
+      { pos: 1.0,  color: [120, 180, 30] },
     ],
   },
 ];
