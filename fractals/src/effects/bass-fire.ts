@@ -62,7 +62,7 @@ export class BassFireEffect implements VisualEffect {
   private lastTrailAngle = -Math.PI / 2;
 
   // Config
-  private showNumerals = true;
+  private showNumerals = false;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -467,7 +467,7 @@ export class BassFireEffect implements VisualEffect {
   }
 
   getDefaults(): Record<string, number | string | boolean> {
-    return { showNumerals: true };
+    return { showNumerals: false };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {

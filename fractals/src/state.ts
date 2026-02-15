@@ -221,6 +221,8 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
   warp: {
     'note-spiral': { setShapes: 'ring,trails' },
     'kaleidoscope': { foldCount: 6.002246 },
+    'melody-clock': { showNotes: false },
+    'bass-clock': { showNumerals: false },
   },
   fractal: {
     'fractal': { preset: 'phoenix-journey' },
@@ -292,7 +294,7 @@ export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
     colorByChord: true,
   },
   'theory-bar': { barHeight: 72 },
-  'bass-fire': { showNumerals: true },
+  'bass-fire': { showNumerals: false },
   'wave-interference': { decayRate: 8 },
   'note-star': { intensity: 1.0 },
   'melody-clock': { showNotes: true },

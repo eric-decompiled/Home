@@ -49,6 +49,9 @@ export class MelodyClockEffect implements VisualEffect {
   private bearingR = 200;
   private bearingG = 200;
   private bearingB = 255;
+  // Color history for gradient along hand (tip to center)
+  private colorHistory: Array<[number, number, number]> = [];
+  private lastColorSampleTime = 0;
   private time = 0;
 
   private arcTrail: ArcSegment[] = [];
@@ -112,10 +115,10 @@ export class MelodyClockEffect implements VisualEffect {
       const midiNote = music.melodyMidiNote;
       this.lastPitchClass = pc;
 
-      // Calculate target angle
+      // Calculate target angle (include keyRotation so hand aligns with rotated markers)
       const fromRoot = ((pc - this.key + 12) % 12);
       const twist = (fromRoot / 12) * 0.15;
-      const newAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2 + twist;
+      const newAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2 + twist + this.keyRotation;
 
       // Direction based on MIDI pitch
       let diff = newAngle - this.handAngle;
@@ -154,12 +157,16 @@ export class MelodyClockEffect implements VisualEffect {
       this.lastOnsetTime = this.time;
     }
 
-    // Decay attraction when no notes are playing
-    const timeSinceOnset = this.time - this.lastOnsetTime;
-    const DECAY_DELAY = 0.3;    // Start decay 300ms after note
-    const DECAY_RATE = 2.5;     // Decay time constant
-    if (timeSinceOnset > DECAY_DELAY) {
-      this.attractionStrength = Math.exp(-DECAY_RATE * (timeSinceOnset - DECAY_DELAY));
+    // Decay attraction when no notes are playing (only after first note)
+    if (this.lastOnsetTime > 0) {
+      const timeSinceOnset = this.time - this.lastOnsetTime;
+      const DECAY_DELAY = 0.3;    // Start decay 300ms after note
+      const DECAY_RATE = 2.5;     // Decay time constant
+      const MIN_ATTRACTION = 0.15; // Floor to keep hand loosely on target
+      if (timeSinceOnset > DECAY_DELAY) {
+        const decayed = Math.exp(-DECAY_RATE * (timeSinceOnset - DECAY_DELAY));
+        this.attractionStrength = MIN_ATTRACTION + (1 - MIN_ATTRACTION) * decayed;
+      }
     }
 
     // === COMPASS PHYSICS ===
@@ -167,7 +174,9 @@ export class MelodyClockEffect implements VisualEffect {
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-    const springK = 12.0 * this.attractionStrength;
+    // Groove modulation: stronger pull on beats, drifts between
+    const grooveMod = 0.4 + this.anticipation * 2.0 + this.energy * 0.8;
+    const springK = 6.0 * this.attractionStrength * grooveMod;
     const springForce = angleDiff * springK;
     const damping = 5.0;
     const dampingForce = -this.angularVelocity * damping;
@@ -176,15 +185,26 @@ export class MelodyClockEffect implements VisualEffect {
     this.handAngle += this.angularVelocity * dt;
 
     // Calculate bearing color based on current hand angle
-    // Reverse the angle formula: pc = ((angle + PI/2) / (2*PI)) * 12
-    let bearingAngle = this.handAngle + Math.PI / 2;
+    // Reverse the angle formula: pc = ((angle - keyRotation + PI/2) / (2*PI)) * 12
+    let bearingAngle = this.handAngle - this.keyRotation + Math.PI / 2;
     while (bearingAngle < 0) bearingAngle += Math.PI * 2;
     while (bearingAngle >= Math.PI * 2) bearingAngle -= Math.PI * 2;
     const bearingPC = Math.floor((bearingAngle / (Math.PI * 2)) * 12) % 12;
     const bearingCol = samplePaletteColor(bearingPC, 0.6);
-    this.bearingR = bearingCol[0];
-    this.bearingG = bearingCol[1];
-    this.bearingB = bearingCol[2];
+    // Smooth color transition
+    const colorSmooth = 1 - Math.exp(-8 * dt);
+    this.bearingR += (bearingCol[0] - this.bearingR) * colorSmooth;
+    this.bearingG += (bearingCol[1] - this.bearingG) * colorSmooth;
+    this.bearingB += (bearingCol[2] - this.bearingB) * colorSmooth;
+
+    // Sample color history for hand gradient (tip = newest, center = oldest)
+    const COLOR_SAMPLE_INTERVAL = 0.12;
+    const COLOR_HISTORY_MAX = 8;
+    if (this.time - this.lastColorSampleTime > COLOR_SAMPLE_INTERVAL) {
+      this.colorHistory.unshift([this.bearingR, this.bearingG, this.bearingB]);
+      if (this.colorHistory.length > COLOR_HISTORY_MAX) this.colorHistory.pop();
+      this.lastColorSampleTime = this.time;
+    }
 
     // Sample arc trail (uses bearing color since trail follows hand position)
     const trailAngleDiff = Math.abs(this.handAngle - this.lastTrailAngle);
@@ -320,6 +340,8 @@ export class MelodyClockEffect implements VisualEffect {
     }
 
     // --- Note name markers (offset outward, smaller than bass numerals) ---
+    // Fade out with attraction strength so labels disappear when no notes playing
+    const labelFade = this.attractionStrength;
     const labelOffset = r * 0.12; // Push labels outside the ring
     for (let i = 0; i < 12; i++) {
       const pos = spiralPos(113, i, this.key, this.keyRotation, cx, cy, spiralMaxR);
@@ -329,7 +351,8 @@ export class MelodyClockEffect implements VisualEffect {
 
       const isCurrent = i === this.lastPitchClass;
       const tc = samplePaletteColor(i, 0.6);
-      const tickAlpha = isCurrent ? 0.55 + this.handBrightness * 0.25 : 0.18;
+      const baseAlpha = isCurrent ? 0.55 + this.handBrightness * 0.25 : 0.18;
+      const tickAlpha = baseAlpha * labelFade;
 
       if (this.showNotes) {
         const noteName = getNoteName(i, this.useFlats);
@@ -378,15 +401,38 @@ export class MelodyClockEffect implements VisualEffect {
 
     const strokeW = Math.max(1.5, 2 * sc);
     const glowW = Math.max(3, 5 * sc);
-    const colStr = `rgba(${R},${G},${B},${alpha.toFixed(3)})`;
-    const glowStr = `rgba(${R},${G},${B},${(alpha * 0.12).toFixed(3)})`;
-    const fillStr = `rgba(${R},${G},${B},${(alpha * 0.2).toFixed(3)})`;
+
+    // Build color gradient along hand (tip = newest, center = oldest)
+    const gradTip = { x: cx + dirX * handLen, y: cy + dirY * handLen };
+    const gradBase = { x: cx + dirX * handLen * 0.12, y: cy + dirY * handLen * 0.12 };
+    const handGradient = ctx.createLinearGradient(gradTip.x, gradTip.y, gradBase.x, gradBase.y);
+    const glowGradient = ctx.createLinearGradient(gradTip.x, gradTip.y, gradBase.x, gradBase.y);
+    const fillGradient = ctx.createLinearGradient(gradTip.x, gradTip.y, gradBase.x, gradBase.y);
+
+    // Use color history for gradient stops (or fall back to current bearing)
+    const histLen = this.colorHistory.length;
+    if (histLen > 0) {
+      for (let i = 0; i < histLen; i++) {
+        const t = i / Math.max(1, histLen - 1);
+        const [hr, hg, hb] = this.colorHistory[i];
+        handGradient.addColorStop(t, `rgba(${hr},${hg},${hb},${alpha.toFixed(3)})`);
+        glowGradient.addColorStop(t, `rgba(${hr},${hg},${hb},${(alpha * 0.12).toFixed(3)})`);
+        fillGradient.addColorStop(t, `rgba(${hr},${hg},${hb},${(alpha * 0.2).toFixed(3)})`);
+      }
+    } else {
+      handGradient.addColorStop(0, `rgba(${R},${G},${B},${alpha.toFixed(3)})`);
+      handGradient.addColorStop(1, `rgba(${R},${G},${B},${alpha.toFixed(3)})`);
+      glowGradient.addColorStop(0, `rgba(${R},${G},${B},${(alpha * 0.12).toFixed(3)})`);
+      glowGradient.addColorStop(1, `rgba(${R},${G},${B},${(alpha * 0.12).toFixed(3)})`);
+      fillGradient.addColorStop(0, `rgba(${R},${G},${B},${(alpha * 0.2).toFixed(3)})`);
+      fillGradient.addColorStop(1, `rgba(${R},${G},${B},${(alpha * 0.2).toFixed(3)})`);
+    }
 
     const strokeP = (path: Path2D) => {
-      ctx.strokeStyle = glowStr;
+      ctx.strokeStyle = glowGradient;
       ctx.lineWidth = glowW;
       ctx.stroke(path);
-      ctx.strokeStyle = colStr;
+      ctx.strokeStyle = handGradient;
       ctx.lineWidth = strokeW;
       ctx.stroke(path);
     };
@@ -417,7 +463,7 @@ export class MelodyClockEffect implements VisualEffect {
     handPath.lineTo(hBase2.x, hBase2.y);
     handPath.closePath();
 
-    ctx.fillStyle = fillStr;
+    ctx.fillStyle = fillGradient;
     ctx.fill(handPath);
     strokeP(handPath);
 
@@ -447,7 +493,11 @@ export class MelodyClockEffect implements VisualEffect {
     tailPath.lineTo(tailEnd.x - perpX * tsW * 0.4, tailEnd.y - perpY * tsW * 0.4);
     tailPath.lineTo(cx - perpX * tsW, cy - perpY * tsW);
     tailPath.closePath();
-    ctx.fillStyle = fillStr;
+    // Tail uses oldest color (continuation of history past center)
+    const tailCol = this.colorHistory.length > 0
+      ? this.colorHistory[this.colorHistory.length - 1]
+      : [R, G, B];
+    ctx.fillStyle = `rgba(${tailCol[0]},${tailCol[1]},${tailCol[2]},${(alpha * 0.2).toFixed(3)})`;
     ctx.fill(tailPath);
     strokeP(tailPath);
 

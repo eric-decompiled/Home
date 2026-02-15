@@ -81,13 +81,14 @@ const popSongs: SongEntry[] = [
 
 const videoSongs: SongEntry[] = [
   // Video game classics (energy arc: setup → build → peak at 2/3 → release)
-  { name: 'Prelude (Final Fantasy)', file: 'ff1-prelude.mid' },                          // iconic arpeggio
   { name: 'Gerudo Valley (Zelda: OoT)', file: 'zelda-gerudo-valley.mid' },               // high energy
   { name: 'Corridors of Time (Chrono Trigger)', file: 'corridors-of-time.mid' },         // dreamy
-  { name: 'Battle Theme (Golden Sun)', file: 'golden-sun-battle.mid' },                  // RPG intensity
+  { name: 'Balamb Garden (Final Fantasy VIII)', file: 'ff8-balamb-garden.mid' },         // peaceful academy
   { name: 'Ground Theme (Super Mario Bros)', file: 'mario-ground-theme.mid' },           // iconic, building
+  { name: 'Battle Theme (Golden Sun)', file: 'golden-sun-battle.mid' },                  // RPG intensity
   { name: 'Great Fairy Fountain (Zelda: OoT)', file: 'zelda-great-fairy-fountain.mid' }, // ethereal
   { name: 'Green Hill Zone (Sonic)', file: 'green-hill-zone.mid' },                      // energy rising
+  { name: 'Man with Machine Gun (Final Fantasy VIII)', file: 'ff8-man-with-machine-gun.mid' }, // intense
   { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },                        // PEAK battle
   { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // emotional wind-down
   { name: 'Aquatic Ambiance (Donkey Kong Country)', file: 'dkc-aquatic-ambiance.mid' },  // serene ending ♡
@@ -1565,14 +1566,7 @@ const presetButtons: Record<PresetName, HTMLButtonElement> = {
   'kali-graph': document.getElementById('preset-kali-graph') as HTMLButtonElement,
 };
 
-// Highlight preset button based on URL settings or default to Spiral
-if (urlSettingsResult.presetApplied) {
-  const btn = presetButtons[urlSettingsResult.presetApplied as PresetName];
-  if (btn) btn.classList.add('active');
-} else if (!urlToState(window.location.search)) {
-  // Default to Spiral if no URL params
-  presetButtons.stars.classList.add('active');
-}
+// Initial preset sync happens after all button refs are defined (see below)
 
 function applyPreset(preset: PresetName): void {
   // Reset all effect configs to defaults first
@@ -1595,22 +1589,8 @@ function applyPreset(preset: PresetName): void {
   dirty = true;
   clearUnsavedChanges();
 
-  // Update button active states
-  for (const [name, btn] of Object.entries(presetButtons)) {
-    btn.classList.toggle('active', name === preset);
-  }
-  // Also update mobile preset buttons
-  if (typeof mobilePresetButtons !== 'undefined') {
-    for (const [name, btn] of Object.entries(mobilePresetButtons)) {
-      btn.classList.toggle('active', name === preset);
-    }
-  }
-  // Also update mobile bar preset buttons
-  if (typeof mobileBarPresets !== 'undefined') {
-    for (const [name, btn] of Object.entries(mobileBarPresets)) {
-      btn.classList.toggle('active', name === preset);
-    }
-  }
+  // Update all preset button highlights
+  syncPresetButtons(preset);
 
   updateBrowserURL();
 }
@@ -1637,11 +1617,6 @@ for (const [name, btn] of Object.entries(mobilePresetButtons)) {
   });
 }
 
-// Sync mobile preset buttons with desktop on initial load
-if (urlSettingsResult.presetApplied) {
-  const mobileBtn = mobilePresetButtons[urlSettingsResult.presetApplied as PresetName];
-  if (mobileBtn) mobileBtn.classList.add('active');
-}
 
 // Mobile bar preset buttons (in top bar)
 const mobileBarPresets: Record<string, HTMLButtonElement> = {
@@ -1655,10 +1630,8 @@ for (const [name, btn] of Object.entries(mobileBarPresets)) {
   btn.addEventListener('click', () => applyPreset(name as PresetName));
 }
 
-// Sync mobile bar presets on initial load
-if (urlSettingsResult.presetApplied && mobileBarPresets[urlSettingsResult.presetApplied]) {
-  mobileBarPresets[urlSettingsResult.presetApplied].classList.add('active');
-}
+// Sync all preset buttons on initial load (after all button refs are defined)
+syncPresetButtons(urlSettingsResult.presetApplied as PresetName ?? (urlToState(window.location.search) ? null : 'stars'));
 
 // Quality buttons for render scale
 type QualityLevel = 'low' | 'medium' | 'high';
@@ -1698,24 +1671,32 @@ for (const [name, btn] of Object.entries(mobileQualityButtons)) {
   btn.addEventListener('click', () => setQuality(name as QualityLevel));
 }
 
+// Track DPR for coordinate transforms (declared here so setQuality can call resizeCanvas)
+let canvasDPR = 1;
+
 // Start on Balanced if we've previously auto-downgraded
 if (localStorage.getItem('autoDowngraded') === 'true') {
   setQuality('medium');
 }
 
-// Clear preset highlights when manual changes are made
-function clearPresetHighlights(): void {
-  for (const btn of Object.values(presetButtons)) {
-    btn.classList.remove('active');
+// Sync all preset button highlights to match the given preset (or clear if null)
+function syncPresetButtons(preset: PresetName | null): void {
+  for (const [name, btn] of Object.entries(presetButtons)) {
+    btn.classList.toggle('active', name === preset);
   }
-  for (const btn of Object.values(mobilePresetButtons)) {
-    btn.classList.remove('active');
+  for (const [name, btn] of Object.entries(mobilePresetButtons)) {
+    btn.classList.toggle('active', name === preset);
   }
-  for (const btn of Object.values(mobileBarPresets)) {
-    btn.classList.remove('active');
+  for (const [name, btn] of Object.entries(mobileBarPresets)) {
+    btn.classList.toggle('active', name === preset);
   }
   // Also clear custom preset highlights
   document.querySelectorAll('.custom-preset-btn').forEach(btn => btn.classList.remove('active'));
+}
+
+// Clear preset highlights when manual changes are made
+function clearPresetHighlights(): void {
+  syncPresetButtons(null);
 }
 
 
@@ -1724,9 +1705,6 @@ function markUnsavedChanges(): void {}
 function clearUnsavedChanges(): void {}
 
 // --- Canvas sizing ---
-
-// Track DPR for coordinate transforms
-let canvasDPR = 1;
 
 function resizeCanvas(): void {
   const wrap = document.querySelector('.canvas-wrap')!;
