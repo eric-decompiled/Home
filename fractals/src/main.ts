@@ -14,8 +14,11 @@ import { TonnetzEffect } from './effects/tonnetz.ts';
 import { MelodyAuroraEffect } from './effects/melody-aurora.ts';
 import { MelodyWebEffect } from './effects/melody-web.ts';
 import { MelodyClockEffect } from './effects/melody-clock.ts';
+import { MelodyFireEffect } from './effects/melody-fire.ts';
 import { BassWebEffect } from './effects/bass-web.ts';
 import { BassClockEffect } from './effects/bass-clock.ts';
+import { BassNumeralsEffect } from './effects/bass-numerals.ts';
+import { MelodyNotesEffect } from './effects/melody-notes.ts';
 import { BassFireEffect } from './effects/bass-fire.ts';
 import { NoteSpiralEffect } from './effects/note-spiral.ts';
 import { NoteStarEffect } from './effects/note-star.ts';
@@ -164,9 +167,12 @@ const tonnetzEffect = new TonnetzEffect();
 const melodyAuroraEffect = new MelodyAuroraEffect();
 const melodyWebEffect = new MelodyWebEffect();
 const melodyClockEffect = new MelodyClockEffect();
+const melodyFireEffect = new MelodyFireEffect();
 const bassWebEffect = new BassWebEffect();
 const bassClockEffect = new BassClockEffect();
 const bassFireEffect = new BassFireEffect();
+const bassNumeralsEffect = new BassNumeralsEffect();
+const melodyNotesEffect = new MelodyNotesEffect();
 const noteSpiralEffect = new NoteSpiralEffect();
 const noteStarEffect = new NoteStarEffect();
 const pianoRollEffect = new PianoRollEffect();
@@ -201,7 +207,7 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Melody',
-    effects: [melodyAuroraEffect, melodyWebEffect, melodyClockEffect],
+    effects: [melodyAuroraEffect, melodyWebEffect, melodyClockEffect, melodyFireEffect],
     activeId: null,
   },
   {
@@ -223,6 +229,16 @@ for (const slot of layerSlots) {
   }
 }
 
+// Bass numerals overlay (rendered when checkbox checked but no bass effect selected)
+compositor.addLayer(bassNumeralsEffect, false);
+
+// Melody notes overlay (rendered when checkbox checked but no melody effect selected)
+compositor.addLayer(melodyNotesEffect, false);
+
+// Display toggle states (declared early so applySlotSelections can use them)
+let showBassNumerals = true;
+let showMelodyNotes = true;
+
 // Apply initial active selections
 function applySlotSelections(): void {
   for (const slot of layerSlots) {
@@ -230,6 +246,24 @@ function applySlotSelections(): void {
       compositor.setEnabled(effect.id, effect.id === slot.activeId);
     }
   }
+  // Bass/melody overlays: show when checkbox checked AND no effect selected
+  updateBassNumeralsOverlay();
+  updateMelodyNotesOverlay();
+}
+
+function updateBassNumeralsOverlay(): void {
+  const bassSlot = layerSlots.find(s => s.name === 'Bass');
+  const noBassEffectSelected = !bassSlot?.activeId;
+  compositor.setEnabled('bass-numerals', showBassNumerals && noBassEffectSelected);
+}
+
+function updateMelodyNotesOverlay(): void {
+  const melodySlot = layerSlots.find(s => s.name === 'Melody');
+  const activeId = melodySlot?.activeId;
+  // Show overlay if no effect, or effect doesn't draw its own notes
+  const effectsWithoutNotes = ['melody-aurora', 'melody-web', 'melody-fire'];
+  const needsOverlay = !activeId || effectsWithoutNotes.includes(activeId);
+  compositor.setEnabled('melody-notes', showMelodyNotes && needsOverlay);
 }
 
 // Get all effects as a map for state management
@@ -289,7 +323,7 @@ app.innerHTML = `
           <button class="mobile-preset-btn" id="mobile-bar-warp">Warp</button>
           <button class="mobile-preset-btn" id="mobile-bar-clock">Clock</button>
           <button class="mobile-preset-btn" id="mobile-bar-stars">Stars</button>
-          <button class="mobile-preset-btn" id="mobile-bar-chain">Chain</button>
+          <button class="mobile-preset-btn" id="mobile-bar-star-aurora">Aurora</button>
         </div>
         <div class="playlist-category-wrap desktop-only">
           <button class="toggle-btn playlist-btn active" id="playlist-pop" title="Pop & rock">Classics</button>
@@ -355,7 +389,7 @@ app.innerHTML = `
         <div class="mobile-menu-label">Experimental</div>
         <div class="mobile-menu-buttons">
           <button class="toggle-btn preset-btn" id="mobile-preset-fractal">Fractal</button>
-          <button class="toggle-btn preset-btn" id="mobile-preset-chain">Chain</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-star-aurora">Star-Aurora</button>
           <button class="toggle-btn preset-btn" id="mobile-preset-kali-graph">Kali</button>
         </div>
       </div>
@@ -379,8 +413,7 @@ app.innerHTML = `
           <span>Animations</span>
           <button class="panel-close-btn" id="panel-close-btn">&times;</button>
         </div>
-        <div id="layer-list"></div>
-        <div class="layer-panel-footer">
+        <div id="layer-list">
           <div class="colors-section" id="colors-section">
             <div class="colors-header">
               <span>Note Colors</span>
@@ -388,14 +421,16 @@ app.innerHTML = `
             </div>
             <div class="colors-grid" id="colors-grid"></div>
           </div>
-          <div class="experimental-presets">
-            <div class="experimental-label">Experimental</div>
+          <div class="experimental-presets" id="experimental-presets">
+            <div class="experimental-label">Experimental Presets</div>
             <div class="experimental-buttons">
               <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar">Fractal</button>
-              <button class="toggle-btn preset-btn" id="preset-chain" title="Chain + Theory Bar">Chain</button>
+              <button class="toggle-btn preset-btn" id="preset-star-aurora" title="Stars + Aurora + Kaleidoscope">Star-Aurora</button>
               <button class="toggle-btn preset-btn" id="preset-kali-graph" title="Graph Chain + Kaleidoscope">Kali-Graph</button>
             </div>
           </div>
+        </div>
+        <div class="layer-panel-footer">
           <div class="quality-presets">
             <div class="quality-label">Render Quality</div>
             <div class="quality-buttons">
@@ -480,6 +515,8 @@ const layersToggle = document.getElementById('layers-toggle') as HTMLButtonEleme
 const layerPanel = document.getElementById('layer-panel')!;
 const layerList = document.getElementById('layer-list')!;
 const colorsGrid = document.getElementById('colors-grid')!;
+const colorsSection = document.getElementById('colors-section')!;
+const experimentalPresetsSection = document.getElementById('experimental-presets')!;
 const colorsResetBtn = document.getElementById('colors-reset-btn') as HTMLButtonElement;
 const fullscreenBtn = document.getElementById('fullscreen-btn') as HTMLButtonElement;
 const debugOverlay = document.getElementById('debug-overlay') as HTMLElement;
@@ -1174,6 +1211,37 @@ colorsResetBtn.addEventListener('click', () => {
   updateBrowserURL();
 });
 
+// --- Bass numerals toggle ---
+function syncBassNumerals(value: boolean): void {
+  showBassNumerals = value;
+  bassClockEffect.setConfigValue('showNumerals', value);
+  bassFireEffect.setConfigValue('showNumerals', value);
+  bassWebEffect.setConfigValue('showNumerals', value);
+  updateBassNumeralsOverlay();
+}
+
+// Load saved preference
+const savedBassNumerals = localStorage.getItem('showBassNumerals');
+if (savedBassNumerals !== null) {
+  showBassNumerals = savedBassNumerals === 'true';
+  syncBassNumerals(showBassNumerals);
+}
+
+// --- Melody notes toggle ---
+function syncMelodyNotes(value: boolean): void {
+  showMelodyNotes = value;
+  melodyClockEffect.setConfigValue('showNotes', value);
+  // melody-web and melody-aurora don't have note labels to toggle
+  updateMelodyNotesOverlay();
+}
+
+// Load saved preference
+const savedMelodyNotes = localStorage.getItem('showMelodyNotes');
+if (savedMelodyNotes !== null) {
+  showMelodyNotes = savedMelodyNotes === 'true';
+  syncMelodyNotes(showMelodyNotes);
+}
+
 // --- Build layer panel UI ---
 
 function buildLayerPanel(): void {
@@ -1242,6 +1310,26 @@ function buildLayerPanel(): void {
       });
     }
 
+    // Create display toggle checkbox for Bass/Melody slots (before radio handler so it can reference it)
+    let slotCheckbox: HTMLInputElement | null = null;
+    if (slot.name === 'Bass') {
+      slotCheckbox = document.createElement('input');
+      slotCheckbox.type = 'checkbox';
+      slotCheckbox.checked = showBassNumerals;
+      slotCheckbox.addEventListener('change', () => {
+        syncBassNumerals(slotCheckbox!.checked);
+        localStorage.setItem('showBassNumerals', String(slotCheckbox!.checked));
+      });
+    } else if (slot.name === 'Melody') {
+      slotCheckbox = document.createElement('input');
+      slotCheckbox.type = 'checkbox';
+      slotCheckbox.checked = showMelodyNotes;
+      slotCheckbox.addEventListener('change', () => {
+        syncMelodyNotes(slotCheckbox!.checked);
+        localStorage.setItem('showMelodyNotes', String(slotCheckbox!.checked));
+      });
+    }
+
     // Radio change handler
     radioGroup.addEventListener('change', (e) => {
       const target = e.target as HTMLInputElement;
@@ -1261,6 +1349,23 @@ function buildLayerPanel(): void {
         const hasConfig = (slot.activeId === 'fractal' && !isMobile) || slot.activeId === 'graph-chain';
         configBtn.style.display = hasConfig ? 'block' : 'none';
       }
+      // Auto-toggle display checkbox based on effect selection
+      if (slotCheckbox) {
+        let shouldShow = false;
+        if (slot.name === 'Bass') {
+          // All bass effects draw numerals, so turn on when any is selected
+          shouldShow = slot.activeId !== null;
+          slotCheckbox.checked = shouldShow;
+          syncBassNumerals(shouldShow);
+          localStorage.setItem('showBassNumerals', String(shouldShow));
+        } else if (slot.name === 'Melody') {
+          // Only melody-clock draws its own notes; others use overlay
+          shouldShow = slot.activeId === 'melody-clock';
+          slotCheckbox.checked = shouldShow;
+          syncMelodyNotes(shouldShow);
+          localStorage.setItem('showMelodyNotes', String(shouldShow));
+        }
+      }
     });
 
     header.appendChild(label);
@@ -1272,11 +1377,30 @@ function buildLayerPanel(): void {
       slotDiv.appendChild(configBtn);
     }
 
+    // Add display toggle for Bass/Melody slots
+    if (slotCheckbox) {
+      const toggleDiv = document.createElement('div');
+      toggleDiv.className = 'slot-display-toggle';
+      const toggleLabel = document.createElement('label');
+      toggleLabel.className = 'display-toggle';
+      toggleLabel.appendChild(slotCheckbox);
+      const toggleSwitch = document.createElement('span');
+      toggleSwitch.className = 'toggle-switch';
+      toggleLabel.appendChild(toggleSwitch);
+      toggleLabel.appendChild(document.createTextNode(slot.name === 'Bass' ? 'Show Numerals' : 'Show Notes'));
+      toggleDiv.appendChild(toggleLabel);
+      slotDiv.appendChild(toggleDiv);
+    }
+
     // Config section for active effect
     buildConfigSection(slotDiv, slot);
 
     layerList.appendChild(slotDiv);
   }
+
+  // Append colors and experimental sections at the end (moves them into scrollable area)
+  layerList.appendChild(colorsSection);
+  layerList.appendChild(experimentalPresetsSection);
 }
 
 function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
@@ -1326,6 +1450,9 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
   if (configs.length === 0) return;
 
   for (const cfg of configs) {
+    // Hidden configs are for URL params only, not rendered in UI
+    if (cfg.type === 'hidden') continue;
+
     const row = document.createElement('div');
     row.className = 'config-row';
 
@@ -1431,14 +1558,14 @@ buildColorsGrid();
 
 // --- Preset buttons ---
 
-type PresetName = 'stars' | 'warp' | 'clock' | 'fractal' | 'piano' | 'chain' | 'kali-graph';
+type PresetName = 'stars' | 'warp' | 'clock' | 'fractal' | 'piano' | 'star-aurora' | 'kali-graph';
 const presetButtons: Record<PresetName, HTMLButtonElement> = {
   stars: document.getElementById('preset-stars') as HTMLButtonElement,
   warp: document.getElementById('preset-warp') as HTMLButtonElement,
   clock: document.getElementById('preset-clock') as HTMLButtonElement,
   fractal: document.getElementById('preset-fractal') as HTMLButtonElement,
   piano: document.getElementById('preset-piano') as HTMLButtonElement,
-  chain: document.getElementById('preset-chain') as HTMLButtonElement,
+  'star-aurora': document.getElementById('preset-star-aurora') as HTMLButtonElement,
   'kali-graph': document.getElementById('preset-kali-graph') as HTMLButtonElement,
 };
 
@@ -1503,7 +1630,7 @@ const mobilePresetButtons: Partial<Record<PresetName, HTMLButtonElement>> = {
   clock: document.getElementById('mobile-preset-clock') as HTMLButtonElement,
   fractal: document.getElementById('mobile-preset-fractal') as HTMLButtonElement,
   piano: document.getElementById('mobile-preset-piano') as HTMLButtonElement,
-  chain: document.getElementById('mobile-preset-chain') as HTMLButtonElement,
+  'star-aurora': document.getElementById('mobile-preset-star-aurora') as HTMLButtonElement,
   'kali-graph': document.getElementById('mobile-preset-kali-graph') as HTMLButtonElement,
 };
 
@@ -1525,7 +1652,7 @@ const mobileBarPresets: Record<string, HTMLButtonElement> = {
   stars: document.getElementById('mobile-bar-stars') as HTMLButtonElement,
   warp: document.getElementById('mobile-bar-warp') as HTMLButtonElement,
   clock: document.getElementById('mobile-bar-clock') as HTMLButtonElement,
-  chain: document.getElementById('mobile-bar-chain') as HTMLButtonElement,
+  'star-aurora': document.getElementById('mobile-bar-star-aurora') as HTMLButtonElement,
 };
 
 for (const [name, btn] of Object.entries(mobileBarPresets)) {
@@ -1573,6 +1700,11 @@ for (const [name, btn] of Object.entries(qualityButtons)) {
 }
 for (const [name, btn] of Object.entries(mobileQualityButtons)) {
   btn.addEventListener('click', () => setQuality(name as QualityLevel));
+}
+
+// Start on Balanced if we've previously auto-downgraded
+if (localStorage.getItem('autoDowngraded') === 'true') {
+  setQuality('medium');
 }
 
 // Clear preset highlights when manual changes are made
@@ -1722,7 +1854,6 @@ async function loadSong(index: number) {
     timeline.timeSignatureEvents
   );
   musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
-  musicMapper.setKeyRegions(timeline.keyRegions);
   musicMapper.setTracks(timeline.tracks);
   musicMapper.setSongDuration(timeline.duration, timeline.chords);
   audioPlayer.loadMidi(midiBuffer);
@@ -1779,7 +1910,6 @@ async function loadMidiFile(file: File) {
       timeline.timeSignatureEvents
     );
     musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
-    musicMapper.setKeyRegions(timeline.keyRegions);
     musicMapper.setTracks(timeline.tracks);
     audioPlayer.loadMidi(midiBuffer);
 
@@ -1972,7 +2102,6 @@ seekBar.addEventListener('input', () => {
       timeline.timeSignatureEvents
     );
     musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
-    musicMapper.setKeyRegions(timeline.keyRegions);
   }
 
   updateTimeDisplay(t);
@@ -2106,6 +2235,12 @@ let lowFpsStartTime: number | null = null;
 const LOW_FPS_THRESHOLD = 20;
 const LOW_FPS_DURATION = 3000; // 3 seconds
 
+// Quality auto-downgrade - switch to Balanced when FPS is consistently low
+const QUALITY_DOWNGRADE_THRESHOLD = 30;
+const QUALITY_DOWNGRADE_DURATION = 4000; // 4 seconds sustained
+let qualityDowngradeStartTime: number | null = null;
+let hasAutoDowngraded = localStorage.getItem('autoDowngraded') === 'true';
+
 fractalEngine.onFrameReady = (renderMs: number) => {
   currentRenderMs = renderMs;
   fpsFrameCount++;
@@ -2138,6 +2273,26 @@ fractalEngine.onFrameReady = (renderMs: number) => {
       }
     } else {
       lowFpsStartTime = null;
+    }
+
+    // Quality auto-downgrade (separate from pause detection)
+    if (isPlaying && !document.hidden && !hasAutoDowngraded) {
+      const currentQuality = compositor.renderScale;
+
+      if (currentQuality >= 1.0 && currentFps < QUALITY_DOWNGRADE_THRESHOLD) {
+        if (!qualityDowngradeStartTime) {
+          qualityDowngradeStartTime = now;
+        } else if (now - qualityDowngradeStartTime > QUALITY_DOWNGRADE_DURATION) {
+          // Sustained low FPS on Sharp - downgrade to Balanced
+          setQuality('medium');
+          hasAutoDowngraded = true;
+          localStorage.setItem('autoDowngraded', 'true');
+          showToast('Switched to Balanced for smoother playback', 3000, 'info');
+          qualityDowngradeStartTime = null;
+        }
+      } else {
+        qualityDowngradeStartTime = null;
+      }
     }
   }
 };

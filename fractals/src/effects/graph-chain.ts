@@ -764,12 +764,7 @@ export class GraphChainEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'tonnetzWindowBars', label: 'Connect Window (bars)', type: 'range', value: this.tonnetzWindowBars, min: 1, max: 8, step: 1 },
-      { key: 'nodeSize', label: 'Node Size', type: 'range', value: this.nodeSize, min: 2, max: 10, step: 0.5 },
-      { key: 'edgeWidth', label: 'Edge Width', type: 'range', value: this.edgeWidth, min: 0.3, max: 3, step: 0.1 },
-      { key: 'glowIntensity', label: 'Glow', type: 'range', value: this.glowIntensity, min: 0.2, max: 1.5, step: 0.1 },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

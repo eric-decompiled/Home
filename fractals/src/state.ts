@@ -132,6 +132,7 @@ export const EFFECT_SHORT_NAMES: Record<string, string> = {
   'melody-clock': 'clock',
   'melody-web': 'web',
   'melody-aurora': 'aurora',
+  'melody-fire': 'fire',
   'tonnetz': 'tonnetz',
   'wave-interference': 'waves',
   'theory-bar': 'theory',
@@ -160,6 +161,7 @@ export const EFFECT_PREFIXES: Record<string, string> = {
   'melody-clock': 'mc',
   'melody-web': 'mw',
   'melody-aurora': 'ma',
+  'melody-fire': 'mf',
   'tonnetz': 'tn',
   'wave-interference': 'wi',
   'theory-bar': 'tb',
@@ -203,10 +205,10 @@ export const PRESET_LAYERS: Record<string, (string | null)[]> = {
   // [bg, fg, overlay, melody, bass, hud]
   stars: ['starfield', 'note-star', null, null, 'bass-fire', null],
   clock: ['flowfield', 'note-spiral', null, 'melody-clock', 'bass-clock', 'theory-bar'],
-  warp: ['chladni', 'note-spiral', 'kaleidoscope', 'melody-clock', 'bass-clock', null],
-  fractal: ['flowfield', 'fractal', null, null, null, 'theory-bar'],
+  warp: ['chladni', 'note-spiral', 'kaleidoscope', 'melody-aurora', 'bass-clock', null],
+  fractal: [null, 'fractal', 'kaleidoscope', 'melody-web', null, 'theory-bar'],
   piano: ['flowfield', 'piano-roll', null, null, null, null],
-  chain: [null, 'graph-chain', null, null, null, 'theory-bar'],
+  'star-aurora': [null, 'note-star', 'kaleidoscope', 'melody-aurora', 'bass-fire', null],
   'kali-graph': [null, 'graph-chain', 'kaleidoscope', null, null, null],
 };
 
@@ -218,12 +220,16 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
   },
   warp: {
     'note-spiral': { setShapes: 'ring,trails' },
+    'kaleidoscope': { foldCount: 6.48 },
   },
   fractal: {
-    'fractal': { preset: 'celtic-knots:Celtic Knots' },
+    'fractal': { preset: 'phoenix-journey' },
+    'kaleidoscope': { foldCount: 6 },
   },
   piano: {},
-  chain: {},
+  'star-aurora': {
+    'kaleidoscope': { foldCount: 6 },
+  },
   'kali-graph': {
     'graph-chain': {
       tonnetzWindowBars: 1,
@@ -270,7 +276,8 @@ export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
     keyboardHeight: 0.12,
     pianoSound: false,
   },
-  'bass-clock': { radius: 0.45 },
+  'bass-clock': { showNumerals: true },
+  'bass-web': { showNumerals: true },
   'chladni': { lineWidth: 0.08 },
   'kaleidoscope': {
     foldCount: 7,
@@ -288,12 +295,15 @@ export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
   'bass-fire': { showNumerals: true },
   'wave-interference': { decayRate: 8 },
   'note-star': { intensity: 1.0 },
-  'melody-clock': { radius: 0.85 },
+  'melody-clock': { showNotes: true },
   'graph-chain': {
     tonnetzWindowBars: 1,
     nodeSize: 3,
     edgeWidth: 1.0,
     glowIntensity: 1.0,
+  },
+  'fractal': {
+    preset: 'beat-voyage',
   },
 };
 

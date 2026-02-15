@@ -309,7 +309,9 @@ a.toggle-btn {
 
 /* Note Colors section */
 .colors-section {
-  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-top: 1px solid #0f3460;
+  margin-top: 8px;
 }
 
 .colors-header {
@@ -389,6 +391,69 @@ a.toggle-btn {
   pointer-events: none;
   width: 0;
   height: 0;
+}
+
+
+/* Slot display toggles (bass numerals, melody notes) */
+.slot-display-toggle {
+  padding: 6px 0 2px 0;
+}
+
+.display-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #666;
+  cursor: pointer;
+  user-select: none;
+}
+
+.display-toggle:hover {
+  color: #999;
+}
+
+.display-toggle input {
+  display: none;
+}
+
+.toggle-switch {
+  position: relative;
+  width: 28px;
+  height: 14px;
+  background: #333;
+  border-radius: 7px;
+  transition: background 0.25s ease;
+  flex-shrink: 0;
+}
+
+.toggle-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 10px;
+  height: 10px;
+  background: #666;
+  border-radius: 50%;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background 0.25s ease;
+}
+
+.display-toggle input:checked + .toggle-switch {
+  background: rgba(22, 199, 154, 0.3);
+}
+
+.display-toggle input:checked + .toggle-switch::after {
+  transform: translateX(14px);
+  background: #16c79a;
+}
+
+.display-toggle:hover .toggle-switch {
+  background: #444;
+}
+
+.display-toggle:hover input:checked + .toggle-switch {
+  background: rgba(22, 199, 154, 0.4);
 }
 
 .export-import-row {
@@ -693,16 +758,16 @@ a.toggle-btn {
 }
 
 .fractal-preset-btn {
-  padding: 8px 12px;
+  padding: 5px 10px;
   background: linear-gradient(135deg, #2a1a4a 0%, #1a2a3a 100%);
   border: 1px solid #8844cc;
-  border-radius: 6px;
+  border-radius: 4px;
   color: #cc88ff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  text-align: left;
+  text-align: center;
 }
 
 .fractal-preset-btn:hover {

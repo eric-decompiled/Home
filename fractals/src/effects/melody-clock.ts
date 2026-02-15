@@ -41,19 +41,26 @@ export class MelodyClockEffect implements VisualEffect {
   private useFlats = false;
   private lastMidiNote = -1;
   private lastPitchClass = -1;
-  private colR = 200;
-  private colG = 200;
-  private colB = 255;
+  // Target note color (for tip glow)
+  private targetR = 200;
+  private targetG = 200;
+  private targetB = 255;
+  // Current bearing color (for body, based on where hand points)
+  private bearingR = 200;
+  private bearingG = 200;
+  private bearingB = 255;
   private time = 0;
 
   private arcTrail: ArcSegment[] = [];
   private lastTrailAngle = -Math.PI / 2;
 
   private energy = 0;
-  private radius = 0.85;
   private anticipation = 0;
   private loudness = 0;
   private handLength = 0.95;
+
+  // Config
+  private showNotes = true;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -127,9 +134,9 @@ export class MelodyClockEffect implements VisualEffect {
       this.lastMidiNote = midiNote;
 
       const c = samplePaletteColor(pc, 0.6);
-      this.colR = c[0];
-      this.colG = c[1];
-      this.colB = c[2];
+      this.targetR = c[0];
+      this.targetG = c[1];
+      this.targetB = c[2];
 
       // Brightness pulse
       const beatDur = music.beatDuration || 0.5;
@@ -152,15 +159,26 @@ export class MelodyClockEffect implements VisualEffect {
     this.angularVelocity += (springForce + dampingForce) * dt;
     this.handAngle += this.angularVelocity * dt;
 
-    // Sample arc trail
+    // Calculate bearing color based on current hand angle
+    // Reverse the angle formula: pc = ((angle + PI/2) / (2*PI)) * 12
+    let bearingAngle = this.handAngle + Math.PI / 2;
+    while (bearingAngle < 0) bearingAngle += Math.PI * 2;
+    while (bearingAngle >= Math.PI * 2) bearingAngle -= Math.PI * 2;
+    const bearingPC = Math.floor((bearingAngle / (Math.PI * 2)) * 12) % 12;
+    const bearingCol = samplePaletteColor(bearingPC, 0.6);
+    this.bearingR = bearingCol[0];
+    this.bearingG = bearingCol[1];
+    this.bearingB = bearingCol[2];
+
+    // Sample arc trail (uses bearing color since trail follows hand position)
     const trailAngleDiff = Math.abs(this.handAngle - this.lastTrailAngle);
     if (trailAngleDiff > 0.04) {
       this.arcTrail.push({
         angle: this.handAngle,
         time: this.time,
-        r: this.colR,
-        g: this.colG,
-        b: this.colB,
+        r: this.bearingR,
+        g: this.bearingG,
+        b: this.bearingB,
       });
       if (this.arcTrail.length > ARC_TRAIL_MAX) this.arcTrail.shift();
       this.lastTrailAngle = this.handAngle;
@@ -186,7 +204,10 @@ export class MelodyClockEffect implements VisualEffect {
 
     const handLen = r * this.handLength;
     const angle = this.handAngle;
-    const R = this.colR, G = this.colG, B = this.colB;
+    // Body uses bearing color (where hand currently points)
+    const R = this.bearingR, G = this.bearingG, B = this.bearingB;
+    // Tip uses target color (note being attracted to)
+    const tipR = this.targetR, tipG = this.targetG, tipB = this.targetB;
     const brt = 0.5 + this.handBrightness * 0.4 + this.energy * 0.15;
     const alpha = Math.min(1, brt);
 
@@ -293,26 +314,35 @@ export class MelodyClockEffect implements VisualEffect {
       const isCurrent = i === this.lastPitchClass;
       const tc = samplePaletteColor(i, 0.6);
       const tickAlpha = isCurrent ? 0.55 + this.handBrightness * 0.25 : 0.18;
-      const noteName = getNoteName(i, this.useFlats);
-      // Smaller font than bass clock numerals
-      const fontSize = Math.max(9, Math.round(r * 0.065));
 
-      ctx.save();
-      ctx.translate(tx, ty);
-      ctx.rotate(tickAngle + Math.PI / 2);
-      ctx.font = `${isCurrent ? '500 ' : '300 '}${fontSize}px sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      if (this.showNotes) {
+        const noteName = getNoteName(i, this.useFlats);
+        // Smaller font than bass clock numerals
+        const fontSize = Math.max(9, Math.round(r * 0.065));
 
-      if (isCurrent && this.handBrightness > 0.05) {
-        ctx.shadowColor = `rgba(${tc[0]},${tc[1]},${tc[2]},${(this.handBrightness * 0.4).toFixed(3)})`;
-        ctx.shadowBlur = 8;
+        ctx.save();
+        ctx.translate(tx, ty);
+        ctx.rotate(tickAngle + Math.PI / 2);
+        ctx.font = `${isCurrent ? '500 ' : '300 '}${fontSize}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        if (isCurrent && this.handBrightness > 0.05) {
+          ctx.shadowColor = `rgba(${tc[0]},${tc[1]},${tc[2]},${(this.handBrightness * 0.4).toFixed(3)})`;
+          ctx.shadowBlur = 8;
+        }
+
+        ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
+        ctx.fillText(noteName, 0, 0);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      } else {
+        // Draw small dot instead of note name
+        ctx.beginPath();
+        ctx.arc(tx, ty, isCurrent ? 3 : 2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
+        ctx.fill();
       }
-
-      ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
-      ctx.fillText(noteName, 0, 0);
-      ctx.shadowBlur = 0;
-      ctx.restore();
 
       // Glow on current (smaller than bass clock)
       if (isCurrent && this.handBrightness > 0.05) {
@@ -405,14 +435,14 @@ export class MelodyClockEffect implements VisualEffect {
     ctx.fill(tailPath);
     strokeP(tailPath);
 
-    // --- Tip glow (slightly smaller) ---
+    // --- Tip glow (uses target color - the note being attracted to) ---
     const tipPt = ptAt(1, 0);
     const orbSz = 6 + this.handBrightness * 10 + this.energy * 4 + this.anticipation * 8;
     const orbA = 0.25 + this.handBrightness * 0.45 + this.anticipation * 0.2;
     const orbGrd = ctx.createRadialGradient(tipPt.x, tipPt.y, 0, tipPt.x, tipPt.y, orbSz * 2);
     orbGrd.addColorStop(0, `rgba(255,255,255,${(orbA * 0.5).toFixed(3)})`);
-    orbGrd.addColorStop(0.4, `rgba(${R},${G},${B},${(orbA * 0.3).toFixed(3)})`);
-    orbGrd.addColorStop(1, `rgba(${R},${G},${B},0)`);
+    orbGrd.addColorStop(0.4, `rgba(${tipR},${tipG},${tipB},${(orbA * 0.3).toFixed(3)})`);
+    orbGrd.addColorStop(1, `rgba(${tipR},${tipG},${tipB},0)`);
     ctx.fillStyle = orbGrd;
     ctx.fillRect(tipPt.x - orbSz * 2, tipPt.y - orbSz * 2, orbSz * 4, orbSz * 4);
 
@@ -450,16 +480,14 @@ export class MelodyClockEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'radius', label: 'Radius', type: 'range', value: this.radius, min: 0.3, max: 0.95, step: 0.05 },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {
-    return { radius: 0.85 };
+    return { showNotes: true };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
-    if (key === 'radius') this.radius = value as number;
+    if (key === 'showNotes') this.showNotes = value as boolean;
   }
 }

@@ -88,12 +88,14 @@ export class FractalEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    // Preset selection moved to sidebar buttons
-    return [];
+    // Preset exposed for URL param support (UI is in sidebar buttons)
+    return [
+      { key: 'preset', label: 'Preset', type: 'hidden', value: this.currentPresetId },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {
-    return {};
+    return { preset: 'beat-voyage' };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {

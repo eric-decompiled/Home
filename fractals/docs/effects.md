@@ -15,14 +15,14 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 
 ## Presets
 
-| Preset | Background | Foreground | Overlay | Bass | HUD |
-|--------|------------|------------|---------|------|-----|
-| **Warp** | Chladni | Note Spiral (ring) | Kaleidoscope | Bass Clock | — |
-| **Clock** | Starfield | Note Spiral | — | Bass Clock | — |
-| **Spiral** (default) | Starfield | Note Star | — | Bass Fire | — |
-| **Fractal** | Flow Field | Fractal | — | — | Theory Bar |
-| **Chain** | — | Graph Chain | — | — | Theory Bar |
-| **Piano** | Flow Field | Piano Roll | — | — | — |
+| Preset | Background | Foreground | Overlay | Melody | Bass | HUD |
+|--------|------------|------------|---------|--------|------|-----|
+| **Warp** | Chladni | Note Spiral (ring,trails) | Kaleidoscope | Melody Aurora | Bass Clock | — |
+| **Clock** | Starfield | Note Spiral | — | Melody Clock | Bass Clock | — |
+| **Stars** (default) | Starfield | Note Star | — | — | Bass Fire | — |
+| **Fractal** | Flow Field | Fractal | — | — | — | Theory Bar |
+| **Chain** | — | Graph Chain | — | — | — | Theory Bar |
+| **Piano** | Flow Field | Piano Roll | — | — | — | — |
 
 ## Effect Catalog
 
@@ -71,7 +71,33 @@ See `research/graph-evolution.md` for design notes and music mapping theory.
 `src/effects/spirograph.ts` — Parametric curve drawing with music-reactive parameters.
 
 ### Note Spiral
-`src/effects/note-spiral.ts` — All active MIDI voices rendered as glowing orbs on a spiral covering full piano range (MIDI 21-108, A0 to C8). Pitch class determines angle (root at 12 o'clock), with **configurable tightness** (power curve, default 1.25) for visual spacing. Shows polyphonic voicing with **Bezier curve trails** between consecutive notes—tangent-based control points create smooth curves. Trail behavior: **stepwise motion** (1-3 semitones) follows the spiral curve, larger intervals draw straight lines. Trail TTL configurable (default 48 segments, decay 0.08). Sine wave twist (`0.05 * sin(fromRoot)`) prevents angular discontinuity at key boundaries. **Firefly particles** (default shape) dance around active notes. **Long note visibility**: decay rate 0.4-0.7 gives ~2 second half-life so notes linger on spiral. Center shifted down 4% for better screen balance.
+`src/effects/note-spiral.ts` — All active MIDI voices rendered as glowing orbs on a spiral covering full piano range (MIDI 21-108, A0 to C8). Pitch class determines angle (root at 12 o'clock), with **configurable tightness** (power curve, default 1.25) for visual spacing. Shows polyphonic voicing with **Bezier curve trails** between consecutive notes—tangent-based control points create smooth curves. Trail behavior: **stepwise motion** (1-3 semitones) follows the spiral curve, larger intervals draw straight lines. Trail TTL configurable (default 48 segments, decay 0.08). Sine wave twist (`0.05 * sin(fromRoot)`) prevents angular discontinuity at key boundaries. **Firefly particles** (default shape) dance around active notes. **Long note visibility**: decay rate 0.4-0.7 gives ~2 second half-life so notes linger on spiral. Center shifted down 4% for better screen balance. Uses [shared shape system](#shared-shapes-note-spiral--note-star).
+
+### Note Star
+`src/effects/note-star.ts` — Traveling star particles that spawn on note onsets and spiral inward toward center. **Stars and beams always render**; additional shapes are optional via the [shared shape system](#shared-shapes-note-spiral--note-star). Features:
+- **Star heads**: Multi-layer glow with soft outer halo, colored core, and white highlight
+- **Sustained note beams**: Notes held 2+ beats draw solid light beams following the spiral from spawn point to head position
+- **Anticipation pulses**: Beat-synced flashes show upcoming notes before they play
+- **Groove-driven pulsing**: Size and brightness modulate with beatGroove/barGroove (reduced variability for softer look)
+- **BPM-aware travel speed**: Stars travel slightly slower at slow tempos, faster at high tempos (`bpm^0.25` scaling)
+- **Attack/sustain coloring**: Hot white flash on note onset, warm saturated color during sustain
+
+### Shared Shapes (Note Spiral + Note Star)
+
+Both Note Spiral and Note Star support a **shared shape system** via multi-toggle config. These optional visual decorations render at note/star positions:
+
+| Shape | Description |
+|-------|-------------|
+| **ring** | Expanding circular ripples (3 concentric rings with fade) |
+| **trails** | Fading gradient line trailing behind moving notes |
+| **spark** | Electric crackling lines radiating outward (jagged paths) |
+| **firefly** | Dancing particles that orbit notes, beat-synced with fade in/out |
+
+**Defaults:**
+- Note Spiral: `firefly` enabled (solo floating particles work well on spiral)
+- Note Star: no shapes (stars + beams are the core effect)
+
+**Usage:** Multi-toggle buttons in effect config panel. Multiple shapes can be enabled simultaneously for layered effects.
 
 ### Melody Web
 `src/effects/melody-web.ts` — Network graph of 12 pitch classes arranged in a circle as dots. Larger dots for diatonic scale degrees, smaller for chromatic. Edges connect recently-played notes, building a web of melodic relationships. Edge decay 0.9995 (~23s half-life at 60fps) with smoothstep alpha curve. Melody trail shows recent note sequence.

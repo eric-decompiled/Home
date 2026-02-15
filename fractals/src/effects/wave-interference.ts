@@ -381,12 +381,7 @@ export class WaveInterferenceEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'maxSources', label: 'Max Waves', type: 'range', value: this.maxSources, min: 2, max: 8, step: 1 },
-      { key: 'decayRate', label: 'Decay', type: 'range', value: this.decayRate, min: 1, max: 10, step: 0.5 },
-      { key: 'intensity', label: 'Intensity', type: 'range', value: this.intensity, min: 0.2, max: 2, step: 0.1 },
-      { key: 'reflection', label: 'Reflection', type: 'range', value: this.reflection, min: 0, max: 1, step: 0.1 },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

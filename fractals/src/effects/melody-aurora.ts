@@ -214,12 +214,7 @@ export class MelodyAuroraEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'maxRibbons', label: 'Max Ribbons', type: 'range', value: this.maxRibbons, min: 4, max: 24, step: 1 },
-      { key: 'fadeSpeed', label: 'Fade', type: 'range', value: this.fadeSpeed, min: 0.05, max: 0.5, step: 0.05 },
-      { key: 'waveScale', label: 'Wave Size', type: 'range', value: this.waveScale, min: 0.3, max: 3.0, step: 0.1 },
-      { key: 'intensity', label: 'Intensity', type: 'range', value: this.intensity, min: 0.2, max: 2.0, step: 0.1 },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

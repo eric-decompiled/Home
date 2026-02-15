@@ -38,6 +38,7 @@
 - **Attack envelope for sustained trails**: Use star.age to create attack curve (rise 0-0.1s, exponential decay to 40% sustain). Trails punch bright on note attack then settle to softer sustain
 - **Quadratic curves for spiral trails**: `quadraticCurveTo` through midpoints creates smooth curves following spiral path. Avoids visible line segments from `lineTo`
 - **Trail connected to head**: Trail should end at `star.progress` (not offset behind) so it stays attached as they travel together
+- **Shared shape system across effects**: Note Spiral and Note Star share toggleable decorations (ring, trails, spark, firefly). Core rendering (stars+beams for Note Star, dots+trails for Note Spiral) always on; decorations optional via multi-toggle. Reduces code duplication, gives users consistent vocabulary across effects
 
 ### Physics & Animation
 - **Compass physics for clock hands**: Spring-damper system (springK=12, damping=5) creates weighty motion with natural overshoot and settle. Hand swings toward target, overshoots slightly, drifts back. New notes can interrupt mid-motion smoothly. Feels more physical than tweening

@@ -52,11 +52,12 @@ export class BassClockEffect implements VisualEffect {
   private lastTrailAngle = -Math.PI / 2;
 
   private energy = 0;
-  private radius = 0.45; // Inner radius for bass
   private anticipation = 0;  // Builds before bar lands
   private loudness = 0;  // Smoothed audio loudness (EMA)
   private chromaticFade: Map<number, number> = new Map();  // Fade alpha for non-key numerals
 
+  // Config
+  private showNumerals = true;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -398,7 +399,7 @@ export class BassClockEffect implements VisualEffect {
       const chromaticNumeral = chromaticDegreeMap[semitones];
       const chromaticFadeValue = this.chromaticFade.get(i) ?? 0;
 
-      if (numeral) {
+      if (numeral && this.showNumerals) {
         // Draw Roman numeral for diatonic scale degrees
         const fontSize = Math.max(11, Math.round(r * 0.1));
 
@@ -419,7 +420,7 @@ export class BassClockEffect implements VisualEffect {
         ctx.fillText(numeral, 0, 0);
         ctx.shadowBlur = 0;
         ctx.restore();
-      } else if (chromaticNumeral && (isCurrent || chromaticFadeValue > 0)) {
+      } else if (chromaticNumeral && this.showNumerals && (isCurrent || chromaticFadeValue > 0)) {
         // Draw chromatic numeral when current or fading out
         const fontSize = Math.max(10, Math.round(r * 0.09));  // Slightly smaller
         const fadeAlpha = isCurrent ? 0.6 + this.handBrightness * 0.3 : chromaticFadeValue * 0.5;
@@ -442,7 +443,7 @@ export class BassClockEffect implements VisualEffect {
         ctx.shadowBlur = 0;
         ctx.restore();
       } else {
-        // Small dot for chromatic notes not currently active
+        // Small dot for chromatic notes not currently active (or when numerals disabled)
         ctx.beginPath();
         ctx.arc(tx, ty, isCurrent ? 3 : 2, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
@@ -653,16 +654,14 @@ export class BassClockEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'radius', label: 'Radius', type: 'range', value: this.radius, min: 0.2, max: 0.6, step: 0.05 },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {
-    return { radius: 0.45 };
+    return { showNumerals: true };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
-    if (key === 'radius') this.radius = value as number;
+    if (key === 'showNumerals') this.showNumerals = value as boolean;
   }
 }

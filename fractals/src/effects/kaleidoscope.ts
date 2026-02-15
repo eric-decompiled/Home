@@ -203,10 +203,6 @@ export class KaleidoscopeEffect implements VisualEffect {
   getConfig(): EffectConfig[] {
     return [
       { key: 'foldCount', label: 'Folds', type: 'range', value: this.foldCount, min: 3, max: 12, step: 1 },
-      { key: 'rotationSpeed', label: 'Rotation', type: 'range', value: this.rotationSpeed, min: 0, max: 1, step: 0.05 },
-      { key: 'mirrorMode', label: 'Mode', type: 'select', value: this.mirrorMode, options: ['reflect', 'rotate'] },
-      { key: 'centerOffsetX', label: 'Center X', type: 'range', value: this.centerOffsetX, min: -200, max: 200, step: 10 },
-      { key: 'centerOffsetY', label: 'Center Y', type: 'range', value: this.centerOffsetY, min: -200, max: 200, step: 10 },
     ];
   }
 

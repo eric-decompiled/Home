@@ -321,9 +321,7 @@ export class ChladniEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'lineWidth', label: 'Line Width', type: 'range', value: this.lineWidth, min: 0.02, max: 0.2, step: 0.01 },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

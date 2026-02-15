@@ -885,19 +885,21 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
   const { key, mode: keyMode } = detectKey(pitchHistogram);
   const diatonicSet = getDiatonicSet(key, keyMode);
 
-  // Detect chords per bar with onset-accurate timing
-  // Per-bar gives stable, musically meaningful chord changes
+  // Detect chords per half-bar for finer harmonic resolution
+  // Diatonic bias and quality weighting prevent bouncing on passing tones
   const beatsPerBar = timeSignature[0];
   const barDuration = beatDuration * beatsPerBar;
+  const halfBarDuration = barDuration / 2;
   const numBars = Math.ceil(totalDuration / barDuration);
+  const numHalfBars = numBars * 2;
   const chords: ChordEvent[] = [];
 
   // Compute per-bar drum info for section detection (includes melodic stab detection)
   const barDrumInfo = computeBarDrumInfo(drums, notes, numBars, barDuration, beatsPerBar);
 
-  for (let bar = 0; bar < numBars; bar++) {
-    const tStart = bar * barDuration;
-    const tEnd = tStart + barDuration;
+  for (let halfBar = 0; halfBar < numHalfBars; halfBar++) {
+    const tStart = halfBar * halfBarDuration;
+    const tEnd = tStart + halfBarDuration;
 
     // Accumulate weighted pitch class profile for this beat
     const weights = new Array(12).fill(0);

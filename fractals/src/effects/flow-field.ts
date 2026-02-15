@@ -299,14 +299,7 @@ export class FlowFieldEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'particleCount', label: 'Particles', type: 'range', value: this.particleCount, min: 500, max: 8000, step: 500 },
-      { key: 'flowSpeed', label: 'Speed', type: 'range', value: this.flowSpeed, min: 0.5, max: 5, step: 0.5 },
-      { key: 'noiseScale', label: 'Scale', type: 'range', value: this.noiseScale, min: 0.001, max: 0.01, step: 0.001 },
-      { key: 'fadeRate', label: 'Trail Fade', type: 'range', value: this.fadeRate, min: 0.005, max: 0.1, step: 0.005 },
-      { key: 'mouseStrength', label: 'Mouse Range', type: 'range', value: this.mouseStrength, min: 50, max: 400, step: 25 },
-      { key: 'useWhite', label: 'White Only', type: 'toggle', value: this.useWhite },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

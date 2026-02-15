@@ -463,9 +463,7 @@ export class BassFireEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'showNumerals', label: 'Show Numerals', type: 'toggle', value: this.showNumerals },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

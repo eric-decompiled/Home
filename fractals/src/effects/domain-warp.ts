@@ -433,11 +433,7 @@ export class DomainWarpEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'warpAmount', label: 'Warp', type: 'range', value: this.currentWarp, min: 1, max: 8, step: 0.5 },
-      { key: 'warpScale', label: 'Scale', type: 'range', value: this.currentScale, min: 2, max: 10, step: 0.5 },
-      { key: 'colorByChord', label: 'Color by Chord', type: 'toggle', value: this.colorByChord },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

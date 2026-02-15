@@ -456,12 +456,7 @@ export class StarFieldEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'density', label: 'Density', type: 'range', value: this.density, min: 0.3, max: 2, step: 0.1 },
-      { key: 'twinkleAmount', label: 'Shimmer', type: 'range', value: this.twinkleAmount, min: 0.1, max: 1, step: 0.1 },
-      { key: 'nebulaOpacity', label: 'Nebula', type: 'range', value: this.nebulaOpacity, min: 0, max: 1, step: 0.1 },
-      { key: 'parallaxStrength', label: 'Parallax', type: 'range', value: this.parallaxStrength, min: 0, max: 0.5, step: 0.05 },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

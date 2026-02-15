@@ -85,8 +85,7 @@ export interface MusicParams {
   key: number;             // pitch class 0-11
   keyMode: 'major' | 'minor';
   useFlats: boolean;       // true if key signature uses flats (F, Bb, Eb, etc.)
-  keyRotation: number;     // rotation offset in radians to align tonic at 12 o'clock (tweened on modulation)
-  onModulation: boolean;   // true on frame when key modulation detected
+  keyRotation: number;     // rotation offset in radians to align tonic at 12 o'clock
 
   melodyPitchClass: number;  // -1 if none
   melodyMidiNote: number;    // actual MIDI note number, -1 if none
@@ -142,7 +141,7 @@ export interface MusicParams {
 export interface EffectConfig {
   key: string;
   label: string;
-  type: 'range' | 'select' | 'toggle' | 'buttons' | 'multi-toggle';
+  type: 'range' | 'select' | 'toggle' | 'buttons' | 'multi-toggle' | 'hidden';
   value: number | string | boolean;
   min?: number;
   max?: number;

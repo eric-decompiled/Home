@@ -471,10 +471,7 @@ export class TonnetzEffect implements VisualEffect {
   dispose(): void { this.ready = false; }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'hexSize', label: 'Grid Size', type: 'range', value: this.hexSize, min: 30, max: 80, step: 5 },
-      { key: 'historyLength', label: 'Path Length', type: 'range', value: this.maxHistoryLength, min: 2, max: 16, step: 1 },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

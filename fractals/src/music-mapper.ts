@@ -1,7 +1,6 @@
-import type { ChordEvent, DrumHit, NoteEvent, TrackInfo, KeyRegion, BarDrumInfo } from './midi-analyzer.ts';
+import type { ChordEvent, DrumHit, NoteEvent, TrackInfo, BarDrumInfo } from './midi-analyzer.ts';
 import type { MusicParams, ActiveVoice, UpcomingNote, UpcomingChord, RGB } from './effects/effect-interface.ts';
 import { createMidiBeatSync, createIdleBeatSync, type BeatSync, type TempoEvent, type TimeSignatureEvent } from './beat-sync.ts';
-import { gsap } from './animation.ts';
 import { palettes } from './fractal-engine.ts';
 import { audioPlayer } from './audio-player.ts';
 
@@ -238,12 +237,9 @@ let cachedKeyVColor: RGB = [120, 120, 120];  // Dominant color
 const TENSION_LUT_SIZE = 256;
 let tensionColorLUT: RGB[] = new Array(TENSION_LUT_SIZE).fill(null).map(() => [120, 120, 120] as RGB);
 
-// Key modulation tracking
-let keyRegions: KeyRegion[] = [];
-let currentKeyRegionIndex = -1;
+// Key rotation (static per-song, set in setKey)
 let keyRotationTarget = 0;       // target rotation in radians
 const keyRotationState = { value: 0 }; // animated by GSAP
-let frameOnModulation = false;
 
 // Multi-voice tracking
 let currentActiveVoices: ActiveVoice[] = [];
@@ -502,10 +498,6 @@ export const musicMapper = {
     updateCachedKeyColors(pitchClass);
   },
 
-  setKeyRegions(regions: KeyRegion[]) {
-    keyRegions = regions;
-    currentKeyRegionIndex = -1;
-  },
 
   setSongDuration(duration: number, chords: ChordEvent[]) {
     // Store chords and cache bar duration, then build simplified bar chords
@@ -914,50 +906,6 @@ export const musicMapper = {
   },
 
   getMusicParams(dt: number, currentTime: number): MusicParams {
-    // Check for key modulation (disabled for now - detection over-modulates)
-    frameOnModulation = false;
-    // TODO: Re-enable when modulation detection is more stable
-    if (false && keyRegions.length > 0) {
-      // Find current key region
-      let newRegionIndex = 0;
-      for (let i = keyRegions.length - 1; i >= 0; i--) {
-        if (keyRegions[i].startTime <= currentTime) {
-          newRegionIndex = i;
-          break;
-        }
-      }
-
-      // Detect modulation (new region)
-      if (newRegionIndex !== currentKeyRegionIndex) {
-        currentKeyRegionIndex = newRegionIndex;
-        const region = keyRegions[newRegionIndex];
-
-        // Update current key
-        currentKey = region.key;
-        currentKeyMode = region.mode;
-
-        // Calculate shortest rotation path to new key
-        const newTarget = -region.key * (Math.PI * 2 / 12);
-        let delta = newTarget - keyRotationTarget;
-
-        // Normalize to shortest path (-π to π)
-        while (delta > Math.PI) delta -= Math.PI * 2;
-        while (delta < -Math.PI) delta += Math.PI * 2;
-
-        keyRotationTarget += delta;
-
-        // Tween rotation over 1 beat
-        gsap.to(keyRotationState, {
-          value: keyRotationTarget,
-          duration: beatDuration,
-          ease: 'power2.inOut',
-          overwrite: true,
-        });
-
-        frameOnModulation = newRegionIndex > 0; // Don't flag first region as modulation
-      }
-    }
-
     return {
       currentTime,
       dt,
@@ -994,7 +942,6 @@ export const musicMapper = {
       keyMode: currentKeyMode,
       useFlats: currentUseFlats,
       keyRotation: keyRotationState.value,
-      onModulation: frameOnModulation,
       melodyPitchClass: currentMelodyPC,
       melodyMidiNote: currentMelodyMidi,
       melodyVelocity: currentMelodyVel,
@@ -1067,7 +1014,6 @@ export const musicMapper = {
       keyMode: currentKeyMode,
       useFlats: currentUseFlats,
       keyRotation: keyRotationState.value,
-      onModulation: false,
       melodyPitchClass: -1,
       melodyMidiNote: -1,
       melodyVelocity: 0,
@@ -1100,11 +1046,9 @@ export const musicMapper = {
   },
 
   reset() {
-    // Reset key modulation state
-    currentKeyRegionIndex = -1;
+    // Reset key rotation
     keyRotationTarget = -currentKey * (Math.PI * 2 / 12);
     keyRotationState.value = keyRotationTarget;
-    frameOnModulation = false;
     // Reset chord to tonic
     currentChordRoot = currentKey;
     currentChordDegree = 1;

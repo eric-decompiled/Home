@@ -586,11 +586,7 @@ export class PianoRollEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'fallDuration', label: 'Fall Time', type: 'range', value: this.fallDuration, min: 1, max: 6, step: 0.5 },
-      { key: 'keyboardHeight', label: 'Keyboard Size', type: 'range', value: this.keyboardHeight, min: 0.08, max: 0.2, step: 0.01 },
-      { key: 'pianoSound', label: 'Piano Sound', type: 'toggle', value: audioPlayer.isPianoMode() },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

@@ -356,11 +356,7 @@ export class MelodyWebEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'radius', label: 'Radius', type: 'range', value: this.radius, min: 0.15, max: 0.85, step: 0.05 },
-      { key: 'edgeDecay', label: 'Memory', type: 'range', value: this.edgeDecay, min: 0.9, max: 0.999, step: 0.001 },
-      { key: 'webIntensity', label: 'Intensity', type: 'range', value: this.webIntensity, min: 0.2, max: 2.0, step: 0.1 },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

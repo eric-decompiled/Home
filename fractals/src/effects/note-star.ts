@@ -52,6 +52,7 @@ export class NoteStarEffect implements VisualEffect {
   // Config
   private intensity = 1.0;
   private maxStars = 384;
+  private activeShapes: Set<string> = new Set(); // optional shapes: ring, trails, spark, firefly
 
   // Pulse-based anticipation: flash upcoming notes on beat boundaries
   // This avoids timing issues with continuous tracking across different tempos
@@ -228,42 +229,28 @@ export class NoteStarEffect implements VisualEffect {
     ctx.save();
     ctx.globalCompositeOperation = 'screen';
 
-    // Draw faint spiral spine
-    ctx.beginPath();
-    let first = true;
-    for (let midi = MIDI_LO; midi < MIDI_HI; midi++) {
-      const pos = spiralPos(midi, midi % 12, this.key, this.keyRotation, cx, cy, maxR, this.spiralTightness);
-      if (first) {
-        ctx.moveTo(pos.x, pos.y);
-        first = false;
-      } else {
-        ctx.lineTo(pos.x, pos.y);
-      }
-    }
-    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
     // Draw anticipation pulses (beat-synced flashes)
-    for (const [, pulse] of this.anticipationPulses) {
-      const pos = spiralPos(pulse.midi, pulse.pitchClass, this.key, this.keyRotation, cx, cy, maxR, this.spiralTightness);
-      const c = samplePaletteColor(pulse.pitchClass, 0.75);
-      const alpha = pulse.alpha * this.intensity;
+    {
+      for (const [, pulse] of this.anticipationPulses) {
+        const pos = spiralPos(pulse.midi, pulse.pitchClass, this.key, this.keyRotation, cx, cy, maxR, this.spiralTightness);
+        const c = samplePaletteColor(pulse.pitchClass, 0.75);
+        const alpha = pulse.alpha * this.intensity;
 
-      if (alpha < 0.02) continue;
+        if (alpha < 0.02) continue;
 
-      // Fixed glow size (no growth - pulse fades out quickly)
-      const glowR = 6;
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, glowR, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(alpha * 0.4).toFixed(3)})`;
-      ctx.fill();
+        // Fixed glow size (no growth - pulse fades out quickly)
+        const glowR = 6;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, glowR, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(alpha * 0.4).toFixed(3)})`;
+        ctx.fill();
 
-      // Inner core
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, glowR * 0.4, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${alpha.toFixed(3)})`;
-      ctx.fill();
+        // Inner core
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, glowR * 0.4, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${alpha.toFixed(3)})`;
+        ctx.fill();
+      }
     }
 
     // Groove pulse factor (reduced variability, same average)
@@ -359,38 +346,137 @@ export class NoteStarEffect implements VisualEffect {
         ctx.stroke();
       }
 
-      // === STAR HEAD ===
-      // Layer 1: Soft outer glow
-      const glowSize = size * (1.6 + groovePulse * 0.4);
-      const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowSize);
-      grad.addColorStop(0, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.5).toFixed(3)})`);
-      grad.addColorStop(0.35, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.25).toFixed(3)})`);
-      grad.addColorStop(1, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},0)`);
+      // === STAR HEAD (always rendered) ===
+      {
+        // Layer 1: Soft outer glow
+        const glowSize = size * (1.6 + groovePulse * 0.4);
+        const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowSize);
+        grad.addColorStop(0, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.5).toFixed(3)})`);
+        grad.addColorStop(0.35, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.25).toFixed(3)})`);
+        grad.addColorStop(1, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},0)`);
 
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, glowSize, 0, Math.PI * 2);
-      ctx.fillStyle = grad;
-      ctx.fill();
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, glowSize, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.fill();
 
-      // Layer 2: Mid ring (softer colored halo)
-      const midSize = size * 1.2;
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, midSize, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.35).toFixed(3)})`;
-      ctx.fill();
+        // Layer 2: Mid ring (softer colored halo)
+        const midSize = size * 1.2;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, midSize, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.35).toFixed(3)})`;
+        ctx.fill();
 
-      // Layer 3: Solid colored core
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, size, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.8).toFixed(3)})`;
-      ctx.fill();
+        // Layer 3: Solid colored core
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, size, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.8).toFixed(3)})`;
+        ctx.fill();
 
-      // Layer 4: Center highlight (toned down)
-      ctx.beginPath();
-      ctx.arc(pos.x, pos.y, size * 0.3, 0, Math.PI * 2);
-      const centerAlpha = Math.min(0.7, alpha * (0.6 + groovePulse * 0.25));
-      ctx.fillStyle = `rgba(255,255,255,${centerAlpha.toFixed(3)})`;
-      ctx.fill();
+        // Layer 4: Center highlight (toned down)
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, size * 0.3, 0, Math.PI * 2);
+        const centerAlpha = Math.min(0.7, alpha * (0.6 + groovePulse * 0.25));
+        ctx.fillStyle = `rgba(255,255,255,${centerAlpha.toFixed(3)})`;
+        ctx.fill();
+      }
+
+      // === OPTIONAL SHAPES (shared with note-spiral) ===
+      const shapeAlpha = alpha * this.intensity;
+      const shapeSize = size * 2;
+
+      // Ring - expanding circular ripples
+      if (this.activeShapes.has('ring')) {
+        const rings = 3;
+        for (let r = 0; r < rings; r++) {
+          const ringR = shapeSize * 2 * (r + 1);
+          const ringAlpha = shapeAlpha * (1 - r / rings) * 0.4;
+          ctx.beginPath();
+          ctx.arc(pos.x, pos.y, ringR, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${ringAlpha.toFixed(3)})`;
+          ctx.lineWidth = 3 - r;
+          ctx.stroke();
+        }
+      }
+
+      // Spark - electric crackling lines
+      if (this.activeShapes.has('spark')) {
+        const numSparks = 5;
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        for (let s = 0; s < numSparks; s++) {
+          const sparkAngle = (s / numSparks) * Math.PI * 2 + this.time * 2;
+          const sparkLen = shapeSize * 3 * (0.5 + Math.random() * 0.5);
+          ctx.beginPath();
+          ctx.moveTo(pos.x, pos.y);
+          let sx = pos.x, sy = pos.y;
+          const segs = 3;
+          for (let j = 0; j < segs; j++) {
+            const t = (j + 1) / segs;
+            const jitter = (Math.random() - 0.5) * 12;
+            sx = pos.x + Math.cos(sparkAngle) * sparkLen * t + Math.cos(sparkAngle + Math.PI/2) * jitter;
+            sy = pos.y + Math.sin(sparkAngle) * sparkLen * t + Math.sin(sparkAngle + Math.PI/2) * jitter;
+            ctx.lineTo(sx, sy);
+          }
+          ctx.strokeStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(shapeAlpha * 0.5).toFixed(3)})`;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+
+      // Firefly - dancing particles around the star
+      if (this.activeShapes.has('firefly')) {
+        const beatPhase = (this.time % this.beatDuration) / this.beatDuration;
+        const numFlies = 3;
+        let beatFade = 1.0;
+        if (beatPhase < 0.2) beatFade = beatPhase / 0.2;
+        else if (beatPhase > 0.6) beatFade = 1.0 - (beatPhase - 0.6) / 0.4;
+
+        for (let f = 0; f < numFlies; f++) {
+          const flyAngle = (f / numFlies) * Math.PI * 2 + this.time * 3 + star.pitchClass;
+          const flyDist = shapeSize * 2 * (0.8 + Math.sin(this.time * 4 + f) * 0.3);
+          const wobble = Math.sin(this.time * 6 + f * 2) * 4;
+          const fx = pos.x + Math.cos(flyAngle) * flyDist + wobble;
+          const fy = pos.y + Math.sin(flyAngle) * flyDist + wobble;
+          const flyR = 2 + Math.sin(this.time * 8 + f) * 0.5;
+          const flyAlpha = shapeAlpha * 0.6 * beatFade;
+
+          // Outer glow
+          ctx.fillStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(flyAlpha * 0.3).toFixed(3)})`;
+          ctx.beginPath();
+          ctx.arc(fx, fy, flyR * 2, 0, Math.PI * 2);
+          ctx.fill();
+          // Core
+          ctx.fillStyle = `rgba(255,255,220,${flyAlpha.toFixed(3)})`;
+          ctx.beginPath();
+          ctx.arc(fx, fy, flyR * 0.6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // Trails - fading line from spawn point (uses eased for length)
+      if (this.activeShapes.has('trails') && star.progress > 0.05) {
+        const trailLen = star.progress * 0.5; // trail is half the traveled distance
+        const trailStart = star.progress - trailLen;
+        const startEased = 1 - Math.pow(1 - trailStart, 2);
+        const startMidi = MIDI_LO + (star.startMidi - MIDI_LO) * (1 - startEased);
+        const startTraveled = star.startMidi - startMidi;
+        const startTwist = (startTraveled / 48) * Math.PI * 2;
+        const startRotation = this.keyRotation + startTwist;
+        const startPos = spiralPos(startMidi, star.pitchClass, this.key, startRotation, cx, cy, maxR, this.spiralTightness);
+
+        const grad = ctx.createLinearGradient(startPos.x, startPos.y, pos.x, pos.y);
+        grad.addColorStop(0, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},0)`);
+        grad.addColorStop(1, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(shapeAlpha * 0.4).toFixed(3)})`);
+        ctx.beginPath();
+        ctx.moveTo(startPos.x, startPos.y);
+        ctx.lineTo(pos.x, pos.y);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
     }
 
     ctx.restore();
@@ -409,16 +495,38 @@ export class NoteStarEffect implements VisualEffect {
 
   getConfig(): EffectConfig[] {
     return [
-      { key: 'intensity', label: 'Intensity', type: 'range', value: this.intensity, min: 0.1, max: 2, step: 0.1 },
+      {
+        key: 'activeShapes',
+        label: 'Shapes',
+        type: 'multi-toggle',
+        value: Array.from(this.activeShapes).join(','),
+        options: ['ring', 'trails', 'spark', 'firefly'],
+      },
     ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {
-    return { intensity: 1.0 };
+    return { intensity: 1.0, setShapes: '' };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
     if (key === 'intensity') this.intensity = value as number;
     if (key === 'spiralTightness') this.spiralTightness = value as number;
+    if (key === 'activeShapes') {
+      // Toggle the shape on/off
+      const shape = value as string;
+      if (this.activeShapes.has(shape)) {
+        this.activeShapes.delete(shape);
+      } else {
+        this.activeShapes.add(shape);
+      }
+    }
+    if (key === 'setShapes') {
+      // Set shapes directly (comma-separated list)
+      this.activeShapes.clear();
+      const valueStr = typeof value === 'string' ? value : String(value ?? '');
+      const shapes = valueStr.split(',').filter(s => s);
+      for (const s of shapes) this.activeShapes.add(s);
+    }
   }
 }

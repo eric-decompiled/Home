@@ -46,6 +46,7 @@ export class BassWebEffect implements VisualEffect {
   private edgeDecay = 0.9992;    // ~5.8s half-life at 60fps
   private nodeDecay = 1.5;       // moderate node fade
   private intensity = 0.8;
+  private showNumerals = true;
 
   private diatonicOffsets: Set<number> = MAJOR_OFFSETS;
   private keyMode: 'major' | 'minor' = 'major';
@@ -271,7 +272,7 @@ export class BassWebEffect implements VisualEffect {
         ctx.fillRect(pos.x - glowR, pos.y - glowR, glowR * 2, glowR * 2);
       }
 
-      if (numeral) {
+      if (numeral && this.showNumerals) {
         const fontSize = Math.max(11, Math.round(Math.min(w, h) * 0.022 + node.brightness * 4));
         ctx.font = `bold ${fontSize}px serif`;
         ctx.textAlign = 'center';
@@ -306,18 +307,14 @@ export class BassWebEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [
-      { key: 'radius', label: 'Radius', type: 'range', value: this.radius, min: 0.15, max: 0.85, step: 0.05 },
-      { key: 'intensity', label: 'Intensity', type: 'range', value: this.intensity, min: 0.2, max: 2.0, step: 0.1 },
-    ];
+    return [];
   }
 
   getDefaults(): Record<string, number | string | boolean> {
-    return { radius: 0.85, intensity: 1.0 };
+    return { showNumerals: true };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
-    if (key === 'radius') this.radius = value as number;
-    if (key === 'intensity') this.intensity = value as number;
+    if (key === 'showNumerals') this.showNumerals = value as boolean;
   }
 }

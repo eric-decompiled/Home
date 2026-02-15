@@ -89,7 +89,6 @@ export class NoteSpiralEffect implements VisualEffect {
   private bpm = 120;
   private loudness = 0;  // smoothed audio loudness for brightness scaling
   private activeShapes: Set<string> = new Set(['firefly']);
-  private static readonly SHAPES = ['firefly', 'ring', 'spark', 'trails'];
 
   // Anticipation config - power law fit from empirical testing (R² = 0.87)
   // Tested on: FF Prelude (82 BPM), To Zanarkand (90 BPM), Don't Stop Believing (112 BPM), Sweet Child O' Mine (128 BPM)
@@ -1089,12 +1088,13 @@ export class NoteSpiralEffect implements VisualEffect {
 
   getConfig(): EffectConfig[] {
     return [
-      { key: 'activeShapes', label: 'Shapes', type: 'multi-toggle', value: Array.from(this.activeShapes).join(','), options: NoteSpiralEffect.SHAPES },
-      { key: 'spiralTightness', label: 'Tightness', type: 'range', value: this.spiralTightness, min: 0.5, max: 1.5, step: 0.05 },
-      { key: 'intensity', label: 'Intensity', type: 'range', value: this.intensity, min: 0.3, max: 2.0, step: 0.1 },
-      { key: 'trailMax', label: 'Trail Length', type: 'range', value: this.trailMax, min: 6, max: 24, step: 3 },
-      { key: 'darkBackdrop', label: 'Dark Backdrop', type: 'toggle', value: this.darkBackdrop },
-      { key: 'glowOutlines', label: 'Glow Outlines', type: 'toggle', value: this.glowOutlines },
+      {
+        key: 'activeShapes',
+        label: 'Shapes',
+        type: 'multi-toggle',
+        value: Array.from(this.activeShapes).join(','),
+        options: ['ring', 'trails', 'spark', 'firefly'],
+      },
     ];
   }
 
