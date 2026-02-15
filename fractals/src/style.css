@@ -1725,12 +1725,21 @@ body.ios-landscape-fullscreen canvas {
   z-index: 3000;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.25s;
+  transform: translateY(-100%);
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
 }
 
 .fractal-config-overlay.visible {
   opacity: 1;
   pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* Dismiss animation - slide down and fade out */
+.fractal-config-overlay.dismissing {
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.25s ease-in, transform 0.25s ease-in;
 }
 
 .fc-panel {
@@ -2042,6 +2051,30 @@ body.ios-landscape-fullscreen canvas {
   color: #888;
   font-size: 12px;
   line-height: 1.4;
+}
+
+/* Collapsible sections (mobile only) */
+.fc-section {
+  display: contents; /* Transparent wrapper on desktop */
+}
+
+.fc-section-toggle {
+  display: none; /* Hidden on desktop */
+}
+
+.fc-section-content {
+  display: contents; /* Transparent on desktop */
+}
+
+/* Content area - flex row on desktop */
+.fc-content-area {
+  display: flex;
+  gap: 16px;
+  padding: 12px 20px 20px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Degree × Quality Grid */
@@ -2738,14 +2771,7 @@ body.ios-landscape-fullscreen canvas {
   80% { transform: rotate(6deg); }
 }
 
-.fc-main {
-  display: flex;
-  gap: 16px;
-  padding: 12px 20px 20px;
-  overflow: auto;
-  flex: 1;
-  min-height: 0;
-}
+/* fc-main removed - replaced by fc-content-area */
 
 .fc-locus-wrap {
   flex: 1;
@@ -2837,6 +2863,50 @@ body.ios-landscape-fullscreen canvas {
   background: #252540;
   border-color: #16c79a;
   color: #16c79a;
+}
+
+/* Mobile modifier toggle */
+.fc-mobile-controls {
+  display: none; /* Hidden on desktop */
+}
+
+.fc-modifier-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: #1a1a2e;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  color: #888;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.fc-modifier-btn:active {
+  transform: scale(0.95);
+}
+
+.fc-modifier-btn.active {
+  background: #16c79a;
+  border-color: #16c79a;
+  color: #0a0a14;
+}
+
+.fc-modifier-btn.active .fc-modifier-icon {
+  color: #0a0a14;
+}
+
+.fc-modifier-icon {
+  font-size: 14px;
+  color: #16c79a;
+}
+
+.fc-modifier-label {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* Controls Modal */
@@ -3100,32 +3170,94 @@ body.ios-landscape-fullscreen canvas {
 
 /* Responsive */
 @media (max-width: 900px) {
-  .fc-main {
+  .fc-content-area {
     flex-direction: column;
+    padding-bottom: 60px; /* Extra room at bottom for scroll */
+  }
+
+  .fc-locus-wrap {
+    min-height: unset;
+    flex: none;
   }
 
   .fc-locus-wrap canvas {
     max-width: 100%;
     width: 100%;
     height: auto;
+    aspect-ratio: 1;
   }
 
   .fc-preview-wrap {
     min-width: unset;
+    width: 100%;
+  }
+
+  .fc-preview-wrap canvas {
+    max-width: 200px;
+    width: 100%;
+    height: auto;
+  }
+
+  .fc-family-bar {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .fc-family-btn {
+    padding: 4px 8px;
+    font-size: 11px;
   }
 }
 
 @media (max-width: 600px) {
-  .fc-toolbar {
-    gap: 8px;
+  .fractal-config-overlay {
+    top: 0; /* Full screen on mobile */
   }
 
-  .fc-grid-row {
-    flex-wrap: wrap;
+  .fc-header {
+    padding: 12px 16px;
+  }
+
+  .fc-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .fc-description {
+    display: none; /* Hide help text on mobile */
+  }
+
+  .fc-toolbar-divider {
+    display: none;
+  }
+
+  .fc-content-area {
+    flex-direction: column;
+    padding: 0;
+    gap: 0;
+  }
+
+  .fc-locus-wrap canvas {
+    max-height: 50vh; /* Don't let locus dominate */
   }
 
   .fc-degree-grid {
     padding: 6px 8px;
+    max-height: 40vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .fc-grid-row {
+    flex-wrap: wrap;
+    flex-direction: column;
+  }
+
+  .fc-degree-block {
+    width: 100%;
+    flex-shrink: 0;
   }
 
   .fc-grid-degree {
@@ -3141,6 +3273,98 @@ body.ios-landscape-fullscreen canvas {
   .fc-actions {
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .fc-family-bar {
+    padding: 8px 12px;
+  }
+
+  .fc-family-btn {
+    padding: 4px 6px;
+    font-size: 10px;
+  }
+
+  .fc-presets-bar {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+  }
+
+  .fc-map-controls {
+    transform: scale(0.85);
+    transform-origin: top right;
+  }
+
+  /* Show mobile modifier button */
+  .fc-mobile-controls {
+    display: flex;
+    justify-content: center;
+    margin-top: 8px;
+  }
+
+  /* Collapsible sections on mobile */
+  .fc-section {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .fc-section-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 12px;
+    background: #1a1a2e;
+    border: none;
+    border-bottom: 1px solid #0f3460;
+    color: #aaa;
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .fc-section-toggle:active {
+    background: #252540;
+  }
+
+  .fc-section-icon {
+    font-size: 10px;
+    color: #16c79a;
+    transition: transform 0.2s;
+  }
+
+  .fc-section-content {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .fc-section.collapsed .fc-section-content {
+    display: none;
+  }
+
+  .fc-section.collapsed .fc-section-icon {
+    transform: rotate(-90deg);
+  }
+
+  /* Section content padding */
+  .fc-section-content {
+    padding: 12px;
+  }
+
+  /* Hide duplicate preview header on mobile (section toggle shows it) */
+  .fc-preview-section .fc-preview-header > span:first-child {
+    display: none;
+  }
+
+  /* Locus and preview styling within sections */
+  .fc-locus-wrap {
+    min-height: unset;
+  }
+
+  .fc-preview-wrap {
+    width: 100%;
   }
 }
 

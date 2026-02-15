@@ -108,6 +108,15 @@
 - **Data attributes for reliable DOM queries**: Use `data-slot="Foreground"` on elements for clean `querySelector('.layer-slot[data-slot="Foreground"]')`. Avoids fragile `:has()` selectors with nested structure assumptions
 - **Sync UI state across component boundaries**: When selecting degree cards from different fractal families, update family selector buttons to match. Internal state changes must reflect in all related UI elements
 
+### Mobile UI
+- **Collapsible sections with toggle headers**: Use `display: contents` on desktop (transparent wrapper), `display: flex; flex-direction: column` on mobile. Arrow icon (▼/▶) rotates on collapse
+- **Long press for touch placement**: 400ms hold to place anchor. Cancel if finger moves >10px (allows scrolling). Use `navigator.vibrate(50)` for haptic feedback
+- **Modifier toggle button for mobile**: Replaces Ctrl/Cmd modifier. Tap to place instantly when ON, drag orbit for skew/spread. Styled as caps-lock style toggle
+- **Body overflow hidden for modal panels**: Set `document.body.style.overflow = 'hidden'` when panel opens, restore on close. Prevents background scrolling on mobile
+- **overflow-y: scroll for touch scrolling**: Use `scroll` not `auto` for reliable touch scroll. Add `-webkit-overflow-scrolling: touch` for iOS momentum
+- **Slide animations for panels**: Open slides down from above (`translateY(-100%)` → `translateY(0)`), dismiss slides down slightly (`translateY(30px)`) with fade. Use `dismissing` class with setTimeout to complete animation before removing `visible`
+- **Separate content area wrapper**: When splitting desktop side-by-side layout into mobile collapsible sections, wrap both in a flex container (`fc-content-area`) that handles the row/column switch
+
 ## What Doesn't Work
 
 ### Visual Design
@@ -154,3 +163,7 @@
 - **Conditional thumbnail rendering with dirty flag**: Checking `if (allThumbnailsDirty)` before rendering skips thumbnails when flag is false, leaving stale/empty canvases. The cache already handles efficiency—just always call the render function
 - **Loading localStorage state for "Default" preset**: `loadAnchors()` reads from localStorage (current saved state). Users clicking Default expect built-in defaults, not whatever was last saved
 - **"Remove" option in select dropdown**: Adding `<option value="__remove__">` to song picker didn't trigger change events reliably. Use a separate delete button beside the picker instead
+
+### Mobile UI
+- **touch-action on scroll containers**: Setting `touch-action: pan-y` on overlay or scroll container can interfere with native scrolling. Let the browser handle it naturally with `overflow-y: scroll`
+- **overflow: auto for touch scroll**: `auto` is less reliable than `scroll` for touch devices. Use `overflow-y: scroll` explicitly

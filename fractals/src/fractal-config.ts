@@ -841,6 +841,15 @@ export class FractalConfigPanel {
   private showAtlasGrid = false;
   private dragDebounceTimer: number | null = null;
 
+  // Touch/long-press state for mobile anchor placement
+  private touchStartPos: { x: number; y: number } | null = null;
+  private longPressTimer: number | null = null;
+  private static readonly LONG_PRESS_DURATION = 400; // ms
+  private static readonly TOUCH_MOVE_THRESHOLD = 10; // px
+
+  // Mobile modifier toggle (acts like Ctrl/Cmd on desktop)
+  private modifierActive = false;
+
   // Thumbnail cache - key is "deg:familyIdx:real:imag" rounded to 3 decimals
   private thumbnailCache: Map<string, ImageData> = new Map();
   private static readonly THUMB_SIZE = 94;
@@ -1526,53 +1535,81 @@ export class FractalConfigPanel {
           <button class="fc-btn fc-info-btn" title="Family information">ℹ️</button>
         </div>
 
-        <div class="fc-degree-grid">
-          ${gridRows}
+        <div class="fc-section fc-degree-section">
+          <button class="fc-section-toggle" data-section="degrees">
+            <span class="fc-section-icon">▼</span>
+            <span>Degrees</span>
+          </button>
+          <div class="fc-section-content fc-degree-grid">
+            ${gridRows}
+          </div>
         </div>
 
-        <div class="fc-main">
-          <div class="fc-locus-wrap">
-            <canvas id="fc-locus-canvas" width="${PANEL_SIZE}" height="${PANEL_SIZE}"></canvas>
-            <div class="fc-map-controls">
-              <div class="fc-map-row">
-                <button class="fc-help-btn" title="Show controls">?</button>
-                <button class="fc-map-btn" data-action="pan-up" title="Pan up">↑</button>
-                <button class="fc-map-btn" data-action="zoom-in" title="Zoom in">+</button>
-              </div>
-              <div class="fc-map-row">
-                <button class="fc-map-btn" data-action="pan-left" title="Pan left">←</button>
-                <button class="fc-map-btn" data-action="reset-view" title="Reset view">⟲</button>
-                <button class="fc-map-btn" data-action="pan-right" title="Pan right">→</button>
-              </div>
-              <div class="fc-map-row">
-                <button class="fc-map-btn fc-map-empty"></button>
-                <button class="fc-map-btn" data-action="pan-down" title="Pan down">↓</button>
-                <button class="fc-map-btn" data-action="zoom-out" title="Zoom out">−</button>
+        <div class="fc-content-area">
+          <div class="fc-section fc-map-section">
+            <button class="fc-section-toggle" data-section="map">
+              <span class="fc-section-icon">▼</span>
+              <span>Map</span>
+            </button>
+            <div class="fc-section-content">
+              <div class="fc-locus-wrap">
+                <canvas id="fc-locus-canvas" width="${PANEL_SIZE}" height="${PANEL_SIZE}"></canvas>
+                <div class="fc-map-controls">
+                  <div class="fc-map-row">
+                    <button class="fc-help-btn" title="Show controls">?</button>
+                    <button class="fc-map-btn" data-action="pan-up" title="Pan up">↑</button>
+                    <button class="fc-map-btn" data-action="zoom-in" title="Zoom in">+</button>
+                  </div>
+                  <div class="fc-map-row">
+                    <button class="fc-map-btn" data-action="pan-left" title="Pan left">←</button>
+                    <button class="fc-map-btn" data-action="reset-view" title="Reset view">⟲</button>
+                    <button class="fc-map-btn" data-action="pan-right" title="Pan right">→</button>
+                  </div>
+                  <div class="fc-map-row">
+                    <button class="fc-map-btn fc-map-empty"></button>
+                    <button class="fc-map-btn" data-action="pan-down" title="Pan down">↓</button>
+                    <button class="fc-map-btn" data-action="zoom-out" title="Zoom out">−</button>
+                  </div>
+                </div>
+                <div class="fc-mobile-controls">
+                  <button class="fc-modifier-btn" title="Toggle modifier (tap to place, drag to adjust skew)">
+                    <span class="fc-modifier-icon">⌘</span>
+                    <span class="fc-modifier-label">Mod</span>
+                  </button>
+                </div>
+                <div class="fc-locus-status" id="fc-status">Tap anchor to select</div>
               </div>
             </div>
-            <div class="fc-locus-status" id="fc-status">Click to place anchor</div>
           </div>
 
-          <div class="fc-preview-wrap">
-            <div class="fc-preview-header">
+          <div class="fc-section fc-preview-section">
+            <button class="fc-section-toggle" data-section="preview">
+              <span class="fc-section-icon">▼</span>
               <span>Preview</span>
-              <div class="fc-bpm-control">
-                <span class="fc-bpm-label">BPM</span>
-                <button class="fc-bpm-btn fc-bpm-down">▼</button>
-                <input type="number" id="fc-bpm" value="120" min="30" max="300" step="5">
-                <button class="fc-bpm-btn fc-bpm-up">▲</button>
+            </button>
+            <div class="fc-section-content">
+              <div class="fc-preview-wrap">
+                <div class="fc-preview-header">
+                  <span>Preview</span>
+                  <div class="fc-bpm-control">
+                    <span class="fc-bpm-label">BPM</span>
+                    <button class="fc-bpm-btn fc-bpm-down">▼</button>
+                    <input type="number" id="fc-bpm" value="120" min="30" max="300" step="5">
+                    <button class="fc-bpm-btn fc-bpm-up">▲</button>
+                  </div>
+                </div>
+                <canvas id="fc-julia-canvas" width="${JULIA_SIZE}" height="${JULIA_SIZE}"></canvas>
+                <div class="fc-julia-info" id="fc-julia-info">Select an anchor to preview</div>
+                <div class="fc-preview-range">
+                  <span>⏸</span>
+                  <input type="range" id="fc-preview-scale" min="0" max="200" value="100" title="Preview movement range">
+                  <span>🔄</span>
+                </div>
+                <div class="fc-palette-bar">${paletteButtons}</div>
+
+                <div class="fc-assignments" id="fc-assignments"></div>
               </div>
             </div>
-            <canvas id="fc-julia-canvas" width="${JULIA_SIZE}" height="${JULIA_SIZE}"></canvas>
-            <div class="fc-julia-info" id="fc-julia-info">Select an anchor to preview</div>
-            <div class="fc-preview-range">
-              <span>⏸</span>
-              <input type="range" id="fc-preview-scale" min="0" max="200" value="100" title="Preview movement range">
-              <span>🔄</span>
-            </div>
-            <div class="fc-palette-bar">${paletteButtons}</div>
-
-            <div class="fc-assignments" id="fc-assignments"></div>
           </div>
         </div>
 
@@ -1664,6 +1701,20 @@ export class FractalConfigPanel {
   private setupEventHandlers(): void {
     // Close button
     this.container.querySelector('.fc-close-btn')!.addEventListener('click', () => this.hide());
+
+    // Section toggles (mobile collapsible sections)
+    this.container.querySelectorAll('.fc-section-toggle').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const section = (btn as HTMLElement).closest('.fc-section');
+        if (section) {
+          section.classList.toggle('collapsed');
+          const icon = btn.querySelector('.fc-section-icon');
+          if (icon) {
+            icon.textContent = section.classList.contains('collapsed') ? '▶' : '▼';
+          }
+        }
+      });
+    });
 
     // Family buttons
     const familyBtns = this.container.querySelectorAll('.fc-family-btn');
@@ -1890,6 +1941,21 @@ export class FractalConfigPanel {
         btn.classList.add('active');
       });
     });
+
+    // Mobile modifier toggle button
+    const modifierBtn = this.container.querySelector('.fc-modifier-btn');
+    if (modifierBtn) {
+      modifierBtn.addEventListener('click', () => {
+        this.modifierActive = !this.modifierActive;
+        modifierBtn.classList.toggle('active', this.modifierActive);
+        const status = this.container.querySelector('#fc-status')!;
+        if (this.modifierActive) {
+          status.textContent = 'Mod ON: Tap to place, drag orbit for skew/spread';
+        } else {
+          status.textContent = 'Hold to place anchor';
+        }
+      });
+    }
 
     // Locus canvas interactions
     this.setupLocusInteractions();
@@ -2225,6 +2291,239 @@ export class FractalConfigPanel {
       const status = this.container.querySelector('#fc-status')!;
       status.textContent = `${FAMILIES[this.selectedFamily].label} | c = ${c.r.toFixed(4)} + ${c.i.toFixed(4)}i | ${modKey}+click=place`;
     });
+
+    // Touch support for mobile - long press to place anchor
+    const getTouchPos = (touch: Touch) => {
+      const rect = canvas.getBoundingClientRect();
+      const containerAspect = rect.width / rect.height;
+      const canvasAspect = 1;
+
+      let renderWidth: number, renderHeight: number, offsetX: number, offsetY: number;
+      if (containerAspect > canvasAspect) {
+        renderHeight = rect.height;
+        renderWidth = rect.height * canvasAspect;
+        offsetX = (rect.width - renderWidth) / 2;
+        offsetY = 0;
+      } else {
+        renderWidth = rect.width;
+        renderHeight = rect.width / canvasAspect;
+        offsetX = 0;
+        offsetY = (rect.height - renderHeight) / 2;
+      }
+
+      return {
+        x: (touch.clientX - rect.left - offsetX) * PANEL_SIZE / renderWidth,
+        y: (touch.clientY - rect.top - offsetY) * PANEL_SIZE / renderHeight,
+      };
+    };
+
+    const cancelLongPress = () => {
+      if (this.longPressTimer !== null) {
+        clearTimeout(this.longPressTimer);
+        this.longPressTimer = null;
+      }
+      this.touchStartPos = null;
+    };
+
+    canvas.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) {
+        cancelLongPress();
+        return;
+      }
+
+      const touch = e.touches[0];
+      const pos = getTouchPos(touch);
+      const hit = hitTest(pos.x, pos.y);
+
+      this.touchStartPos = { x: touch.clientX, y: touch.clientY };
+
+      // If touching an existing anchor/orbit, handle like mouse
+      if (hit.type === 'orbit' || hit.type === 'center') {
+        cancelLongPress();
+        // Trigger the existing drag logic
+        this.dragStartMx = touch.clientX;
+        this.dragStartMy = touch.clientY;
+        this.isDragging = false;
+
+        if (hit.type === 'orbit') {
+          if (hit.quality !== this.selectedQuality) {
+            this.selectDegreeQuality(hit.deg, hit.quality);
+          }
+          this.dragMode = 'orbit';
+          this.dragDeg = hit.deg;
+          const key = this.anchorKey(hit.deg, hit.quality);
+          const a = this.anchors.get(key)!;
+          const beatAngle = hit.orbitIdx * a.beatSpread;
+          const isBackbeat = (hit.orbitIdx === 1 || hit.orbitIdx === 3);
+          const r = isBackbeat ? a.orbitRadius * a.orbitSkew : a.orbitRadius;
+          const px = r * Math.cos(beatAngle);
+          const py = r * Math.sin(beatAngle);
+          const cosR = Math.cos(a.orbitRotation);
+          const sinR = Math.sin(a.orbitRotation);
+          this.dragStartData = {
+            origRadius: a.orbitRadius,
+            origRotation: a.orbitRotation,
+            origSkew: a.orbitSkew,
+            origSpread: a.beatSpread,
+            beatAngle,
+            startOffsetR: px * cosR - py * sinR,
+            startOffsetI: px * sinR + py * cosR
+          };
+          this.isDragging = true;
+        } else {
+          if (hit.quality !== this.selectedQuality) {
+            this.selectDegreeQuality(hit.deg, hit.quality);
+          }
+          this.dragMode = 'center';
+          this.dragDeg = hit.deg;
+          const key = this.anchorKey(hit.deg, hit.quality);
+          const a = this.anchors.get(key)!;
+          this.dragStartData = { real: a.real, imag: a.imag };
+        }
+        return;
+      }
+
+      // Empty area handling
+      const status = this.container.querySelector('#fc-status')!;
+
+      // Helper to place anchor
+      const placeAnchor = () => {
+        if (navigator.vibrate) navigator.vibrate(50);
+        const c = this.pixelToC(pos.x, pos.y);
+        const existing = this.currentAnchor;
+
+        this.anchors.set(this.currentKey, {
+          familyIdx: this.selectedFamily,
+          real: c.r,
+          imag: c.i,
+          orbitRadius: existing?.orbitRadius ?? DEFAULT_ORBIT_RADIUS,
+          orbitSkew: existing?.orbitSkew ?? DEFAULT_ORBIT_SKEW,
+          orbitRotation: existing?.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
+          beatSpread: existing?.beatSpread ?? DEFAULT_BEAT_SPREAD,
+        });
+
+        status.textContent = `Anchor placed at c = ${c.r.toFixed(4)} + ${c.i.toFixed(4)}i`;
+        this.startPreview(this.anchors.get(this.currentKey)!);
+        this.drawOverlay();
+        this.updateAssignments();
+        this.touchStartPos = null;
+      };
+
+      if (this.modifierActive) {
+        // Modifier ON: instant placement
+        placeAnchor();
+      } else {
+        // Modifier OFF: long press to place
+        status.textContent = 'Hold to place anchor...';
+
+        this.longPressTimer = window.setTimeout(() => {
+          this.longPressTimer = null;
+          if (!this.touchStartPos) return;
+          placeAnchor();
+        }, FractalConfigPanel.LONG_PRESS_DURATION);
+      }
+    }, { passive: true });
+
+    canvas.addEventListener('touchmove', (e) => {
+      // If dragging an anchor, handle movement
+      if (this.dragMode && e.touches.length === 1) {
+        const touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        const b = this.viewBounds[this.selectedFamily];
+        const dx = touch.clientX - this.dragStartMx;
+        const dy = touch.clientY - this.dragStartMy;
+
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) this.isDragging = true;
+        if (!this.isDragging) return;
+
+        const containerAspect = rect.width / rect.height;
+        let renderWidth: number, renderHeight: number;
+        if (containerAspect > 1) {
+          renderHeight = rect.height;
+          renderWidth = rect.height;
+        } else {
+          renderWidth = rect.width;
+          renderHeight = rect.width;
+        }
+
+        const cDx = dx * (b.rMax - b.rMin) / renderWidth;
+        const cDy = dy * (b.iMax - b.iMin) / renderHeight;
+
+        const dragKey = this.anchorKey(this.dragDeg, this.selectedQuality);
+        const dragAnchor = this.anchors.get(dragKey);
+
+        if (this.dragMode === 'orbit' && dragAnchor?.familyIdx === this.selectedFamily) {
+          const newOffsetR = this.dragStartData.startOffsetR + cDx;
+          const newOffsetI = this.dragStartData.startOffsetI + cDy;
+          const newRadius = Math.sqrt(newOffsetR * newOffsetR + newOffsetI * newOffsetI);
+
+          if (this.modifierActive) {
+            // Modifier ON: adjust skew (vertical) and spread (horizontal)
+            const skewSensitivity = 3.0;
+            const newSkew = this.dragStartData.origSkew + cDy * skewSensitivity;
+            dragAnchor.orbitSkew = Math.max(0.2, Math.min(2.0, newSkew));
+
+            const spreadSensitivity = 4.0;
+            const newSpread = this.dragStartData.origSpread + cDx * spreadSensitivity;
+            dragAnchor.beatSpread = Math.max(0.1, Math.min(2.0, newSpread));
+
+            dragAnchor.orbitRadius = Math.max(0.01, newRadius);
+          } else {
+            // Modifier OFF: adjust radius and rotation
+            const mouseAngle = Math.atan2(newOffsetI, newOffsetR);
+            const newRotation = mouseAngle - this.dragStartData.beatAngle;
+            dragAnchor.orbitRadius = Math.max(0.01, newRadius);
+            dragAnchor.orbitRotation = newRotation;
+          }
+          this.debouncedDraw();
+        } else if (this.dragMode === 'center' && dragAnchor?.familyIdx === this.selectedFamily) {
+          dragAnchor.real = this.dragStartData.real + cDx;
+          dragAnchor.imag = this.dragStartData.imag + cDy;
+          this.debouncedDraw();
+        }
+        return;
+      }
+
+      // Check if finger moved too far - cancel long press
+      if (this.touchStartPos && e.touches.length === 1) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - this.touchStartPos.x;
+        const dy = touch.clientY - this.touchStartPos.y;
+        if (Math.abs(dx) > FractalConfigPanel.TOUCH_MOVE_THRESHOLD ||
+            Math.abs(dy) > FractalConfigPanel.TOUCH_MOVE_THRESHOLD) {
+          cancelLongPress();
+          const status = this.container.querySelector('#fc-status')!;
+          status.textContent = 'Hold to place anchor';
+        }
+      }
+    }, { passive: true });
+
+    canvas.addEventListener('touchend', () => {
+      cancelLongPress();
+
+      if (this.dragMode === 'center' || this.dragMode === 'orbit') {
+        const key = this.anchorKey(this.dragDeg, this.selectedQuality);
+        const a = this.anchors.get(key);
+        if (a) this.startPreview(a);
+        this.syncOrbitSliders();
+        if (this.dragMode === 'center') {
+          this.debouncedThumbnailUpdate();
+        }
+      }
+
+      this.dragMode = null;
+      this.isDragging = false;
+      this.drawOverlay();
+
+      const status = this.container.querySelector('#fc-status')!;
+      status.textContent = 'Hold to place anchor';
+    }, { passive: true });
+
+    canvas.addEventListener('touchcancel', () => {
+      cancelLongPress();
+      this.dragMode = null;
+      this.isDragging = false;
+    }, { passive: true });
   }
 
   private cToPixel(r: number, i: number): { x: number; y: number } {
@@ -2297,7 +2596,8 @@ export class FractalConfigPanel {
       const status = this.container.querySelector('#fc-status')!;
       status.textContent = 'Copied to clipboard!';
       setTimeout(() => {
-        status.textContent = 'Click to place anchor | Shift+drag = axis snap';
+        const isTouchDevice = 'ontouchstart' in window;
+        status.textContent = isTouchDevice ? 'Hold to place anchor' : 'Ctrl+click to place anchor';
       }, 2000);
     }).catch(err => {
       console.error('Failed to copy:', err);
@@ -3049,6 +3349,8 @@ export class FractalConfigPanel {
   show(): void {
     this.visible = true;
     this.container.classList.add('visible');
+    // Prevent background scrolling on mobile
+    document.body.style.overflow = 'hidden';
     this.loadAnchors();
     this.renderLocus();
     this.drawOverlay();
@@ -3060,7 +3362,16 @@ export class FractalConfigPanel {
 
   hide(): void {
     this.visible = false;
-    this.container.classList.remove('visible');
+    // Trigger dismiss animation
+    this.container.classList.add('dismissing');
+
+    // Wait for animation to complete before removing visibility
+    setTimeout(() => {
+      this.container.classList.remove('visible', 'dismissing');
+    }, 250);
+
+    // Restore background scrolling
+    document.body.style.overflow = '';
     this.stopPreview();
   }
 
