@@ -1,4 +1,4 @@
-# Fractured Jukebox
+# The Fractured Jukebox
 
 A layered music visualization system that transforms MIDI files into synchronized visual experiences.
 

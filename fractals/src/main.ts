@@ -36,10 +36,8 @@ import {
   getPresetState,
   urlToState,
   stateToURL,
-  getAnchorPresets,
-  applyAnchorPreset,
 } from './state.ts';
-import { FractalConfigPanel } from './fractal-config.ts';
+import { FractalConfigPanel, loadUserPresets } from './fractal-config.ts';
 import { GRAConfigPanel } from './gra-config.ts';
 import { setCustomColor, clearCustomColors, getCustomColors, samplePaletteColor } from './effects/effect-utils.ts';
 
@@ -320,7 +318,7 @@ app.innerHTML = `
           <button class="mobile-preset-btn" id="mobile-bar-stars">Stars</button>
           <button class="mobile-preset-btn" id="mobile-bar-clock">Clock</button>
           <button class="mobile-preset-btn" id="mobile-bar-warp">Warp</button>
-          <button class="mobile-preset-btn mobile-preset-extra" id="mobile-bar-star-aurora">Aurora</button>
+          <button class="mobile-preset-btn mobile-preset-extra" id="mobile-bar-StarAurora">Aurora</button>
         </div>
         <div class="playlist-category-wrap desktop-only">
           <button class="toggle-btn playlist-btn active" id="playlist-pop" title="Pop & rock">Classics</button>
@@ -386,8 +384,8 @@ app.innerHTML = `
         <div class="mobile-menu-label">Experimental</div>
         <div class="mobile-menu-buttons">
           <button class="toggle-btn preset-btn" id="mobile-preset-fractal">Fractal</button>
-          <button class="toggle-btn preset-btn" id="mobile-preset-star-aurora">Star-Aurora</button>
-          <button class="toggle-btn preset-btn" id="mobile-preset-kali-graph">Kali</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-StarAurora">StarAurora</button>
+          <button class="toggle-btn preset-btn" id="mobile-preset-KaliGraph">KaliGraph</button>
         </div>
       </div>
       <div class="mobile-menu-section">
@@ -422,8 +420,8 @@ app.innerHTML = `
             <div class="experimental-label">Experimental Presets</div>
             <div class="experimental-buttons">
               <button class="toggle-btn preset-btn" id="preset-fractal" title="Flow Field + Fractal + Theory Bar">Fractal</button>
-              <button class="toggle-btn preset-btn" id="preset-star-aurora" title="Stars + Aurora + Kaleidoscope">Star-Aurora</button>
-              <button class="toggle-btn preset-btn" id="preset-kali-graph" title="Graph Chain + Kaleidoscope">Kali-Graph</button>
+              <button class="toggle-btn preset-btn" id="preset-StarAurora" title="Stars + Aurora + Kaleidoscope">StarAurora</button>
+              <button class="toggle-btn preset-btn" id="preset-KaliGraph" title="Graph Chain + Kaleidoscope">KaliGraph</button>
             </div>
           </div>
         </div>
@@ -436,7 +434,7 @@ app.innerHTML = `
               <button class="toggle-btn quality-btn active" id="quality-high" title="100% resolution - sharpest">Sharp</button>
             </div>
           </div>
-          <button class="copy-link-btn" id="copy-link-btn" title="Copy shareable link to clipboard">Copy Link</button>
+          <button class="copy-link-btn" id="copy-link-btn" title="Copy a link with your current preset, layers, and effect settings">Copy Settings Link</button>
         </div>
       </div>
       <div class="canvas-wrap">
@@ -546,7 +544,8 @@ playOverlay.addEventListener('click', async () => {
 });
 
 // Helper to toggle theory bar and sync with layer panel
-function toggleTheoryBar(): void {
+let theoryBarHintShown = false;
+function toggleTheoryBar(fromGesture = false): void {
   const layer = compositor.getLayer('theory-bar');
   if (!layer) return;
 
@@ -561,17 +560,17 @@ function toggleTheoryBar(): void {
   if (willShow) {
     compositor.setEnabled('theory-bar', true);
     theoryBarEffect.animateIn();
-
-    // Show hint toast on first open
-    if (!localStorage.getItem('theoryBarHintShown')) {
-      localStorage.setItem('theoryBarHintShown', '1');
-      const gesture = 'ontouchstart' in window ? 'Triple-tap' : 'Triple-click';
-      showToast(`${gesture} to toggle theory bar`, 4000, 'info');
-    }
   } else {
     theoryBarEffect.animateOut(() => {
       compositor.setEnabled('theory-bar', false);
     });
+  }
+
+  // Show info toast once per session on first gesture toggle
+  if (fromGesture && !theoryBarHintShown) {
+    theoryBarHintShown = true;
+    const gesture = 'ontouchstart' in window ? 'Triple-tap' : 'Triple-click';
+    showToast(`${gesture} to toggle theory bar`, 3000, 'info');
   }
 
   dirty = true;
@@ -589,7 +588,7 @@ canvas.addEventListener('touchend', (e) => {
   if (tapTimeout) clearTimeout(tapTimeout);
   tapTimeout = window.setTimeout(() => {
     if (tapCount >= 3) {
-      toggleTheoryBar();
+      toggleTheoryBar(true);
     }
     tapCount = 0;
   }, 500);
@@ -606,7 +605,7 @@ canvas.addEventListener('click', () => {
   if (clickTimeout) clearTimeout(clickTimeout);
   clickTimeout = window.setTimeout(() => {
     if (clickCount >= 3) {
-      toggleTheoryBar();
+      toggleTheoryBar(true);
     }
     clickCount = 0;
   }, 400);
@@ -1019,6 +1018,7 @@ const fractalConfigPanel = new FractalConfigPanel();
 // Refresh visuals when fractal config is saved
 fractalConfigPanel.onSave = () => {
   dirty = true;
+  musicMapper.reloadAnchors();
 };
 
 // --- GRA Config Panel (for graph-chain effect) ---
@@ -1204,9 +1204,35 @@ function buildLayerPanel(): void {
   layerList.innerHTML = '';
 
   for (const slot of layerSlots) {
+    // HUD slot is rendered as a simple toggle instead of radio buttons
+    if (slot.name === 'HUD') {
+      const toggleDiv = document.createElement('div');
+      toggleDiv.className = 'layer-slot slot-display-toggle';
+      const toggleLabel = document.createElement('label');
+      toggleLabel.className = 'display-toggle';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = slot.activeId === 'theory-bar';
+      checkbox.addEventListener('change', () => {
+        slot.activeId = checkbox.checked ? 'theory-bar' : null;
+        toggleTheoryBar();
+        dirty = true;
+        markUnsavedChanges();
+      });
+      toggleLabel.appendChild(checkbox);
+      const toggleSwitch = document.createElement('span');
+      toggleSwitch.className = 'toggle-switch';
+      toggleLabel.appendChild(toggleSwitch);
+      toggleLabel.appendChild(document.createTextNode('Show Theory Bar'));
+      toggleDiv.appendChild(toggleLabel);
+      layerList.appendChild(toggleDiv);
+      continue;
+    }
+
     // Slot header
     const slotDiv = document.createElement('div');
     slotDiv.className = 'layer-slot';
+    slotDiv.dataset.slot = slot.name;
 
     const header = document.createElement('div');
     header.className = 'slot-header';
@@ -1236,7 +1262,6 @@ function buildLayerPanel(): void {
     for (const effect of slot.effects) {
       const effLabel = document.createElement('label');
       effLabel.className = 'slot-radio' + (effect.id === slot.activeId ? ' active' : '');
-      if (effect.id === 'fractal') effLabel.style.display = 'none';
       const effInput = document.createElement('input');
       effInput.type = 'radio';
       effInput.name = `slot-${slotId}`;
@@ -1370,39 +1395,47 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
   const configDiv = document.createElement('div');
   configDiv.className = 'slot-config';
 
-  // Special handling for fractal presets - show quick buttons
+  // Add fractal preset selector if fractal effect and user presets exist
   if (slot.activeId === 'fractal') {
-    const presetBtns = document.createElement('div');
-    presetBtns.className = 'fractal-preset-buttons';
+    const userPresets = loadUserPresets();
+    if (userPresets.length > 0) {
+      const presetRow = document.createElement('div');
+      presetRow.className = 'config-row fractal-preset-row';
 
-    const presets = [
-      { id: 'beat-voyage', name: 'Beat Voyage' },
-      { id: 'celtic-knots', name: 'Celtic Knots' },
-      { id: 'phoenix-journey', name: 'Phoenix Journey' },
-    ];
+      const presetBtnWrap = document.createElement('div');
+      presetBtnWrap.className = 'config-buttons fractal-preset-buttons';
 
-    for (const preset of presets) {
-      const btn = document.createElement('button');
-      btn.className = 'fractal-preset-btn';
-      btn.textContent = preset.name;
-      btn.addEventListener('click', () => {
-        const allPresets = getAnchorPresets();
-        const found = allPresets.find(p => p.id === preset.id);
-        if (found) {
-          applyAnchorPreset(found);
-          musicMapper.reloadAnchors();
-        }
+      // Default button
+      const defaultBtn = document.createElement('button');
+      defaultBtn.className = 'config-btn fractal-preset-default' + (fractalConfigPanel.getSelectedPresetId() === null ? ' active' : '');
+      defaultBtn.textContent = 'Default';
+      defaultBtn.addEventListener('click', () => {
+        fractalConfigPanel.selectPreset(null);
+        presetBtnWrap.querySelectorAll('.config-btn').forEach(b => b.classList.remove('active'));
+        defaultBtn.classList.add('active');
       });
-      presetBtns.appendChild(btn);
-    }
+      presetBtnWrap.appendChild(defaultBtn);
 
-    configDiv.appendChild(presetBtns);
-    container.appendChild(configDiv);
-    return;
+      // User preset buttons
+      for (const preset of userPresets) {
+        const btn = document.createElement('button');
+        btn.className = 'config-btn fractal-preset-user' + (fractalConfigPanel.getSelectedPresetId() === preset.id ? ' active' : '');
+        btn.textContent = preset.name;
+        btn.addEventListener('click', () => {
+          fractalConfigPanel.selectPreset(preset.id);
+          presetBtnWrap.querySelectorAll('.config-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        });
+        presetBtnWrap.appendChild(btn);
+      }
+
+      presetRow.appendChild(presetBtnWrap);
+      configDiv.appendChild(presetRow);
+    }
   }
 
   const configs = effect.getConfig();
-  if (configs.length === 0) return;
+  if (configs.length === 0 && configDiv.children.length === 0) return;
 
   for (const cfg of configs) {
     // Hidden configs are for URL params only, not rendered in UI
@@ -1506,17 +1539,28 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
 buildLayerPanel();
 buildColorsGrid();
 
+// Rebuild fractal preset buttons in layer panel when presets change
+fractalConfigPanel.onPresetsChange = () => {
+  const foregroundSlot = layerSlots.find(s => s.name === 'Foreground');
+  if (foregroundSlot && foregroundSlot.activeId === 'fractal') {
+    const slotDiv = layerPanel.querySelector('.layer-slot[data-slot="Foreground"]') as HTMLDivElement;
+    if (slotDiv) {
+      buildConfigSection(slotDiv, foregroundSlot);
+    }
+  }
+};
+
 // --- Preset buttons ---
 
-type PresetName = 'stars' | 'warp' | 'clock' | 'fractal' | 'piano' | 'star-aurora' | 'kali-graph';
+type PresetName = 'stars' | 'warp' | 'clock' | 'fractal' | 'piano' | 'StarAurora' | 'KaliGraph';
 const presetButtons: Record<PresetName, HTMLButtonElement> = {
   stars: document.getElementById('preset-stars') as HTMLButtonElement,
   warp: document.getElementById('preset-warp') as HTMLButtonElement,
   clock: document.getElementById('preset-clock') as HTMLButtonElement,
   fractal: document.getElementById('preset-fractal') as HTMLButtonElement,
   piano: document.getElementById('preset-piano') as HTMLButtonElement,
-  'star-aurora': document.getElementById('preset-star-aurora') as HTMLButtonElement,
-  'kali-graph': document.getElementById('preset-kali-graph') as HTMLButtonElement,
+  StarAurora: document.getElementById('preset-StarAurora') as HTMLButtonElement,
+  KaliGraph: document.getElementById('preset-KaliGraph') as HTMLButtonElement,
 };
 
 // Initial preset sync happens after all button refs are defined (see below)
@@ -1571,8 +1615,8 @@ const mobilePresetButtons: Partial<Record<PresetName, HTMLButtonElement>> = {
   clock: document.getElementById('mobile-preset-clock') as HTMLButtonElement,
   fractal: document.getElementById('mobile-preset-fractal') as HTMLButtonElement,
   piano: document.getElementById('mobile-preset-piano') as HTMLButtonElement,
-  'star-aurora': document.getElementById('mobile-preset-star-aurora') as HTMLButtonElement,
-  'kali-graph': document.getElementById('mobile-preset-kali-graph') as HTMLButtonElement,
+  StarAurora: document.getElementById('mobile-preset-StarAurora') as HTMLButtonElement,
+  KaliGraph: document.getElementById('mobile-preset-KaliGraph') as HTMLButtonElement,
 };
 
 for (const [name, btn] of Object.entries(mobilePresetButtons)) {
@@ -1588,7 +1632,7 @@ const mobileBarPresets: Record<string, HTMLButtonElement> = {
   stars: document.getElementById('mobile-bar-stars') as HTMLButtonElement,
   warp: document.getElementById('mobile-bar-warp') as HTMLButtonElement,
   clock: document.getElementById('mobile-bar-clock') as HTMLButtonElement,
-  'star-aurora': document.getElementById('mobile-bar-star-aurora') as HTMLButtonElement,
+  StarAurora: document.getElementById('mobile-bar-StarAurora') as HTMLButtonElement,
 };
 
 for (const [name, btn] of Object.entries(mobileBarPresets)) {

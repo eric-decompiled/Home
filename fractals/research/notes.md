@@ -1,6 +1,6 @@
 # Music Visualization Research Notes
 
-Research synthesis for improving Fractured Jukebox visualizer design.
+Research synthesis for improving The Fractured Jukebox visualizer design.
 
 ## Research Areas
 
@@ -22,7 +22,7 @@ Research synthesis for improving Fractured Jukebox visualizer design.
 - PMC: Extended Research on Crossmodal Correspondence (color/sound)
 - Musical Scales and Brightness Evaluations (Collier & Hubbard, 2004)
 
-**Implications for Fractured Jukebox:**
+**Implications for The Fractured Jukebox:**
 - Already using pitch→vertical (note spiral) - validated
 - Could map loudness→brightness more explicitly in domain warp
 - Major/minor affecting palette saturation - already doing this with `modeDim`
@@ -49,7 +49,7 @@ Research synthesis for improving Fractured Jukebox visualizer design.
 - [PMC: Computational Model of Tonal Tension Profiles](https://pmc.ncbi.nlm.nih.gov/articles/PMC7712964/)
 - [Columbia: Visualization of Tonal Pitch Space](https://www.ee.columbia.edu/~dpwe/papers/BurgS05-pitchspace.pdf) (downloaded)
 
-**Implications for Fractured Jukebox:**
+**Implications for The Fractured Jukebox:**
 - Already computing tension from degree + quality - this is valid approach
 - Could add voice leading smoothness to tension calculation
 - Pitch space distance could modulate transition speed (closer = faster)
@@ -76,7 +76,7 @@ Research synthesis for improving Fractured Jukebox visualizer design.
 **Key resource:**
 - Huron, "Sweet Anticipation" (MIT Press) - [Free on Internet Archive](https://archive.org/details/sweetanticipatio0000huro)
 
-**Implications for Fractured Jukebox:**
+**Implications for The Fractured Jukebox:**
 - Syncopation detection could trigger visual "surprise" responses
 - Deceptive cadences could have special visual treatment
 - Build-up sections could accumulate visual energy for release
@@ -106,7 +106,7 @@ Billy Joel, Billie Eilish, Lorde, Itzhak Perlman
 - [PMC: Synesthesia and Music Perception](https://pmc.ncbi.nlm.nih.gov/articles/PMC5618987/)
 - [Wikipedia: Chromesthesia](https://en.wikipedia.org/wiki/Chromesthesia)
 
-**Implications for Fractured Jukebox:**
+**Implications for The Fractured Jukebox:**
 - Our chromatic palette approach (pitch class → hue) is one valid approach
 - But actual synesthetes have personal mappings - no "correct" universal mapping
 - Timbre-based coloring could be interesting (different instruments = different hues)
@@ -134,7 +134,7 @@ Billy Joel, Billie Eilish, Lorde, Itzhak Perlman
 - [Interactive Tonnetz - Girl in Blue Music](https://girlinbluemusic.com/interactive-tonnetz/)
 - [Wikipedia: Tonnetz](https://en.wikipedia.org/wiki/Tonnetz)
 
-**Implications for Fractured Jukebox:**
+**Implications for The Fractured Jukebox:**
 - Could visualize chord progressions on Tonnetz overlay
 - Smooth visual transitions for P/L/R transformations
 - Detect "smooth" vs "distant" progressions for different visual treatments
@@ -161,7 +161,7 @@ Billy Joel, Billie Eilish, Lorde, Itzhak Perlman
 - [PMC: Toward a Neural Basis of Music Perception](https://pmc.ncbi.nlm.nih.gov/articles/PMC3114071/)
 - [ScienceDirect: Review of research on musical groove](https://www.sciencedirect.com/science/article/pii/S0149763423004918)
 
-**Implications for Fractured Jukebox:**
+**Implications for The Fractured Jukebox:**
 - Beat-grid alignment is essential (already doing this)
 - Human timing variance could be detected and visualized
 - Moderate syncopation = good; extreme = less groovy
@@ -189,7 +189,7 @@ Billy Joel, Billie Eilish, Lorde, Itzhak Perlman
 - [Center for Visual Music: Fischinger Bio](https://www.centerforvisualmusic.org/Fischinger/OFBio.htm)
 - [ACMI: The Art of Visual Music](https://www.acmi.net.au/education/school-program-and-resources/the-art-of-visual-music/)
 
-**Implications for Fractured Jukebox:**
+**Implications for The Fractured Jukebox:**
 - Study Fischinger's films for visual vocabulary
 - Counterpoint visualization (multiple melodic lines) underexplored
 - Frame-by-frame color variation for luminosity
@@ -261,7 +261,7 @@ Located in `research/raw-docs/`:
 
 ---
 
-## Research Questions for Fractured Jukebox
+## Research Questions for The Fractured Jukebox
 
 ### Immediate (actionable now)
 1. **Voice leading smoothness** - Can we detect smooth vs. distant progressions?

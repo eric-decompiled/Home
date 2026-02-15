@@ -97,6 +97,11 @@
 - **Temperature slider for reroll variation**: Low temp = refine nearby, high temp = explore widely
 - **Algebraic form for Newton fractals**: Pure algebraic complex division is much faster than sqrt/atan2/cos/sin
 - **Atlas grid toggle**: 8x8 Julia set thumbnails help visualize parameter space
+- **Always render thumbnails using cache**: Instead of conditional rendering with dirty flag, always call `getOrRenderThumbnail()` which checks cache first. Dirty flag pattern skipped rendering when flag wasn't set, leaving stale/empty thumbnails
+- **Separate "default" from "stored" anchors**: When user clicks Default preset, load from `PRESET_ANCHORS` (built-in defaults), not from localStorage (current saved state). Need distinct `loadDefaultAnchors()` vs `loadAnchors()` methods
+- **Cross-component callbacks must propagate fully**: When fractal config saves, call `musicMapper.reloadAnchors()` not just `dirty = true`. The fractal engine reads from localStorage but doesn't know when it changes—must explicitly notify
+- **Data attributes for reliable DOM queries**: Use `data-slot="Foreground"` on elements for clean `querySelector('.layer-slot[data-slot="Foreground"]')`. Avoids fragile `:has()` selectors with nested structure assumptions
+- **Sync UI state across component boundaries**: When selecting degree cards from different fractal families, update family selector buttons to match. Internal state changes must reflect in all related UI elements
 
 ## What Doesn't Work
 
@@ -139,3 +144,7 @@
 - **Segmented comet trails**: Splitting trail into sections (tail/mid/head) with different alpha/width multipliers adds complexity and draw calls without clear visual benefit over uniform trails
 - **Per-segment groove brightness modulation**: Recording groove samples as star travels and modulating each segment's brightness is complex and the visual effect wasn't impactful enough to justify overhead
 - **Segment-by-segment beam drawing**: Drawing line segments individually instead of one smooth path increases draw calls significantly. Use single-path quadratic curves instead
+
+### Config Tool
+- **Conditional thumbnail rendering with dirty flag**: Checking `if (allThumbnailsDirty)` before rendering skips thumbnails when flag is false, leaving stale/empty canvases. The cache already handles efficiency—just always call the render function
+- **Loading localStorage state for "Default" preset**: `loadAnchors()` reads from localStorage (current saved state). Users clicking Default expect built-in defaults, not whatever was last saved

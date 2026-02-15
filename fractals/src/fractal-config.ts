@@ -5,7 +5,31 @@
  * Each anchor defines a c-plane position and 4 orbit offsets for beat-synchronized motion.
  */
 
-import { loadFractalAnchors, saveFractalAnchors, BUILTIN_ANCHOR_PRESETS, applyAnchorPreset, type FractalAnchors, type FractalAnchor } from './state.ts';
+import { loadFractalAnchors, saveFractalAnchors, type FractalAnchors, type FractalAnchor } from './state.ts';
+
+// --- User Presets ---
+
+export interface UserPreset {
+  id: string;
+  name: string;
+  anchors: FractalAnchors;
+  createdAt: number;
+}
+
+const PRESETS_STORAGE_KEY = 'fractal-user-presets';
+
+export function loadUserPresets(): UserPreset[] {
+  try {
+    const stored = localStorage.getItem(PRESETS_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveUserPresets(presets: UserPreset[]): void {
+  localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
+}
 
 // --- Constants ---
 
@@ -144,7 +168,7 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     description: 'A creative fusion of Newton\'s method with Julia set iteration - adds a constant c after each Newton step. This creates parameterized Newton fractals where the c value controls basin shapes and interactions.',
     traits: ['Parameterized Newton', 'Three attractors', 'Complex basins', 'Rich color mixing', 'Flowing boundaries'],
     hotspots: ['c = 0.0 + 0.0i (pure Newton)', 'c = 1.0 + 0.0i (distorted basins)', 'c = 0.5 + 0.5i (swirling)'],
-    tips: 'Use the Clock button to distribute anchors around the unit circle for musical mapping. The three roots create natural triadic harmonies. Small c values give cleaner patterns.',
+    tips: 'The three roots create natural triadic harmonies - try placing anchors near each root. Small c values give cleaner patterns while larger values create more turbulent basins.',
     related: ['Newton-3', 'Phoenix', 'Magnet'],
   },
   'magnet': {
@@ -176,7 +200,7 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     category: 'Conditional/IFS',
     description: 'Michael Barnsley\'s conditional fractal uses different formulas based on the sign of the real part. Inspired by Iterated Function Systems (IFS), it creates fern-like, branching patterns similar to his famous Barnsley Fern.',
     traits: ['Conditional iteration', 'Fern-like patterns', 'Branching structures', 'Asymmetric growth', 'Leaf-like shapes'],
-    hotspots: ['c = 0.6 + 1.1i (fern)', 'c = -0.5 + 0.8i (branches)', 'c = 0.9 + 0.0i (linear)'],
+    hotspots: ['c = 0.38 + 0.62i (fern tips)', 'c = -0.15 + 0.78i (branches)', 'c = 0.52 + 0.25i (spirals)'],
     tips: 'The conditional nature creates natural-looking branching. Look for fern fronds and leaf structures. Best viewed with green/nature color palettes.',
     related: ['Barnsley-2', 'Barnsley-3', 'Celtic'],
   },
@@ -187,7 +211,7 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     category: 'Conditional/IFS',
     description: 'Barnsley\'s second variation changes the condition to depend on the product of z and c, creating different domain boundaries. Often produces more organic, flowing shapes than Barnsley-1.',
     traits: ['Complex conditions', 'Organic shapes', 'Interleaved domains', 'Natural forms', 'Smooth boundaries'],
-    hotspots: ['c = 0.4 + 0.9i (organic)', 'c = -0.6 + 0.6i (interleaved)', 'c = 1.0 + 0.5i (flowing)'],
+    hotspots: ['c = 0.28 + 0.54i (organic)', 'c = -0.42 + 0.38i (interleaved)', 'c = 0.65 + 0.32i (flowing)'],
     tips: 'The condition based on Im(z·c) creates more complex domain boundaries. Look for regions where the two formulas compete.',
     related: ['Barnsley-1', 'Barnsley-3', 'Phoenix'],
   },
@@ -198,7 +222,7 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     category: 'Conditional/IFS',
     description: 'The third Barnsley variant combines quadratic iteration with conditional c multiplication. Creates dense filament structures with multiple competing domains.',
     traits: ['Quadratic hybrid', 'Dense filaments', 'Multiple domains', 'Complex dynamics', 'Hairlike structures'],
-    hotspots: ['c = 0.5 + 0.5i (filaments)', 'c = -0.8 + 0.2i (dense)', 'c = 0.3 - 0.7i (domains)'],
+    hotspots: ['c = 0.22 + 0.35i (filaments)', 'c = -0.55 + 0.12i (dense)', 'c = 0.18 - 0.48i (domains)'],
     tips: 'The quadratic base gives familiar bulb shapes, but the conditional term adds chaos. Look for regions where filaments explode from bulb boundaries.',
     related: ['Barnsley-1', 'Barnsley-2', 'Classic'],
   },
@@ -720,32 +744,6 @@ const FAMILIES: FractalFamily[] = [
       return 0;
     },
   },
-  {
-    id: 'mandelbrot', label: 'Mandelbrot', typeNum: 18,
-    bounds: { rMin: -2.5, rMax: 1.0, iMin: -1.25, iMax: 1.25 },
-    // Mandelbrot: c = pixel, z₀ = slider (default 0)
-    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
-      let x = z0r, y = z0i;
-      for (let i = 0; i < maxIter; i++) {
-        const x2 = x * x, y2 = y * y;
-        if (x2 + y2 > 4) return i + 1;
-        y = 2 * x * y + ci;
-        x = x2 - y2 + cr;
-      }
-      return 0;
-    },
-    // Julia preview uses the selected c point
-    julia(fx, fy, jR, jI, maxIter) {
-      let x = fx, y = fy;
-      for (let i = 0; i < maxIter; i++) {
-        const x2 = x * x, y2 = y * y;
-        if (x2 + y2 > 4) return i + 1;
-        y = 2 * x * y + jI;
-        x = x2 - y2 + jR;
-      }
-      return 0;
-    },
-  },
 ];
 
 // Type → family index lookup
@@ -843,9 +841,6 @@ export class FractalConfigPanel {
   private showAtlasGrid = false;
   private dragDebounceTimer: number | null = null;
 
-  // Clock rotation offset (0-11 semitones, cycles on each click)
-  private clockRotationOffset = 0;
-
   // Thumbnail cache - key is "deg:familyIdx:real:imag" rounded to 3 decimals
   private thumbnailCache: Map<string, ImageData> = new Map();
   private static readonly THUMB_SIZE = 94;
@@ -854,17 +849,38 @@ export class FractalConfigPanel {
   // Locus cache - key is "familyIdx:bounds"
   private locusCache: Map<string, HTMLCanvasElement> = new Map();
 
-  // Track when thumbnails need re-rendering
-  private allThumbnailsDirty = true;
-
-
   // Debounce timer for zoom
   private zoomDebounceTimer: number | null = null;
   // Track rendered bounds for scaled preview during zoom
   private renderedBounds: { rMin: number; rMax: number; iMin: number; iMax: number }[] = [];
 
+  // Debounce timer for thumbnail updates (1 second)
+  private thumbnailDebounceTimer: number | null = null;
+
   // Callbacks
   public onSave: (() => void) | null = null;
+  public onPresetsChange: (() => void) | null = null;
+
+  // User presets
+  private userPresets: UserPreset[] = [];
+  private selectedPresetId: string | null = null; // null = default
+
+  /** Get all user presets */
+  public getPresets(): UserPreset[] {
+    return this.userPresets;
+  }
+
+  /** Get currently selected preset ID (null = default) */
+  public getSelectedPresetId(): string | null {
+    return this.selectedPresetId;
+  }
+
+  /** Select a preset by ID (null = default) and apply it */
+  public selectPreset(presetId: string | null): void {
+    this.selectedPresetId = presetId;
+    this.loadPreset(presetId);
+    this.updatePresetsUI();
+  }
 
   // Hotspot cycling index per degree
   private hotspotIndices: Map<number, number> = new Map();
@@ -909,7 +925,7 @@ export class FractalConfigPanel {
       anchor.real = parsed.real;
       anchor.imag = parsed.imag;
       anchor.familyIdx = this.selectedFamily;
-      this.markAllThumbnailsDirty();
+      this.debouncedThumbnailUpdate();
     }
 
     // Update status
@@ -962,14 +978,6 @@ export class FractalConfigPanel {
     }
   }
 
-  /** Show clock button only for Nova family */
-  private updateClockButtonVisibility(): void {
-    const clockBtn = this.container.querySelector('.fc-clock-btn') as HTMLElement;
-    if (!clockBtn) return;
-    const family = FAMILIES[this.selectedFamily];
-    clockBtn.style.display = family.id === 'nova' ? '' : 'none';
-  }
-
   /** Show family information modal */
   private showFamilyInfo(): void {
     const family = FAMILIES[this.selectedFamily];
@@ -1014,44 +1022,82 @@ export class FractalConfigPanel {
     modal.classList.remove('visible');
   }
 
-  /** Distribute anchors on clock positions (major scale semitones around a circle) */
-  private distributeOnClock(): void {
-    const family = FAMILIES[this.selectedFamily];
-    if (family.id !== 'nova') return;
+  /** Show controls modal */
+  private showControls(): void {
+    const modal = this.container.querySelector('#fc-controls-modal') as HTMLElement;
+    modal.classList.add('visible');
+  }
 
-    // Major scale semitones (degrees 1-7)
-    const MAJOR_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
+  /** Hide controls modal */
+  private hideControls(): void {
+    const modal = this.container.querySelector('#fc-controls-modal') as HTMLElement;
+    modal.classList.remove('visible');
+  }
 
-    this.markAllThumbnailsDirty();
+  /** Update family selector buttons to match selectedFamily state */
+  private updateFamilyUI(): void {
+    const familyBtns = this.container.querySelectorAll('.fc-family-btn');
+    familyBtns.forEach((btn, i) => {
+      btn.classList.toggle('active', i === this.selectedFamily);
+    });
+  }
 
-    // For Nova, place anchors near but not exactly on cube roots of unity
-    // Use radius ~0.8 to be in the interesting boundary region
-    const radius = 0.8;
+  /** Handle map control button clicks */
+  private handleMapControl(action: string): void {
+    const b = this.viewBounds[this.selectedFamily];
+    const w = b.rMax - b.rMin;
+    const h = b.iMax - b.iMin;
+    const panAmount = 0.2; // 20% of view
 
-    for (let deg = 1; deg <= 7; deg++) {
-      const key = this.anchorKey(deg);
-      const semitone = MAJOR_SEMITONES[deg - 1];
-      // Apply rotation offset (cycles through 12 positions)
-      const adjustedSemitone = (semitone + this.clockRotationOffset) % 12;
-      const angle = (adjustedSemitone / 12) * Math.PI * 2 - Math.PI / 2; // Start from top
-
-      const anchor = this.anchors.get(key);
-      if (anchor) {
-        anchor.real = radius * Math.cos(angle);
-        anchor.imag = radius * Math.sin(angle);
-        anchor.familyIdx = this.selectedFamily;
+    switch (action) {
+      case 'pan-left':
+        b.rMin -= w * panAmount;
+        b.rMax -= w * panAmount;
+        break;
+      case 'pan-right':
+        b.rMin += w * panAmount;
+        b.rMax += w * panAmount;
+        break;
+      case 'pan-up':
+        b.iMin -= h * panAmount;
+        b.iMax -= h * panAmount;
+        break;
+      case 'pan-down':
+        b.iMin += h * panAmount;
+        b.iMax += h * panAmount;
+        break;
+      case 'zoom-in': {
+        const cx = (b.rMin + b.rMax) / 2;
+        const cy = (b.iMin + b.iMax) / 2;
+        const factor = 0.7;
+        b.rMin = cx - (w * factor) / 2;
+        b.rMax = cx + (w * factor) / 2;
+        b.iMin = cy - (h * factor) / 2;
+        b.iMax = cy + (h * factor) / 2;
+        const origB = FAMILIES[this.selectedFamily].bounds;
+        this.zoomLevels[this.selectedFamily] = (origB.rMax - origB.rMin) / (b.rMax - b.rMin);
+        break;
       }
+      case 'zoom-out': {
+        const cx = (b.rMin + b.rMax) / 2;
+        const cy = (b.iMin + b.iMax) / 2;
+        const factor = 1.4;
+        b.rMin = cx - (w * factor) / 2;
+        b.rMax = cx + (w * factor) / 2;
+        b.iMin = cy - (h * factor) / 2;
+        b.iMax = cy + (h * factor) / 2;
+        const origB = FAMILIES[this.selectedFamily].bounds;
+        this.zoomLevels[this.selectedFamily] = (origB.rMax - origB.rMin) / (b.rMax - b.rMin);
+        break;
+      }
+      case 'reset-view':
+        this.viewBounds[this.selectedFamily] = { ...FAMILIES[this.selectedFamily].bounds };
+        this.zoomLevels[this.selectedFamily] = 1.0;
+        break;
     }
 
-    // Cycle rotation offset for next click
-    this.clockRotationOffset = (this.clockRotationOffset + 1) % 12;
-
-    const status = this.container.querySelector('#fc-status')!;
-    status.textContent = `Distributed on clock (offset ${this.clockRotationOffset - 1 < 0 ? 11 : this.clockRotationOffset - 1})`;
-
-    this.syncOrbitSliders();
+    this.renderLocus();
     this.drawOverlay();
-    this.updateAssignments();
   }
 
   /** Sync orbit sliders to current anchor values */
@@ -1092,6 +1138,9 @@ export class FractalConfigPanel {
   }
 
   constructor() {
+    // Load user presets first (needed for buildHTML)
+    this.userPresets = loadUserPresets();
+
     // Create container
     this.container = document.createElement('div');
     this.container.className = 'fractal-config-overlay';
@@ -1124,10 +1173,275 @@ export class FractalConfigPanel {
     this.setupEventHandlers();
   }
 
+  private renderPresetsList(): string {
+    const defaultChecked = this.selectedPresetId === null ? 'checked' : '';
+    let html = `
+      <label class="fc-preset-option fc-preset-default">
+        <input type="radio" name="fc-preset" value="" ${defaultChecked}>
+        <span class="fc-preset-radio"></span>
+        <span class="fc-preset-name">Default</span>
+      </label>
+    `;
+
+    for (const preset of this.userPresets) {
+      const checked = this.selectedPresetId === preset.id ? 'checked' : '';
+      html += `
+        <label class="fc-preset-option fc-preset-user">
+          <input type="radio" name="fc-preset" value="${preset.id}" ${checked}>
+          <span class="fc-preset-radio"></span>
+          <span class="fc-preset-name">${preset.name}</span>
+          <button class="fc-preset-delete" data-id="${preset.id}" title="Delete preset">&times;</button>
+        </label>
+      `;
+    }
+
+    return html;
+  }
+
+  private updatePresetsUI(): void {
+    const bar = this.container.querySelector('.fc-presets-bar') as HTMLElement;
+    const list = this.container.querySelector('.fc-presets-list');
+    if (bar) {
+      bar.style.display = this.userPresets.length === 0 ? 'none' : '';
+    }
+    if (list) {
+      list.innerHTML = this.renderPresetsList();
+      this.setupPresetHandlers();
+    }
+  }
+
+  private setupPresetHandlers(): void {
+    // Radio selection
+    this.container.querySelectorAll('.fc-preset-option input[type="radio"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const value = (e.target as HTMLInputElement).value;
+        this.selectedPresetId = value || null;
+        this.loadPreset(this.selectedPresetId);
+      });
+    });
+
+    // Delete buttons
+    this.container.querySelectorAll('.fc-preset-delete').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = (e.target as HTMLElement).dataset.id;
+        if (id) this.deletePreset(id);
+      });
+    });
+  }
+
+  private loadPreset(presetId: string | null): void {
+    if (presetId === null) {
+      // Load built-in default anchors (PRESET_ANCHORS)
+      this.loadDefaultAnchors();
+    } else {
+      const preset = this.userPresets.find(p => p.id === presetId);
+      if (preset) {
+        this.loadAnchorsFromData(preset.anchors);
+      }
+    }
+
+    // Adjust view to show anchors
+    this.fitViewToAnchors();
+
+    this.markAllThumbnailsDirty();
+    this.renderLocus();
+    this.drawOverlay();
+    this.updateAssignments();
+    this.updateResetButtonState();
+
+    // Apply to visualizer
+    const anchors = this.getCurrentAnchorsData();
+    saveFractalAnchors(anchors);
+    if (this.onSave) this.onSave();
+
+    const status = this.container.querySelector('#fc-status')!;
+    status.textContent = presetId ? 'Preset loaded' : 'Default loaded';
+  }
+
+  /** Adjust view bounds to show all anchors for current family */
+  private fitViewToAnchors(): void {
+    // Collect all anchors for the current family
+    const familyAnchors: { real: number; imag: number }[] = [];
+    for (const [, anchor] of this.anchors) {
+      if (anchor.familyIdx === this.selectedFamily) {
+        familyAnchors.push({ real: anchor.real, imag: anchor.imag });
+      }
+    }
+
+    if (familyAnchors.length === 0) {
+      // No anchors for this family, reset to default bounds
+      this.viewBounds[this.selectedFamily] = { ...FAMILIES[this.selectedFamily].bounds };
+      this.renderedBounds[this.selectedFamily] = { ...FAMILIES[this.selectedFamily].bounds };
+      this.zoomLevels[this.selectedFamily] = 1.0;
+      return;
+    }
+
+    // Calculate bounding box of anchors
+    let minR = Infinity, maxR = -Infinity;
+    let minI = Infinity, maxI = -Infinity;
+    for (const a of familyAnchors) {
+      minR = Math.min(minR, a.real);
+      maxR = Math.max(maxR, a.real);
+      minI = Math.min(minI, a.imag);
+      maxI = Math.max(maxI, a.imag);
+    }
+
+    // Add padding (30% on each side)
+    const rRange = maxR - minR || 0.5;
+    const iRange = maxI - minI || 0.5;
+    const padding = Math.max(rRange, iRange) * 0.3;
+
+    minR -= padding;
+    maxR += padding;
+    minI -= padding;
+    maxI += padding;
+
+    // Ensure square aspect ratio
+    const rSize = maxR - minR;
+    const iSize = maxI - minI;
+    if (rSize > iSize) {
+      const diff = (rSize - iSize) / 2;
+      minI -= diff;
+      maxI += diff;
+    } else {
+      const diff = (iSize - rSize) / 2;
+      minR -= diff;
+      maxR += diff;
+    }
+
+    // Apply bounds
+    this.viewBounds[this.selectedFamily] = { rMin: minR, rMax: maxR, iMin: minI, iMax: maxI };
+    this.renderedBounds[this.selectedFamily] = { rMin: minR, rMax: maxR, iMin: minI, iMax: maxI };
+
+    // Calculate zoom level relative to default
+    const defaultBounds = FAMILIES[this.selectedFamily].bounds;
+    const defaultSize = defaultBounds.rMax - defaultBounds.rMin;
+    const currentSize = maxR - minR;
+    this.zoomLevels[this.selectedFamily] = defaultSize / currentSize;
+  }
+
+  private loadAnchorsFromData(anchors: FractalAnchors): void {
+    this.anchors.clear();
+    for (let deg = 0; deg <= 7; deg++) {
+      const saved = anchors[deg];
+      let anchor: InternalAnchor;
+
+      if (saved) {
+        const fi = TYPE_TO_FAMILY[saved.type] ?? 0;
+        anchor = {
+          familyIdx: fi,
+          real: saved.real,
+          imag: saved.imag,
+          orbitRadius: saved.orbitRadius ?? DEFAULT_ORBIT_RADIUS,
+          orbitSkew: saved.orbitSkew ?? DEFAULT_ORBIT_SKEW,
+          orbitRotation: saved.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
+          beatSpread: saved.beatSpread ?? DEFAULT_BEAT_SPREAD,
+        };
+      } else {
+        // Use preset defaults
+        const p = PRESET_ANCHORS[deg];
+        const fi = TYPE_TO_FAMILY[p.type];
+        anchor = {
+          familyIdx: fi,
+          real: p.real,
+          imag: p.imag,
+          orbitRadius: p.orbitRadius,
+          orbitSkew: p.orbitSkew ?? DEFAULT_ORBIT_SKEW,
+          orbitRotation: p.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
+          beatSpread: p.beatSpread ?? DEFAULT_BEAT_SPREAD,
+        };
+      }
+
+      // Apply to all qualities for this degree
+      for (const q of QUALITIES) {
+        this.anchors.set(this.anchorKey(deg, q.id), { ...anchor });
+      }
+    }
+  }
+
+  /** Load built-in default anchors from PRESET_ANCHORS */
+  private loadDefaultAnchors(): void {
+    this.anchors.clear();
+    for (let deg = 0; deg <= 7; deg++) {
+      const p = PRESET_ANCHORS[deg];
+      const fi = TYPE_TO_FAMILY[p.type];
+      const anchor: InternalAnchor = {
+        familyIdx: fi,
+        real: p.real,
+        imag: p.imag,
+        orbitRadius: p.orbitRadius,
+        orbitSkew: p.orbitSkew ?? DEFAULT_ORBIT_SKEW,
+        orbitRotation: p.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
+        beatSpread: p.beatSpread ?? DEFAULT_BEAT_SPREAD,
+      };
+      for (const q of QUALITIES) {
+        this.anchors.set(this.anchorKey(deg, q.id), { ...anchor });
+      }
+    }
+  }
+
+  private deletePreset(presetId: string): void {
+    this.userPresets = this.userPresets.filter(p => p.id !== presetId);
+    saveUserPresets(this.userPresets);
+    if (this.selectedPresetId === presetId) {
+      this.selectedPresetId = null;
+      this.loadPreset(null);
+    }
+    this.updatePresetsUI();
+    if (this.onPresetsChange) this.onPresetsChange();
+    const status = this.container.querySelector('#fc-status')!;
+    status.textContent = 'Preset deleted';
+  }
+
+  private promptSavePreset(): void {
+    const name = prompt('Enter preset name:');
+    if (!name || !name.trim()) return;
+
+    const anchors = this.getCurrentAnchorsData();
+    const preset: UserPreset = {
+      id: Date.now().toString(),
+      name: name.trim(),
+      anchors,
+      createdAt: Date.now(),
+    };
+
+    this.userPresets.push(preset);
+    saveUserPresets(this.userPresets);
+    this.selectedPresetId = preset.id;
+    this.updatePresetsUI();
+    if (this.onPresetsChange) this.onPresetsChange();
+
+    // Also apply to visualizer
+    saveFractalAnchors(anchors);
+    if (this.onSave) this.onSave();
+
+    const status = this.container.querySelector('#fc-status')!;
+    status.textContent = `Saved as "${preset.name}"`;
+  }
+
+  private getCurrentAnchorsData(): FractalAnchors {
+    const out: FractalAnchors = {};
+    for (let deg = 0; deg <= 7; deg++) {
+      const key = this.anchorKey(deg, 'major');
+      const a = this.anchors.get(key);
+      if (!a) continue;
+      const f = FAMILIES[a.familyIdx];
+      out[deg] = {
+        real: a.real,
+        imag: a.imag,
+        type: f.typeNum,
+        orbitRadius: a.orbitRadius,
+        orbitSkew: a.orbitSkew,
+        orbitRotation: a.orbitRotation,
+        beatSpread: a.beatSpread,
+      };
+    }
+    return out;
+  }
+
   private buildHTML(): string {
-    const familyButtons = FAMILIES.map((f, i) =>
-      `<button class="fc-family-btn${i === 0 ? ' active' : ''}" data-family="${i}">${f.label}</button>`
-    ).join('');
 
     // Build degree × quality grid - single row on desktop, wraps on mobile
     const degreeRows = [[1, 2, 3, 4, 5, 6, 7]];
@@ -1144,14 +1458,16 @@ export class FractalConfigPanel {
 
       return `
         <div class="fc-degree-block">
-          <div class="fc-degree-header">
-            <button class="fc-hotspot-btn" data-deg="${deg}" title="Cycle through areas of interest">!</button>
-            <div class="fc-grid-degree" data-deg="${deg}" title="Apply to all qualities">
-              <span class="fc-deg-dot" style="background:${DEGREE_COLORS[deg]}"></span>${name}
+          <div class="fc-degree-main">
+            <div class="fc-degree-cells">
+              ${cells}
             </div>
-          </div>
-          <div class="fc-degree-cells">
-            ${cells}
+            <div class="fc-degree-footer">
+              <button class="fc-hotspot-btn" data-deg="${deg}" title="Cycle through areas of interest">!</button>
+              <div class="fc-grid-degree" data-deg="${deg}" title="Apply to all qualities">
+                <span class="fc-deg-dot" style="background:${DEGREE_COLORS[deg]}"></span>${name}
+              </div>
+            </div>
           </div>
           <div class="fc-orbit-controls">
             <label title="Orbit radius">⊕<input type="range" class="fc-radius-slider" data-deg="${deg}" min="1" max="100" value="20"></label>
@@ -1181,26 +1497,33 @@ export class FractalConfigPanel {
           <button class="fc-close-btn">&times;</button>
         </div>
 
-        <div class="fc-preset-bar">
-          ${BUILTIN_ANCHOR_PRESETS.map(p => `<button class="fc-preset-btn" data-preset-id="${p.id}">${p.name}</button>`).join('')}
-        </div>
-
         <div class="fc-toolbar">
-          <div class="fc-toolbar-section fc-family-section">
-            <div class="fc-family-buttons">${familyButtons}</div>
-            <span class="fc-section-label">Info:</span>
-            <button class="fc-btn fc-info-btn" title="Family information">ℹ️</button>
-            <span class="fc-section-label">Atlas:</span>
-            <button class="fc-btn fc-atlas-btn" title="Toggle atlas grid overlay">🗺️</button>
+          <div class="fc-toolbar-section fc-description">
+            <span class="fc-help-text">Click the preview to set anchor points. Each chord degree dances around its anchor during playback.</span>
           </div>
           <div class="fc-toolbar-divider"></div>
           <div class="fc-actions">
-            <button class="fc-btn fc-clock-btn" title="Distribute on clock (cycles rotation)" style="display:none;">🕐</button>
-            <button class="fc-btn fc-copy-btn" title="Copy as TypeScript">📋</button>
-            <button class="fc-btn fc-recall-btn" title="Reset orbits to cross (N/E/S/W)">↩</button>
-            <button class="fc-btn fc-reset-btn">Reset</button>
             <button class="fc-btn fc-save-btn">Save</button>
+            <button class="fc-btn fc-reset-btn">Reset</button>
+            <button class="fc-btn fc-copy-btn" title="Copy anchors as code">📋</button>
           </div>
+        </div>
+
+        <div class="fc-presets-bar"${this.userPresets.length === 0 ? ' style="display:none"' : ''}>
+          <span class="fc-presets-label">Presets:</span>
+          <div class="fc-presets-list">
+            ${this.renderPresetsList()}
+          </div>
+        </div>
+
+        <div class="fc-family-bar">
+          ${FAMILIES.map((f, i) => `<button class="fc-family-btn${i === 0 ? ' active' : ''}" data-family="${i}">${f.label}</button>`).join('')}
+          <label class="fc-atlas-toggle" title="Toggle atlas grid overlay">
+            <span class="fc-atlas-label">Atlas</span>
+            <input type="checkbox" class="fc-atlas-checkbox">
+            <span class="fc-atlas-switch"></span>
+          </label>
+          <button class="fc-btn fc-info-btn" title="Family information">ℹ️</button>
         </div>
 
         <div class="fc-degree-grid">
@@ -1210,13 +1533,35 @@ export class FractalConfigPanel {
         <div class="fc-main">
           <div class="fc-locus-wrap">
             <canvas id="fc-locus-canvas" width="${PANEL_SIZE}" height="${PANEL_SIZE}"></canvas>
-            <div class="fc-locus-status" id="fc-status">Click to place anchor | Shift+drag = axis snap</div>
+            <div class="fc-map-controls">
+              <div class="fc-map-row">
+                <button class="fc-help-btn" title="Show controls">?</button>
+                <button class="fc-map-btn" data-action="pan-up" title="Pan up">↑</button>
+                <button class="fc-map-btn" data-action="zoom-in" title="Zoom in">+</button>
+              </div>
+              <div class="fc-map-row">
+                <button class="fc-map-btn" data-action="pan-left" title="Pan left">←</button>
+                <button class="fc-map-btn" data-action="reset-view" title="Reset view">⟲</button>
+                <button class="fc-map-btn" data-action="pan-right" title="Pan right">→</button>
+              </div>
+              <div class="fc-map-row">
+                <button class="fc-map-btn fc-map-empty"></button>
+                <button class="fc-map-btn" data-action="pan-down" title="Pan down">↓</button>
+                <button class="fc-map-btn" data-action="zoom-out" title="Zoom out">−</button>
+              </div>
+            </div>
+            <div class="fc-locus-status" id="fc-status">Click to place anchor</div>
           </div>
 
           <div class="fc-preview-wrap">
             <div class="fc-preview-header">
               <span>Preview</span>
-              <label>BPM <input type="number" id="fc-bpm" value="120" min="30" max="300" step="5"></label>
+              <div class="fc-bpm-control">
+                <span class="fc-bpm-label">BPM</span>
+                <button class="fc-bpm-btn fc-bpm-down">▼</button>
+                <input type="number" id="fc-bpm" value="120" min="30" max="300" step="5">
+                <button class="fc-bpm-btn fc-bpm-up">▲</button>
+              </div>
             </div>
             <canvas id="fc-julia-canvas" width="${JULIA_SIZE}" height="${JULIA_SIZE}"></canvas>
             <div class="fc-julia-info" id="fc-julia-info">Select an anchor to preview</div>
@@ -1269,6 +1614,49 @@ export class FractalConfigPanel {
             </div>
           </div>
         </div>
+
+        <div class="fc-controls-modal" id="fc-controls-modal">
+          <div class="fc-controls-content">
+            <div class="fc-controls-header">
+              <h3>Map Controls</h3>
+              <button class="fc-controls-close">&times;</button>
+            </div>
+            <div class="fc-controls-list">
+              <div class="fc-control-item">
+                <span class="fc-control-key">Click</span>
+                <span class="fc-control-desc">Place/move anchor for selected degree</span>
+              </div>
+              <div class="fc-control-item">
+                <span class="fc-control-key">Drag anchor</span>
+                <span class="fc-control-desc">Reposition anchor point</span>
+              </div>
+              <div class="fc-control-item">
+                <span class="fc-control-key">Shift + Drag</span>
+                <span class="fc-control-desc">Snap to horizontal/vertical axis</span>
+              </div>
+              <div class="fc-control-item">
+                <span class="fc-control-key">${navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'} + Click</span>
+                <span class="fc-control-desc">Place anchor with current family</span>
+              </div>
+              <div class="fc-control-item">
+                <span class="fc-control-key">Scroll wheel</span>
+                <span class="fc-control-desc">Zoom in/out</span>
+              </div>
+              <div class="fc-control-item">
+                <span class="fc-control-key">Middle-drag / Alt + Drag</span>
+                <span class="fc-control-desc">Pan the view</span>
+              </div>
+              <div class="fc-control-item">
+                <span class="fc-control-key">Double-click</span>
+                <span class="fc-control-desc">Reset zoom to default</span>
+              </div>
+              <div class="fc-control-item">
+                <span class="fc-control-key">Drag orbit handle</span>
+                <span class="fc-control-desc">Adjust orbit radius</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -1277,18 +1665,21 @@ export class FractalConfigPanel {
     // Close button
     this.container.querySelector('.fc-close-btn')!.addEventListener('click', () => this.hide());
 
-    // Preset buttons
-    this.container.querySelectorAll('.fc-preset-btn').forEach(btn => {
+    // Family buttons
+    const familyBtns = this.container.querySelectorAll('.fc-family-btn');
+    const infoBtn = this.container.querySelector('.fc-info-btn') as HTMLElement;
+    familyBtns.forEach(btn => {
       btn.addEventListener('click', () => {
-        const presetId = (btn as HTMLElement).dataset.presetId;
-        const preset = BUILTIN_ANCHOR_PRESETS.find(p => p.id === presetId);
-        if (preset) {
-          applyAnchorPreset(preset);
-          this.loadAnchors();
-          this.drawOverlay();
-          this.updateAssignments();
-          if (this.onSave) this.onSave();
-        }
+        familyBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        this.selectedFamily = parseInt((btn as HTMLElement).dataset.family!);
+        this.renderLocus();
+        this.drawOverlay();
+        this.updateAssignments();
+        // Pulse the info button to indicate new info available
+        infoBtn.classList.remove('pulse');
+        void infoBtn.offsetWidth; // Force reflow to restart animation
+        infoBtn.classList.add('pulse');
       });
     });
 
@@ -1296,22 +1687,6 @@ export class FractalConfigPanel {
     this.container.addEventListener('click', (e) => {
       if (e.target === this.container) this.hide();
     });
-
-    // Family buttons
-    const familyBtns = this.container.querySelectorAll('.fc-family-btn');
-    familyBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        familyBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this.selectedFamily = parseInt((btn as HTMLElement).dataset.family!);
-        this.updateClockButtonVisibility();
-        this.renderLocus();
-        this.drawOverlay();
-      });
-    });
-
-    // Clock button (distribute on clock positions)
-    this.container.querySelector('.fc-clock-btn')!.addEventListener('click', () => this.distributeOnClock());
 
     // Info button (show family information modal)
     this.container.querySelector('.fc-info-btn')!.addEventListener('click', () => this.showFamilyInfo());
@@ -1329,11 +1704,36 @@ export class FractalConfigPanel {
     // Close modal on Escape key
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        const modal = this.container.querySelector('#fc-info-modal') as HTMLElement;
-        if (modal.classList.contains('visible')) {
+        const infoModal = this.container.querySelector('#fc-info-modal') as HTMLElement;
+        const controlsModal = this.container.querySelector('#fc-controls-modal') as HTMLElement;
+        if (infoModal.classList.contains('visible')) {
           this.hideFamilyInfo();
         }
+        if (controlsModal.classList.contains('visible')) {
+          this.hideControls();
+        }
       }
+    });
+
+    // Help button (show controls modal)
+    this.container.querySelector('.fc-help-btn')!.addEventListener('click', () => this.showControls());
+
+    // Controls modal close button
+    this.container.querySelector('.fc-controls-close')!.addEventListener('click', () => this.hideControls());
+
+    // Close controls modal on backdrop click
+    this.container.querySelector('#fc-controls-modal')!.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).classList.contains('fc-controls-modal')) {
+        this.hideControls();
+      }
+    });
+
+    // Map control buttons
+    this.container.querySelectorAll('.fc-map-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = (btn as HTMLElement).dataset.action;
+        this.handleMapControl(action!);
+      });
     });
 
     // Grid cell clicks (select degree + quality)
@@ -1402,17 +1802,77 @@ export class FractalConfigPanel {
       });
     });
 
-    this.container.querySelector('.fc-atlas-btn')!.addEventListener('click', () => this.toggleAtlasGrid());
-    this.container.querySelector('.fc-copy-btn')!.addEventListener('click', () => this.copyToClipboard());
-    this.container.querySelector('.fc-recall-btn')!.addEventListener('click', () => this.recallOrbits());
+    this.container.querySelector('.fc-atlas-checkbox')!.addEventListener('change', (e) => {
+      this.showAtlasGrid = (e.target as HTMLInputElement).checked;
+      this.drawOverlay();
+      const status = this.container.querySelector('#fc-status')!;
+      status.textContent = this.showAtlasGrid ? 'Atlas grid ON' : 'Atlas grid OFF';
+    });
+    const copyBtn = this.container.querySelector('.fc-copy-btn')!;
+    copyBtn.addEventListener('click', () => {
+      this.copyToClipboard();
+      copyBtn.classList.remove('wiggle');
+      void (copyBtn as HTMLElement).offsetWidth; // force reflow
+      copyBtn.classList.add('wiggle');
+    });
+    copyBtn.addEventListener('animationend', () => copyBtn.classList.remove('wiggle'));
     this.container.querySelector('.fc-reset-btn')!.addEventListener('click', () => this.resetToDefaults());
-    this.container.querySelector('.fc-save-btn')!.addEventListener('click', () => this.save());
+    this.container.querySelector('.fc-save-btn')!.addEventListener('click', () => this.promptSavePreset());
 
-    // BPM input
+    // Preset handlers
+    this.setupPresetHandlers();
+
+    // BPM input with arrows and drag support
     const bpmInput = this.container.querySelector('#fc-bpm') as HTMLInputElement;
+    const bpmTempos = [40, 60, 66, 72, 76, 80, 84, 88, 92, 96, 100, 104, 108, 112, 116, 120, 126, 132, 138, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240, 252, 264, 276, 288, 300];
+
+    const updateBpm = (v: number) => {
+      const clamped = Math.max(30, Math.min(300, v));
+      bpmInput.value = String(clamped);
+      this.previewBpm = clamped;
+    };
+
     bpmInput.addEventListener('input', () => {
       const v = parseInt(bpmInput.value);
       if (v >= 30 && v <= 300) this.previewBpm = v;
+    });
+
+    // Arrow buttons - jump to standard tempos
+    this.container.querySelector('.fc-bpm-up')!.addEventListener('click', () => {
+      const current = this.previewBpm;
+      const next = bpmTempos.find(t => t > current) ?? 300;
+      updateBpm(next);
+    });
+
+    this.container.querySelector('.fc-bpm-down')!.addEventListener('click', () => {
+      const current = this.previewBpm;
+      const prev = [...bpmTempos].reverse().find(t => t < current) ?? 40;
+      updateBpm(prev);
+    });
+
+    // Drag up/down on input to change value
+    let bpmDragStart = 0;
+    let bpmDragValue = 0;
+
+    bpmInput.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      bpmDragStart = e.clientY;
+      bpmDragValue = this.previewBpm;
+      bpmInput.style.cursor = 'ns-resize';
+
+      const onMove = (me: MouseEvent) => {
+        const delta = bpmDragStart - me.clientY;
+        updateBpm(bpmDragValue + Math.round(delta / 3));
+      };
+
+      const onUp = () => {
+        bpmInput.style.cursor = '';
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
     });
 
     // Preview scale slider (0 = stopped, 100 = normal, 200 = big)
@@ -1701,6 +2161,11 @@ export class FractalConfigPanel {
         this.syncOrbitSliders();
       }
 
+      // Trigger debounced thumbnail update if we were moving an anchor position
+      if (this.dragMode === 'center') {
+        this.debouncedThumbnailUpdate();
+      }
+
       this.dragMode = null;
       this.isDragging = false;
       this.snapMode = 'none';
@@ -1752,12 +2217,13 @@ export class FractalConfigPanel {
     });
 
     // Hover status
+    const modKey = navigator.platform.includes('Mac') ? '⌘' : 'Ctrl';
     canvas.addEventListener('mousemove', (e) => {
       if (this.dragMode) return;
       const pos = getPos(e);
       const c = this.pixelToC(pos.x, pos.y);
       const status = this.container.querySelector('#fc-status')!;
-      status.textContent = `${FAMILIES[this.selectedFamily].label} | c = ${c.r.toFixed(4)} + ${c.i.toFixed(4)}i | Shift=axis`;
+      status.textContent = `${FAMILIES[this.selectedFamily].label} | c = ${c.r.toFixed(4)} + ${c.i.toFixed(4)}i | ${modKey}+click=place`;
     });
   }
 
@@ -1791,13 +2257,9 @@ export class FractalConfigPanel {
 
     const a = this.currentAnchor;
     if (a) {
-      // Switch to this anchor's family
+      // Switch to this anchor's family and update UI
       this.selectedFamily = a.familyIdx;
-      const familyBtns = this.container.querySelectorAll('.fc-family-btn');
-      familyBtns.forEach(b => b.classList.remove('active'));
-      const activeBtn = this.container.querySelector(`.fc-family-btn[data-family="${a.familyIdx}"]`);
-      activeBtn?.classList.add('active');
-      this.updateClockButtonVisibility();
+      this.updateFamilyUI();
       this.renderLocus();
       this.startPreview(a);
     } else {
@@ -1805,38 +2267,6 @@ export class FractalConfigPanel {
     }
     this.drawOverlay();
     this.updateAssignments();
-  }
-
-  private toggleAtlasGrid(): void {
-    this.showAtlasGrid = !this.showAtlasGrid;
-    const btn = this.container.querySelector('.fc-atlas-btn')!;
-    btn.classList.toggle('active', this.showAtlasGrid);
-    this.drawOverlay();
-    const status = this.container.querySelector('#fc-status')!;
-    status.textContent = this.showAtlasGrid ? 'Atlas grid ON - showing Julia previews' : 'Atlas grid OFF';
-  }
-
-  /** Reset current anchor's orbits to cardinal cross pattern (N/E/S/W) */
-  private recallOrbits(): void {
-    const anchor = this.currentAnchor;
-    if (!anchor) {
-      const status = this.container.querySelector('#fc-status')!;
-      status.textContent = 'No anchor selected';
-      return;
-    }
-
-    // Calculate offset based on current view scale (about 1/10 of view width)
-    const b = this.viewBounds[this.selectedFamily];
-    const offset = (b.rMax - b.rMin) * 0.08;
-
-    // Reset orbit radius to default
-    anchor.orbitRadius = offset;
-
-    this.drawOverlay();
-    this.startPreview(anchor);
-
-    const status = this.container.querySelector('#fc-status')!;
-    status.textContent = `Orbit radius reset to ${offset.toFixed(3)}`;
   }
 
   private copyToClipboard(): void {
@@ -1976,14 +2406,23 @@ export class FractalConfigPanel {
       }
     } else {
       this.resetToDefaults();
-      return; // resetToDefaults calls syncOrbitSliders
+      return; // resetToDefaults handles everything including updateResetButtonState
     }
     this.syncOrbitSliders();
+    this.updateResetButtonState();
   }
 
   private resetToDefaults(): void {
     this.anchors.clear();
     this.markAllThumbnailsDirty();
+
+    // Reset view bounds and zoom levels to defaults
+    for (let i = 0; i < FAMILIES.length; i++) {
+      this.viewBounds[i] = { ...FAMILIES[i].bounds };
+      this.renderedBounds[i] = { ...FAMILIES[i].bounds };
+      this.zoomLevels[i] = 1.0;
+    }
+
     for (let deg = 0; deg <= 7; deg++) {
       const p = PRESET_ANCHORS[deg];
       const fi = TYPE_TO_FAMILY[p.type];
@@ -2010,32 +2449,44 @@ export class FractalConfigPanel {
       }
     }
     this.syncOrbitSliders();
+    this.renderLocus();
     this.drawOverlay();
     this.updateAssignments();
+    this.updateResetButtonState();
     this.selectDegreeQuality(1, 'major');
   }
 
-  private save(): void {
-    // For backwards compatibility, save the "major" quality as the canonical anchor per degree
-    const out: FractalAnchors = {};
+  /** Check if all anchors match preset defaults */
+  private anchorsMatchDefaults(): boolean {
     for (let deg = 0; deg <= 7; deg++) {
       const key = this.anchorKey(deg, 'major');
       const a = this.anchors.get(key);
-      if (!a) continue;
-      const f = FAMILIES[a.familyIdx];
-      out[deg] = {
-        real: a.real,
-        imag: a.imag,
-        type: f.typeNum,
-        orbitRadius: a.orbitRadius,
-        orbitSkew: a.orbitSkew,
-        orbitRotation: a.orbitRotation,
-        beatSpread: a.beatSpread,
-      };
+      const p = PRESET_ANCHORS[deg];
+      if (!a) return false;
+
+      const fi = TYPE_TO_FAMILY[p.type];
+      const tolerance = 0.001;
+
+      if (a.familyIdx !== fi) return false;
+      if (Math.abs(a.real - p.real) > tolerance) return false;
+      if (Math.abs(a.imag - p.imag) > tolerance) return false;
+      if (Math.abs(a.orbitRadius - p.orbitRadius) > tolerance) return false;
+      if (Math.abs(a.orbitSkew - (p.orbitSkew ?? DEFAULT_ORBIT_SKEW)) > tolerance) return false;
+      if (Math.abs(a.orbitRotation - (p.orbitRotation ?? DEFAULT_ORBIT_ROTATION)) > tolerance) return false;
+      if (Math.abs(a.beatSpread - (p.beatSpread ?? DEFAULT_BEAT_SPREAD)) > tolerance) return false;
     }
-    saveFractalAnchors(out);
-    if (this.onSave) this.onSave();
-    this.hide();
+    return true;
+  }
+
+  /** Update reset, save, and copy button disabled state */
+  private updateResetButtonState(): void {
+    const atDefaults = this.anchorsMatchDefaults();
+    const resetBtn = this.container.querySelector('.fc-reset-btn') as HTMLButtonElement;
+    const saveBtn = this.container.querySelector('.fc-save-btn') as HTMLButtonElement;
+    const copyBtn = this.container.querySelector('.fc-copy-btn') as HTMLButtonElement;
+    if (resetBtn) resetBtn.disabled = atDefaults;
+    if (saveBtn) saveBtn.disabled = atDefaults;
+    if (copyBtn) copyBtn.disabled = atDefaults;
   }
 
   private getLocusCacheKey(): string {
@@ -2134,6 +2585,7 @@ export class FractalConfigPanel {
       this.dragDebounceTimer = null;
       this.drawOverlay();
       this.syncOrbitSliders();
+      this.updateResetButtonState();
     });
   }
 
@@ -2381,12 +2833,10 @@ export class FractalConfigPanel {
       }
 
       if (anchor) {
-        // Only re-render if thumbnails are dirty (uses cache otherwise)
-        if (this.allThumbnailsDirty) {
-          const thumbData = this.getOrRenderThumbnail(anchor, deg);
-          const ctx = canvas.getContext('2d')!;
-          ctx.putImageData(thumbData, 0, 0);
-        }
+        // Always render thumbnail (getOrRenderThumbnail uses cache)
+        const thumbData = this.getOrRenderThumbnail(anchor, deg);
+        const ctx = canvas.getContext('2d')!;
+        ctx.putImageData(thumbData, 0, 0);
         canvas.style.opacity = '1';
       } else {
         // Clear the canvas
@@ -2397,13 +2847,22 @@ export class FractalConfigPanel {
       }
     });
 
-    // Clear dirty flag
-    this.allThumbnailsDirty = false;
   }
 
   private markAllThumbnailsDirty(): void {
-    this.allThumbnailsDirty = true;
     this.thumbnailCache.clear();
+  }
+
+  /** Debounced thumbnail update - waits 1 second after last change */
+  private debouncedThumbnailUpdate(): void {
+    if (this.thumbnailDebounceTimer !== null) {
+      clearTimeout(this.thumbnailDebounceTimer);
+    }
+    this.thumbnailDebounceTimer = window.setTimeout(() => {
+      this.thumbnailDebounceTimer = null;
+      this.markAllThumbnailsDirty();
+      this.updateAssignments();
+    }, 1000);
   }
 
   private getThumbnailKey(anchor: InternalAnchor, deg: number): string {
@@ -2591,7 +3050,6 @@ export class FractalConfigPanel {
     this.visible = true;
     this.container.classList.add('visible');
     this.loadAnchors();
-    this.updateClockButtonVisibility();
     this.renderLocus();
     this.drawOverlay();
     this.updateAssignments();

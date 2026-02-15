@@ -208,8 +208,8 @@ export const PRESET_LAYERS: Record<string, (string | null)[]> = {
   warp: ['chladni', 'note-spiral', 'kaleidoscope', 'melody-clock', 'bass-clock', null],
   fractal: [null, 'fractal', 'kaleidoscope', 'melody-web', null, 'theory-bar'],
   piano: ['flowfield', 'piano-roll', null, null, null, null],
-  'star-aurora': [null, 'note-star', 'kaleidoscope', 'melody-aurora', 'bass-fire', null],
-  'kali-graph': [null, 'graph-chain', 'kaleidoscope', null, null, null],
+  StarAurora: [null, 'note-star', 'kaleidoscope', 'melody-aurora', 'bass-fire', null],
+  KaliGraph: [null, 'graph-chain', 'kaleidoscope', null, null, null],
 };
 
 // Preset-specific effect configs (applied when preset is selected)
@@ -231,10 +231,12 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
     'kaleidoscope': { foldCount: 6 },
   },
   piano: {},
-  'star-aurora': {
+  StarAurora: {
     'kaleidoscope': { foldCount: 6 },
+    'bass-clock': { showNumerals: false },
+    'melody-clock': { showNotes: false },
   },
-  'kali-graph': {
+  KaliGraph: {
     'graph-chain': {
       tonnetzWindowBars: 1,
       nodeSize: 3,

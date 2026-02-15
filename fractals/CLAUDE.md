@@ -1,6 +1,6 @@
-# Fractured Jukebox
+# The Fractured Jukebox
 
-A customizable MIDI file music visualizer. See the structure of music. Uses MIDI analysis to extract rhythmic and harmonic information to drive a variety of visual effects.
+A customizable MIDI file music visualizer. See the structure of music through various views. Uses MIDI analysis to extract rhythmic and harmonic information to drive many visual effects.
 
 **Default preset**: Stars (Starfield + Note Star + Bass Fire)
 **Default playlist**: Classics (pop & rock)

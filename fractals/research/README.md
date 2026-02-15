@@ -1,6 +1,6 @@
 # Music Visualization Research
 
-Research materials for improving Fractured Jukebox visualizer.
+Research materials for improving The Fractured Jukebox visualizer.
 
 ## Directory Structure
 

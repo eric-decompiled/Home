@@ -716,7 +716,7 @@ class HybridNBodySystem {
 
 ---
 
-## 7. Effect Concepts for Fractured Jukebox
+## 7. Effect Concepts for The Fractured Jukebox
 
 ### 7.1 "Gravity Well" (Foreground Layer)
 

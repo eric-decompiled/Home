@@ -4,7 +4,7 @@ Based on my comprehensive research, here is the complete report on **Music Theor
 
 # Music Theory Transformations for Visualization
 
-*A comprehensive guide to non-standard music theories for interactive harmonic visualization in the Fractured Jukebox.*
+*A comprehensive guide to non-standard music theories for interactive harmonic visualization in the The Fractured Jukebox.*
 
 ---
 
@@ -326,7 +326,7 @@ The challenge: how do we represent abstract harmonic transformations as visual c
 
 #### 2D Tonnetz Grid (Current Implementation)
 
-The Fractured Jukebox already implements a 2D Tonnetz. This is excellent because:
+The The Fractured Jukebox already implements a 2D Tonnetz. This is excellent because:
 
 - **Triads are visible as triangles** — Geometry directly represents voice-leading relationships
 - **Adjacent triangles share edges** — Visual proximity = harmonic proximity
@@ -457,7 +457,7 @@ This creates natural harmonic relationships:
 
 ---
 
-## 4. Synthesis: Transformations for Fractured Jukebox Visualization
+## 4. Synthesis: Transformations for The Fractured Jukebox Visualization
 
 This section translates theory into specific, actionable features for the visualizer.
 
@@ -935,7 +935,7 @@ The existing Graph Sculpture effect already encodes some of these ideas. Enhance
 
 Neo-Riemannian theory and its related frameworks provide a rich vocabulary for understanding and visualizing harmonic relationships. By mapping these theories to visual parameters—position, color, rotation, morphing—we create visualizations that are both mathematically principled and aesthetically compelling.
 
-The key insight is that **music is geometric**: triads are triangles, transformations are movements, and progressions are paths through harmonic space. The Fractured Jukebox is uniquely positioned to make these abstract geometries visible and interactive.
+The key insight is that **music is geometric**: triads are triangles, transformations are movements, and progressions are paths through harmonic space. The The Fractured Jukebox is uniquely positioned to make these abstract geometries visible and interactive.
 
 Start with Phase 1 (transformation detection + Tonnetz arrows). Measure user response. Iterate toward Phase 3 (hexatonic visualization) and beyond. Over time, build a comprehensive visual language that teaches listeners the underlying structure of music through synchronized, real-time visualization.
 
@@ -947,7 +947,7 @@ Start with Phase 1 (transformation detection + Tonnetz arrows). Measure user res
 
 **Recommended Citation:**
 
-> Music Theory Transformations for Visualization: A Comprehensive Guide to Neo-Riemannian, Transformational, and Voice-Leading Approaches for Interactive Music Visualization. Fractured Jukebox Research, 2026.
+> Music Theory Transformations for Visualization: A Comprehensive Guide to Neo-Riemannian, Transformational, and Voice-Leading Approaches for Interactive Music Visualization. The Fractured Jukebox Research, 2026.
 
 ---
 

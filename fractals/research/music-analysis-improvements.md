@@ -1,6 +1,6 @@
 # Music Analysis: Theory, Algorithms, and Improvements
 
-A comprehensive research document for improving harmonic and tonal analysis in Fractured Jukebox.
+A comprehensive research document for improving harmonic and tonal analysis in The Fractured Jukebox.
 
 ---
 

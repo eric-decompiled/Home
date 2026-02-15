@@ -146,7 +146,7 @@ function applyRule(rule, caseValue) {
 - WebGL for rendering (handles 10,000+ nodes)
 - Could adapt to Canvas 2D with simpler graphs (<1000 nodes)
 
-## Adaptation for Fractured Jukebox
+## Adaptation for The Fractured Jukebox
 
 ### Simplified Canvas 2D Version
 

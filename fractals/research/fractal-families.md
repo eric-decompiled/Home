@@ -14,7 +14,7 @@ This document catalogs fractal families beyond the standard Mandelbrot/Julia qua
 3. **Music mapping potential** - How musical features might map to fractal parameters
 4. **Implementation considerations** - Performance and GPU-friendliness
 
-### Currently Implemented (Fractured Jukebox)
+### Currently Implemented (The Fractured Jukebox)
 
 | Type | Name | Formula | Notes |
 |------|------|---------|-------|
@@ -993,7 +993,7 @@ void main() {
 
 ---
 
-## 6. Recommended Additions for Fractured Jukebox
+## 6. Recommended Additions for The Fractured Jukebox
 
 ### 6.1 Priority Tier 1 (High Visual Impact, Easy Implementation)
 
@@ -1188,4 +1188,4 @@ function findBoundaryPoint(
 
 ---
 
-*This document is part of the Fractured Jukebox research collection. For implementation details, see `src/fractal-worker.ts` and `src/fractal-config.ts`.*
+*This document is part of the The Fractured Jukebox research collection. For implementation details, see `src/fractal-worker.ts` and `src/fractal-config.ts`.*
