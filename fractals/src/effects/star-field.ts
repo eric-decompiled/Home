@@ -11,6 +11,7 @@ interface Star {
   baseBrightness: number;
   twinklePhase: number;
   twinkleSpeed: number;
+  twinkleOffset: number;   // Small +/- offset for variety
   shimmer: number;
   // New fields
   depth: number;           // 0 = far (dim, slow), 1 = near (bright, fast parallax)
@@ -257,6 +258,7 @@ export class StarFieldEffect implements VisualEffect {
       baseBrightness,
       twinklePhase: Math.random() * Math.PI * 2,
       twinkleSpeed: 0.5 + Math.random() * 2,
+      twinkleOffset: (Math.random() - 0.5) * 0.1, // ±0.05 subtle variety
       shimmer: 0,
       depth,
       colorPos: ((colorPos % 1) + 1) % 1,
@@ -288,16 +290,16 @@ export class StarFieldEffect implements VisualEffect {
     this.parallaxX += (targetX - this.parallaxX) * 0.5 * dt;
     this.parallaxY += (targetY - this.parallaxY) * 0.5 * dt;
 
-    // Update star shimmer
+    // Update star shimmer (slow wave across the field)
     for (const star of this.stars) {
       const threshold = star.twinklePhase / (Math.PI * 2);
 
       if (this.smoothTension > threshold) {
         const intensity = (this.smoothTension - threshold) / (1 - threshold + 0.01);
         const targetShimmer = Math.min(1, intensity * this.twinkleAmount);
-        star.shimmer += (targetShimmer - star.shimmer) * 4 * dt;
+        star.shimmer += (targetShimmer - star.shimmer) * 1 * dt;
       } else {
-        star.shimmer *= Math.exp(-3 * dt);
+        star.shimmer *= Math.exp(-1 * dt);
       }
     }
   }
@@ -381,7 +383,8 @@ export class StarFieldEffect implements VisualEffect {
   }
 
   private renderStars(ctx: CanvasRenderingContext2D): void {
-    const tensionSpeedMult = 1 + this.smoothTension * 1.5;
+    // Speed varies with tension: calm shimmer at low, rapid twinkle at high
+    const tensionSpeedMult = 1 + this.smoothTension * 1.0;
 
     for (const star of this.stars) {
       // Parallax offset based on depth (near stars move more)
@@ -397,10 +400,10 @@ export class StarFieldEffect implements VisualEffect {
 
       // Twinkle - simplified to single frequency
       const twinkleTime = this.time * star.twinkleSpeed * tensionSpeedMult;
-      const twinkleFactor = 0.7 + 0.3 * Math.sin(twinkleTime + star.twinklePhase);
+      const twinkleFactor = 0.7 + 0.3 * Math.sin(twinkleTime + star.twinklePhase) + star.twinkleOffset;
 
       // Shimmer boost
-      const shimmerBoost = star.shimmer * 0.4;
+      const shimmerBoost = star.shimmer * 0.25;
 
       // Final brightness
       const brightness = star.baseBrightness * twinkleFactor + shimmerBoost;
