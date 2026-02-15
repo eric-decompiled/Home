@@ -216,6 +216,7 @@ export const PRESET_LAYERS: Record<string, (string | null)[]> = {
 export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
   stars: {
     'melody-clock': { showNotes: false },
+    'bass-clock': { showNumerals: false },
   },
   clock: {
     'note-spiral': { setShapes: '' },
@@ -249,6 +250,8 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
     'kaleidoscope': {
       foldCount: 12,
     },
+    'bass-clock': { showNumerals: false },
+    'melody-clock': { showNotes: false },
   },
 };
 

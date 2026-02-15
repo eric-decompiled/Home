@@ -143,7 +143,8 @@
       "Bash(npx excalidraw-brute-export-cli:*)",
       "Bash(npx playwright install:*)",
       "WebFetch(domain:numanme.co.uk)",
-      "WebFetch(domain:www.mididb.com)"
+      "WebFetch(domain:www.mididb.com)",
+      "Bash(git config:*)"
     ]
   }
 }

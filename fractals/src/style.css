@@ -2058,7 +2058,7 @@ body.ios-landscape-fullscreen canvas {
   display: flex;
   gap: 4px;
   align-items: flex-start;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-start;
 }
 
@@ -2158,6 +2158,8 @@ body.ios-landscape-fullscreen canvas {
   background: #111;
   border-radius: 6px;
   border: 1px solid #222;
+  flex-shrink: 1;
+  min-width: 0;
 }
 
 .fc-degree-main {
@@ -3116,6 +3118,10 @@ body.ios-landscape-fullscreen canvas {
 @media (max-width: 600px) {
   .fc-toolbar {
     gap: 8px;
+  }
+
+  .fc-grid-row {
+    flex-wrap: wrap;
   }
 
   .fc-degree-grid {
