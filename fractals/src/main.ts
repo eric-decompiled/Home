@@ -1355,14 +1355,12 @@ function buildLayerPanel(): void {
     }
 
     // Config button for fractal and graph-chain effects (only in Foreground slot)
-    // Fractal config is desktop-only due to complexity
     let configBtn: HTMLButtonElement | null = null;
     if (slot.name === 'Foreground') {
       configBtn = document.createElement('button');
       configBtn.className = 'slot-config-link';
       configBtn.textContent = 'Custom';
-      const isMobile = window.innerWidth <= 768;
-      const hasConfig = (slot.activeId === 'fractal' && !isMobile) || slot.activeId === 'graph-chain';
+      const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-chain';
       configBtn.style.display = hasConfig ? 'block' : 'none';
       configBtn.addEventListener('click', () => {
         if (slot.activeId === 'fractal') {
@@ -1405,10 +1403,9 @@ function buildLayerPanel(): void {
       clearPresetHighlights();
       dirty = true;
       markUnsavedChanges();
-      // Show/hide config button for fractal and graph-chain (fractal config is desktop-only)
+      // Show/hide config button for fractal and graph-chain
       if (configBtn) {
-        const isMobile = window.innerWidth <= 768;
-        const hasConfig = (slot.activeId === 'fractal' && !isMobile) || slot.activeId === 'graph-chain';
+        const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-chain';
         configBtn.style.display = hasConfig ? 'block' : 'none';
       }
       // Auto-toggle display checkbox based on effect selection
