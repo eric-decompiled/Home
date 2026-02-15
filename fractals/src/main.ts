@@ -485,9 +485,7 @@ app.innerHTML = `
               <button class="toggle-btn preset-btn" id="preset-KaliGraph" title="Graph Chain + Kaleidoscope">KaliGraph</button>
             </div>
           </div>
-        </div>
-        <div class="layer-panel-footer">
-          <div class="quality-presets">
+          <div class="quality-section" id="quality-section">
             <div class="quality-label">Render Quality</div>
             <div class="quality-buttons">
               <button class="toggle-btn quality-btn" id="quality-low" title="50% resolution - fastest">Fast</button>
@@ -495,6 +493,8 @@ app.innerHTML = `
               <button class="toggle-btn quality-btn active" id="quality-high" title="100% resolution - sharpest">Sharp</button>
             </div>
           </div>
+        </div>
+        <div class="layer-panel-footer">
           <button class="copy-link-btn" id="copy-link-btn" title="Copy a link with your current preset, layers, and effect settings">Copy Settings Link</button>
         </div>
       </div>
@@ -574,6 +574,7 @@ const layerList = document.getElementById('layer-list')!;
 const colorsGrid = document.getElementById('colors-grid')!;
 const colorsSection = document.getElementById('colors-section')!;
 const experimentalPresetsSection = document.getElementById('experimental-presets')!;
+const qualitySection = document.getElementById('quality-section')!;
 const colorsResetBtn = document.getElementById('colors-reset-btn') as HTMLButtonElement;
 const fullscreenBtn = document.getElementById('fullscreen-btn') as HTMLButtonElement;
 const debugOverlay = document.getElementById('debug-overlay') as HTMLElement;
@@ -1459,9 +1460,10 @@ function buildLayerPanel(): void {
     layerList.appendChild(slotDiv);
   }
 
-  // Append colors and experimental sections at the end (moves them into scrollable area)
+  // Append colors, experimental, and quality sections at the end (moves them into scrollable area)
   layerList.appendChild(colorsSection);
   layerList.appendChild(experimentalPresetsSection);
+  layerList.appendChild(qualitySection);
 }
 
 function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {

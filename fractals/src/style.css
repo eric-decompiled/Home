@@ -290,6 +290,7 @@ a.toggle-btn {
 #layer-list {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .layer-panel-header {
@@ -583,6 +584,14 @@ a.toggle-btn {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid rgba(136, 153, 170, 0.2);
+}
+
+.quality-section {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(136, 153, 170, 0.2);
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .quality-label {
