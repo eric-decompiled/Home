@@ -205,7 +205,7 @@ export const PRESET_LAYERS: Record<string, (string | null)[]> = {
   // [bg, fg, overlay, melody, bass, hud]
   stars: ['starfield', 'note-star', null, null, 'bass-fire', null],
   clock: ['flowfield', 'note-spiral', null, 'melody-clock', 'bass-clock', 'theory-bar'],
-  warp: ['chladni', 'note-spiral', 'kaleidoscope', 'melody-aurora', 'bass-clock', null],
+  warp: ['chladni', 'note-spiral', 'kaleidoscope', 'melody-clock', 'bass-clock', null],
   fractal: [null, 'fractal', 'kaleidoscope', 'melody-web', null, 'theory-bar'],
   piano: ['flowfield', 'piano-roll', null, null, null, null],
   'star-aurora': [null, 'note-star', 'kaleidoscope', 'melody-aurora', 'bass-fire', null],
@@ -220,7 +220,7 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
   },
   warp: {
     'note-spiral': { setShapes: 'ring,trails' },
-    'kaleidoscope': { foldCount: 6.48 },
+    'kaleidoscope': { foldCount: 6.002246 },
   },
   fractal: {
     'fractal': { preset: 'phoenix-journey' },

@@ -56,6 +56,7 @@ type PlaylistCategory = 'classical' | 'pop' | 'video';
 
 const popSongs: SongEntry[] = [
   // Classics - grouped by artist (with featured openers)
+  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },
   { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid' },
   { name: 'Eye of the Tiger (Survivor)', file: 'survivor-eye-of-tiger.mid' },
   { name: 'Never Gonna Give You Up (Rick Astley)', file: 'rick-astley-never-gonna.mid' },
@@ -67,14 +68,10 @@ const popSongs: SongEntry[] = [
   { name: 'Livin\' on a Prayer (Bon Jovi)', file: 'bon-jovi-livin-prayer.mid' },
   // Bonnie Tyler
   { name: 'Total Eclipse of the Heart (Bonnie Tyler)', file: 'bonnie-tyler-total-eclipse.mid' },
-  // Europe
-  { name: 'The Final Countdown (Europe)', file: 'europe-final-countdown.mid' },
   // Guns N' Roses
   { name: 'Sweet Child O\' Mine (Guns N\' Roses)', file: 'gnr-sweet-child.mid' },
   // Gary Numan
   { name: 'Cars (Gary Numan)', file: 'gary-numan-cars.mid' },
-  // Jobim
-  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },
   // Michael Jackson
   { name: 'Billie Jean (Michael Jackson)', file: 'mj-billie-jean.mid' },
   { name: 'Thriller (Michael Jackson)', file: 'mj-thriller.mid' },
@@ -84,16 +81,15 @@ const popSongs: SongEntry[] = [
 
 const videoSongs: SongEntry[] = [
   // Video game classics (energy arc: setup → build → peak at 2/3 → release)
-  { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // emotional opener
-  { name: 'Great Fairy Fountain (Zelda: OoT)', file: 'zelda-great-fairy-fountain.mid' }, // ethereal
-  { name: 'Corridors of Time (Chrono Trigger)', file: 'corridors-of-time.mid' },         // dreamy
-  { name: 'Pollyanna (Earthbound)', file: 'earthbound-pollyanna.mid' },                  // heartfelt
-  { name: 'Song of Storms (Zelda: OoT)', file: 'zelda-song-of-storms.mid' },             // mysterious energy
-  { name: 'Ground Theme (Super Mario Bros)', file: 'mario-ground-theme.mid' },           // iconic, building
-  { name: 'Green Hill Zone (Sonic)', file: 'green-hill-zone.mid' },                      // energy rising
+  { name: 'Prelude (Final Fantasy)', file: 'ff1-prelude.mid' },                          // iconic arpeggio
   { name: 'Gerudo Valley (Zelda: OoT)', file: 'zelda-gerudo-valley.mid' },               // high energy
-  { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },                        // PEAK battle
+  { name: 'Corridors of Time (Chrono Trigger)', file: 'corridors-of-time.mid' },         // dreamy
   { name: 'Battle Theme (Golden Sun)', file: 'golden-sun-battle.mid' },                  // RPG intensity
+  { name: 'Ground Theme (Super Mario Bros)', file: 'mario-ground-theme.mid' },           // iconic, building
+  { name: 'Great Fairy Fountain (Zelda: OoT)', file: 'zelda-great-fairy-fountain.mid' }, // ethereal
+  { name: 'Green Hill Zone (Sonic)', file: 'green-hill-zone.mid' },                      // energy rising
+  { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },                        // PEAK battle
+  { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // emotional wind-down
   { name: 'Aquatic Ambiance (Donkey Kong Country)', file: 'dkc-aquatic-ambiance.mid' },  // serene ending ♡
 ];
 

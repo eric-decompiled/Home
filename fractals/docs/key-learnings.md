@@ -42,6 +42,7 @@
 
 ### Physics & Animation
 - **Compass physics for clock hands**: Spring-damper system (springK=12, damping=5) creates weighty motion with natural overshoot and settle. Hand swings toward target, overshoots slightly, drifts back. New notes can interrupt mid-motion smoothly. Feels more physical than tweening
+- **Attraction decay for clock release**: Scale spring constant by decaying `attractionStrength` after note ends. Delay 300ms before decay starts (so short gaps don't interrupt), then exponential decay (rate 2.5). Hand gradually "lets go" and drifts rather than staying rigidly locked to last note. New onset instantly resets to full attraction
 - **Wave tank physics**: Model energy as waves with momentum—push creates motion that continues after input stops
 - **Spatial wave tanks**: Separate waves for bass (from bottom) and melody (from sides). Creates directional interest
 - **Pitch-weighted energy**: Higher notes contribute more energy (scale by `1 + (midi - 60) / 24`)

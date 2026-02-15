@@ -59,6 +59,10 @@ export class MelodyClockEffect implements VisualEffect {
   private loudness = 0;
   private handLength = 0.95;
 
+  // Attraction decay for smoother hand release
+  private attractionStrength = 1.0;
+  private lastOnsetTime = 0;
+
   // Config
   private showNotes = true;
 
@@ -144,6 +148,18 @@ export class MelodyClockEffect implements VisualEffect {
         { handBrightness: 0.8 },
         { handBrightness: 0, duration: beatDur * 2.0, ease: 'power2.out', overwrite: 'auto' }
       );
+
+      // Reset attraction on note onset
+      this.attractionStrength = 1.0;
+      this.lastOnsetTime = this.time;
+    }
+
+    // Decay attraction when no notes are playing
+    const timeSinceOnset = this.time - this.lastOnsetTime;
+    const DECAY_DELAY = 0.3;    // Start decay 300ms after note
+    const DECAY_RATE = 2.5;     // Decay time constant
+    if (timeSinceOnset > DECAY_DELAY) {
+      this.attractionStrength = Math.exp(-DECAY_RATE * (timeSinceOnset - DECAY_DELAY));
     }
 
     // === COMPASS PHYSICS ===
@@ -151,7 +167,7 @@ export class MelodyClockEffect implements VisualEffect {
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
-    const springK = 12.0;
+    const springK = 12.0 * this.attractionStrength;
     const springForce = angleDiff * springK;
     const damping = 5.0;
     const dampingForce = -this.angularVelocity * damping;
