@@ -57,9 +57,9 @@ type PlaylistCategory = 'classical' | 'pop' | 'video';
 const popSongs: SongEntry[] = [
   // Classics - grouped by artist (with featured openers)
   { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },
-  { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid' },
   { name: 'Eye of the Tiger (Survivor)', file: 'survivor-eye-of-tiger.mid' },
   { name: 'Never Gonna Give You Up (Rick Astley)', file: 'rick-astley-never-gonna.mid' },
+  { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid' },
   // ABBA
   { name: 'Money Money Money (ABBA)', file: 'abba-money-money-money.mid' },
   // Bee Gees

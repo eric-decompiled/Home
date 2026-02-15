@@ -16,8 +16,8 @@ interface ArcSegment {
   b: number;
 }
 
-const ARC_TRAIL_MAX = 30;
-const ARC_TRAIL_LIFETIME = 3.1;
+const ARC_TRAIL_MAX = 20;  // Reduced from 30
+const ARC_TRAIL_LIFETIME = 2.5;  // Reduced from 3.1
 
 export class MelodyClockEffect implements VisualEffect {
   readonly id = 'melody-clock';
@@ -270,7 +270,8 @@ export class MelodyClockEffect implements VisualEffect {
     ctx.stroke();
 
     // --- Arc trail with comet tail gradient ---
-    if (this.arcTrail.length >= 2) {
+    // Skip when loudness is very low for performance
+    if (this.arcTrail.length >= 2 && this.loudness > 0.02) {
       const trailR = r;
       const groovePulse = 1.0 + this.anticipation * 0.3;
 
@@ -323,9 +324,9 @@ export class MelodyClockEffect implements VisualEffect {
           ctx.lineWidth = baseWidth;
           ctx.stroke();
 
-          // Hot inner core near head
-          if (t > 0.6) {
-            const hotAlpha = ageFade * Math.pow((t - 0.6) / 0.4, 2) * 0.4 * groovePulse * loudnessFactor;
+          // Hot inner core near head (only last 3 segments for performance)
+          if (t > 0.8 && i >= validTrail.length - 4) {
+            const hotAlpha = ageFade * Math.pow((t - 0.8) / 0.2, 2) * 0.5 * groovePulse * loudnessFactor;
             const hotR = Math.min(255, segR + 60);
             const hotG = Math.min(255, segG + 60);
             const hotB = Math.min(255, segB + 60);
@@ -341,7 +342,9 @@ export class MelodyClockEffect implements VisualEffect {
 
     // --- Note name markers (offset outward, smaller than bass numerals) ---
     // Fade out with attraction strength so labels disappear when no notes playing
+    // Skip entirely when nearly invisible for performance
     const labelFade = this.attractionStrength;
+    if (labelFade > 0.05) {
     const labelOffset = r * 0.12; // Push labels outside the ring
     for (let i = 0; i < 12; i++) {
       const pos = spiralPos(113, i, this.key, this.keyRotation, cx, cy, spiralMaxR);
@@ -393,6 +396,7 @@ export class MelodyClockEffect implements VisualEffect {
         ctx.fillRect(tx - glowR, ty - glowR, glowR * 2, glowR * 2);
       }
     }
+    } // end labelFade > 0.05
 
     // ==========================================================
     // ELEGANT MELODY HAND - Lighter, more graceful than bass

@@ -33,7 +33,13 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 
 **Layers**: Background (Chladni, Domain Warp, Waves, Flow Field, Starfield) | Foreground (Graph Chain, Note Spiral, Fractal, Piano Roll, Tonnetz) | Overlay (Kaleidoscope) | HUD (Theory Bar) | Melody/Bass clocks and webs
 
-**Presets**: `warp`, `clock`, `stars` (default), `fractal`, `chain`, `piano`
+**Presets**:
+- `stars` (default): Starfield + Note Star + Bass Fire
+- `clock`: Starfield + Note Spiral + Melody/Bass Clocks + Theory Bar
+- `warp`: Chladni + Note Spiral + Kaleidoscope + Melody/Bass Clocks
+- `fractal`: Fractal + Kaleidoscope + Melody Web + Theory Bar
+- `piano`: Flow Field + Piano Roll
+- `chain`: Graph Chain + Kaleidoscope
 
 **MIDIs**: Place in `public/midi/`, must start with `MThd` bytes (not RIFF-wrapped)
 

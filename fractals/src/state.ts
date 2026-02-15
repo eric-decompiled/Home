@@ -204,7 +204,7 @@ for (const [effectId, keys] of Object.entries(CONFIG_SHORTS)) {
 export const PRESET_LAYERS: Record<string, (string | null)[]> = {
   // [bg, fg, overlay, melody, bass, hud]
   stars: ['starfield', 'note-star', null, null, 'bass-fire', null],
-  clock: ['flowfield', 'note-spiral', null, 'melody-clock', 'bass-clock', 'theory-bar'],
+  clock: ['starfield', 'note-spiral', null, 'melody-clock', 'bass-clock', 'theory-bar'],
   warp: ['chladni', 'note-spiral', 'kaleidoscope', 'melody-clock', 'bass-clock', null],
   fractal: [null, 'fractal', 'kaleidoscope', 'melody-web', null, 'theory-bar'],
   piano: ['flowfield', 'piano-roll', null, null, null, null],
@@ -214,7 +214,9 @@ export const PRESET_LAYERS: Record<string, (string | null)[]> = {
 
 // Preset-specific effect configs (applied when preset is selected)
 export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
-  stars: {},
+  stars: {
+    'melody-clock': { showNotes: false },
+  },
   clock: {
     'note-spiral': { setShapes: '' },
   },
