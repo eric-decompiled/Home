@@ -317,10 +317,10 @@ app.innerHTML = `
           <span></span><span></span><span></span>
         </button>
         <div class="mobile-presets mobile-only">
-          <button class="mobile-preset-btn" id="mobile-bar-warp">Warp</button>
-          <button class="mobile-preset-btn" id="mobile-bar-clock">Clock</button>
           <button class="mobile-preset-btn" id="mobile-bar-stars">Stars</button>
-          <button class="mobile-preset-btn" id="mobile-bar-star-aurora">Aurora</button>
+          <button class="mobile-preset-btn" id="mobile-bar-clock">Clock</button>
+          <button class="mobile-preset-btn" id="mobile-bar-warp">Warp</button>
+          <button class="mobile-preset-btn mobile-preset-extra" id="mobile-bar-star-aurora">Aurora</button>
         </div>
         <div class="playlist-category-wrap desktop-only">
           <button class="toggle-btn playlist-btn active" id="playlist-pop" title="Pop & rock">Classics</button>
@@ -436,6 +436,7 @@ app.innerHTML = `
               <button class="toggle-btn quality-btn active" id="quality-high" title="100% resolution - sharpest">Sharp</button>
             </div>
           </div>
+          <button class="copy-link-btn" id="copy-link-btn" title="Copy shareable link to clipboard">Copy Link</button>
         </div>
       </div>
       <div class="canvas-wrap">
@@ -575,7 +576,6 @@ function toggleTheoryBar(): void {
 
   dirty = true;
   buildLayerPanel();
-  updateBrowserURL();
 }
 
 // Triple-tap on canvas to toggle theory bar with slide animation
@@ -695,7 +695,6 @@ async function switchPlaylist(category: PlaylistCategory): Promise<void> {
 
   // Load and optionally auto-play first song
   await loadSong(0);
-  updateBrowserURL();
 
   // If we were playing before, continue playing the new song
   if (wasPlaying) {
@@ -707,43 +706,6 @@ async function switchPlaylist(category: PlaylistCategory): Promise<void> {
 
 function getCurrentSongs(): SongEntry[] {
   return playlists[currentPlaylist];
-}
-
-// --- Update URL to reflect current settings (using state module) ---
-
-function updateBrowserURL(): void {
-  const state = getCurrentState(layerSlots);
-  const baseQuery = stateToURL(state);
-
-  // Add playlist and track params (only if non-default)
-  const params = new URLSearchParams(baseQuery);
-
-  // Playlist/track use short param names, separate from effect state
-  // Default is pop (Classics) playlist, track 0
-  if (currentPlaylist !== 'pop') {
-    params.set('l', currentPlaylist);
-  }
-  if (songPicker.value !== '0') {
-    params.set('t', songPicker.value);
-  }
-
-  const queryString = params.toString();
-  const newURL = queryString
-    ? `${window.location.pathname}?${queryString}`
-    : window.location.pathname;
-  history.replaceState(null, '', newURL);
-}
-
-// Debounced version for continuous inputs (sliders)
-let urlUpdateTimeout: number | null = null;
-function updateBrowserURLDebounced(): void {
-  if (urlUpdateTimeout !== null) {
-    clearTimeout(urlUpdateTimeout);
-  }
-  urlUpdateTimeout = window.setTimeout(() => {
-    updateBrowserURL();
-    urlUpdateTimeout = null;
-  }, 150);
 }
 
 // --- Fullscreen toggle ---
@@ -1140,7 +1102,6 @@ function buildColorsGrid(): void {
         setCustomColor(pitchClass, input.value);
       }
       markUnsavedChanges();
-      updateBrowserURLDebounced();  // Debounced for continuous color drag
     });
 
     // Drag and drop handlers
@@ -1191,7 +1152,6 @@ function buildColorsGrid(): void {
       updateSwatchColor(dragSourcePc, targetColor);
       updateSwatchColor(pc, sourceColor);
       markUnsavedChanges();
-      updateBrowserURL();
     });
 
     row.appendChild(swatch);
@@ -1205,7 +1165,6 @@ colorsResetBtn.addEventListener('click', () => {
   clearCustomColors();
   buildColorsGrid();
   markUnsavedChanges();
-  updateBrowserURL();
 });
 
 // --- Bass numerals toggle ---
@@ -1339,7 +1298,6 @@ function buildLayerPanel(): void {
       clearPresetHighlights();
       dirty = true;
       markUnsavedChanges();
-      updateBrowserURL();
       // Show/hide config button for fractal and graph-chain (fractal config is desktop-only)
       if (configBtn) {
         const isMobile = window.innerWidth <= 768;
@@ -1473,7 +1431,6 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
         valDisplay.textContent = String(v);
         clearPresetHighlights();
         markUnsavedChanges();
-        updateBrowserURLDebounced();  // Debounced for continuous slider drag
       });
       row.appendChild(input);
       row.appendChild(valDisplay);
@@ -1490,7 +1447,6 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
         effect.setConfigValue(cfg.key, sel.value);
         clearPresetHighlights();
         markUnsavedChanges();
-        updateBrowserURL();
       });
       row.appendChild(sel);
     } else if (cfg.type === 'buttons') {
@@ -1506,7 +1462,6 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
           btn.classList.add('active');
           clearPresetHighlights();
           markUnsavedChanges();
-          updateBrowserURL();
         });
         btnWrap.appendChild(btn);
       }
@@ -1526,7 +1481,6 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
           btn.classList.toggle('active');
           clearPresetHighlights();
           markUnsavedChanges();
-          updateBrowserURL();
         });
         btnWrap.appendChild(btn);
       }
@@ -1539,7 +1493,6 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
         effect.setConfigValue(cfg.key, input.checked);
         clearPresetHighlights();
         markUnsavedChanges();
-        updateBrowserURL();
       });
       row.appendChild(input);
     }
@@ -1583,6 +1536,20 @@ function applyPreset(preset: PresetName): void {
     applyState(presetState, layerSlots, getAllEffects());
   }
 
+  // Sync UI toggles with applied effect configs
+  // Check preset configs for showNumerals/showNotes, default to true if not specified
+  const presetConfigs = presetState?.configs ?? {};
+  const bassConfig = presetConfigs['bass-clock'] as Record<string, unknown> | undefined;
+  const melodyConfig = presetConfigs['melody-clock'] as Record<string, unknown> | undefined;
+
+  const bassNumeralsVal = bassConfig?.showNumerals ?? true;
+  showBassNumerals = bassNumeralsVal as boolean;
+  syncBassNumerals(showBassNumerals);
+
+  const melodyNotesVal = melodyConfig?.showNotes ?? true;
+  showMelodyNotes = melodyNotesVal as boolean;
+  syncMelodyNotes(showMelodyNotes);
+
   applySlotSelections();
   buildLayerPanel();
   buildColorsGrid();
@@ -1591,8 +1558,6 @@ function applyPreset(preset: PresetName): void {
 
   // Update all preset button highlights
   syncPresetButtons(preset);
-
-  updateBrowserURL();
 }
 
 for (const [name, btn] of Object.entries(presetButtons)) {
@@ -1678,6 +1643,35 @@ let canvasDPR = 1;
 if (localStorage.getItem('autoDowngraded') === 'true') {
   setQuality('medium');
 }
+
+// Copy Link button - generates shareable URL and copies to clipboard
+const copyLinkBtn = document.getElementById('copy-link-btn') as HTMLButtonElement;
+copyLinkBtn.addEventListener('click', async () => {
+  const state = getCurrentState(layerSlots);
+  const baseQuery = stateToURL(state);
+  const params = new URLSearchParams(baseQuery);
+
+  // Add playlist and track params
+  if (currentPlaylist !== 'pop') {
+    params.set('l', currentPlaylist);
+  }
+  if (songPicker.value !== '0') {
+    params.set('t', songPicker.value);
+  }
+
+  const queryString = params.toString();
+  const url = queryString
+    ? `${window.location.origin}${window.location.pathname}?${queryString}`
+    : `${window.location.origin}${window.location.pathname}`;
+
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Link copied to clipboard!', 2000, 'info');
+  } catch {
+    // Fallback for older browsers
+    showToast('Could not copy link', 2000);
+  }
+});
 
 // Sync all preset button highlights to match the given preset (or clear if null)
 function syncPresetButtons(preset: PresetName | null): void {
@@ -1934,7 +1928,6 @@ songPicker.addEventListener('change', async () => {
   const idx = parseInt(songPicker.value);
   if (!isNaN(idx)) {
     await loadSong(idx);
-    updateBrowserURL();
     if (!isPlaying) playBtn.click();
   }
 });
@@ -1957,7 +1950,6 @@ prevBtn.addEventListener('click', async () => {
   const prevIdx = (currentIdx - 1 + currentSongs.length) % currentSongs.length;
   songPicker.value = String(prevIdx);
   await loadSong(prevIdx);
-  updateBrowserURL();
   if (!isPlaying) playBtn.click();
 });
 
@@ -1968,7 +1960,6 @@ nextBtn.addEventListener('click', async () => {
   const nextIdx = (currentIdx + 1) % currentSongs.length;
   songPicker.value = String(nextIdx);
   await loadSong(nextIdx);
-  updateBrowserURL();
   if (!isPlaying) playBtn.click();
 });
 

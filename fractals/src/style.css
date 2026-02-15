@@ -136,6 +136,13 @@ body {
   color: #16c79a;
 }
 
+/* Hide extra presets on very small screens */
+@media (max-width: 380px) {
+  .mobile-preset-extra {
+    display: none;
+  }
+}
+
 .playlist-category-wrap {
   display: flex;
   gap: 3px;
@@ -578,6 +585,24 @@ a.toggle-btn {
   flex: 1;
   font-size: 11px;
   padding: 6px 10px;
+}
+
+.copy-link-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid #333;
+  color: #888;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.copy-link-btn:hover {
+  border-color: #16c79a;
+  color: #16c79a;
 }
 
 /* --- Import Modal --- */
