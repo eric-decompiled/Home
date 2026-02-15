@@ -154,6 +154,23 @@ body {
   padding: 4px 8px;
 }
 
+.playlist-spacer {
+  width: 1px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 4px;
+  align-self: center;
+}
+
+.playlist-uploads {
+  color: #f0a500;
+}
+
+.playlist-uploads.active {
+  background: #f0a500;
+  color: #000;
+}
+
 .seek-wrap {
   display: flex;
   align-items: center;

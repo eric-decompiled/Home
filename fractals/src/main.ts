@@ -46,11 +46,12 @@ import { setCustomColor, clearCustomColors, getCustomColors, samplePaletteColor 
 interface SongEntry {
   name: string;
   file: string;
+  data?: ArrayBuffer;  // For uploaded MIDIs stored in memory
 }
 
 // --- Playlist Categories ---
 
-type PlaylistCategory = 'classical' | 'pop' | 'video';
+type PlaylistCategory = 'classical' | 'pop' | 'video' | 'uploads';
 
 const popSongs: SongEntry[] = [
   // Classics - grouped by artist (with featured openers)
@@ -112,10 +113,66 @@ const classicalSongs: SongEntry[] = [
   { name: 'Clair de Lune (Debussy)', file: 'clair-de-lune.mid' },
 ];
 
+// User-uploaded songs (persisted to localStorage)
+const uploadedSongs: SongEntry[] = [];
+
+// Load uploads from localStorage
+function loadUploadsFromStorage(): void {
+  try {
+    const stored = localStorage.getItem('uploadedMidis');
+    if (!stored) return;
+    const items = JSON.parse(stored) as Array<{ name: string; file: string; dataBase64: string }>;
+    for (const item of items) {
+      // Convert base64 back to ArrayBuffer
+      const binary = atob(item.dataBase64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      uploadedSongs.push({
+        name: item.name,
+        file: item.file,
+        data: bytes.buffer,
+      });
+    }
+  } catch (e) {
+    console.warn('Failed to load uploads from storage:', e);
+  }
+}
+
+// Save uploads to localStorage
+function saveUploadsToStorage(): void {
+  try {
+    const items = uploadedSongs.map(song => {
+      // Convert ArrayBuffer to base64
+      const bytes = new Uint8Array(song.data!);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return {
+        name: song.name,
+        file: song.file,
+        dataBase64: btoa(binary),
+      };
+    });
+    localStorage.setItem('uploadedMidis', JSON.stringify(items));
+  } catch (e) {
+    console.warn('Failed to save uploads to storage:', e);
+    if (e instanceof DOMException && e.name === 'QuotaExceededError') {
+      showToast('Storage full - upload not saved');
+    }
+  }
+}
+
+// Load stored uploads on startup
+loadUploadsFromStorage();
+
 const playlists: Record<PlaylistCategory, SongEntry[]> = {
   classical: classicalSongs,
   pop: popSongs,
   video: videoSongs,
+  uploads: uploadedSongs,
 };
 
 let currentPlaylist: PlaylistCategory = 'pop';
@@ -324,6 +381,8 @@ app.innerHTML = `
           <button class="toggle-btn playlist-btn active" id="playlist-pop" title="Pop & rock">Classics</button>
           <button class="toggle-btn playlist-btn" id="playlist-classical" title="Classical">Classical</button>
           <button class="toggle-btn playlist-btn" id="playlist-video" title="Video games">Games</button>
+          <span class="playlist-spacer"></span>
+          <button class="toggle-btn playlist-btn playlist-uploads" id="playlist-uploads" title="Your uploaded MIDIs" style="display:none">Uploads</button>
         </div>
         <div class="song-picker-wrap">
           <select id="song-picker">
@@ -369,6 +428,8 @@ app.innerHTML = `
           <button class="toggle-btn playlist-btn active" id="mobile-playlist-pop">Classics</button>
           <button class="toggle-btn playlist-btn" id="mobile-playlist-classical">Classical</button>
           <button class="toggle-btn playlist-btn" id="mobile-playlist-video">Games</button>
+          <span class="playlist-spacer"></span>
+          <button class="toggle-btn playlist-btn playlist-uploads" id="mobile-playlist-uploads" style="display:none">Uploads</button>
         </div>
       </div>
       <div class="mobile-menu-section">
@@ -519,7 +580,14 @@ const debugOverlay = document.getElementById('debug-overlay') as HTMLElement;
 const playlistClassicalBtn = document.getElementById('playlist-classical') as HTMLButtonElement;
 const playlistPopBtn = document.getElementById('playlist-pop') as HTMLButtonElement;
 const playlistVideoBtn = document.getElementById('playlist-video') as HTMLButtonElement;
+const playlistUploadsBtn = document.getElementById('playlist-uploads') as HTMLButtonElement;
 const playOverlay = document.getElementById('play-overlay')!;
+
+// Show uploads button if there are stored uploads
+if (uploadedSongs.length > 0) {
+  playlistUploadsBtn.style.display = '';
+  document.getElementById('mobile-playlist-uploads')!.style.display = '';
+}
 
 // Mobile menu elements
 const hamburgerBtn = document.getElementById('hamburger-btn')!;
@@ -662,11 +730,16 @@ document.getElementById('mobile-playlist-video')!.addEventListener('click', () =
   switchPlaylist('video');
   updateMobilePlaylistButtons();
 });
+document.getElementById('mobile-playlist-uploads')!.addEventListener('click', () => {
+  switchPlaylist('uploads');
+  updateMobilePlaylistButtons();
+});
 
 function updateMobilePlaylistButtons(): void {
   document.getElementById('mobile-playlist-classical')!.classList.toggle('active', currentPlaylist === 'classical');
   document.getElementById('mobile-playlist-pop')!.classList.toggle('active', currentPlaylist === 'pop');
   document.getElementById('mobile-playlist-video')!.classList.toggle('active', currentPlaylist === 'video');
+  document.getElementById('mobile-playlist-uploads')!.classList.toggle('active', currentPlaylist === 'uploads');
 }
 
 // Mobile menu preset buttons (will wire up after preset functions are defined)
@@ -686,20 +759,28 @@ async function switchPlaylist(category: PlaylistCategory): Promise<void> {
   playlistClassicalBtn.classList.toggle('active', category === 'classical');
   playlistPopBtn.classList.toggle('active', category === 'pop');
   playlistVideoBtn.classList.toggle('active', category === 'video');
+  playlistUploadsBtn.classList.toggle('active', category === 'uploads');
 
   // Rebuild song picker options
   const currentSongs = playlists[category];
-  songPicker.innerHTML = currentSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
-  songPicker.value = '0';
+  if (category === 'uploads') {
+    rebuildUploadsPicker(0);
+  } else {
+    songPicker.innerHTML = currentSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
+    updateDeleteButton();  // Hide delete button for non-uploads
+  }
 
-  // Load and optionally auto-play first song
-  await loadSong(0);
+  // Load first song if available
+  if (currentSongs.length > 0) {
+    songPicker.value = '0';
+    await loadSong(0);
 
-  // If we were playing before, continue playing the new song
-  if (wasPlaying) {
-    await audioPlayer.play();
-    isPlaying = true;
-    setPlayBtnState(true);
+    // If we were playing before, continue playing the new song
+    if (wasPlaying) {
+      await audioPlayer.play();
+      isPlaying = true;
+      setPlayBtnState(true);
+    }
   }
 }
 
@@ -1835,18 +1916,23 @@ async function loadSong(index: number) {
   chordDisplay.textContent = 'Loading...';
 
   let midiBuffer: ArrayBuffer;
-  try {
-    const response = await fetch(`${import.meta.env.BASE_URL}midi/${song.file}`);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+  if (song.data) {
+    // Use in-memory data for uploaded songs
+    midiBuffer = song.data;
+  } else {
+    try {
+      const response = await fetch(`${import.meta.env.BASE_URL}midi/${song.file}`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      midiBuffer = await response.arrayBuffer();
+    } catch (e) {
+      console.error('Failed to fetch MIDI:', e);
+      showToast(`Failed to load: ${song.file}`);
+      chordDisplay.textContent = 'Load failed';
+      timeline = null;
+      return;
     }
-    midiBuffer = await response.arrayBuffer();
-  } catch (e) {
-    console.error('Failed to fetch MIDI:', e);
-    showToast(`Failed to load: ${song.file}`);
-    chordDisplay.textContent = 'Load failed';
-    timeline = null;
-    return;
   }
 
   try {
@@ -1898,6 +1984,68 @@ function updateTimeDisplay(currentTime: number) {
 
 // --- Custom MIDI file loading ---
 
+// Rebuild uploads picker
+function rebuildUploadsPicker(selectedIdx: number = 0): void {
+  songPicker.innerHTML = uploadedSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
+  if (uploadedSongs.length > 0) {
+    songPicker.value = String(selectedIdx);
+  }
+  updateDeleteButton();
+}
+
+// Delete button for removing uploads
+let uploadDeleteBtn: HTMLButtonElement | null = null;
+
+function updateDeleteButton(): void {
+  const shouldShow = currentPlaylist === 'uploads' && uploadedSongs.length > 0;
+  if (uploadDeleteBtn) {
+    uploadDeleteBtn.style.display = shouldShow ? '' : 'none';
+  }
+}
+
+function createDeleteButton(): void {
+  uploadDeleteBtn = document.createElement('button');
+  uploadDeleteBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>';
+  uploadDeleteBtn.title = 'Remove this upload';
+  uploadDeleteBtn.className = 'toggle-btn upload-delete-btn';
+  uploadDeleteBtn.style.display = 'none';
+  uploadDeleteBtn.style.marginLeft = '4px';
+  uploadDeleteBtn.style.color = '#ff6b6b';
+  uploadDeleteBtn.addEventListener('click', removeCurrentUpload);
+  songPicker.parentElement?.appendChild(uploadDeleteBtn);
+}
+
+// Remove current upload
+async function removeCurrentUpload(): Promise<void> {
+  const idx = parseInt(songPicker.value);
+  if (isNaN(idx) || idx < 0 || idx >= uploadedSongs.length) return;
+
+  const wasPlaying = isPlaying;
+  uploadedSongs.splice(idx, 1);
+  saveUploadsToStorage();
+
+  if (uploadedSongs.length === 0) {
+    // No more uploads, stop playback and switch to pop playlist
+    audioPlayer.stop();
+    isPlaying = false;
+    setPlayBtnState(false);
+    playlistUploadsBtn.style.display = 'none';
+    document.getElementById('mobile-playlist-uploads')!.style.display = 'none';
+    await switchPlaylist('pop');
+  } else {
+    // Select next song (or previous if at end)
+    const newIdx = Math.min(idx, uploadedSongs.length - 1);
+    rebuildUploadsPicker(newIdx);
+    await loadSong(newIdx);
+    // Continue playing if we were playing
+    if (wasPlaying) {
+      await audioPlayer.play();
+      isPlaying = true;
+      setPlayBtnState(true);
+    }
+  }
+}
+
 async function loadMidiFile(file: File) {
   audioPlayer.stop();
   isPlaying = false;
@@ -1934,16 +2082,39 @@ async function loadMidiFile(file: File) {
     const displayName = timeline.name || baseName;
     chordDisplay.textContent = `${timeline.timeSignature[0]}/${timeline.timeSignature[1]}`;
 
-    // Add/update custom song option in picker
-    let customOption = songPicker.querySelector('option[value="custom"]') as HTMLOptionElement | null;
-    if (!customOption) {
-      customOption = document.createElement('option');
-      customOption.value = 'custom';
-      customOption.style.color = '#f0a500';  // Gold color for uploaded songs
-      songPicker.insertBefore(customOption, songPicker.options[1]); // After "-- Select --"
+    // Add to uploads playlist (in memory)
+    const uploadEntry: SongEntry = {
+      name: `⬆ ${displayName}`,
+      file: file.name,
+      data: midiBuffer,
+    };
+
+    // Check if already exists (by filename), update if so
+    const existingIdx = uploadedSongs.findIndex(s => s.file === file.name);
+    if (existingIdx >= 0) {
+      uploadedSongs[existingIdx] = uploadEntry;
+    } else {
+      uploadedSongs.push(uploadEntry);
     }
-    customOption.textContent = `⬆ ${displayName}`;
-    songPicker.value = 'custom';
+
+    // Persist to localStorage
+    saveUploadsToStorage();
+
+    // Show uploads button now that we have uploads
+    playlistUploadsBtn.style.display = '';
+    document.getElementById('mobile-playlist-uploads')!.style.display = '';
+
+    // Switch to uploads playlist and select this song
+    currentPlaylist = 'uploads';
+    playlistClassicalBtn.classList.remove('active');
+    playlistPopBtn.classList.remove('active');
+    playlistVideoBtn.classList.remove('active');
+    playlistUploadsBtn.classList.add('active');
+    updateMobilePlaylistButtons();
+
+    // Rebuild song picker with uploads (with remove option)
+    const uploadIdx = existingIdx >= 0 ? existingIdx : uploadedSongs.length - 1;
+    rebuildUploadsPicker(uploadIdx);
 
     seekBar.max = String(timeline.duration);
     seekBar.step = '0.016';
@@ -1966,6 +2137,7 @@ async function loadMidiFile(file: File) {
 playlistClassicalBtn.addEventListener('click', () => switchPlaylist('classical'));
 playlistPopBtn.addEventListener('click', () => switchPlaylist('pop'));
 playlistVideoBtn.addEventListener('click', () => switchPlaylist('video'));
+playlistUploadsBtn.addEventListener('click', () => switchPlaylist('uploads'));
 
 songPicker.addEventListener('change', async () => {
   if (songPicker.value === 'custom') return; // Already loaded
@@ -2029,6 +2201,9 @@ midiBtn.className = 'toggle-btn';
 midiBtn.style.marginLeft = '8px';
 midiBtn.addEventListener('click', () => midiFileInput.click());
 songPicker.parentElement?.appendChild(midiBtn);
+
+// Create delete button for uploads
+createDeleteButton();
 
 // Drag & drop MIDI on canvas
 canvas.addEventListener('dragover', (e) => {
@@ -2410,7 +2585,7 @@ const startupParams = new URLSearchParams(window.location.search);
 const urlList = startupParams.get('l') as PlaylistCategory | null;
 const urlTrack = startupParams.get('t');
 
-if (urlList && playlists[urlList]) {
+if (urlList && urlList !== 'uploads' && playlists[urlList]) {
   currentPlaylist = urlList;
   // Update button states
   playlistClassicalBtn.classList.toggle('active', urlList === 'classical');

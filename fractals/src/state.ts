@@ -230,7 +230,10 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
     'fractal': { preset: 'phoenix-journey' },
     'kaleidoscope': { foldCount: 6 },
   },
-  piano: {},
+  piano: {
+    'bass-clock': { showNumerals: false },
+    'melody-clock': { showNotes: false },
+  },
   StarAurora: {
     'kaleidoscope': { foldCount: 6 },
     'bass-clock': { showNumerals: false },

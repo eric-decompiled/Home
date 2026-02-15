@@ -82,6 +82,11 @@
 - **CSS custom properties for smooth progress bars**: Use CSS variable (`--progress: 0-1`) with `linear-gradient`
 - **Octave-aware palette coloring**: Low octaves use darker stops (0-2), high octaves use brighter stops (3-5)
 - **Drag-and-drop color picker**: Let users swap colors between notes by dragging. No color theory knowledge needed to experiment
+- **Separate playlist category for uploads**: User-uploaded MIDIs get their own "Uploads" category with visual spacer. Button hidden until first upload, persists across sessions via localStorage
+- **Base64 for localStorage binary storage**: Store ArrayBuffer as base64 string for localStorage persistence. Convert via `btoa(String.fromCharCode(...bytes))` and reverse with `atob()` + `charCodeAt()`
+- **Contextual delete button**: Show trash icon next to picker only when viewing uploads. Better than dropdown option which didn't work reliably
+- **Graceful removal with playback continuity**: When deleting current upload, continue playing next song if was playing, or pause if no more uploads. Switch to default playlist when last upload removed
+- **Preset configs for unused effects**: Even if a preset doesn't use bass-clock/melody-clock, add `{ showNumerals: false, showNotes: false }` to prevent overlay numerals/notes from showing when those slots are empty
 
 ### URL Sharing
 - **URL query params for sharing**: Encode as short keys, use `history.replaceState()`. Default preset = clean URL
@@ -148,3 +153,4 @@
 ### Config Tool
 - **Conditional thumbnail rendering with dirty flag**: Checking `if (allThumbnailsDirty)` before rendering skips thumbnails when flag is false, leaving stale/empty canvases. The cache already handles efficiency—just always call the render function
 - **Loading localStorage state for "Default" preset**: `loadAnchors()` reads from localStorage (current saved state). Users clicking Default expect built-in defaults, not whatever was last saved
+- **"Remove" option in select dropdown**: Adding `<option value="__remove__">` to song picker didn't trigger change events reliably. Use a separate delete button beside the picker instead
