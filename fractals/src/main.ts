@@ -1113,6 +1113,12 @@ const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 
 // --- Build colors grid UI with drag-and-drop ---
 let dragSourcePc: number | null = null;
 
+// Touch drag state for mobile color swapping
+let touchDragPc: number | null = null;
+let touchDragTimer: ReturnType<typeof setTimeout> | null = null;
+let touchTargetPc: number | null = null;
+let touchDragCompleted = false; // Prevents click after drag
+
 function getColorValue(pc: number, customColors: Record<number, string>): string {
   if (customColors[pc]) return customColors[pc];
   const defaultColor = samplePaletteColor(pc, 0.65);
@@ -1167,8 +1173,12 @@ function buildColorsGrid(): void {
     input.dataset.pitchClass = String(pc);
     input.dataset.defaultColor = defaultHex;
 
-    // Click swatch to open color picker
+    // Click swatch to open color picker (skip if just finished a touch drag)
     swatch.addEventListener('click', (e) => {
+      if (touchDragCompleted) {
+        touchDragCompleted = false;
+        return;
+      }
       e.stopPropagation();
       input.click();
     });
@@ -1235,6 +1245,101 @@ function buildColorsGrid(): void {
       updateSwatchColor(pc, sourceColor);
       markUnsavedChanges();
     });
+
+    // Touch handlers for mobile drag-to-swap
+    swatch.addEventListener('touchstart', () => {
+      // Start long-press timer to enter drag mode
+      touchDragTimer = setTimeout(() => {
+        touchDragPc = pc;
+        swatch.classList.add('dragging');
+        // Vibrate to indicate drag mode started
+        if (navigator.vibrate) navigator.vibrate(50);
+      }, 400);
+    }, { passive: true });
+
+    swatch.addEventListener('touchmove', (e) => {
+      // Cancel long-press if finger moves before timer fires
+      if (touchDragPc === null && touchDragTimer) {
+        clearTimeout(touchDragTimer);
+        touchDragTimer = null;
+        return;
+      }
+
+      if (touchDragPc === null) return;
+
+      // Prevent scrolling while dragging
+      e.preventDefault();
+
+      // Find which swatch the finger is over
+      const touch = e.touches[0];
+      const elementUnderTouch = document.elementFromPoint(touch.clientX, touch.clientY);
+      const swatchUnderTouch = elementUnderTouch?.closest('.color-swatch') as HTMLElement | null;
+
+      // Clear previous highlight
+      document.querySelectorAll('.color-swatch.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+
+      if (swatchUnderTouch && swatchUnderTouch !== swatch) {
+        const targetPc = Number(swatchUnderTouch.dataset.pitchClass);
+        touchTargetPc = targetPc;
+        swatchUnderTouch.classList.add('drag-over');
+      } else {
+        touchTargetPc = null;
+      }
+    }, { passive: false }); // Non-passive to allow preventDefault
+
+    swatch.addEventListener('touchend', () => {
+      if (touchDragTimer) {
+        clearTimeout(touchDragTimer);
+        touchDragTimer = null;
+      }
+
+      // Mark drag completed to prevent click handler from firing
+      const wasDragging = touchDragPc !== null;
+      if (wasDragging) {
+        touchDragCompleted = true;
+      }
+
+      // Perform swap if we have a valid target
+      if (touchDragPc !== null && touchTargetPc !== null && touchDragPc !== touchTargetPc) {
+        const customColors = getCustomColors();
+        const sourceColor = getColorValue(touchDragPc, customColors);
+        const targetColor = getColorValue(touchTargetPc, customColors);
+
+        setCustomColor(touchDragPc, targetColor);
+        setCustomColor(touchTargetPc, sourceColor);
+
+        updateSwatchColor(touchDragPc, targetColor);
+        updateSwatchColor(touchTargetPc, sourceColor);
+        markUnsavedChanges();
+      }
+
+      // Clean up
+      document.querySelectorAll('.color-swatch.dragging').forEach(el => {
+        el.classList.remove('dragging');
+      });
+      document.querySelectorAll('.color-swatch.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+      touchDragPc = null;
+      touchTargetPc = null;
+    });
+
+    swatch.addEventListener('touchcancel', () => {
+      if (touchDragTimer) {
+        clearTimeout(touchDragTimer);
+        touchDragTimer = null;
+      }
+      document.querySelectorAll('.color-swatch.dragging').forEach(el => {
+        el.classList.remove('dragging');
+      });
+      document.querySelectorAll('.color-swatch.drag-over').forEach(el => {
+        el.classList.remove('drag-over');
+      });
+      touchDragPc = null;
+      touchTargetPc = null;
+    }, { passive: true });
 
     row.appendChild(swatch);
     row.appendChild(input);
