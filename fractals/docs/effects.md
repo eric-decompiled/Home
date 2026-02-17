@@ -67,9 +67,6 @@ See `research/graph-evolution.md` for design notes and music mapping theory.
 - **Pitch-weighted energy**: higher notes contribute more energy (1x at MIDI 60, 2x at 84, 3x at 108)
 - **Warp ceiling**: capped at 6.5 to prevent overdriving on intense songs
 
-### Spirograph
-`src/effects/spirograph.ts` — Parametric curve drawing with music-reactive parameters.
-
 ### Note Spiral
 `src/effects/note-spiral.ts` — All active MIDI voices rendered as glowing orbs on a spiral covering full piano range (MIDI 21-108, A0 to C8). Pitch class determines angle (root at 12 o'clock), with **configurable tightness** (power curve, default 1.25) for visual spacing. Shows polyphonic voicing with **Bezier curve trails** between consecutive notes—tangent-based control points create smooth curves. Trail behavior: **stepwise motion** (1-3 semitones) follows the spiral curve, larger intervals draw straight lines. Trail TTL configurable (default 48 segments, decay 0.08). Sine wave twist (`0.05 * sin(fromRoot)`) prevents angular discontinuity at key boundaries. **Firefly particles** (default shape) dance around active notes. **Long note visibility**: decay rate 0.4-0.7 gives ~2 second half-life so notes linger on spiral. Center shifted down 4% for better screen balance. Uses [shared shape system](#shared-shapes-note-spiral--note-star).
 

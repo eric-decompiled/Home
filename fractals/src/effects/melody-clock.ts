@@ -74,6 +74,11 @@ export class MelodyClockEffect implements VisualEffect {
     this.ctx = this.canvas.getContext('2d')!;
   }
 
+  // Resolution scale factor for 4K support
+  private get resScale(): number {
+    return Math.min(this.width, this.height) / 600;
+  }
+
   init(width: number, height: number): void {
     this.width = width;
     this.height = height;
@@ -266,7 +271,7 @@ export class MelodyClockEffect implements VisualEffect {
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.strokeStyle = `rgba(${R},${G},${B},0.06)`;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1 * this.resScale;
     ctx.stroke();
 
     // --- Arc trail with comet tail gradient ---
@@ -306,7 +311,7 @@ export class MelodyClockEffect implements VisualEffect {
           const segG = Math.round(seg.g * 0.7 + next.g * 0.3);
           const segB = Math.round(seg.b * 0.7 + next.b * 0.3);
           // Thinner trail than bass clock for elegant look
-          const baseWidth = 1.5 + t * 5;
+          const baseWidth = (1.5 + t * 5) * this.resScale;
 
           // Outer glow
           const glowAlpha = ageFade * cometFade * 0.15 * groovePulse * loudnessFactor;
@@ -360,7 +365,7 @@ export class MelodyClockEffect implements VisualEffect {
       if (this.showNotes) {
         const noteName = getNoteName(i, this.useFlats);
         // Smaller font than bass clock numerals
-        const fontSize = Math.max(9, Math.round(r * 0.065));
+        const fontSize = Math.max(9 * this.resScale, Math.round(r * 0.065));
 
         ctx.save();
         ctx.translate(tx, ty);
@@ -381,7 +386,7 @@ export class MelodyClockEffect implements VisualEffect {
       } else {
         // Draw small dot instead of note name
         ctx.beginPath();
-        ctx.arc(tx, ty, isCurrent ? 3 : 2, 0, Math.PI * 2);
+        ctx.arc(tx, ty, (isCurrent ? 3 : 2) * this.resScale, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
         ctx.fill();
       }

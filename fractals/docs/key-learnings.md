@@ -108,6 +108,16 @@
 - **Data attributes for reliable DOM queries**: Use `data-slot="Foreground"` on elements for clean `querySelector('.layer-slot[data-slot="Foreground"]')`. Avoids fragile `:has()` selectors with nested structure assumptions
 - **Sync UI state across component boundaries**: When selecting degree cards from different fractal families, update family selector buttons to match. Internal state changes must reflect in all related UI elements
 
+### Documentation & Diagrams
+- **Hand-crafted SVG for architecture diagrams**: Write SVG directly instead of using drawing tools. Excalidraw-compatible format (`<!-- svg-source:excalidraw -->` comment) allows future editing
+- **Dark theme matches app aesthetic**: Dark background (#1e1e1e) with light text and colorful component boxes
+- **Row-based layout for data flow**: Group by processing stage (Input → Analysis → Mapping → Effects → Render) with clear vertical flow within each stage
+- **Flow indicators at bottom**: Dashed arrows with stage labels reinforce the pipeline concept without cluttering main diagram
+- **Group related components visually**: Effects layers in one container box with internal sub-boxes shows they're a cohesive system
+- **Color-code by function**: Green for analysis/parsing, yellow for data structures, purple for processing, orange for output params, cyan for rendering
+- **Simplify for clarity**: Remove ancillary systems (state management, fractal anchors) to focus on core data flow. Can always create separate detail diagrams
+- **System font stack for SVG text**: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif` renders cleanly across platforms
+
 ### Mobile UI
 - **Collapsible sections with toggle headers**: Use `display: contents` on desktop (transparent wrapper), `display: flex; flex-direction: column` on mobile. Arrow icon (▼/▶) rotates on collapse
 - **Long press for touch placement**: 400ms hold to place anchor. Cancel if finger moves >10px (allows scrolling). Use `navigator.vibrate(50)` for haptic feedback

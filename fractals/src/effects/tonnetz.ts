@@ -52,6 +52,7 @@ export class TonnetzEffect implements VisualEffect {
   private time = 0;
   private activePitchClasses: Set<number> = new Set();
   private pitchClassBrightness: number[] = new Array(12).fill(0);
+  private pitchClassRegister: number[] = new Array(12).fill(0.5); // 0=bass, 1=treble
   private currentChordRoot = -1;
   private currentChordQuality = '';
   private useFlats = false;
@@ -61,14 +62,14 @@ export class TonnetzEffect implements VisualEffect {
   private chordHistory: Array<{ root: number; quality: string; time: number }> = [];
   private maxHistoryLength = 8;
 
-  // Recent notes for arpeggio detection
-  private recentNotes: Array<{ pitchClass: number; time: number }> = [];
-  private arpeggioWindow = 2.0;
-  private detectedArpeggios: Array<{ pitchClasses: number[]; opacity: number }> = [];
 
   // Beat pulse
   private beatPulse = 0;
   private barPulse = 0;
+
+  // Groove-driven edge glow
+  private edgeGlow = 0;
+  private beatGroove = 0.5;
 
   // Colors
   private baseColor: [number, number, number] = [30, 40, 60];
@@ -104,26 +105,30 @@ export class TonnetzEffect implements VisualEffect {
     this.useFlats = music.useFlats ?? false;
 
     this.activePitchClasses.clear();
+    // Track register per pitch class (average of active voices)
+    const pcNoteSum: number[] = new Array(12).fill(0);
+    const pcNoteCount: number[] = new Array(12).fill(0);
+
     for (const voice of music.activeVoices) {
       this.activePitchClasses.add(voice.pitchClass);
       if (voice.onset) {
         this.pitchClassBrightness[voice.pitchClass] = 1.0;
-        this.recentNotes.push({ pitchClass: voice.pitchClass, time: this.time });
       }
+      // Track MIDI note for register calculation
+      pcNoteSum[voice.pitchClass] += voice.midi;
+      pcNoteCount[voice.pitchClass]++;
     }
-
-    const cutoff = this.time - this.arpeggioWindow;
-    this.recentNotes = this.recentNotes.filter(n => n.time > cutoff);
-    this.detectArpeggios();
-
-    for (const arp of this.detectedArpeggios) {
-      arp.opacity *= Math.exp(-0.4 * dt);
-    }
-    this.detectedArpeggios = this.detectedArpeggios.filter(a => a.opacity > 0.05);
 
     for (let i = 0; i < 12; i++) {
       if (this.activePitchClasses.has(i)) {
         this.pitchClassBrightness[i] = Math.max(this.pitchClassBrightness[i], 0.7);
+        // Calculate register: 0 = bass (MIDI 36), 1 = treble (MIDI 84)
+        if (pcNoteCount[i] > 0) {
+          const avgNote = pcNoteSum[i] / pcNoteCount[i];
+          const register = Math.max(0, Math.min(1, (avgNote - 36) / 48));
+          // Smooth transition to new register
+          this.pitchClassRegister[i] = this.pitchClassRegister[i] * 0.7 + register * 0.3;
+        }
       }
       this.pitchClassBrightness[i] *= Math.exp(-2.5 * dt);
     }
@@ -140,8 +145,7 @@ export class TonnetzEffect implements VisualEffect {
       }
     }
 
-    this.chordTriangleOpacity *= Math.exp(-0.3 * dt);
-    this.chordTriangleOpacity = Math.max(this.chordTriangleOpacity, 0.4);
+    this.chordTriangleOpacity *= Math.exp(-1.0 * dt);
 
     // === GROOVE CURVES ===
     // Use arrival for impact (replaces boolean triggers)
@@ -149,6 +153,8 @@ export class TonnetzEffect implements VisualEffect {
     const beatArrival = music.beatArrival ?? 0;
     const barArrival = music.barArrival ?? 0;
     const anticipation = music.beatAnticipation ?? 0;
+    const barAnticipation = music.barAnticipation ?? 0;
+    this.beatGroove = music.beatGroove ?? 0.5;
 
     // Blend arrival impact with anticipation glow
     // This creates a "breathe in, hit" cycle
@@ -156,6 +162,10 @@ export class TonnetzEffect implements VisualEffect {
     this.barPulse = Math.max(this.barPulse, barArrival * 0.6);
     // Add subtle anticipation glow
     this.beatPulse += anticipation * 0.1 * (1 - this.beatPulse);
+
+    // Edge glow breathes with beat groove + bar anticipation buildup
+    // Creates subtle grid "breathing" effect
+    this.edgeGlow = (this.beatGroove - 0.5) * 0.15 + barAnticipation * 0.2;
 
     this.beatPulse *= Math.exp(-4.0 * dt);
     this.barPulse *= Math.exp(-2.0 * dt);
@@ -166,39 +176,6 @@ export class TonnetzEffect implements VisualEffect {
       this.baseColor = [...pal.stops[0].color] as [number, number, number];
       this.accentColor = [...pal.stops[2].color] as [number, number, number];
       this.chordColor = [...pal.stops[4]?.color ?? pal.stops[2].color] as [number, number, number];
-    }
-  }
-
-  private detectArpeggios(): void {
-    const recentPCs = [...new Set(this.recentNotes.map(n => n.pitchClass))];
-    if (recentPCs.length < 3) return;
-
-    for (const root of recentPCs) {
-      const maj3 = (root + 4) % 12;
-      const min3 = (root + 3) % 12;
-      const p5 = (root + 7) % 12;
-      const dom7 = (root + 10) % 12;
-      const maj7 = (root + 11) % 12;
-      const dim5 = (root + 6) % 12;
-      const aug5 = (root + 8) % 12;
-
-      if (recentPCs.includes(maj3) && recentPCs.includes(p5)) this.addArpeggio([root, maj3, p5]);
-      if (recentPCs.includes(min3) && recentPCs.includes(p5)) this.addArpeggio([root, min3, p5]);
-      if (recentPCs.includes(maj3) && recentPCs.includes(p5) && recentPCs.includes(dom7)) this.addArpeggio([root, maj3, p5, dom7]);
-      if (recentPCs.includes(min3) && recentPCs.includes(p5) && recentPCs.includes(dom7)) this.addArpeggio([root, min3, p5, dom7]);
-      if (recentPCs.includes(maj3) && recentPCs.includes(p5) && recentPCs.includes(maj7)) this.addArpeggio([root, maj3, p5, maj7]);
-      if (recentPCs.includes(min3) && recentPCs.includes(dim5)) this.addArpeggio([root, min3, dim5]);
-      if (recentPCs.includes(maj3) && recentPCs.includes(aug5)) this.addArpeggio([root, maj3, aug5]);
-    }
-  }
-
-  private addArpeggio(pitchClasses: number[]): void {
-    const key = [...pitchClasses].sort((a, b) => a - b).join(',');
-    const existing = this.detectedArpeggios.find(a => [...a.pitchClasses].sort((a, b) => a - b).join(',') === key);
-    if (existing) {
-      existing.opacity = Math.min(1.0, existing.opacity + 0.3);
-    } else {
-      this.detectedArpeggios.push({ pitchClasses, opacity: 1.0 });
     }
   }
 
@@ -215,7 +192,6 @@ export class TonnetzEffect implements VisualEffect {
 
     this.drawEdges(ctx, centerX, centerY, size);
     this.drawChordPath(ctx, centerX, centerY, size);
-    this.drawArpeggios(ctx, centerX, centerY, size);
     this.drawChordShape(ctx, centerX, centerY, size);
     this.drawNodes(ctx, centerX, centerY, size);
 
@@ -223,8 +199,10 @@ export class TonnetzEffect implements VisualEffect {
   }
 
   private drawEdges(ctx: CanvasRenderingContext2D, centerX: number, centerY: number, size: number): void {
-    ctx.strokeStyle = `rgba(${this.accentColor[0]}, ${this.accentColor[1]}, ${this.accentColor[2]}, 0.3)`;
-    ctx.lineWidth = 1;
+    // Edge opacity breathes with groove
+    const edgeAlpha = Math.max(0.2, Math.min(0.5, 0.3 + this.edgeGlow));
+    ctx.strokeStyle = `rgba(${this.accentColor[0]}, ${this.accentColor[1]}, ${this.accentColor[2]}, ${edgeAlpha.toFixed(2)})`;
+    ctx.lineWidth = 1 + this.edgeGlow * 0.5;
 
     const drawnEdges = new Set<string>();
     for (const [_pc, positions] of this.tonnetzPositions) {
@@ -259,13 +237,24 @@ export class TonnetzEffect implements VisualEffect {
     for (const [pc, positions] of this.tonnetzPositions) {
       const brightness = this.pitchClassBrightness[pc];
       const isActive = this.activePitchClasses.has(pc);
+      const register = this.pitchClassRegister[pc]; // 0=bass, 1=treble
 
       for (const pos of positions) {
         const { x, y } = hexToPixel(pos.q, pos.r, size, centerX, centerY);
         if (x < -nodeRadius || x > this.width + nodeRadius || y < -nodeRadius || y > this.height + nodeRadius) continue;
 
         const pcPalette = palettes[pc];
-        const pcColor = pcPalette?.stops[3]?.color ?? this.accentColor;
+        const basepcColor = pcPalette?.stops[3]?.color ?? this.accentColor;
+
+        // Adjust color based on register: bass=darker, treble=lighter
+        // register 0 -> darken to 30%, register 1 -> lighten significantly toward white
+        const darkFactor = 0.3 + register * 0.7; // 0.3 to 1.0
+        const lightAdd = Math.max(0, (register - 0.4) * 1.67) * 120; // 0 to 120 for high notes
+        const pcColor: [number, number, number] = [
+          Math.min(255, Math.round(basepcColor[0] * darkFactor + lightAdd)),
+          Math.min(255, Math.round(basepcColor[1] * darkFactor + lightAdd)),
+          Math.min(255, Math.round(basepcColor[2] * darkFactor + lightAdd))
+        ];
 
         if (brightness > 0.1) {
           const glowRadius = nodeRadius * (1.5 + brightness);
@@ -302,16 +291,22 @@ export class TonnetzEffect implements VisualEffect {
   }
 
   private drawChordShape(ctx: CanvasRenderingContext2D, centerX: number, centerY: number, size: number): void {
-    if (this.currentChordRoot < 0) return;
+    if (this.currentChordRoot < 0 || this.chordTriangleOpacity < 0.01) return;
 
     const root = this.currentChordRoot;
     const quality = this.currentChordQuality;
 
-    let third = quality.includes('min') || quality === 'dim' ? (root + 3) % 12 : (root + 4) % 12;
-    let fifth = quality === 'dim' ? (root + 6) % 12 : quality === 'aug' ? (root + 8) % 12 : (root + 7) % 12;
+    const third = quality.includes('min') || quality === 'dim' ? (root + 3) % 12 : (root + 4) % 12;
+    const fifth = quality === 'dim' ? (root + 6) % 12 : quality === 'aug' ? (root + 8) % 12 : (root + 7) % 12;
 
     const is7th = quality.includes('7');
     const seventh = is7th ? (quality === 'maj7' ? (root + 11) % 12 : (root + 10) % 12) : -1;
+
+    // Get colors for each chord tone
+    const rootColor = palettes[root]?.stops[3]?.color ?? this.accentColor;
+    const thirdColor = palettes[third]?.stops[3]?.color ?? this.accentColor;
+    const fifthColor = palettes[fifth]?.stops[3]?.color ?? this.accentColor;
+    const seventhColor = is7th ? (palettes[seventh]?.stops[3]?.color ?? this.accentColor) : null;
 
     const rootPositions = this.tonnetzPositions.get(root) ?? [];
     const thirdPositions = this.tonnetzPositions.get(third) ?? [];
@@ -337,37 +332,32 @@ export class TonnetzEffect implements VisualEffect {
           const { x: tx, y: ty } = hexToPixel(tp.q, tp.r, size, centerX, centerY);
           const { x: fx, y: fy } = hexToPixel(fp.q, fp.r, size, centerX, centerY);
 
-          if (is7th) {
+          if (is7th && seventhColor) {
             for (const sp of seventhPositions) {
               if ([rp, tp, fp].filter(p => isAdjacent(p, sp)).length < 2) continue;
               const { x: sx, y: sy } = hexToPixel(sp.q, sp.r, size, centerX, centerY);
               const cx = (rx + tx + fx + sx) / 4;
               const cy = (ry + ty + fy + sy) / 4;
-              const vertices = [{ x: rx, y: ry }, { x: tx, y: ty }, { x: fx, y: fy }, { x: sx, y: sy }]
-                .sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+              const vertices = [
+                { x: rx, y: ry, color: rootColor },
+                { x: tx, y: ty, color: thirdColor },
+                { x: fx, y: fy, color: fifthColor },
+                { x: sx, y: sy, color: seventhColor }
+              ].sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
 
-              ctx.fillStyle = `rgba(${this.chordColor[0]}, ${this.chordColor[1]}, ${this.chordColor[2]}, ${this.chordTriangleOpacity * 0.4})`;
-              ctx.beginPath();
-              ctx.moveTo(vertices[0].x, vertices[0].y);
-              for (let i = 1; i < vertices.length; i++) ctx.lineTo(vertices[i].x, vertices[i].y);
-              ctx.closePath();
-              ctx.fill();
-              ctx.strokeStyle = `rgba(${this.chordColor[0]}, ${this.chordColor[1]}, ${this.chordColor[2]}, ${this.chordTriangleOpacity * 0.9})`;
-              ctx.lineWidth = 2 + this.beatPulse * 2;
-              ctx.stroke();
+              // Draw gradient from each vertex
+              this.drawGradientShape(ctx, vertices, size);
               return;
             }
           } else {
-            ctx.fillStyle = `rgba(${this.chordColor[0]}, ${this.chordColor[1]}, ${this.chordColor[2]}, ${this.chordTriangleOpacity * 0.4})`;
-            ctx.beginPath();
-            ctx.moveTo(rx, ry);
-            ctx.lineTo(tx, ty);
-            ctx.lineTo(fx, fy);
-            ctx.closePath();
-            ctx.fill();
-            ctx.strokeStyle = `rgba(${this.chordColor[0]}, ${this.chordColor[1]}, ${this.chordColor[2]}, ${this.chordTriangleOpacity * 0.9})`;
-            ctx.lineWidth = 2 + this.beatPulse * 2;
-            ctx.stroke();
+            const vertices = [
+              { x: rx, y: ry, color: rootColor },
+              { x: tx, y: ty, color: thirdColor },
+              { x: fx, y: fy, color: fifthColor }
+            ];
+
+            // Draw gradient from each vertex
+            this.drawGradientShape(ctx, vertices, size);
             return;
           }
         }
@@ -375,64 +365,53 @@ export class TonnetzEffect implements VisualEffect {
     }
   }
 
-  private drawArpeggios(ctx: CanvasRenderingContext2D, centerX: number, centerY: number, size: number): void {
-    const isAdjacent = (a: HexCoord, b: HexCoord) => {
-      const dq = Math.abs(a.q - b.q);
-      const dr = Math.abs(a.r - b.r);
-      const ds = Math.abs((a.q + a.r) - (b.q + b.r));
-      return dq <= 1 && dr <= 1 && ds <= 1 && (dq + dr + ds <= 2);
-    };
+  private drawGradientShape(
+    ctx: CanvasRenderingContext2D,
+    vertices: Array<{ x: number; y: number; color: [number, number, number] }>,
+    size: number
+  ): void {
+    const opacity = this.chordTriangleOpacity;
+    const radius = size * 1.2;
 
-    for (const arpeggio of this.detectedArpeggios) {
-      const pcs = arpeggio.pitchClasses;
-      if (pcs.length < 3) continue;
-
-      const allPositions = pcs.map(pc => this.tonnetzPositions.get(pc) ?? []);
-
-      for (const startPos of allPositions[0]) {
-        const { x: sx, y: sy } = hexToPixel(startPos.q, startPos.r, size, centerX, centerY);
-        if (sx < -size || sx > this.width + size || sy < -size || sy > this.height + size) continue;
-
-        const shapePositions: Array<{ x: number; y: number }> = [{ x: sx, y: sy }];
-        const hexPositions: HexCoord[] = [startPos];
-        let valid = true;
-
-        for (let i = 1; i < allPositions.length && valid; i++) {
-          let found = false;
-          for (const pos of allPositions[i]) {
-            if (hexPositions.some(hp => isAdjacent(hp, pos))) {
-              const { x, y } = hexToPixel(pos.q, pos.r, size, centerX, centerY);
-              shapePositions.push({ x, y });
-              hexPositions.push(pos);
-              found = true;
-              break;
-            }
-          }
-          if (!found) valid = false;
-        }
-
-        if (!valid || shapePositions.length < 3) continue;
-
-        const cx = shapePositions.reduce((s, p) => s + p.x, 0) / shapePositions.length;
-        const cy = shapePositions.reduce((s, p) => s + p.y, 0) / shapePositions.length;
-        const sorted = [...shapePositions].sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
-
-        const rootPc = pcs[0];
-        const arpColor = palettes[rootPc]?.stops[3]?.color ?? this.accentColor;
-
-        ctx.fillStyle = `rgba(${arpColor[0]}, ${arpColor[1]}, ${arpColor[2]}, ${arpeggio.opacity * 0.4})`;
-        ctx.beginPath();
-        ctx.moveTo(sorted[0].x, sorted[0].y);
-        for (let i = 1; i < sorted.length; i++) ctx.lineTo(sorted[i].x, sorted[i].y);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.strokeStyle = `rgba(${arpColor[0]}, ${arpColor[1]}, ${arpColor[2]}, ${arpeggio.opacity * 0.8})`;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        break;
-      }
+    // Draw shape path
+    ctx.beginPath();
+    ctx.moveTo(vertices[0].x, vertices[0].y);
+    for (let i = 1; i < vertices.length; i++) {
+      ctx.lineTo(vertices[i].x, vertices[i].y);
     }
+    ctx.closePath();
+
+    // Save and clip to shape
+    ctx.save();
+    ctx.clip();
+
+    // Draw radial gradient from each vertex
+    for (const v of vertices) {
+      const gradient = ctx.createRadialGradient(v.x, v.y, 0, v.x, v.y, radius);
+      gradient.addColorStop(0, `rgba(${v.color[0]}, ${v.color[1]}, ${v.color[2]}, ${opacity * 0.5})`);
+      gradient.addColorStop(0.5, `rgba(${v.color[0]}, ${v.color[1]}, ${v.color[2]}, ${opacity * 0.2})`);
+      gradient.addColorStop(1, `rgba(${v.color[0]}, ${v.color[1]}, ${v.color[2]}, 0)`);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(v.x - radius, v.y - radius, radius * 2, radius * 2);
+    }
+
+    ctx.restore();
+
+    // Draw stroke with blended color
+    const avgColor: [number, number, number] = [
+      Math.round(vertices.reduce((s, v) => s + v.color[0], 0) / vertices.length),
+      Math.round(vertices.reduce((s, v) => s + v.color[1], 0) / vertices.length),
+      Math.round(vertices.reduce((s, v) => s + v.color[2], 0) / vertices.length)
+    ];
+    ctx.beginPath();
+    ctx.moveTo(vertices[0].x, vertices[0].y);
+    for (let i = 1; i < vertices.length; i++) {
+      ctx.lineTo(vertices[i].x, vertices[i].y);
+    }
+    ctx.closePath();
+    ctx.strokeStyle = `rgba(${avgColor[0]}, ${avgColor[1]}, ${avgColor[2]}, ${opacity * 0.8})`;
+    ctx.lineWidth = 2 + this.beatPulse * 2;
+    ctx.stroke();
   }
 
   private drawChordPath(ctx: CanvasRenderingContext2D, centerX: number, centerY: number, size: number): void {

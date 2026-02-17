@@ -268,6 +268,8 @@ export class WaveInterferenceEffect implements VisualEffect {
     // === GROOVE CURVES ===
     const beatArrival = music.beatArrival ?? 0;
     const barArrival = music.barArrival ?? 0;
+    const beatAnticipation = music.beatAnticipation ?? 0;
+    const beatGroove = music.beatGroove ?? 0.5;
 
     // Beat → amplitude pulse on existing sources
     if (music.kick) {
@@ -287,10 +289,19 @@ export class WaveInterferenceEffect implements VisualEffect {
     // Tension → wave complexity
     // Low tension: wide ripples; High tension: tighter ripples
     const tensionSq = music.tension * music.tension;
-    this.wavelength = 100 - music.tension * 50 - tensionSq * 20;
+    // Base wavelength from tension
+    const baseWavelength = 100 - music.tension * 50 - tensionSq * 20;
+    // Anticipation tightens wavelength before beat (building tension)
+    // As beat approaches, waves get shorter/tighter, then relax on arrival
+    const anticipationTightening = beatAnticipation * 0.15;
+    this.wavelength = baseWavelength * (1 - anticipationTightening);
+
     const decayRate = 0.4 + music.tension * 0.6; // Faster decay = more transient/nervous
+
+    // Reflection responds to groove: subtle pulse with beat cycle
+    const grooveReflection = (beatGroove - 0.5) * 0.1;
     // More reflection at high tension creates denser interference patterns
-    this.reflection = Math.min(1.0, 0.3 + music.tension * 0.4 + tensionSq * 0.3);
+    this.reflection = Math.min(1.0, 0.3 + music.tension * 0.4 + tensionSq * 0.3 + grooveReflection);
 
     // Bass → background wave with bass color
     if (music.bassPitchClass >= 0) {

@@ -69,6 +69,11 @@ export class BassFireEffect implements VisualEffect {
     this.ctx = this.canvas.getContext('2d')!;
   }
 
+  // Resolution scale factor for 4K support
+  private get resScale(): number {
+    return Math.min(this.width, this.height) / 600;
+  }
+
   init(width: number, height: number): void {
     this.width = width;
     this.height = height;
@@ -259,7 +264,7 @@ export class BassFireEffect implements VisualEffect {
         const cometFade = Math.pow(t, 0.6);
 
         // Width grows toward head
-        const baseWidth = 2 + t * 6;
+        const baseWidth = (2 + t * 6) * this.resScale;
 
         // Outer glow
         const glowAlpha = ageFade * cometFade * 0.2;
@@ -296,7 +301,7 @@ export class BassFireEffect implements VisualEffect {
     }
 
     // Fire glow effect - large and diffuse
-    const orbSz = 20 + this.brightness * 30 + this.energy * 18 + this.anticipation * 22;
+    const orbSz = (20 + this.brightness * 30 + this.energy * 18 + this.anticipation * 22) * this.resScale;
     const orbA = 0.2 + this.brightness * 0.3 + this.anticipation * 0.2 + this.energy * 0.15;
 
     // Outer glow - very large, soft
@@ -332,7 +337,7 @@ export class BassFireEffect implements VisualEffect {
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.strokeStyle = `rgba(${R},${G},${B},0.08)`;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * this.resScale;
     ctx.stroke();
 
     for (let i = 0; i < 12; i++) {
@@ -355,7 +360,7 @@ export class BassFireEffect implements VisualEffect {
       const chromaticFadeValue = this.chromaticFade.get(i) ?? 0;
 
       if (numeral && this.showNumerals) {
-        const fontSize = Math.max(11, Math.round(r * 0.1));
+        const fontSize = Math.max(11 * this.resScale, Math.round(r * 0.1));
 
         ctx.save();
         ctx.translate(tx, ty);
@@ -374,7 +379,7 @@ export class BassFireEffect implements VisualEffect {
         ctx.shadowBlur = 0;
         ctx.restore();
       } else if (chromaticNumeral && this.showNumerals && (isCurrent || chromaticFadeValue > 0)) {
-        const fontSize = Math.max(10, Math.round(r * 0.09));
+        const fontSize = Math.max(10 * this.resScale, Math.round(r * 0.09));
         const fadeAlpha = isCurrent ? 0.6 + this.brightness * 0.3 : chromaticFadeValue * 0.5;
 
         ctx.save();
@@ -396,7 +401,7 @@ export class BassFireEffect implements VisualEffect {
       } else {
         // Draw dot instead of numeral
         ctx.beginPath();
-        ctx.arc(tx, ty, isCurrent ? 3 : 2, 0, Math.PI * 2);
+        ctx.arc(tx, ty, (isCurrent ? 3 : 2) * this.resScale, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
         ctx.fill();
       }

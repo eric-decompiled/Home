@@ -144,7 +144,8 @@
       "Bash(npx playwright install:*)",
       "WebFetch(domain:numanme.co.uk)",
       "WebFetch(domain:www.mididb.com)",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "WebFetch(domain:spessasus.github.io)"
     ]
   }
 }

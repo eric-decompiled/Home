@@ -94,12 +94,17 @@ export class PianoRollEffect implements VisualEffect {
   // Visual settings
   private keyboardHeight = 0.12;  // fraction of canvas height
   private fallDuration = 3.0;     // seconds for note to fall from top to keyboard
-  private noteGap = 2;            // pixels between notes
+  private noteGapBase = 2;        // base pixels between notes (scaled by resScale)
   private latencyOffset = 0.0;    // seconds to delay visual (positive = visual later, for late audio)
 
   constructor() {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d')!;
+  }
+
+  // Resolution scale factor for 4K support
+  private get resScale(): number {
+    return Math.min(this.width, this.height) / 600;
   }
 
   init(width: number, height: number): void {
@@ -198,7 +203,7 @@ export class PianoRollEffect implements VisualEffect {
     this.drawParticles(ctx);
 
     // Draw white keys as simple rectangles (black keys overlay on top)
-    const maxDepress = 4; // max pixels to depress
+    const maxDepress = 4 * this.resScale; // max pixels to depress
     let whiteIdx = 0;
     for (let midi = MIDI_LO; midi <= MIDI_HI; midi++) {
       if (!isBlackKey(midi)) {
@@ -301,12 +306,15 @@ export class PianoRollEffect implements VisualEffect {
     kbTop: number,
     grooveMod: number
   ): void {
+    // Scale noteGap for resolution
+    const noteGap = this.noteGapBase * this.resScale;
+
     // Draw falling notes
     for (const note of this.upcomingNotes) {
       if (note.midi < MIDI_LO || note.midi > MIDI_HI) continue;
 
       const isBlack = isBlackKey(note.midi);
-      const noteWidth = isBlack ? blackKeyWidth - this.noteGap : whiteKeyWidth - this.noteGap;
+      const noteWidth = isBlack ? blackKeyWidth - noteGap : whiteKeyWidth - noteGap;
 
       // X position based on key (matching realistic piano proportions)
       let x: number;
@@ -314,9 +322,9 @@ export class PianoRollEffect implements VisualEffect {
         const whitesBefore = whiteKeyIndex(note.midi);
         const pc = note.midi % 12;
         const offset = blackKeyOffset[pc] ?? 0.5;
-        x = (whitesBefore - 1 + offset) * whiteKeyWidth - blackKeyWidth / 2 + this.noteGap / 2;
+        x = (whitesBefore - 1 + offset) * whiteKeyWidth - blackKeyWidth / 2 + noteGap / 2;
       } else {
-        x = whiteKeyIndex(note.midi) * whiteKeyWidth + this.noteGap / 2;
+        x = whiteKeyIndex(note.midi) * whiteKeyWidth + noteGap / 2;
       }
 
       // Y position based on time until note

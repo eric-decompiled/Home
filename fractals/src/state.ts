@@ -77,7 +77,8 @@ export interface VisualizerState {
   layers: {
     bg: string | null;
     fg: string | null;
-    overlay: string | null;
+    overlay: string | null;  // Legacy: single overlay (deprecated, kept for backwards compat)
+    overlays?: string[];     // New: array of enabled overlay effect IDs
     melody: string | null;
     bass: string | null;
     hud: string | null;
@@ -217,6 +218,7 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
   stars: {
     'melody-clock': { showNotes: false },
     'bass-clock': { showNumerals: false },
+    'bass-fire': { showNumerals: false },
   },
   clock: {
     'note-spiral': { setShapes: '' },
@@ -323,16 +325,19 @@ export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
 
 /**
  * Get current state from layer slots and effects
+ * @param overlays - Array of enabled overlay effect IDs (for new multi-overlay system)
  */
 export function getCurrentState(
-  layerSlots: { activeId: string | null; effects: VisualEffect[] }[]
+  layerSlots: { activeId: string | null; effects: VisualEffect[] }[],
+  overlays?: string[]
 ): VisualizerState {
   const state: VisualizerState = {
     version: 1,
     layers: {
       bg: layerSlots[0].activeId,
       fg: layerSlots[1].activeId,
-      overlay: layerSlots[2].activeId,
+      overlay: null,  // Legacy field kept for backwards compat
+      overlays: overlays ?? [],  // New array format
       melody: layerSlots[3].activeId,
       bass: layerSlots[4].activeId,
       hud: layerSlots[5]?.activeId ?? null,
@@ -388,20 +393,31 @@ export function getCurrentState(
 
 /**
  * Apply state to layer slots and effects
+ * Returns the overlays array for main.ts to apply
  */
 export function applyState(
   state: VisualizerState,
   layerSlots: { activeId: string | null; effects: VisualEffect[] }[],
   allEffects: Map<string, VisualEffect>
-): void {
-  // Apply layers
+): { overlays: string[] } {
+  // Apply layers (except overlay which uses the new overlays array)
   const slotKeys: SlotKey[] = ['bg', 'fg', 'overlay', 'melody', 'bass', 'hud'];
   for (let i = 0; i < slotKeys.length; i++) {
+    if (slotKeys[i] === 'overlay') continue; // Handle overlay separately
     const effectId = state.layers[slotKeys[i]];
     // Validate effect exists in this slot (or is null)
     if (effectId === null || layerSlots[i].effects.some(e => e.id === effectId)) {
       layerSlots[i].activeId = effectId;
     }
+  }
+
+  // Determine overlays: prefer new array format, fall back to legacy single overlay
+  let overlays: string[] = [];
+  if (state.layers.overlays && state.layers.overlays.length > 0) {
+    overlays = state.layers.overlays;
+  } else if (state.layers.overlay) {
+    // Legacy: single overlay becomes array of one
+    overlays = [state.layers.overlay];
   }
 
   // Apply configs
@@ -416,6 +432,8 @@ export function applyState(
 
   // Apply custom colors
   loadCustomColors(state.customColors);
+
+  return { overlays };
 }
 
 // --- Preset Detection ---
@@ -446,12 +464,16 @@ export function getPresetState(presetName: string): VisualizerState | null {
   const layers = PRESET_LAYERS[presetName];
   if (!layers) return null;
 
+  // Convert single overlay to overlays array
+  const overlays: string[] = layers[2] ? [layers[2]] : [];
+
   return {
     version: 1,
     layers: {
       bg: layers[0],
       fg: layers[1],
-      overlay: layers[2],
+      overlay: null,  // Legacy field
+      overlays,       // New array format
       melody: layers[3],
       bass: layers[4],
       hud: layers[5] ?? null,
@@ -468,21 +490,39 @@ export function getPresetState(presetName: string): VisualizerState | null {
 export function stateToURL(state: VisualizerState): string {
   const params = new URLSearchParams();
 
+  // Get first overlay from overlays array for preset matching (backwards compat)
+  const firstOverlay = state.layers.overlays?.[0] ?? state.layers.overlay ?? null;
+
   // Check if layers match a preset
   const layersArray = [
     state.layers.bg,
     state.layers.fg,
-    state.layers.overlay,
+    firstOverlay,
     state.layers.melody,
     state.layers.bass,
     state.layers.hud,
   ];
 
+  // Check if overlays match preset (preset has single overlay, state can have multiple)
+  const overlaysMatchPreset = (presetOverlay: string | null): boolean => {
+    const stateOverlays = state.layers.overlays ?? [];
+    if (!presetOverlay) {
+      return stateOverlays.length === 0;
+    }
+    return stateOverlays.length === 1 && stateOverlays[0] === presetOverlay;
+  };
+
   let matchedPreset: string | null = null;
   for (const [presetName, presetLayers] of Object.entries(PRESET_LAYERS)) {
     let matches = true;
     for (let i = 0; i < presetLayers.length; i++) {
-      if (layersArray[i] !== presetLayers[i]) {
+      if (i === 2) {
+        // Overlay slot: check against overlays array
+        if (!overlaysMatchPreset(presetLayers[i])) {
+          matches = false;
+          break;
+        }
+      } else if (layersArray[i] !== presetLayers[i]) {
         matches = false;
         break;
       }
@@ -499,10 +539,19 @@ export function stateToURL(state: VisualizerState): string {
   } else if (!matchedPreset) {
     // Encode layers using short names (only non-null)
     for (let i = 0; i < SLOT_KEYS.length; i++) {
-      const effectId = layersArray[i];
-      if (effectId) {
-        const shortName = EFFECT_SHORT_NAMES[effectId] || effectId;
-        params.set(SLOT_KEYS[i], shortName);
+      if (SLOT_KEYS[i] === 'overlay') {
+        // Encode overlays array as comma-separated list
+        const overlays = state.layers.overlays ?? [];
+        if (overlays.length > 0) {
+          const shortNames = overlays.map(id => EFFECT_SHORT_NAMES[id] || id);
+          params.set('overlay', shortNames.join(','));
+        }
+      } else {
+        const effectId = layersArray[i];
+        if (effectId) {
+          const shortName = EFFECT_SHORT_NAMES[effectId] || effectId;
+          params.set(SLOT_KEYS[i], shortName);
+        }
       }
     }
   }
@@ -544,6 +593,7 @@ export function urlToState(queryString: string): Partial<VisualizerState> | null
       bg: null,
       fg: null,
       overlay: null,
+      overlays: [],
       melody: null,
       bass: null,
       hud: null,
@@ -555,10 +605,13 @@ export function urlToState(queryString: string): Partial<VisualizerState> | null
   const preset = params.get('preset');
   if (preset && PRESET_LAYERS[preset]) {
     const presetLayers = PRESET_LAYERS[preset];
+    // Convert single overlay to array
+    const overlays = presetLayers[2] ? [presetLayers[2]] : [];
     state.layers = {
       bg: presetLayers[0],
       fg: presetLayers[1],
-      overlay: presetLayers[2],
+      overlay: null,
+      overlays,
       melody: presetLayers[3],
       bass: presetLayers[4],
       hud: presetLayers[5] ?? null,
@@ -573,7 +626,15 @@ export function urlToState(queryString: string): Partial<VisualizerState> | null
     const val = params.get(key);
     if (val !== null) {
       hasLayerParams = true;
-      if (val === 'none' || val === '') {
+      if (key === 'overlay') {
+        // Parse comma-separated overlays
+        if (val === 'none' || val === '') {
+          state.layers!.overlays = [];
+        } else {
+          const overlayIds = val.split(',').map(v => SHORT_NAME_TO_EFFECT[v.trim()] ?? v.trim());
+          state.layers!.overlays = overlayIds;
+        }
+      } else if (val === 'none' || val === '') {
         state.layers![key as SlotKey] = null;
       } else {
         // Expand short name to full effect ID

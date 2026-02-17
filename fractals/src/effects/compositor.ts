@@ -135,16 +135,41 @@ export class Compositor {
     const ctx = targetCanvas.getContext('2d')!;
     const displayW = targetCanvas.width;
     const displayH = targetCanvas.height;
-    // Internal compositing at (possibly scaled) resolution
+
+    // Perform internal rendering
+    this.renderInternal();
+
+    // Final blit to target: background color first, then composite on top
+    // Use display dimensions for target canvas, upscaling if renderScale < 1
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    const bgColor = this.getBgColor();
+    if (bgColor === '#000') {
+      ctx.clearRect(0, 0, displayW, displayH);
+    } else {
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, displayW, displayH);
+    }
+    // Upscale composite to display size (browser handles interpolation)
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(this.compositeCanvas, 0, 0, displayW, displayH);
+  }
+
+  /** Returns the composite canvas (for post-process effects to read from) */
+  getCompositeCanvas(): HTMLCanvasElement {
+    return this.compositeCanvas;
+  }
+
+  /** Internal render logic */
+  private renderInternal(): void {
     const w = this.width;
     const h = this.height;
 
-    // Clear composite (layers blend on transparent/black)
-    // Only resize if dimensions changed; otherwise just clear
+    // Clear composite
     if (this.compositeCanvas.width !== w || this.compositeCanvas.height !== h) {
       this.compositeCanvas.width = w;
       this.compositeCanvas.height = h;
-      // Canvas resize resets context state, so reset our tracking
       this.currentAlpha = 1;
       this.currentBlend = 'source-over';
     } else {
@@ -174,14 +199,12 @@ export class Compositor {
     for (const layer of this.layers) {
       if (!layer.enabled || !layer.effect.isPostProcess) continue;
 
-      // Pass composite canvas to post-process effects
       if ('setSourceCanvas' in layer.effect) {
         (layer.effect as any).setSourceCanvas(this.compositeCanvas);
       }
 
       if (!layer.effect.isReady()) continue;
 
-      // Post-process reads the current composite and transforms it
       const t0 = this.profileEnabled ? performance.now() : 0;
       const effectCanvas = layer.effect.render();
       if (this.profileEnabled) {
@@ -191,14 +214,13 @@ export class Compositor {
         if (times.length > 300) times.shift();
         this.effectTimes.set(layer.effect.id, times);
       }
-      // Replace composite with post-processed result (always full replacement)
       this.setAlpha(1);
       this.setBlendMode('source-over');
       this.compositeCtx.clearRect(0, 0, w, h);
       this.compositeCtx.drawImage(effectCanvas, 0, 0, w, h);
     }
 
-    // Render HUD layers on top (after post-process, not transformed)
+    // Render HUD layers on top
     for (const layer of this.layers) {
       if (!layer.enabled || !layer.effect.isHUD) continue;
       if (!layer.effect.isReady()) continue;
@@ -216,27 +238,6 @@ export class Compositor {
       this.setBlendMode(layer.blend);
       this.compositeCtx.drawImage(effectCanvas, 0, 0, w, h);
     }
-
-    // Final blit to target: background color first, then composite on top
-    // Use display dimensions for target canvas, upscaling if renderScale < 1
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
-    const bgColor = this.getBgColor();
-    if (bgColor === '#000') {
-      ctx.clearRect(0, 0, displayW, displayH);
-    } else {
-      ctx.fillStyle = bgColor;
-      ctx.fillRect(0, 0, displayW, displayH);
-    }
-    // Upscale composite to display size (browser handles interpolation)
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(this.compositeCanvas, 0, 0, displayW, displayH);
-  }
-
-  /** Returns the composite canvas (for post-process effects to read from) */
-  getCompositeCanvas(): HTMLCanvasElement {
-    return this.compositeCanvas;
   }
 
   hasAnyEnabled(): boolean {

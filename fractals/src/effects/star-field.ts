@@ -71,17 +71,23 @@ export class StarFieldEffect implements VisualEffect {
   private parallaxX = 0;
   private parallaxY = 0;
 
+  // Groove-driven state
+  private beatArrivalGlow = 0;
+  private beatAnticipationGlow = 0;
+  private nebulaBreathingAlpha = 0.7;
+
   // Cached nebula canvas (expensive gradients, rarely changes)
   private nebulaCanvas: HTMLCanvasElement;
   private nebulaCtx: CanvasRenderingContext2D;
   private nebulaDirty = true;
 
   // Config - tuned for better defaults
-  private density = 1.2;
+  private density = 5.0;
   private twinkleAmount = 0.3;
   private shimmerSpeed = 1.5;
   private nebulaOpacity = 0.55;
   private parallaxStrength = 0.12;
+  private densityDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -270,9 +276,24 @@ export class StarFieldEffect implements VisualEffect {
     const dt = Math.min(music.dt, 0.1);
     this.time += dt;
 
+    // === GROOVE CURVES ===
+    const beatArrival = music.beatArrival ?? 0;
+    const beatAnticipation = music.beatAnticipation ?? 0;
+    const beatGroove = music.beatGroove ?? 0.5;
+
     // Smooth tension
     this.tension = music.tension ?? 0;
     this.smoothTension += (this.tension - this.smoothTension) * this.shimmerSpeed * dt;
+
+    // Beat arrival creates brightness spike that decays
+    this.beatArrivalGlow = Math.max(this.beatArrivalGlow, beatArrival * 0.2);
+    this.beatArrivalGlow *= Math.exp(-4.0 * dt);
+
+    // Anticipation creates gradual buildup before beat
+    this.beatAnticipationGlow = beatAnticipation * 0.12;
+
+    // Nebula breathing - gentle expansion on beat groove cycle
+    this.nebulaBreathingAlpha = 0.65 + this.smoothTension * 0.25 + (beatGroove - 0.5) * 0.1 + this.beatAnticipationGlow;
 
     // Palette from key - mark nebula dirty if changed
     this.paletteIdx = music.key ?? 0;
@@ -291,15 +312,23 @@ export class StarFieldEffect implements VisualEffect {
     this.parallaxY += (targetY - this.parallaxY) * 0.5 * dt;
 
     // Update star shimmer (slow wave across the field)
+    // Shimmer speed responds to beat groove for more rhythmic twinkle
+    const grooveSpeedMult = 1 + (beatGroove - 0.5) * 0.3;
+
     for (const star of this.stars) {
       const threshold = star.twinklePhase / (Math.PI * 2);
 
       if (this.smoothTension > threshold) {
         const intensity = (this.smoothTension - threshold) / (1 - threshold + 0.01);
         const targetShimmer = Math.min(1, intensity * this.twinkleAmount);
-        star.shimmer += (targetShimmer - star.shimmer) * 1 * dt;
+        star.shimmer += (targetShimmer - star.shimmer) * grooveSpeedMult * dt;
       } else {
-        star.shimmer *= Math.exp(-1 * dt);
+        star.shimmer *= Math.exp(-grooveSpeedMult * dt);
+      }
+
+      // Beat arrival adds instant shimmer boost to brighter stars
+      if (beatArrival > 0.1 && star.baseBrightness > 0.4) {
+        star.shimmer = Math.min(1, star.shimmer + beatArrival * 0.1 * star.baseBrightness);
       }
     }
   }
@@ -321,7 +350,8 @@ export class StarFieldEffect implements VisualEffect {
     const px = this.parallaxX * this.parallaxStrength * 8;
     const py = this.parallaxY * this.parallaxStrength * 8;
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.7 + this.smoothTension * 0.3;
+    // Nebula alpha responds to groove: breathing + anticipation glow
+    ctx.globalAlpha = Math.min(1, this.nebulaBreathingAlpha + this.beatAnticipationGlow);
     ctx.drawImage(this.nebulaCanvas, px, py);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'source-over';
@@ -402,11 +432,12 @@ export class StarFieldEffect implements VisualEffect {
       const twinkleTime = this.time * star.twinkleSpeed * tensionSpeedMult;
       const twinkleFactor = 0.7 + 0.3 * Math.sin(twinkleTime + star.twinklePhase) + star.twinkleOffset;
 
-      // Shimmer boost
+      // Shimmer boost + beat arrival glow for brighter stars
       const shimmerBoost = star.shimmer * 0.25;
+      const arrivalBoost = this.beatArrivalGlow * star.baseBrightness * 0.25;
 
       // Final brightness
-      const brightness = star.baseBrightness * twinkleFactor + shimmerBoost;
+      const brightness = star.baseBrightness * twinkleFactor + shimmerBoost + arrivalBoost;
       const alpha = Math.min(1, brightness);
 
       // Size
@@ -459,12 +490,14 @@ export class StarFieldEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'density', label: 'Star Density', type: 'range', value: this.density, min: 1, max: 10, step: 0.5 },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {
     return {
-      density: 1.2,
+      density: 5.0,
       twinkleAmount: 0.3,
       nebulaOpacity: 0.55,
       parallaxStrength: 0.12,
@@ -475,7 +508,13 @@ export class StarFieldEffect implements VisualEffect {
     switch (key) {
       case 'density':
         this.density = value as number;
-        this.spawnStars();
+        // Debounce star respawn (500ms) since it's expensive
+        if (this.densityDebounceTimer) clearTimeout(this.densityDebounceTimer);
+        this.densityDebounceTimer = setTimeout(() => {
+          this.spawnStars();
+          this.nebulaDirty = true;  // Redraw background
+          this.densityDebounceTimer = null;
+        }, 500);
         break;
       case 'twinkleAmount':
         this.twinkleAmount = value as number;

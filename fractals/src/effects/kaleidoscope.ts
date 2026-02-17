@@ -104,14 +104,16 @@ export class KaleidoscopeEffect implements VisualEffect {
     }
 
     // === ZOOM: groove-driven breathing + anticipation ===
+    const barAnticipation = music.barAnticipation ?? 0;
+
     // Higher base zoom, reduced variability
     this.zoomTarget = 1.04 + music.tension * 0.015;
     // Groove creates continuous zoom breathing (reduced)
     this.zoomTarget += (beatGroove - 0.5) * 0.02;
     // Anticipation adds buildup before the beat (reduced)
     this.zoomTarget += beatAnticipation * 0.01;
-    // Bar-level for bigger phrases (reduced)
-    this.zoomTarget += (music.barAnticipation ?? 0) * 0.008;
+    // Bar-level anticipation for longer-form tension buildup (slightly increased for more drama)
+    this.zoomTarget += barAnticipation * 0.012;
     // Arrival creates soft "hit" (reduced)
     this.zoomTarget += beatArrival * 0.01 + barArrival * 0.012;
     // Kick/snare zoom accents (reduced)

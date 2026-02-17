@@ -36,9 +36,11 @@ import {
   getPresetState,
   urlToState,
   stateToURL,
+  saveCustomPreset,
+  getCustomPresets,
+  deleteCustomPreset,
 } from './state.ts';
 import { FractalConfigPanel, loadUserPresets } from './fractal-config.ts';
-import { GRAConfigPanel } from './gra-config.ts';
 import { setCustomColor, clearCustomColors, getCustomColors, samplePaletteColor } from './effects/effect-utils.ts';
 
 // --- Song list ---
@@ -47,6 +49,7 @@ interface SongEntry {
   name: string;
   file: string;
   data?: ArrayBuffer;  // For uploaded MIDIs stored in memory
+  duration?: number;   // Duration in seconds (from MIDI analysis)
 }
 
 // --- Playlist Categories ---
@@ -55,62 +58,62 @@ type PlaylistCategory = 'classical' | 'pop' | 'video' | 'uploads';
 
 const popSongs: SongEntry[] = [
   // Classics - grouped by artist (with featured openers)
-  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid' },
-  { name: 'Eye of the Tiger (Survivor)', file: 'survivor-eye-of-tiger.mid' },
-  { name: 'Never Gonna Give You Up (Rick Astley)', file: 'rick-astley-never-gonna.mid' },
-  { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid' },
+  { name: 'The Girl from Ipanema (Jobim)', file: 'jobim-girl-from-ipanema.mid', duration: 315 },
+  { name: 'Eye of the Tiger (Survivor)', file: 'survivor-eye-of-tiger.mid', duration: 245 },
+  { name: 'Never Gonna Give You Up (Rick Astley)', file: 'rick-astley-never-gonna.mid', duration: 213 },
+  { name: 'Black Orpheus (Luiz Bonfa)', file: 'bonfa-black-orpheus.mid', duration: 195 },
   // ABBA
-  { name: 'Money Money Money (ABBA)', file: 'abba-money-money-money.mid' },
+  { name: 'Money Money Money (ABBA)', file: 'abba-money-money-money.mid', duration: 183 },
   // Bee Gees
-  { name: 'Stayin\' Alive (Bee Gees)', file: 'bee-gees-stayin-alive.mid' },
+  { name: 'Stayin\' Alive (Bee Gees)', file: 'bee-gees-stayin-alive.mid', duration: 285 },
   // Bon Jovi
-  { name: 'Livin\' on a Prayer (Bon Jovi)', file: 'bon-jovi-livin-prayer.mid' },
+  { name: 'Livin\' on a Prayer (Bon Jovi)', file: 'bon-jovi-livin-prayer.mid', duration: 250 },
   // Bonnie Tyler
-  { name: 'Total Eclipse of the Heart (Bonnie Tyler)', file: 'bonnie-tyler-total-eclipse.mid' },
+  { name: 'Total Eclipse of the Heart (Bonnie Tyler)', file: 'bonnie-tyler-total-eclipse.mid', duration: 334 },
   // Guns N' Roses
-  { name: 'Sweet Child O\' Mine (Guns N\' Roses)', file: 'gnr-sweet-child.mid' },
+  { name: 'Sweet Child O\' Mine (Guns N\' Roses)', file: 'gnr-sweet-child.mid', duration: 356 },
   // Gary Numan
-  { name: 'Cars (Gary Numan)', file: 'gary-numan-cars.mid' },
+  { name: 'Cars (Gary Numan)', file: 'gary-numan-cars.mid', duration: 225 },
   // Michael Jackson
-  { name: 'Billie Jean (Michael Jackson)', file: 'mj-billie-jean.mid' },
-  { name: 'Thriller (Michael Jackson)', file: 'mj-thriller.mid' },
+  { name: 'Billie Jean (Michael Jackson)', file: 'mj-billie-jean.mid', duration: 294 },
+  { name: 'Thriller (Michael Jackson)', file: 'mj-thriller.mid', duration: 358 },
   // Queen
-  { name: 'Bohemian Rhapsody (Queen)', file: 'queen-bohemian-rhapsody.mid' },
+  { name: 'Bohemian Rhapsody (Queen)', file: 'queen-bohemian-rhapsody.mid', duration: 355 },
 ];
 
 const videoSongs: SongEntry[] = [
   // Video game classics (energy arc: setup → build → peak at 2/3 → release)
-  { name: 'Gerudo Valley (Zelda: OoT)', file: 'zelda-gerudo-valley.mid' },               // high energy
-  { name: 'Corridors of Time (Chrono Trigger)', file: 'corridors-of-time.mid' },         // dreamy
-  { name: 'Balamb Garden (Final Fantasy VIII)', file: 'ff8-balamb-garden.mid' },         // peaceful academy
-  { name: 'Ground Theme (Super Mario Bros)', file: 'mario-ground-theme.mid' },           // iconic, building
-  { name: 'Battle Theme (Golden Sun)', file: 'golden-sun-battle.mid' },                  // RPG intensity
-  { name: 'Great Fairy Fountain (Zelda: OoT)', file: 'zelda-great-fairy-fountain.mid' }, // ethereal
-  { name: 'Green Hill Zone (Sonic)', file: 'green-hill-zone.mid' },                      // energy rising
-  { name: 'Man with Machine Gun (Final Fantasy VIII)', file: 'ff8-man-with-machine-gun.mid' }, // intense
-  { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid' },                        // PEAK battle
-  { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid' },                  // emotional wind-down
-  { name: 'Aquatic Ambiance (Donkey Kong Country)', file: 'dkc-aquatic-ambiance.mid' },  // serene ending ♡
+  { name: 'Gerudo Valley (Zelda: OoT)', file: 'zelda-gerudo-valley.mid', duration: 147 },
+  { name: 'Corridors of Time (Chrono Trigger)', file: 'corridors-of-time.mid', duration: 180 },
+  { name: 'Balamb Garden (Final Fantasy VIII)', file: 'ff8-balamb-garden.mid', duration: 255 },
+  { name: 'Ground Theme (Super Mario Bros)', file: 'mario-ground-theme.mid', duration: 95 },
+  { name: 'Battle Theme (Golden Sun)', file: 'golden-sun-battle.mid', duration: 115 },
+  { name: 'Great Fairy Fountain (Zelda: OoT)', file: 'zelda-great-fairy-fountain.mid', duration: 135 },
+  { name: 'Green Hill Zone (Sonic)', file: 'green-hill-zone.mid', duration: 55 },
+  { name: 'Man with Machine Gun (Final Fantasy VIII)', file: 'ff8-man-with-machine-gun.mid', duration: 195 },
+  { name: 'Fight On! (Final Fantasy VII)', file: 'ff7-boss.mid', duration: 230 },
+  { name: 'To Zanarkand (Final Fantasy X)', file: 'to-zanarkand.mid', duration: 195 },
+  { name: 'Aquatic Ambiance (Donkey Kong Country)', file: 'dkc-aquatic-ambiance.mid', duration: 240 },
 ];
 
 const classicalSongs: SongEntry[] = [
   // Grouped by composer (chronological era)
   // Baroque
-  { name: 'Toccata & Fugue (Bach)', file: 'bach-toccata-fugue.mid' },
-  { name: 'Prelude in C Major (Bach)', file: 'bach-prelude-c.mid' },
-  { name: 'Canon in D (Pachelbel)', file: 'pachelbel-canon.mid' },
-  { name: 'Spring - Four Seasons (Vivaldi)', file: 'vivaldi-spring.mid' },
+  { name: 'Toccata & Fugue (Bach)', file: 'bach-toccata-fugue.mid', duration: 545 },
+  { name: 'Prelude in C Major (Bach)', file: 'bach-prelude-c.mid', duration: 135 },
+  { name: 'Canon in D (Pachelbel)', file: 'pachelbel-canon.mid', duration: 270 },
+  { name: 'Spring - Four Seasons (Vivaldi)', file: 'vivaldi-spring.mid', duration: 205 },
   // Classical
-  { name: 'Eine Kleine Nachtmusik (Mozart)', file: 'mozart-eine-kleine.mid' },
-  { name: 'Lacrimosa - Requiem (Mozart)', file: 'mozart-lacrimosa.mid' },
-  { name: 'Für Elise (Beethoven)', file: 'beethoven-fur-elise.mid' },
-  { name: 'Pathetique Adagio (Beethoven)', file: 'beethoven-pathetique-adagio.mid' },
-  { name: 'Ode to Joy (Beethoven)', file: 'beethoven-ode-to-joy.mid' },
+  { name: 'Eine Kleine Nachtmusik (Mozart)', file: 'mozart-eine-kleine.mid', duration: 355 },
+  { name: 'Lacrimosa - Requiem (Mozart)', file: 'mozart-lacrimosa.mid', duration: 195 },
+  { name: 'Für Elise (Beethoven)', file: 'beethoven-fur-elise.mid', duration: 180 },
+  { name: 'Pathetique Adagio (Beethoven)', file: 'beethoven-pathetique-adagio.mid', duration: 310 },
+  { name: 'Ode to Joy (Beethoven)', file: 'beethoven-ode-to-joy.mid', duration: 245 },
   // Romantic
-  { name: 'Nocturne Op.9 No.2 (Chopin)', file: 'chopin-nocturne.mid' },
-  { name: 'Dance of Sugar Plum Fairy (Tchaikovsky)', file: 'tchaikovsky-sugar-plum.mid' },
+  { name: 'Nocturne Op.9 No.2 (Chopin)', file: 'chopin-nocturne.mid', duration: 275 },
+  { name: 'Dance of Sugar Plum Fairy (Tchaikovsky)', file: 'tchaikovsky-sugar-plum.mid', duration: 95 },
   // Impressionist
-  { name: 'Clair de Lune (Debussy)', file: 'clair-de-lune.mid' },
+  { name: 'Clair de Lune (Debussy)', file: 'clair-de-lune.mid', duration: 305 },
 ];
 
 // User-uploaded songs (persisted to localStorage)
@@ -291,11 +294,21 @@ compositor.addLayer(melodyNotesEffect, false);
 let showBassNumerals = true;
 let showMelodyNotes = true;
 
+// Overlay toggle states (both can be enabled independently)
+let kaleidoscopeEnabled = false;
+let feedbackTrailEnabled = false;
+
 // Apply initial active selections
 function applySlotSelections(): void {
   for (const slot of layerSlots) {
-    for (const effect of slot.effects) {
-      compositor.setEnabled(effect.id, effect.id === slot.activeId);
+    if (slot.name === 'Overlay') {
+      // Overlay slot uses independent toggles, not mutually exclusive
+      compositor.setEnabled('kaleidoscope', kaleidoscopeEnabled);
+      compositor.setEnabled('feedback-trail', feedbackTrailEnabled);
+    } else {
+      for (const effect of slot.effects) {
+        compositor.setEnabled(effect.id, effect.id === slot.activeId);
+      }
     }
   }
   // Bass/melody overlays: show when checkbox checked AND no effect selected
@@ -329,16 +342,29 @@ function getAllEffects(): Map<string, VisualEffect> {
   return map;
 }
 
+// Helper to apply overlays from state result
+function applyOverlaysFromState(overlays: string[]): void {
+  kaleidoscopeEnabled = overlays.includes('kaleidoscope');
+  feedbackTrailEnabled = overlays.includes('feedback-trail');
+}
+
 // Apply URL settings using state module
 function applyURLSettings(): { presetApplied?: string } {
   const urlState = urlToState(window.location.search);
   const result: { presetApplied?: string } = {};
 
-  // If no URL params, apply default Spiral preset (including configs)
+  // If no URL params, apply default preset (including configs)
   if (!urlState) {
     const defaultPreset = getPresetState('stars');
     if (defaultPreset) {
-      applyState(defaultPreset, layerSlots, getAllEffects());
+      const { overlays } = applyState(defaultPreset, layerSlots, getAllEffects());
+      applyOverlaysFromState(overlays);
+      // Sync toggle variables from preset configs (stars disables numerals/notes)
+      const presetConfigs = defaultPreset.configs ?? {};
+      const bassFireConfig = presetConfigs['bass-fire'] as Record<string, unknown> | undefined;
+      const melodyConfig = presetConfigs['melody-clock'] as Record<string, unknown> | undefined;
+      showBassNumerals = (bassFireConfig?.showNumerals ?? true) as boolean;
+      showMelodyNotes = (melodyConfig?.showNotes ?? true) as boolean;
     }
     applySlotSelections();
     result.presetApplied = 'stars';
@@ -353,7 +379,8 @@ function applyURLSettings(): { presetApplied?: string } {
   }
 
   // Apply state from URL
-  applyState(urlState as VisualizerState, layerSlots, getAllEffects());
+  const { overlays } = applyState(urlState as VisualizerState, layerSlots, getAllEffects());
+  applyOverlaysFromState(overlays);
   applySlotSelections();
   return result;
 }
@@ -466,7 +493,7 @@ app.innerHTML = `
     <div class="main-area">
       <div class="layer-panel" id="layer-panel">
         <div class="layer-panel-header">
-          <span>Animations</span>
+          <span>Visuals</span>
           <button class="panel-close-btn" id="panel-close-btn">&times;</button>
         </div>
         <div id="layer-list">
@@ -476,6 +503,10 @@ app.innerHTML = `
               <button class="colors-reset-btn" id="colors-reset-btn" title="Reset to defaults">Reset</button>
             </div>
             <div class="colors-grid" id="colors-grid"></div>
+          </div>
+          <div class="saved-presets" id="saved-presets" style="display: none;">
+            <div class="saved-label">Saved Presets</div>
+            <div class="saved-buttons" id="saved-buttons"></div>
           </div>
           <div class="experimental-presets" id="experimental-presets">
             <div class="experimental-label">Experimental Presets</div>
@@ -493,9 +524,18 @@ app.innerHTML = `
               <button class="toggle-btn quality-btn active" id="quality-high" title="100% resolution - sharpest">Sharp</button>
             </div>
           </div>
+          <div class="theme-section" id="theme-section">
+            <div class="theme-toggle-row">
+              <span class="theme-label"><span class="theme-icon">🌙</span> Theme</span>
+              <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode"></button>
+            </div>
+          </div>
         </div>
         <div class="layer-panel-footer">
-          <button class="copy-link-btn" id="copy-link-btn" title="Copy a link with your current preset, layers, and effect settings">Copy Settings Link</button>
+          <div class="layer-panel-footer-buttons">
+            <button class="copy-link-btn" id="copy-link-btn" title="Copy a link with your current preset, layers, and effect settings">Copy Link</button>
+            <button class="save-preset-btn" id="save-preset-btn" title="Save current settings as a preset">Save</button>
+          </div>
         </div>
       </div>
       <div class="canvas-wrap">
@@ -532,6 +572,18 @@ app.innerHTML = `
   </div>
 
   <div id="toast" class="toast"></div>
+
+  <div class="save-modal-overlay" id="save-modal-overlay">
+    <div class="save-modal">
+      <div class="save-modal-header">Save Preset</div>
+      <div class="save-modal-summary" id="save-modal-summary"></div>
+      <input type="text" class="save-modal-input" id="save-modal-input" placeholder="Preset name" maxlength="24" autocomplete="off" />
+      <div class="save-modal-buttons">
+        <button class="save-modal-cancel" id="save-modal-cancel">Cancel</button>
+        <button class="save-modal-confirm" id="save-modal-confirm">Save</button>
+      </div>
+    </div>
+  </div>
 `;
 
 // --- Toast notification ---
@@ -570,11 +622,15 @@ const chordDisplay = document.getElementById('chord-display')!;
 const fpsDisplay = document.getElementById('fps-display')!;
 const layersToggle = document.getElementById('layers-toggle') as HTMLButtonElement;
 const layerPanel = document.getElementById('layer-panel')!;
+let layerPanelOpen = false;
 const layerList = document.getElementById('layer-list')!;
 const colorsGrid = document.getElementById('colors-grid')!;
 const colorsSection = document.getElementById('colors-section')!;
+const savedPresetsSection = document.getElementById('saved-presets')!;
 const experimentalPresetsSection = document.getElementById('experimental-presets')!;
 const qualitySection = document.getElementById('quality-section')!;
+const themeSection = document.getElementById('theme-section')!;
+const themeToggle = document.getElementById('theme-toggle') as HTMLButtonElement;
 const colorsResetBtn = document.getElementById('colors-reset-btn') as HTMLButtonElement;
 const fullscreenBtn = document.getElementById('fullscreen-btn') as HTMLButtonElement;
 const debugOverlay = document.getElementById('debug-overlay') as HTMLElement;
@@ -857,11 +913,25 @@ function showAndroidControls(): void {
   androidControlsTimeout = window.setTimeout(hideAndroidControls, ANDROID_CONTROLS_HIDE_DELAY);
 }
 
+function closeLayerPanel(): void {
+  layerPanelOpen = false;
+  layersToggle.classList.remove('active');
+  layerPanel.classList.remove('open');
+}
+
+function openLayerPanel(): void {
+  layerPanelOpen = true;
+  layersToggle.classList.add('active');
+  layerPanel.classList.add('open');
+}
+
 function onFullscreenChange() {
   const topBar = document.querySelector('.top-bar') as HTMLElement;
   if (getFullscreenEl()) {
     fullscreenBtn.innerHTML = fullscreenExitIcon;
     fullscreenBtn.title = 'Exit fullscreen (Esc)';
+    // Close layer panel when entering fullscreen
+    closeLayerPanel();
     // Android: start visible, then auto-hide
     if (isAndroid) {
       topBar.classList.remove('android-hidden');
@@ -1068,9 +1138,12 @@ canvas.addEventListener('mouseleave', () => {
 
 // --- Animations panel toggle ---
 
-let layerPanelOpen = false;
 // Layer panel closed by default
 layersToggle.addEventListener('click', () => {
+  // Exit fullscreen when opening the panel
+  if (!layerPanelOpen && getFullscreenEl() && exitFS) {
+    exitFS.call(document);
+  }
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
   layerPanel.classList.toggle('open', layerPanelOpen);
@@ -1078,18 +1151,12 @@ layersToggle.addEventListener('click', () => {
 
 // Close button for mobile
 const panelCloseBtn = document.getElementById('panel-close-btn')!;
-panelCloseBtn.addEventListener('click', () => {
-  layerPanelOpen = false;
-  layersToggle.classList.remove('active');
-  layerPanel.classList.remove('open');
-});
+panelCloseBtn.addEventListener('click', closeLayerPanel);
 
 // Mobile menu layers toggle
 const mobileLayersToggle = document.getElementById('mobile-layers-toggle')!;
 mobileLayersToggle.addEventListener('click', () => {
-  layerPanelOpen = true;
-  layersToggle.classList.add('active');
-  layerPanel.classList.add('open');
+  openLayerPanel();
   closeMobileMenu();
 });
 
@@ -1102,10 +1169,6 @@ fractalConfigPanel.onSave = () => {
   dirty = true;
   musicMapper.reloadAnchors();
 };
-
-// --- GRA Config Panel (for graph-chain effect) ---
-
-const graConfigPanel = new GRAConfigPanel();
 
 // --- Note names for color pickers ---
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -1363,13 +1426,6 @@ function syncBassNumerals(value: boolean): void {
   updateBassNumeralsOverlay();
 }
 
-// Load saved preference
-const savedBassNumerals = localStorage.getItem('showBassNumerals');
-if (savedBassNumerals !== null) {
-  showBassNumerals = savedBassNumerals === 'true';
-  syncBassNumerals(showBassNumerals);
-}
-
 // --- Melody notes toggle ---
 function syncMelodyNotes(value: boolean): void {
   showMelodyNotes = value;
@@ -1378,12 +1434,25 @@ function syncMelodyNotes(value: boolean): void {
   updateMelodyNotesOverlay();
 }
 
-// Load saved preference
-const savedMelodyNotes = localStorage.getItem('showMelodyNotes');
-if (savedMelodyNotes !== null) {
-  showMelodyNotes = savedMelodyNotes === 'true';
-  syncMelodyNotes(showMelodyNotes);
+// --- Overlay/toggle persistence ---
+// Only load localStorage values if we have URL params (not default preset)
+// When loading the default 'stars' preset, the preset should be authoritative
+const hasUrlParams = window.location.search.length > 1;
+
+// Load saved overlay preferences only if URL has params (otherwise preset is authoritative)
+// Note: numerals/letters toggles are NOT persisted - they follow presets/effect selection
+if (hasUrlParams) {
+  const savedKaleidoscope = localStorage.getItem('kaleidoscopeEnabled');
+  if (savedKaleidoscope !== null) {
+    kaleidoscopeEnabled = savedKaleidoscope === 'true';
+  }
+  const savedFeedbackTrail = localStorage.getItem('feedbackTrailEnabled');
+  if (savedFeedbackTrail !== null) {
+    feedbackTrailEnabled = savedFeedbackTrail === 'true';
+  }
 }
+// Apply loaded overlay states
+applySlotSelections();
 
 // --- Build layer panel UI ---
 
@@ -1391,28 +1460,8 @@ function buildLayerPanel(): void {
   layerList.innerHTML = '';
 
   for (const slot of layerSlots) {
-    // HUD slot is rendered as a simple toggle instead of radio buttons
-    if (slot.name === 'HUD') {
-      const toggleDiv = document.createElement('div');
-      toggleDiv.className = 'layer-slot slot-display-toggle';
-      const toggleLabel = document.createElement('label');
-      toggleLabel.className = 'display-toggle';
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.checked = slot.activeId === 'theory-bar';
-      checkbox.addEventListener('change', () => {
-        slot.activeId = checkbox.checked ? 'theory-bar' : null;
-        toggleTheoryBar();
-        dirty = true;
-        markUnsavedChanges();
-      });
-      toggleLabel.appendChild(checkbox);
-      const toggleSwitch = document.createElement('span');
-      toggleSwitch.className = 'toggle-switch';
-      toggleLabel.appendChild(toggleSwitch);
-      toggleLabel.appendChild(document.createTextNode('Show Theory Bar'));
-      toggleDiv.appendChild(toggleLabel);
-      layerList.appendChild(toggleDiv);
+    // HUD and Overlay slots are rendered together at the end in the "Overlays" section
+    if (slot.name === 'HUD' || slot.name === 'Overlay') {
       continue;
     }
 
@@ -1459,19 +1508,16 @@ function buildLayerPanel(): void {
       radioGroup.appendChild(effLabel);
     }
 
-    // Config button for fractal and graph-chain effects (only in Foreground slot)
+    // Config button for fractal effect (only in Foreground slot)
     let configBtn: HTMLButtonElement | null = null;
     if (slot.name === 'Foreground') {
       configBtn = document.createElement('button');
       configBtn.className = 'slot-config-link';
       configBtn.textContent = 'Custom';
-      const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-chain';
-      configBtn.style.display = hasConfig ? 'block' : 'none';
+      configBtn.style.display = slot.activeId === 'fractal' ? 'block' : 'none';
       configBtn.addEventListener('click', () => {
         if (slot.activeId === 'fractal') {
           fractalConfigPanel.show();
-        } else if (slot.activeId === 'graph-chain') {
-          graConfigPanel.show();
         }
       });
     }
@@ -1484,7 +1530,6 @@ function buildLayerPanel(): void {
       slotCheckbox.checked = showBassNumerals;
       slotCheckbox.addEventListener('change', () => {
         syncBassNumerals(slotCheckbox!.checked);
-        localStorage.setItem('showBassNumerals', String(slotCheckbox!.checked));
       });
     } else if (slot.name === 'Melody') {
       slotCheckbox = document.createElement('input');
@@ -1492,7 +1537,6 @@ function buildLayerPanel(): void {
       slotCheckbox.checked = showMelodyNotes;
       slotCheckbox.addEventListener('change', () => {
         syncMelodyNotes(slotCheckbox!.checked);
-        localStorage.setItem('showMelodyNotes', String(slotCheckbox!.checked));
       });
     }
 
@@ -1508,10 +1552,9 @@ function buildLayerPanel(): void {
       clearPresetHighlights();
       dirty = true;
       markUnsavedChanges();
-      // Show/hide config button for fractal and graph-chain
+      // Show/hide config button for fractal
       if (configBtn) {
-        const hasConfig = slot.activeId === 'fractal' || slot.activeId === 'graph-chain';
-        configBtn.style.display = hasConfig ? 'block' : 'none';
+        configBtn.style.display = slot.activeId === 'fractal' ? 'block' : 'none';
       }
       // Auto-toggle display checkbox based on effect selection
       if (slotCheckbox) {
@@ -1521,13 +1564,11 @@ function buildLayerPanel(): void {
           shouldShow = slot.activeId !== null;
           slotCheckbox.checked = shouldShow;
           syncBassNumerals(shouldShow);
-          localStorage.setItem('showBassNumerals', String(shouldShow));
         } else if (slot.name === 'Melody') {
           // Only melody-clock draws its own notes; others use overlay
           shouldShow = slot.activeId === 'melody-clock';
           slotCheckbox.checked = shouldShow;
           syncMelodyNotes(shouldShow);
-          localStorage.setItem('showMelodyNotes', String(shouldShow));
         }
       }
     });
@@ -1562,10 +1603,103 @@ function buildLayerPanel(): void {
     layerList.appendChild(slotDiv);
   }
 
-  // Append colors, experimental, and quality sections at the end (moves them into scrollable area)
+  // --- Overlays section (Kaleidoscope, Feedback, Theory Bar) ---
+  const overlaysSection = document.createElement('div');
+  overlaysSection.className = 'layer-slot overlays-section';
+
+  const overlaysHeader = document.createElement('div');
+  overlaysHeader.className = 'slot-header';
+  const overlaysLabel = document.createElement('span');
+  overlaysLabel.className = 'slot-label';
+  overlaysLabel.textContent = 'Overlays';
+  overlaysHeader.appendChild(overlaysLabel);
+  overlaysSection.appendChild(overlaysHeader);
+
+  const overlaysToggles = document.createElement('div');
+  overlaysToggles.className = 'overlay-toggles';
+
+  // Kaleidoscope toggle
+  const kaliToggleDiv = document.createElement('div');
+  kaliToggleDiv.className = 'slot-display-toggle';
+  const kaliLabel = document.createElement('label');
+  kaliLabel.className = 'display-toggle';
+  const kaliCheckbox = document.createElement('input');
+  kaliCheckbox.type = 'checkbox';
+  kaliCheckbox.checked = kaleidoscopeEnabled;
+  kaliCheckbox.addEventListener('change', () => {
+    kaleidoscopeEnabled = kaliCheckbox.checked;
+    localStorage.setItem('kaleidoscopeEnabled', String(kaleidoscopeEnabled));
+    applySlotSelections();
+    clearPresetHighlights();
+    dirty = true;
+    markUnsavedChanges();
+  });
+  kaliLabel.appendChild(kaliCheckbox);
+  const kaliSwitch = document.createElement('span');
+  kaliSwitch.className = 'toggle-switch';
+  kaliLabel.appendChild(kaliSwitch);
+  kaliLabel.appendChild(document.createTextNode('Kaleidoscope'));
+  kaliToggleDiv.appendChild(kaliLabel);
+  overlaysToggles.appendChild(kaliToggleDiv);
+
+  // Feedback Trail toggle
+  const feedbackToggleDiv = document.createElement('div');
+  feedbackToggleDiv.className = 'slot-display-toggle';
+  const feedbackLabel = document.createElement('label');
+  feedbackLabel.className = 'display-toggle';
+  const feedbackCheckbox = document.createElement('input');
+  feedbackCheckbox.type = 'checkbox';
+  feedbackCheckbox.checked = feedbackTrailEnabled;
+  feedbackCheckbox.addEventListener('change', () => {
+    feedbackTrailEnabled = feedbackCheckbox.checked;
+    localStorage.setItem('feedbackTrailEnabled', String(feedbackTrailEnabled));
+    applySlotSelections();
+    clearPresetHighlights();
+    dirty = true;
+    markUnsavedChanges();
+  });
+  feedbackLabel.appendChild(feedbackCheckbox);
+  const feedbackSwitch = document.createElement('span');
+  feedbackSwitch.className = 'toggle-switch';
+  feedbackLabel.appendChild(feedbackSwitch);
+  feedbackLabel.appendChild(document.createTextNode('Feedback Trail'));
+  feedbackToggleDiv.appendChild(feedbackLabel);
+  overlaysToggles.appendChild(feedbackToggleDiv);
+
+  // Theory Bar toggle
+  const hudSlot = layerSlots.find(s => s.name === 'HUD');
+  if (hudSlot) {
+    const theoryToggleDiv = document.createElement('div');
+    theoryToggleDiv.className = 'slot-display-toggle';
+    const theoryLabel = document.createElement('label');
+    theoryLabel.className = 'display-toggle';
+    const theoryCheckbox = document.createElement('input');
+    theoryCheckbox.type = 'checkbox';
+    theoryCheckbox.checked = hudSlot.activeId === 'theory-bar';
+    theoryCheckbox.addEventListener('change', () => {
+      hudSlot.activeId = theoryCheckbox.checked ? 'theory-bar' : null;
+      toggleTheoryBar();
+      dirty = true;
+      markUnsavedChanges();
+    });
+    theoryLabel.appendChild(theoryCheckbox);
+    const theorySwitch = document.createElement('span');
+    theorySwitch.className = 'toggle-switch';
+    theoryLabel.appendChild(theorySwitch);
+    theoryLabel.appendChild(document.createTextNode('Theory Bar'));
+    theoryToggleDiv.appendChild(theoryLabel);
+    overlaysToggles.appendChild(theoryToggleDiv);
+  }
+
+  overlaysSection.appendChild(overlaysToggles);
+  layerList.appendChild(overlaysSection);
+
+  // Append colors, saved presets, experimental, and quality sections at the end (moves them into scrollable area)
   layerList.appendChild(colorsSection);
+  layerList.appendChild(savedPresetsSection);
   layerList.appendChild(experimentalPresetsSection);
   layerList.appendChild(qualitySection);
+  layerList.appendChild(themeSection);
 }
 
 function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
@@ -1762,16 +1896,20 @@ function applyPreset(preset: PresetName): void {
   // Get preset state and apply it
   const presetState = getPresetState(preset);
   if (presetState) {
-    applyState(presetState, layerSlots, getAllEffects());
+    const { overlays } = applyState(presetState, layerSlots, getAllEffects());
+    applyOverlaysFromState(overlays);
   }
 
   // Sync UI toggles with applied effect configs
   // Check preset configs for showNumerals/showNotes, default to true if not specified
   const presetConfigs = presetState?.configs ?? {};
-  const bassConfig = presetConfigs['bass-clock'] as Record<string, unknown> | undefined;
+  // Check all bass effect configs for showNumerals (different presets use different effects)
+  const bassClockConfig = presetConfigs['bass-clock'] as Record<string, unknown> | undefined;
+  const bassFireConfig = presetConfigs['bass-fire'] as Record<string, unknown> | undefined;
   const melodyConfig = presetConfigs['melody-clock'] as Record<string, unknown> | undefined;
 
-  const bassNumeralsVal = bassConfig?.showNumerals ?? true;
+  // Use explicit false from any bass config, otherwise default to true
+  const bassNumeralsVal = (bassClockConfig?.showNumerals ?? bassFireConfig?.showNumerals) ?? true;
   showBassNumerals = bassNumeralsVal as boolean;
   syncBassNumerals(showBassNumerals);
 
@@ -1865,6 +2003,14 @@ for (const [name, btn] of Object.entries(mobileQualityButtons)) {
   btn.addEventListener('click', () => setQuality(name as QualityLevel));
 }
 
+// Theme toggle (always defaults to dark mode)
+themeToggle.addEventListener('click', () => {
+  document.body.classList.toggle('light-mode');
+  const isLight = document.body.classList.contains('light-mode');
+  const themeIcon = document.querySelector('.theme-icon');
+  if (themeIcon) themeIcon.textContent = isLight ? '☀️' : '🌙';
+});
+
 // Track DPR for coordinate transforms (declared here so setQuality can call resizeCanvas)
 let canvasDPR = 1;
 
@@ -1873,10 +2019,18 @@ if (localStorage.getItem('autoDowngraded') === 'true') {
   setQuality('medium');
 }
 
+// Helper to get current overlays array
+function getEnabledOverlays(): string[] {
+  const overlays: string[] = [];
+  if (kaleidoscopeEnabled) overlays.push('kaleidoscope');
+  if (feedbackTrailEnabled) overlays.push('feedback-trail');
+  return overlays;
+}
+
 // Copy Link button - generates shareable URL and copies to clipboard
 const copyLinkBtn = document.getElementById('copy-link-btn') as HTMLButtonElement;
 copyLinkBtn.addEventListener('click', async () => {
-  const state = getCurrentState(layerSlots);
+  const state = getCurrentState(layerSlots, getEnabledOverlays());
   const baseQuery = stateToURL(state);
   const params = new URLSearchParams(baseQuery);
 
@@ -1923,7 +2077,110 @@ function clearPresetHighlights(): void {
 }
 
 
-// Custom presets disabled - using built-in presets only
+// Save Preset modal elements
+const saveModalOverlay = document.getElementById('save-modal-overlay')!;
+const saveModalSummary = document.getElementById('save-modal-summary')!;
+const saveModalInput = document.getElementById('save-modal-input') as HTMLInputElement;
+const saveModalCancel = document.getElementById('save-modal-cancel')!;
+const saveModalConfirm = document.getElementById('save-modal-confirm')!;
+
+function getPresetSummary(): string {
+  const parts: string[] = [];
+  for (const slot of layerSlots) {
+    if (slot.activeId) {
+      const effect = slot.effects.find(e => e.id === slot.activeId);
+      if (effect) parts.push(effect.name);
+    }
+  }
+  if (kaleidoscopeEnabled) parts.push('Kaleidoscope');
+  if (feedbackTrailEnabled) parts.push('Feedback Trail');
+  return parts.length > 0 ? parts.join(' · ') : 'No effects selected';
+}
+
+function openSaveModal(): void {
+  saveModalSummary.textContent = getPresetSummary();
+  saveModalInput.value = '';
+  saveModalOverlay.classList.add('visible');
+  saveModalInput.focus();
+}
+
+function closeSaveModal(): void {
+  saveModalOverlay.classList.remove('visible');
+}
+
+function confirmSavePreset(): void {
+  const name = saveModalInput.value.trim();
+  if (!name) {
+    saveModalInput.focus();
+    return;
+  }
+
+  const state = getCurrentState(layerSlots, getEnabledOverlays());
+  saveCustomPreset(name, state);
+  renderSavedPresets();
+  closeSaveModal();
+  showToast(`Saved "${name}"`, 2000, 'info');
+}
+
+// Save Preset button - opens save modal
+const savePresetBtn = document.getElementById('save-preset-btn') as HTMLButtonElement;
+savePresetBtn.addEventListener('click', openSaveModal);
+
+saveModalCancel.addEventListener('click', closeSaveModal);
+saveModalConfirm.addEventListener('click', confirmSavePreset);
+saveModalOverlay.addEventListener('click', (e) => {
+  if (e.target === saveModalOverlay) closeSaveModal();
+});
+saveModalInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') confirmSavePreset();
+  if (e.key === 'Escape') closeSaveModal();
+});
+
+// Render saved presets in the layer panel
+function renderSavedPresets(): void {
+  const container = document.getElementById('saved-buttons');
+  if (!container) return; // Not yet in DOM
+  const presets = getCustomPresets();
+
+  if (presets.length === 0) {
+    savedPresetsSection.style.display = 'none';
+    return;
+  }
+
+  savedPresetsSection.style.display = 'block';
+  container.innerHTML = '';
+
+  for (const preset of presets) {
+    const btn = document.createElement('button');
+    btn.className = 'custom-preset-btn';
+    btn.textContent = preset.name;
+    btn.addEventListener('click', () => {
+      const { overlays } = applyState(preset.state, layerSlots, getAllEffects());
+      applyOverlaysFromState(overlays);
+      applySlotSelections();
+      clearPresetHighlights();
+    });
+
+    // Delete button
+    const del = document.createElement('button');
+    del.className = 'custom-preset-delete';
+    del.textContent = '×';
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (confirm(`Delete "${preset.name}"?`)) {
+        deleteCustomPreset(preset.id);
+        renderSavedPresets();
+      }
+    });
+    btn.appendChild(del);
+    container.appendChild(btn);
+  }
+}
+
+// Initial render of saved presets
+renderSavedPresets();
+
+// Stub functions for preset change tracking
 function markUnsavedChanges(): void {}
 function clearUnsavedChanges(): void {}
 
@@ -2704,3 +2961,8 @@ const trackIdx = urlTrack !== null ? parseInt(urlTrack) : 0;
 const validTrackIdx = !isNaN(trackIdx) && trackIdx >= 0 && trackIdx < playlists[currentPlaylist].length ? trackIdx : 0;
 songPicker.value = String(validTrackIdx);
 loadSong(validTrackIdx);
+
+// Trigger button glow pulse after UI fade-in completes
+setTimeout(() => {
+  midiBtn.classList.add('glow-pulse');
+}, 800);

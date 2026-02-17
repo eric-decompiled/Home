@@ -64,6 +64,11 @@ export class BassClockEffect implements VisualEffect {
     this.ctx = this.canvas.getContext('2d')!;
   }
 
+  // Resolution scale factor for 4K support
+  private get resScale(): number {
+    return Math.min(this.width, this.height) / 600;
+  }
+
   init(width: number, height: number): void {
     this.width = width;
     this.height = height;
@@ -289,7 +294,7 @@ export class BassClockEffect implements VisualEffect {
     ctx.beginPath();
     ctx.arc(cx, cy, r , 0, Math.PI * 2);
     ctx.strokeStyle = `rgba(${R},${G},${B},0.08)`;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * this.resScale;
     ctx.stroke();
 
     // --- Arc trail with comet tail gradient ---
@@ -347,7 +352,7 @@ export class BassClockEffect implements VisualEffect {
           ctx.beginPath();
           ctx.arc(cx, cy, trailR, startA, startA + arcDiff, arcDiff < 0);
           ctx.strokeStyle = `rgba(${segR},${segG},${segB},${glowAlpha.toFixed(3)})`;
-          ctx.lineWidth = baseWidth * 2.5;
+          ctx.lineWidth = baseWidth * 2.5 * this.resScale;
           ctx.stroke();
 
           // Core with brightness increasing toward head (modulated by loudness)
@@ -355,7 +360,7 @@ export class BassClockEffect implements VisualEffect {
           ctx.beginPath();
           ctx.arc(cx, cy, trailR, startA, startA + arcDiff, arcDiff < 0);
           ctx.strokeStyle = `rgba(${segR},${segG},${segB},${coreAlpha.toFixed(3)})`;
-          ctx.lineWidth = baseWidth;
+          ctx.lineWidth = baseWidth * this.resScale;
           ctx.stroke();
 
           // Hot inner core near head (modulated by loudness)
@@ -367,7 +372,7 @@ export class BassClockEffect implements VisualEffect {
             ctx.beginPath();
             ctx.arc(cx, cy, trailR, startA, startA + arcDiff, arcDiff < 0);
             ctx.strokeStyle = `rgba(${hotR},${hotG},${hotB},${hotAlpha.toFixed(3)})`;
-            ctx.lineWidth = baseWidth * 0.4;
+            ctx.lineWidth = baseWidth * 0.4 * this.resScale;
             ctx.stroke();
           }
         }
@@ -401,7 +406,7 @@ export class BassClockEffect implements VisualEffect {
 
       if (numeral && this.showNumerals) {
         // Draw Roman numeral for diatonic scale degrees
-        const fontSize = Math.max(11, Math.round(r * 0.1));
+        const fontSize = Math.max(11 * this.resScale, Math.round(r * 0.1));
 
         ctx.save();
         ctx.translate(tx, ty);
@@ -422,7 +427,7 @@ export class BassClockEffect implements VisualEffect {
         ctx.restore();
       } else if (chromaticNumeral && this.showNumerals && (isCurrent || chromaticFadeValue > 0)) {
         // Draw chromatic numeral when current or fading out
-        const fontSize = Math.max(10, Math.round(r * 0.09));  // Slightly smaller
+        const fontSize = Math.max(10 * this.resScale, Math.round(r * 0.09));  // Slightly smaller
         const fadeAlpha = isCurrent ? 0.6 + this.handBrightness * 0.3 : chromaticFadeValue * 0.5;
 
         ctx.save();
@@ -445,7 +450,7 @@ export class BassClockEffect implements VisualEffect {
       } else {
         // Small dot for chromatic notes not currently active (or when numerals disabled)
         ctx.beginPath();
-        ctx.arc(tx, ty, isCurrent ? 3 : 2, 0, Math.PI * 2);
+        ctx.arc(tx, ty, (isCurrent ? 3 : 2) * this.resScale, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
         ctx.fill();
       }

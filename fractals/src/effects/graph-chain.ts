@@ -108,9 +108,20 @@ export class GraphChainEffect implements VisualEffect {
   private spatialCols = 0;
   private spatialRows = 0;
 
+  // Groove-driven state
+  private beatPulse = 0;           // Decaying pulse from beat arrival
+  private barPulse = 0;            // Decaying pulse from bar arrival
+  private grooveBreathing = 0;     // Continuous breathing with beat cycle
+  private anticipationTension = 0; // Pre-beat tension buildup
+
   constructor() {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d')!;
+  }
+
+  // Resolution scale factor for 4K support
+  private get resScale(): number {
+    return Math.min(this.width, this.height) / 600;
   }
 
   /** Build spatial hash grid for current node positions */
@@ -322,6 +333,14 @@ export class GraphChainEffect implements VisualEffect {
     // Cap dt to prevent instability
     dt = Math.min(dt, 0.05);
 
+    // === GROOVE-RESPONSIVE PHYSICS ===
+    // Repulsion breathes with the beat (expands on arrival, contracts on anticipation)
+    const grooveRepulsion = this.repulsion * (1 + this.grooveBreathing - this.anticipationTension * 0.15);
+    // Springs tighten during anticipation (building tension)
+    const grooveSpringK = this.springK * (1 + this.anticipationTension * 0.3);
+    // Spring rest length shortens during anticipation (graph contracts before "hit")
+    const grooveSpringRest = this.springRest * (1 - this.anticipationTension * 0.1);
+
     // Repulsion between nearby nodes, modulated by harmonic interval
     // Consonant intervals (thirds, fourths, fifths) attract slightly
     // Dissonant intervals (seconds, tritone, sevenths) repel more
@@ -371,7 +390,7 @@ export class GraphChainEffect implements VisualEffect {
           else if (normalizedInterval === 2) affinity = 1.2;  // major 2nd - mild repel
           else if (normalizedInterval === 6) affinity = 1.5;  // tritone - strong repel
 
-          const f = this.repulsion * affinity / d2;
+          const f = grooveRepulsion * affinity / d2;
           const fx = f * dx / d;
           const fy = f * dy / d;
           ni.vx -= fx;
@@ -382,7 +401,7 @@ export class GraphChainEffect implements VisualEffect {
       }
     }
 
-    // Spring forces along edges
+    // Spring forces along edges (groove-responsive)
     for (const edge of this.edges) {
       const ni = this.nodes[edge.from];
       const nj = this.nodes[edge.to];
@@ -391,7 +410,7 @@ export class GraphChainEffect implements VisualEffect {
       const dx = nj.x - ni.x;
       const dy = nj.y - ni.y;
       const d = Math.sqrt(dx * dx + dy * dy) || 1;
-      const f = this.springK * (d - this.springRest) * edge.strength;
+      const f = grooveSpringK * (d - grooveSpringRest) * edge.strength;
       const fx = f * dx / d;
       const fy = f * dy / d;
       ni.vx += fx;
@@ -526,17 +545,40 @@ export class GraphChainEffect implements VisualEffect {
       this.lastChordRoot = music.chordRoot;
     }
 
-    // === DRUMS: Subtle physics impulse ===
-    if (music.kick) {
-      // Gentle push outward on kick
+    // === GROOVE CURVES ===
+    const beatArrival = music.beatArrival ?? 0;
+    const barArrival = music.barArrival ?? 0;
+    const beatGroove = music.beatGroove ?? 0.5;
+    const beatAnticipation = music.beatAnticipation ?? 0;
+    const barAnticipation = music.barAnticipation ?? 0;
+
+    // Update groove state
+    this.beatPulse = Math.max(this.beatPulse, beatArrival * 0.6);
+    this.barPulse = Math.max(this.barPulse, barArrival * 0.8);
+    this.beatPulse *= Math.exp(-5.0 * dt);
+    this.barPulse *= Math.exp(-3.0 * dt);
+
+    // Continuous breathing with beat cycle
+    this.grooveBreathing = (beatGroove - 0.5) * 0.3;
+
+    // Anticipation tension builds before beat lands
+    this.anticipationTension = beatAnticipation * 0.4 + barAnticipation * 0.3;
+
+    // === DRUMS: Groove-driven physics impulse ===
+    // Combine discrete kick detection with continuous groove curves
+    const impulseMagnitude = (music.kick ? 0.5 : 0) + beatArrival * 0.4 + barArrival * 0.6;
+    if (impulseMagnitude > 0.1) {
+      // Push outward from center on beat arrival
       const cx = this.width / 2;
       const cy = this.height / 2;
       for (const node of this.nodes) {
         const dx = node.x - cx;
         const dy = node.y - cy;
         const d = Math.sqrt(dx * dx + dy * dy) || 1;
-        node.vx += dx / d * 0.5;
-        node.vy += dy / d * 0.5;
+        node.vx += dx / d * impulseMagnitude;
+        node.vy += dy / d * impulseMagnitude;
+        // Brief brightness boost on arrival
+        node.brightness = Math.min(1, node.brightness + impulseMagnitude * 0.3);
       }
     }
 
@@ -549,7 +591,9 @@ export class GraphChainEffect implements VisualEffect {
 
       // Drag speed based on BPM (faster music = faster drag)
       const bpm = 60 / music.beatDuration;
-      const dragSpeed = bpm * 0.012;
+      // Groove-responsive drag: faster on beat arrival, slower during anticipation
+      const grooveDragMult = 1 + beatArrival * 0.3 - this.anticipationTension * 0.2;
+      const dragSpeed = bpm * 0.012 * grooveDragMult;
 
       // Pull root to the right
       root.vx += dragSpeed;
@@ -653,13 +697,16 @@ export class GraphChainEffect implements VisualEffect {
     ctx.translate(-this.viewCenterX, -this.viewCenterY);
 
     // === DRAW EDGES ===
+    // Edge glow pulses with beat arrival
+    const edgeGlowBoost = 1 + this.beatPulse * 0.4 + this.barPulse * 0.3;
+
     ctx.lineCap = 'round';
     for (const edge of this.edges) {
       const n0 = this.nodes[edge.from];
       const n1 = this.nodes[edge.to];
       if (!n0 || !n1) continue;
 
-      const alpha = Math.min(edge.strength * 0.6, 0.95) * this.glowIntensity;
+      const alpha = Math.min(edge.strength * 0.6, 0.95) * this.glowIntensity * edgeGlowBoost;
       const fadeAlpha = alpha * (1 - n0.fadeOut * 0.3) * (1 - n1.fadeOut * 0.3);
       if (fadeAlpha < 0.02) continue;
 
@@ -681,7 +728,7 @@ export class GraphChainEffect implements VisualEffect {
       ctx.moveTo(n0.x, n0.y);
       ctx.quadraticCurveTo(cpX, cpY, n1.x, n1.y);
       ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(fadeAlpha * 0.2).toFixed(3)})`;
-      ctx.lineWidth = this.edgeWidth * 3.5;
+      ctx.lineWidth = this.edgeWidth * 3.5 * this.resScale;
       ctx.stroke();
 
       // Core
@@ -689,11 +736,14 @@ export class GraphChainEffect implements VisualEffect {
       ctx.moveTo(n0.x, n0.y);
       ctx.quadraticCurveTo(cpX, cpY, n1.x, n1.y);
       ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(fadeAlpha * 0.85).toFixed(3)})`;
-      ctx.lineWidth = this.edgeWidth;
+      ctx.lineWidth = this.edgeWidth * this.resScale;
       ctx.stroke();
     }
 
     // === DRAW NODES ===
+    // Node brightness pulses with groove
+    const nodeGlowBoost = 1 + this.beatPulse * 0.5 + this.barPulse * 0.4 + this.grooveBreathing * 0.2;
+
     const maxLiveAge = 4;  // Nodes < 4 bars old are "live" and can form connections
     for (const node of this.nodes) {
       const fadeMultiplier = 1 - node.fadeOut;  // 1 = solid, 0 = invisible
@@ -714,10 +764,10 @@ export class GraphChainEffect implements VisualEffect {
         registerBrightness = 1.4;
       }
 
-      const alpha = (0.4 + node.brightness * 0.6) * fadeMultiplier * liveBoost * registerBrightness;
+      const alpha = (0.4 + node.brightness * 0.6) * fadeMultiplier * liveBoost * registerBrightness * nodeGlowBoost;
       if (alpha < 0.02) continue;
 
-      const size = this.nodeSize * registerSize;
+      const size = this.nodeSize * registerSize * this.resScale;
 
       // Outer glow
       ctx.beginPath();

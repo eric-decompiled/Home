@@ -25,6 +25,10 @@ export class FeedbackTrailEffect implements VisualEffect {
   private rotation = 0.003;
   private currentRotation = 0;
 
+  // Dynamic groove-responsive values
+  private effectiveDecay = 0.92;
+  private effectiveZoom = 1.008;
+
   private sourceCanvas: HTMLCanvasElement | null = null;
 
   constructor() {
@@ -69,9 +73,24 @@ export class FeedbackTrailEffect implements VisualEffect {
   }
 
   update(_dt: number, music: MusicParams): void {
-    // Modulate rotation with beat groove
-    const grooveRotation = (music.beatGroove - 0.5) * 0.004;
-    this.currentRotation = this.rotation + grooveRotation;
+    // === GROOVE CURVES ===
+    const beatArrival = music.beatArrival ?? 0;
+    const barAnticipation = music.barAnticipation ?? 0;
+    const beatGroove = music.beatGroove ?? 0.5;
+    const tension = music.tension ?? 0.5;
+
+    // Dynamic decay: tighter on high tension/arrival, looser on low
+    // Lower decay = faster fade = more transient/punchy
+    this.effectiveDecay = this.decay - tension * 0.04 - beatArrival * 0.03;
+
+    // Dynamic zoom: subtle pulse on arrival, tension adds slight expansion
+    this.effectiveZoom = this.zoom + beatArrival * 0.004 + tension * 0.002;
+
+    // Modulate rotation with beat groove (continuous breathing)
+    const grooveRotation = (beatGroove - 0.5) * 0.006;
+    // Anticipation ramps rotation speed before the beat lands
+    const anticipationBoost = barAnticipation * 0.4;
+    this.currentRotation = this.rotation * (1 + anticipationBoost) + grooveRotation;
 
     // Add impulse on kicks
     if (music.kick) {
@@ -104,10 +123,10 @@ export class FeedbackTrailEffect implements VisualEffect {
 
     // Draw old feedback with decay (fading), zoom, and rotation
     fbCtx.save();
-    fbCtx.globalAlpha = this.decay;  // This is the actual decay - draws old content fainter
+    fbCtx.globalAlpha = this.effectiveDecay;  // Groove-responsive decay
     fbCtx.translate(cx, cy);
     fbCtx.rotate(this.currentRotation);
-    fbCtx.scale(this.zoom, this.zoom);
+    fbCtx.scale(this.effectiveZoom, this.effectiveZoom);  // Groove-responsive zoom
     fbCtx.translate(-cx, -cy);
     fbCtx.drawImage(this.tempCanvas, 0, 0);
     fbCtx.restore();
