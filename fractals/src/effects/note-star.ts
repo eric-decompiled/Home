@@ -198,14 +198,13 @@ export class NoteStarEffect implements VisualEffect {
     for (let i = this.stars.length - 1; i >= 0; i--) {
       const star = this.stars[i];
 
-      // Sustained notes: slower travel, don't fade
-      const isSustained = star.sustained;
-      const starSpeed = isSustained ? 0.03 : 0.06;
+      // Constant speed movement (sustained notes just don't fade)
+      const starSpeed = 0.045;
       star.progress += dt * starSpeed * speedScale;
       star.age += dt;
 
       // Only fade if note is released
-      if (!isSustained) {
+      if (!star.sustained) {
         const fadeRate = 0.08 + star.progress * 0.15;
         star.alpha *= Math.exp(-fadeRate * dt);
       }
