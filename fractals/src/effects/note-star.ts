@@ -271,9 +271,11 @@ export class NoteStarEffect implements VisualEffect {
       const pos = spiralPos(effectiveMidi, star.pitchClass, this.key, totalRotation, cx, cy, maxR, this.spiralTightness);
 
       // Pulse size and alpha with groove (compressed for softer look)
+      // Gentle brightness fade as stars slow down near center
+      const progressFade = 1 - eased * 0.25;
       const baseSize = 2.5 + star.velocity * 3 * (1 - eased * 0.85);
       const size = baseSize * groovePulse;
-      const alpha = Math.min(0.75, star.alpha * this.intensity * groovePulse * 0.7);
+      const alpha = Math.min(0.75, star.alpha * this.intensity * groovePulse * 0.7 * progressFade);
 
       if (alpha < 0.01) continue;
 
