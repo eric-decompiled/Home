@@ -1,13 +1,35 @@
 :root {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  --bg-primary: #0a0e27;
+  --bg-secondary: #16213e;
+  --bg-tertiary: #1a2942;
+  --accent-primary: #16c79a;
+  --accent-secondary: #e94560;
+  --text-primary: #e0e0e0;
+  --text-secondary: #8892b0;
+  --border-color: #0f3460;
+  --transition: 0.5s ease;
+
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.6;
   font-weight: 400;
-  color: #ccc;
-  background-color: #0a0a0a;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Light mode - Sunset theme */
+body.light-mode {
+  --bg-primary: #fef6e8;
+  --bg-secondary: #fff8f0;
+  --bg-tertiary: #fff5e6;
+  --accent-primary: #d4763a;
+  --accent-secondary: #c94b4b;
+  --text-primary: #3d2814;
+  --text-secondary: #7a5a3a;
+  --border-color: #e8c4a0;
 }
 
 * {
@@ -23,6 +45,8 @@ body {
   justify-content: center;
   align-items: flex-start;
   padding: 20px;
+  background: var(--bg-primary);
+  transition: background var(--transition), color var(--transition);
 }
 
 #app {
@@ -44,14 +68,15 @@ body {
 }
 
 .panel {
-  background: rgba(15, 52, 96, 0.2);
-  border: 1px solid #0f3460;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 16px;
+  transition: background var(--transition), border-color var(--transition);
 }
 
 .panel h2 {
-  color: #16c79a;
+  color: var(--accent-primary);
   font-size: 16px;
   margin-bottom: 12px;
   font-weight: 600;
@@ -59,7 +84,7 @@ body {
 
 .panel p {
   font-size: 13px;
-  color: #aaa;
+  color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
@@ -71,15 +96,15 @@ body {
 }
 
 h1 {
-  color: #16c79a;
+  color: var(--accent-primary);
   font-size: 24px;
   text-align: center;
 }
 
 /* Canvas - fills available space */
 .canvas-container {
-  background: #1a1a2e;
-  border: 2px solid #0f3460;
+  background: var(--bg-tertiary);
+  border: 2px solid var(--border-color);
   border-radius: 12px;
   padding: 8px;
   width: 100%;
@@ -88,6 +113,7 @@ h1 {
   display: flex;
   justify-content: center;
   align-items: center;
+  transition: background var(--transition), border-color var(--transition);
 }
 
 canvas {
@@ -97,8 +123,8 @@ canvas {
 
 /* Play button */
 .play-btn {
-  background: linear-gradient(135deg, #16c79a, #0f9b6e);
-  color: #0a0a0a;
+  background: var(--accent-primary);
+  color: var(--bg-primary);
   border: none;
   padding: 14px 40px;
   font-size: 16px;
@@ -106,13 +132,12 @@ canvas {
   border-radius: 30px;
   cursor: pointer;
   transition: all 0.2s;
-  box-shadow: 0 4px 20px rgba(22, 199, 154, 0.3);
   min-width: 180px;
 }
 
 .play-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 25px rgba(22, 199, 154, 0.4);
+  filter: brightness(1.1);
 }
 
 .play-btn:active {
@@ -127,9 +152,9 @@ canvas {
 }
 
 .interval-btn {
-  background: rgba(15, 52, 96, 0.4);
-  border: 1px solid #0f3460;
-  color: #ccc;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
   padding: 10px 6px;
   font-size: 13px;
   font-weight: 500;
@@ -139,9 +164,9 @@ canvas {
 }
 
 .interval-btn:hover {
-  background: rgba(22, 199, 154, 0.2);
-  border-color: #16c79a;
-  color: #16c79a;
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--bg-primary);
 }
 
 .interval-btn:active {
@@ -194,17 +219,17 @@ canvas {
 .stat-value {
   font-size: 24px;
   font-weight: 700;
-  color: #16c79a;
+  color: var(--accent-primary);
 }
 
 .stat-label {
   font-size: 11px;
-  color: #888;
+  color: var(--text-secondary);
   text-transform: uppercase;
 }
 
 .stat-value.incorrect-stat {
-  color: #e94560;
+  color: var(--accent-secondary);
 }
 
 /* Feedback */
@@ -248,7 +273,7 @@ canvas {
 
 .setting-row label {
   display: block;
-  color: #16c79a;
+  color: var(--accent-primary);
   font-size: 12px;
   margin-bottom: 6px;
 }
@@ -256,17 +281,17 @@ canvas {
 .setting-row select {
   width: 100%;
   padding: 8px;
-  background: rgba(15, 52, 96, 0.4);
-  border: 1px solid #0f3460;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  color: #ccc;
+  color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
 }
 
 .setting-row select:focus {
   outline: none;
-  border-color: #16c79a;
+  border-color: var(--accent-primary);
 }
 
 .instrument-grid {

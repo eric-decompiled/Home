@@ -1,0 +1,25 @@
+---
+import type { Project } from '../data/projects';
+
+interface Props {
+  project: Project;
+}
+
+const { project } = Astro.props;
+const base = import.meta.env.BASE_URL;
+
+const href = `${base}apps/${project.slug}/`;
+const imageUrl = project.image ? `${base}${project.image.replace(/^\//, '')}` : null;
+---
+
+<a href={href} class="project-card">
+  {imageUrl && (
+    <div class="image-container">
+      <img src={imageUrl} alt={project.title} loading="lazy" />
+    </div>
+  )}
+  <div class="content">
+    <h3>{project.title}</h3>
+    <p>{project.description}</p>
+  </div>
+</a>

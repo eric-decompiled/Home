@@ -14,6 +14,19 @@
   --text-primary: #e0e0e0;
   --text-secondary: #8892b0;
   --border-color: #0f3460;
+  --transition: 0.5s ease;
+}
+
+/* Light mode - Sunset theme */
+body.light-mode {
+  --bg-primary: #fef6e8;
+  --bg-secondary: #fff8f0;
+  --bg-tertiary: #fff5e6;
+  --accent-primary: #d4763a;
+  --accent-secondary: #c94b4b;
+  --text-primary: #3d2814;
+  --text-secondary: #7a5a3a;
+  --border-color: #e8c4a0;
 }
 
 body {
@@ -22,6 +35,7 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   line-height: 1.6;
+  transition: background var(--transition), color var(--transition);
 }
 
 #app {
@@ -155,6 +169,13 @@ body {
   margin-top: 1rem;
   padding-left: 1rem;
   border-left: 2px solid var(--accent-secondary);
+}
+
+.delay-controls {
+  margin-left: 1.5rem;
+  margin-top: 1rem;
+  padding-left: 1rem;
+  border-left: 2px solid #9b59b6;
 }
 
 .button-grid {

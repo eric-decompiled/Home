@@ -1,0 +1,18 @@
+---
+// Redirect old /fractals path to /apps/fractured-jukebox
+const base = import.meta.env.BASE_URL;
+const newUrl = `${base}apps/fractured-jukebox/`;
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="refresh" content={`0;url=${newUrl}`}>
+  <link rel="canonical" href={newUrl}>
+  <title>Redirecting...</title>
+</head>
+<body>
+  <p>Redirecting to <a href={newUrl}>Fractured Jukebox</a>...</p>
+</body>
+</html>

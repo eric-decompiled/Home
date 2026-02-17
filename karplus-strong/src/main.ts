@@ -8,6 +8,19 @@ let analyserNode: AnalyserNode | null = null
 let isPlaying = false
 let animationFrameId: number | null = null
 
+// Delay effect nodes
+let delayNode: DelayNode | null = null
+let delayFeedbackNode: GainNode | null = null
+let delayWetNode: GainNode | null = null
+let delayDryNode: GainNode | null = null
+let delayMixNode: GainNode | null = null
+
+// Delay effect parameters
+let delayTime = 0.3  // 300ms
+let delayFeedback = 0.4
+let delayMix = 0.3  // 30% wet
+let delayEnabled = false
+
 // User-defined comb filter configuration
 const SAMPLE_RATE = 48000  // Assume 48kHz
 const MAX_DELAY_SAMPLES = 1000  // 0-1000 sample range
@@ -59,9 +72,38 @@ function initAudio() {
   scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1)
   scriptProcessor.onaudioprocess = processAudio
 
-  // Connect: scriptProcessor -> gain -> analyser -> destination
+  // Create delay effect nodes
+  delayNode = audioContext.createDelay(2.0)  // Max 2 seconds
+  delayNode.delayTime.value = delayTime
+
+  delayFeedbackNode = audioContext.createGain()
+  delayFeedbackNode.gain.value = delayFeedback
+
+  delayWetNode = audioContext.createGain()
+  delayWetNode.gain.value = delayEnabled ? delayMix : 0
+
+  delayDryNode = audioContext.createGain()
+  delayDryNode.gain.value = 1
+
+  delayMixNode = audioContext.createGain()
+  delayMixNode.gain.value = 1
+
+  // Connect: scriptProcessor -> gain -> [dry + delay wet] -> mix -> analyser -> destination
   scriptProcessor.connect(gainNode)
-  gainNode.connect(analyserNode)
+
+  // Dry path
+  gainNode.connect(delayDryNode)
+  delayDryNode.connect(delayMixNode)
+
+  // Wet path (delay with feedback)
+  gainNode.connect(delayNode)
+  delayNode.connect(delayFeedbackNode)
+  delayFeedbackNode.connect(delayNode)  // Feedback loop
+  delayNode.connect(delayWetNode)
+  delayWetNode.connect(delayMixNode)
+
+  // Output
+  delayMixNode.connect(analyserNode)
   analyserNode.connect(audioContext.destination)
 
   // Initialize delay buffer
@@ -256,7 +298,6 @@ function toggleContinuous() {
       cancelAnimationFrame(animationFrameId)
       animationFrameId = null
     }
-    drawWaveform()
   }
 
   updateButtonStates()
@@ -325,6 +366,41 @@ function updateFeedbackNoise(value: number) {
   drawCircuitDiagram()
 }
 
+// Delay effect functions
+function updateDelayEnabled(enabled: boolean) {
+  delayEnabled = enabled
+  if (delayWetNode) {
+    delayWetNode.gain.value = enabled ? delayMix : 0
+  }
+
+  // Show/hide delay controls
+  const delayControls = document.getElementById('delayControls')
+  if (delayControls) {
+    delayControls.style.display = enabled ? 'block' : 'none'
+  }
+}
+
+function updateDelayTime(value: number) {
+  delayTime = value
+  if (delayNode) {
+    delayNode.delayTime.value = value
+  }
+}
+
+function updateDelayFeedback(value: number) {
+  delayFeedback = value
+  if (delayFeedbackNode) {
+    delayFeedbackNode.gain.value = value
+  }
+}
+
+function updateDelayMix(value: number) {
+  delayMix = value
+  if (delayWetNode && delayEnabled) {
+    delayWetNode.gain.value = value
+  }
+}
+
 // Update delay display
 function updateDelayDisplay() {
   const display = document.getElementById('delayDisplay')
@@ -382,12 +458,8 @@ function drawCircuitDiagram() {
   const blockSpacing = 120  // Reduced spacing between blocks
   const feedbackPathWidth = numBlocks * blockSpacing
 
-  // Calculate total width needed
-  // Input (30) + arrow (70) + summer (30) + arrow (65) + split (5) + arrow (70) + output (30) = 300
-  const topPathWidth = 300
   // Feedback return path extends left: 30 + some margin
   const returnPathWidth = 60
-  const totalWidth = Math.max(topPathWidth, feedbackPathWidth + returnPathWidth)
 
   // Center everything with rightward shift
   const diagramCenterX = width / 2 + 150
@@ -701,6 +773,35 @@ function buildUI() {
           <button id="autoPluckBtn" type="button" class="toggle-btn">Start Auto-Pluck</button>
           <button id="continuousBtn" type="button" class="toggle-btn">Start Continuous</button>
         </div>
+
+        <h2 style="margin-top: 2rem;">Delay Effect</h2>
+
+        <div class="control-group checkbox-group">
+          <label>
+            <input type="checkbox" id="delayToggle">
+            Enable Delay
+          </label>
+        </div>
+
+        <div id="delayControls" class="delay-controls" style="display: none;">
+          <div class="control-group">
+            <label>Delay Time: <span id="delayTimeDisplay" class="value-display">300 ms</span></label>
+            <input type="range" id="delayTimeSlider"
+                   min="50" max="1000" value="300" step="10">
+          </div>
+
+          <div class="control-group">
+            <label>Feedback: <span id="delayFeedbackDisplay" class="value-display">0.40</span></label>
+            <input type="range" id="delayFeedbackSlider"
+                   min="0" max="0.9" value="0.4" step="0.01">
+          </div>
+
+          <div class="control-group">
+            <label>Mix (Wet): <span id="delayMixDisplay" class="value-display">30%</span></label>
+            <input type="range" id="delayMixSlider"
+                   min="0" max="1" value="0.3" step="0.01">
+          </div>
+        </div>
       </section>
 
       <section class="circuit-panel">
@@ -765,6 +866,36 @@ function buildUI() {
 
   const continuousBtn = document.getElementById('continuousBtn')
   continuousBtn?.addEventListener('click', toggleContinuous)
+
+  // Delay effect controls
+  const delayToggle = document.getElementById('delayToggle') as HTMLInputElement
+  delayToggle?.addEventListener('change', (e) => {
+    updateDelayEnabled((e.target as HTMLInputElement).checked)
+  })
+
+  const delayTimeSlider = document.getElementById('delayTimeSlider') as HTMLInputElement
+  delayTimeSlider?.addEventListener('input', (e) => {
+    const value = parseFloat((e.target as HTMLInputElement).value)
+    updateDelayTime(value / 1000)  // Convert ms to seconds
+    const display = document.getElementById('delayTimeDisplay')
+    if (display) display.textContent = `${value} ms`
+  })
+
+  const delayFeedbackSlider = document.getElementById('delayFeedbackSlider') as HTMLInputElement
+  delayFeedbackSlider?.addEventListener('input', (e) => {
+    const value = parseFloat((e.target as HTMLInputElement).value)
+    updateDelayFeedback(value)
+    const display = document.getElementById('delayFeedbackDisplay')
+    if (display) display.textContent = value.toFixed(2)
+  })
+
+  const delayMixSlider = document.getElementById('delayMixSlider') as HTMLInputElement
+  delayMixSlider?.addEventListener('input', (e) => {
+    const value = parseFloat((e.target as HTMLInputElement).value)
+    updateDelayMix(value)
+    const display = document.getElementById('delayMixDisplay')
+    if (display) display.textContent = `${Math.round(value * 100)}%`
+  })
 }
 
 // Initialize

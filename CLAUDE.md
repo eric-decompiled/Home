@@ -1,32 +1,76 @@
-# Gemini Project: DSP Portfolio
+## Claude Instructions
 
-This project is a portfolio of interactive digital signal processing (DSP) web applications. Each sub-directory is a standalone Vite project.
+- Never perform git write operations (commit, push, merge, rebase, etc.)
 
-## Goal
+# Decompiled Labs
 
-The goal is to create a unified build process that:
+A portfolio site for communication and organizational technology apps, built with Astro. Each sub-directory contains a standalone Vite project.
 
-1.  Builds each individual DSP project.
-2.  Assembles the built projects into a single `dist` directory at the root level.
-3.  Creates a main `index.html` file that serves as a landing page, linking to each project.
-4.  The final output in the `dist` directory will be suitable for deployment to static hosting services like GitHub Pages.
+## Architecture
 
-## Projects
+```
+/Users/eric/dsp/
+├── astro.config.mjs          # Astro config with sub-project serving integration
+├── package.json              # Scripts: dev, build, build:projects, preview
+├── build-projects.js         # Builds sub-projects, copies to public/apps/
+├── src/
+│   ├── layouts/
+│   │   └── BaseLayout.astro  # Shared head, nav
+│   ├── components/
+│   │   ├── Header.astro      # Site navigation (Home | Apps) + theme toggle
+│   │   └── ProjectCard.astro # Card with image preview
+│   ├── pages/
+│   │   ├── index.astro       # Homepage with 3 featured apps
+│   │   └── apps.astro        # All apps listing
+│   ├── data/
+│   │   └── projects.ts       # Project metadata (slug, title, description, image, tier)
+│   └── styles/
+│       └── global.css        # Dark/light themes, project cards, responsive styles
+├── public/
+│   ├── favicon.png           # Site favicon
+│   ├── images/projects/      # Project preview images
+│   └── apps/                 # Built sub-projects (e.g., apps/fractured-jukebox/)
+└── dist/                     # Final output for GitHub Pages
+```
 
-*   `lissajous`: Visualizes Lissajous curves and their relationship to musical intervals.
-*   `resonator`: An RLC resonator explorer for real-time audio synthesis and visualization.
-*   `sound-synth`: An interactive harmonics explorer for understanding sound and timbre.
+## Commands
 
-## Build Process
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start Astro dev server (serves sub-projects from public/) |
+| `npm run build` | Build sub-projects + Astro site for production |
+| `npm run build:projects` | Only build sub-projects to public/ |
+| `npm run preview` | Preview production build |
 
-The build process will be managed by a root-level `package.json` and a build script. The script will automate the following steps:
+## Apps
 
-1.  **Clean**: Remove the existing root `dist` directory.
-2.  **Discover**: Identify all project sub-directories.
-3.  **Build Projects**: For each project:
-    *   Run `npm install`.
-    *   Run `npm run build`.
-4.  **Assemble**:
-    *   Create a new root `dist` directory.
-    *   Copy each project's `dist` folder into the root `dist` directory, renaming them to match the project name (e.g., `lissajous/dist` -> `dist/lissajous`).
-    *   Generate a root `index.html` with links to the individual projects.
+| Directory | Slug | Description | Featured |
+|-----------|------|-------------|----------|
+| `fractals` | fractured-jukebox | MIDI-driven music visualizer with fractals | Yes |
+| `lissajous` | lissajous | Lissajous curves and musical intervals | Yes |
+| `resonator` | resonator | RLC resonator for audio synthesis | Yes |
+| `sound-synth` | sound-synth | Interactive harmonics explorer | - |
+| `karplus-strong` | karplus-strong | Karplus-Strong plucked string synth | - |
+| `intervals` | intervals | Ear training with adaptive difficulty | - |
+
+## Key Files
+
+**astro.config.mjs**: Contains a custom integration that serves sub-project `index.html` files in dev mode at `/apps/{slug}/`.
+
+**src/data/projects.ts**: Project metadata array. The `tier` field marks featured apps shown on homepage.
+
+**build-projects.js**: Iterates sub-projects, runs `npm install` and `vite build`, copies output to `public/apps/{slug}/`. Supports source directory to output slug mapping (e.g., `fractals` → `fractured-jukebox`).
+
+**src/styles/global.css**: Theme variables for dark/light modes. Sub-projects should use the same CSS variables for consistency.
+
+## Adding an App
+
+1. Create the project in its own directory with Vite
+2. Add entry to `build-projects.js` projects array
+3. Add entry to `src/data/projects.ts` with metadata
+4. Add preview image to `public/images/projects/{slug}.png`
+5. Run `npm run build:projects` to build it
+
+## Deployment
+
+The site deploys to GitHub Pages. Sub-project builds use `--base=/apps/{slug}/` for correct asset paths.

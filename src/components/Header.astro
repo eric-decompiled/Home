@@ -1,0 +1,161 @@
+---
+const base = import.meta.env.BASE_URL;
+const currentPath = Astro.url.pathname;
+
+const isActive = (path: string) => {
+  if (path === base || path === `${base}/`) {
+    return currentPath === base || currentPath === `${base}/`;
+  }
+  return currentPath.startsWith(path);
+};
+---
+
+<header class="site-header">
+  <a href={base} class="logo">Decompiled Labs</a>
+
+  <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <nav class="nav-links">
+    <a href={base} class:list={[{ active: currentPath === base || currentPath === `${base}/` }]}>Home</a>
+    <a href={`${base}apps/`} class:list={[{ active: currentPath.includes('/apps') }]}>Apps</a>
+    <span class="theme-icon">🌙</span>
+    <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode"></button>
+  </nav>
+</header>
+
+<style>
+  .site-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 0;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .logo {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-primary);
+    text-decoration: none;
+    letter-spacing: 2px;
+  }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+  }
+
+  .nav-links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+    position: relative;
+  }
+
+  .nav-links a:hover,
+  .nav-links a.active {
+    color: var(--accent-primary);
+  }
+
+  .nav-links a.active::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent-primary);
+  }
+
+  .menu-toggle {
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0.5rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+
+  .menu-toggle span {
+    display: block;
+    width: 24px;
+    height: 2px;
+    background: var(--text-primary);
+    transition: all 0.3s;
+  }
+
+  @media (max-width: 768px) {
+    .menu-toggle {
+      display: flex;
+      z-index: 100;
+    }
+
+    .nav-links {
+      position: fixed;
+      top: 0;
+      right: -100%;
+      width: 70%;
+      max-width: 300px;
+      height: 100vh;
+      background: var(--bg-secondary);
+      flex-direction: column;
+      padding: 5rem 2rem;
+      gap: 1.5rem;
+      transition: right 0.3s;
+      border-left: 1px solid var(--border-color);
+      z-index: 99;
+    }
+
+    .nav-links.open {
+      right: 0;
+    }
+
+    .menu-toggle[aria-expanded="true"] span:nth-child(1) {
+      transform: rotate(45deg) translate(4px, 4px);
+    }
+
+    .menu-toggle[aria-expanded="true"] span:nth-child(2) {
+      opacity: 0;
+    }
+
+    .menu-toggle[aria-expanded="true"] span:nth-child(3) {
+      transform: rotate(-45deg) translate(5px, -5px);
+    }
+  }
+</style>
+
+<script>
+  const toggle = document.querySelector('.menu-toggle');
+  const nav = document.querySelector('.nav-links');
+
+  toggle?.addEventListener('click', () => {
+    const expanded = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', String(!expanded));
+    nav?.classList.toggle('open');
+  });
+
+  // Close menu when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!toggle?.contains(e.target as Node) && !nav?.contains(e.target as Node)) {
+      toggle?.setAttribute('aria-expanded', 'false');
+      nav?.classList.remove('open');
+    }
+  });
+
+  // Theme toggle
+  const themeToggle = document.getElementById('theme-toggle');
+  themeToggle?.addEventListener('click', () => {
+    document.body.classList.toggle('light-mode');
+    const isLight = document.body.classList.contains('light-mode');
+    const themeIcon = document.querySelector('.theme-icon');
+    if (themeIcon) themeIcon.textContent = isLight ? '☀️' : '🌙';
+  });
+</script>

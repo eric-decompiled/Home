@@ -1,0 +1,25 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ProjectCard from '../components/ProjectCard.astro';
+import { projects } from '../data/projects';
+
+const base = import.meta.env.BASE_URL;
+const featuredProjects = projects.filter(p => p.tier).slice(0, 3);
+---
+
+<BaseLayout title="Home">
+  <div class="app-header">
+    <h1>Decompiled Labs</h1>
+    <p class="subtitle">Communication and Organizational Technology</p>
+  </div>
+
+  <section class="section">
+    <h2>Applications</h2>
+    <div class="project-grid featured">
+      {featuredProjects.map(project => (
+        <ProjectCard project={project} />
+      ))}
+    </div>
+    <a href={`${base}apps/`} class="view-all-link">View all apps &rarr;</a>
+  </section>
+</BaseLayout>

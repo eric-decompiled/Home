@@ -1,17 +1,41 @@
 :root {
+  --bg-primary: #0a0e27;
+  --bg-secondary: #16213e;
+  --bg-tertiary: #1a2942;
+  --accent-primary: #16c79a;
+  --accent-secondary: #ff6b6b;
+  --accent-tertiary: #4ecdc4;
+  --text-primary: #e0e0e0;
+  --text-secondary: #8892b0;
+  --border-color: #0f3460;
+  --transition: 0.5s ease;
+
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   line-height: 1.5;
   font-weight: 400;
 
   color-scheme: dark;
-  color: #e0e0e0;
-  background-color: #0a0e27;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+}
+
+/* Light mode - Sunset theme */
+body.light-mode {
+  --bg-primary: #fef6e8;
+  --bg-secondary: #fff8f0;
+  --bg-tertiary: #fff5e6;
+  --accent-primary: #d4763a;
+  --accent-secondary: #c94b4b;
+  --accent-tertiary: #2a9d8f;
+  --text-primary: #3d2814;
+  --text-secondary: #7a5a3a;
+  --border-color: #e8c4a0;
 }
 
 * {
@@ -22,7 +46,8 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  background: #0a0e27;
+  background: var(--bg-primary);
+  transition: background var(--transition), color var(--transition);
 }
 
 #app {

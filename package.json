@@ -1,12 +1,17 @@
 {
   "name": "dsp-portfolio",
+  "type": "module",
   "version": "1.0.0",
   "description": "A portfolio of interactive DSP web applications.",
   "private": true,
   "scripts": {
-    "build": "node build.js"
+    "dev": "astro dev",
+    "build": "npm run build:projects && astro build",
+    "build:projects": "node build-projects.js",
+    "preview": "astro preview"
   },
   "devDependencies": {
-    "fs-extra": "^11.3.2"
+    "astro": "^5.1.0",
+    "fs-extra": "^11.3.0"
   }
 }
