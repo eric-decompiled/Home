@@ -60,6 +60,13 @@
 - **Click-drag-flick for direct manipulation**: Track drag velocity, apply on release with cap
 - **Random direction music bumps**: Fixed directions cause objects to get stuck at boundaries
 
+### Bundle Size & Loading
+- **Custom tweening over GSAP**: GSAP is 180KB+ minified. A ~120-line custom tween system using `requestAnimationFrame` with cubic easing functions provides identical API (`gsap.to()`, `gsap.fromTo()`, `gsap.timeline()`) at ~4KB. Effects don't need to change imports
+- **Eager chunk loading for core features**: Use `const promise = import('module')` at module top-level (not inside a function) to start loading immediately while keeping code-split. Module loads in parallel with main bundle, ready by first use
+- **Lazy-load UI panels**: Config panels that users rarely open can be dynamically imported on first interaction. Saves ~76KB from initial load
+- **GSAP-compatible wrapper pattern**: Export a `gsap` object with same method signatures (`to`, `fromTo`, `timeline`). Consuming code doesn't need changes when swapping implementations
+- **Tree-shaking removes orphan files**: Unused effect files (never imported) don't increase bundle size—Vite/Rollup excludes them. Safe to leave experimental code, but cleaner to delete
+
 ### Performance
 - **Layered fills instead of shadow blur**: 2-3 expanding translucent shapes. 10x+ faster
 - **Subtle groove modulation (20% swing max)**: Larger swings look distracting on fast songs
@@ -177,3 +184,7 @@
 ### Mobile UI
 - **touch-action on scroll containers**: Setting `touch-action: pan-y` on overlay or scroll container can interfere with native scrolling. Let the browser handle it naturally with `overflow-y: scroll`
 - **overflow: auto for touch scroll**: `auto` is less reliable than `scroll` for touch devices. Use `overflow-y: scroll` explicitly
+
+### Bundle Size
+- **Motion One for simple tweening**: Despite being marketed as lightweight, `motion` package pulls in `framer-motion` (5.4MB node_modules) because it's the React-focused version. Even `motion-dom` is 4.2MB. For simple `gsap.to()` replacements, a custom solution is smaller
+- **Lazy-loading synchronously-used code**: If code is used during initial render (e.g., preset buttons checking `panel.getSelectedPresetId()`), lazy-loading requires async wrappers everywhere. Only lazy-load truly on-demand features

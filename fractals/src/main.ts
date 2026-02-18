@@ -51,8 +51,48 @@ import {
   getCustomPresets,
   deleteCustomPreset,
 } from './state.ts';
-import { FractalConfigPanel, loadUserPresets } from './fractal-config.ts';
+// Lazy-loaded fractal config module
+let fractalConfigModule: typeof import('./fractal-config.ts') | null = null;
+let fractalConfigPanel: InstanceType<typeof import('./fractal-config.ts').FractalConfigPanel> | null = null;
+let fractalConfigPromise: Promise<typeof import('./fractal-config.ts')> | null = null;
+
+async function ensureFractalConfigModule(): Promise<typeof import('./fractal-config.ts')> {
+  if (fractalConfigModule) return fractalConfigModule;
+  if (fractalConfigPromise) return fractalConfigPromise;
+
+  fractalConfigPromise = import('./fractal-config.ts');
+  fractalConfigModule = await fractalConfigPromise;
+  return fractalConfigModule;
+}
+
+async function getFractalConfigPanel(): Promise<InstanceType<typeof import('./fractal-config.ts').FractalConfigPanel>> {
+  if (fractalConfigPanel) return fractalConfigPanel;
+
+  const mod = await ensureFractalConfigModule();
+  fractalConfigPanel = new mod.FractalConfigPanel();
+  fractalConfigPanel.onSave = () => {
+    dirty = true;
+    musicMapper.reloadAnchors();
+  };
+  fractalConfigPanel.onPresetsChange = () => {
+    const foregroundSlot = layerSlots.find(s => s.name === 'Foreground');
+    if (foregroundSlot && foregroundSlot.activeId === 'fractal') {
+      const slotDiv = layerPanel.querySelector('.layer-slot[data-slot="Foreground"]') as HTMLDivElement;
+      if (slotDiv) {
+        buildConfigSection(slotDiv, foregroundSlot);
+      }
+    }
+  };
+  return fractalConfigPanel;
+}
+
+// Synchronous getter for user presets (returns empty if module not loaded yet)
+function loadUserPresets(): Array<{ id: string; name: string }> {
+  if (!fractalConfigModule) return [];
+  return fractalConfigModule.loadUserPresets();
+}
 import { setCustomColor, clearCustomColors, getCustomColors, samplePaletteColor } from './effects/effect-utils.ts';
+import { updateTweens } from './animation.ts';
 
 // --- Song list ---
 
@@ -1171,15 +1211,8 @@ mobileLayersToggle.addEventListener('click', () => {
   closeMobileMenu();
 });
 
-// --- Fractal Config Panel (created early for use in layer panel) ---
-
-const fractalConfigPanel = new FractalConfigPanel();
-
-// Refresh visuals when fractal config is saved
-fractalConfigPanel.onSave = () => {
-  dirty = true;
-  musicMapper.reloadAnchors();
-};
+// --- Fractal Config Panel (lazy-loaded when needed) ---
+// Panel is loaded on-demand via getFractalConfigPanel()
 
 // --- Note names for color pickers ---
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -1526,9 +1559,10 @@ function buildLayerPanel(): void {
       configBtn.className = 'slot-config-link';
       configBtn.textContent = 'Custom';
       configBtn.style.display = slot.activeId === 'fractal' ? 'block' : 'none';
-      configBtn.addEventListener('click', () => {
+      configBtn.addEventListener('click', async () => {
         if (slot.activeId === 'fractal') {
-          fractalConfigPanel.show();
+          const panel = await getFractalConfigPanel();
+          panel.show();
         }
       });
     }
@@ -1737,10 +1771,12 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
 
       // Default button
       const defaultBtn = document.createElement('button');
-      defaultBtn.className = 'config-btn fractal-preset-default' + (fractalConfigPanel.getSelectedPresetId() === null ? ' active' : '');
+      const selectedId = fractalConfigPanel?.getSelectedPresetId() ?? null;
+      defaultBtn.className = 'config-btn fractal-preset-default' + (selectedId === null ? ' active' : '');
       defaultBtn.textContent = 'Default';
-      defaultBtn.addEventListener('click', () => {
-        fractalConfigPanel.selectPreset(null);
+      defaultBtn.addEventListener('click', async () => {
+        const panel = await getFractalConfigPanel();
+        panel.selectPreset(null);
         presetBtnWrap.querySelectorAll('.config-btn').forEach(b => b.classList.remove('active'));
         defaultBtn.classList.add('active');
       });
@@ -1749,10 +1785,11 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
       // User preset buttons
       for (const preset of userPresets) {
         const btn = document.createElement('button');
-        btn.className = 'config-btn fractal-preset-user' + (fractalConfigPanel.getSelectedPresetId() === preset.id ? ' active' : '');
+        btn.className = 'config-btn fractal-preset-user' + (selectedId === preset.id ? ' active' : '');
         btn.textContent = preset.name;
-        btn.addEventListener('click', () => {
-          fractalConfigPanel.selectPreset(preset.id);
+        btn.addEventListener('click', async () => {
+          const panel = await getFractalConfigPanel();
+          panel.selectPreset(preset.id);
           presetBtnWrap.querySelectorAll('.config-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
         });
@@ -1869,16 +1906,7 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
 buildLayerPanel();
 buildColorsGrid();
 
-// Rebuild fractal preset buttons in layer panel when presets change
-fractalConfigPanel.onPresetsChange = () => {
-  const foregroundSlot = layerSlots.find(s => s.name === 'Foreground');
-  if (foregroundSlot && foregroundSlot.activeId === 'fractal') {
-    const slotDiv = layerPanel.querySelector('.layer-slot[data-slot="Foreground"]') as HTMLDivElement;
-    if (slotDiv) {
-      buildConfigSection(slotDiv, foregroundSlot);
-    }
-  }
-};
+// Note: fractalConfigPanel.onPresetsChange is set inside getFractalConfigPanel()
 
 // --- Preset buttons ---
 
@@ -2873,6 +2901,9 @@ fractalEngine.onFrameReady = (renderMs: number) => {
 
 let seekBarFrameCount = 0;
 function loop(time: number): void {
+  // Update tween animations
+  updateTweens(time);
+
   // Skip rendering when animation is paused (tab hidden), but keep loop alive
   if (animationPaused) {
     requestAnimationFrame(loop);

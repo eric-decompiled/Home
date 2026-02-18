@@ -1,6 +1,11 @@
-import { WorkletSynthesizer, Sequencer } from 'spessasynth_lib';
-
 // --- SpessaSynth-based MIDI Player ---
+
+// Module loaded as separate chunk but starts loading immediately
+let SpessaSynthModule: typeof import('spessasynth_lib') | null = null;
+const spessaSynthPromise = import('spessasynth_lib').then(mod => {
+  SpessaSynthModule = mod;
+  return mod;
+});
 
 /** Unwrap RIFF-MIDI container if present, returning raw SMF data */
 function unwrapRiff(buffer: ArrayBuffer): ArrayBuffer {
@@ -19,8 +24,8 @@ function unwrapRiff(buffer: ArrayBuffer): ArrayBuffer {
 }
 
 let audioCtx: AudioContext | null = null;
-let synth: WorkletSynthesizer | null = null;
-let sequencer: Sequencer | null = null;
+let synth: InstanceType<typeof import('spessasynth_lib').WorkletSynthesizer> | null = null;
+let sequencer: InstanceType<typeof import('spessasynth_lib').Sequencer> | null = null;
 let analyser: AnalyserNode | null = null;
 let analyserData: Uint8Array<ArrayBuffer> | null = null;
 let initPromise: Promise<void> | null = null;
@@ -69,6 +74,9 @@ function resetTimeTracking() {
 async function init(): Promise<void> {
   if (synth) return;
 
+  // Wait for module (already loading since page load)
+  const mod = SpessaSynthModule ?? await spessaSynthPromise;
+
   // Reuse existing AudioContext from unlock, or create new one
   if (!audioCtx) {
     audioCtx = new AudioContext();
@@ -81,7 +89,7 @@ async function init(): Promise<void> {
 
   await audioCtx.audioWorklet.addModule(new URL('/spessasynth_processor.min.js', import.meta.url).href);
 
-  synth = new WorkletSynthesizer(audioCtx);
+  synth = new mod.WorkletSynthesizer(audioCtx);
 
   // Create analyser for loudness metering
   analyser = audioCtx.createAnalyser();
@@ -143,7 +151,7 @@ export const audioPlayer = {
       sequencer.currentTime = 0;
       sequencer.pause();
     } else {
-      sequencer = new Sequencer(synth);
+      sequencer = new SpessaSynthModule!.Sequencer(synth);
       sequencer.loadNewSongList([{ binary: midiBuffer }]);
       sequencer.currentTime = 0;
       sequencer.pause();
