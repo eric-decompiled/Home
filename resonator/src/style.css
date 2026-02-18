@@ -27,6 +27,13 @@
   /* Section gradient end */
   --bg-gradient-end: #0f1419;
 
+  /* Formula highlight colors */
+  --formula-locked-bg: rgba(255, 107, 107, 0.1);
+  --formula-locked-border: rgba(255, 107, 107, 0.3);
+  --formula-locked-text: #ff6b6b;
+  --formula-symbol: #ff6b6b;
+  --formula-equals: #4ecdc4;
+
   /* Legacy aliases for compatibility */
   --accent: var(--accent-primary);
   --bg-dark: var(--bg-primary);
@@ -46,7 +53,7 @@
 }
 
 /* Light mode - Sunset theme */
-body.light-mode {
+.light-mode {
   --bg-primary: #fef6e8;
   --bg-secondary: #fff8f0;
   --bg-tertiary: #fff5e6;
@@ -74,6 +81,13 @@ body.light-mode {
 
   /* Section gradient end */
   --bg-gradient-end: #f5e8d8;
+
+  /* Formula highlight colors for light mode */
+  --formula-locked-bg: rgba(201, 75, 75, 0.12);
+  --formula-locked-border: rgba(201, 75, 75, 0.35);
+  --formula-locked-text: #b54545;
+  --formula-symbol: #b54545;
+  --formula-equals: #2a9d8f;
 }
 
 /* Disable transitions on initial page load */
@@ -104,13 +118,46 @@ body {
   margin-bottom: 30px;
 }
 
+.header-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
 .app-header h1 {
   font-size: 2.2em;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 3px;
   color: var(--accent);
-  margin: 0 0 10px 0;
+  margin: 0;
+}
+
+.info-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--bg-container);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 16px;
+  font-weight: 700;
+  font-style: italic;
+  font-family: Georgia, serif;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.info-btn:hover {
+  background: var(--border-accent);
+  box-shadow: 0 0 8px var(--border-accent);
+  transform: none;
 }
 
 .app-header p {
@@ -149,6 +196,187 @@ body {
   cursor: pointer;
 }
 
+/* Theme Toggle */
+.theme-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-container);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  transition: all 0.2s;
+}
+
+.theme-icon {
+  font-size: 14px;
+  transition: transform 0.5s ease;
+}
+
+.light-mode .theme-icon {
+  transform: rotate(180deg);
+}
+
+.theme-toggle {
+  position: relative;
+  width: 44px;
+  height: 22px;
+  background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+  border-radius: 11px;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+  transition: background 0.5s ease;
+  flex-shrink: 0;
+}
+
+.theme-toggle::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: linear-gradient(135deg, #666 0%, #888 100%);
+  border-radius: 50%;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.5s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.light-mode .theme-toggle {
+  background: linear-gradient(135deg, #ffd89b 0%, #f0a500 100%);
+}
+
+.light-mode .theme-toggle::after {
+  transform: translateX(22px);
+  background: linear-gradient(135deg, #fff 0%, #ffe0a0 100%);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Info Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s, visibility 0.3s;
+  padding: 20px;
+}
+
+.modal-overlay.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 30px;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+  transform: scale(0.9);
+  transition: transform 0.3s, background var(--transition), border-color var(--transition);
+}
+
+.modal-overlay.open .modal {
+  transform: scale(1);
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-container);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.modal-close:hover {
+  background: var(--border-accent);
+  color: var(--accent);
+  border-color: var(--accent);
+  transform: none;
+  box-shadow: none;
+}
+
+.modal h2 {
+  margin: 0 0 20px 0;
+  color: var(--accent);
+  font-size: 22px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.modal h3 {
+  margin: 20px 0 10px 0;
+  color: var(--accent);
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.modal h3:first-of-type {
+  margin-top: 0;
+}
+
+.modal p {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.modal ul {
+  margin: 0 0 12px 0;
+  padding-left: 20px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.modal li {
+  margin-bottom: 6px;
+}
+
+.modal strong {
+  color: var(--text-primary);
+}
+
+.modal code {
+  display: block;
+  background: var(--bg-primary);
+  padding: 12px;
+  border-radius: 6px;
+  margin: 12px 0;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--accent);
+  text-align: center;
+  transition: background var(--transition);
+}
+
 /* Sections */
 section {
   background: linear-gradient(135deg, var(--bg-container) 0%, var(--bg-gradient-end) 100%);
@@ -160,7 +388,7 @@ section {
   transition: background var(--transition), box-shadow var(--transition), border-color var(--transition);
 }
 
-body.light-mode section {
+.light-mode section {
   box-shadow: 0 4px 20px rgba(61, 40, 20, 0.1);
 }
 
@@ -287,7 +515,7 @@ button {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-body.light-mode button {
+.light-mode button {
   box-shadow: 0 4px 12px rgba(61, 40, 20, 0.1);
 }
 
@@ -316,8 +544,14 @@ button.bypassed {
   box-shadow: 0 4px 12px rgba(255, 107, 107, 0.4);
 }
 
-body.light-mode button.bypassed {
+.light-mode button.bypassed {
   background: linear-gradient(135deg, var(--accent-secondary) 0%, #d86060 100%);
+}
+
+.light-mode button.bypassed:hover {
+  background: linear-gradient(135deg, #d86060 0%, #e88080 100%);
+  border-color: #d86060;
+  box-shadow: 0 6px 20px rgba(201, 75, 75, 0.4);
 }
 
 button.bypassed:hover {
@@ -463,7 +697,7 @@ button.bypassed:hover {
 }
 
 .formula-box-wide {
-  background: var(--bg-dark);
+  background: var(--bg-primary);
   border-radius: 8px;
   border: 1px solid var(--border-color);
   padding: 20px;
@@ -484,24 +718,20 @@ button.bypassed:hover {
 }
 
 .formula-content .formula {
-  background: var(--border-accent);
+  background: var(--bg-tertiary);
   border-radius: 6px;
   padding: 12px;
-  border: 1px solid var(--border-accent);
+  border: 1px solid var(--border-color);
   transition: background var(--transition), border-color var(--transition);
 }
 
-body.light-mode .formula-content .formula {
-  background: rgba(212, 118, 58, 0.08);
-}
-
 .formula-content .formula.locked {
-  background: rgba(255, 107, 107, 0.1);
-  border-color: rgba(255, 107, 107, 0.3);
+  background: var(--formula-locked-bg);
+  border-color: var(--formula-locked-border);
 }
 
 .formula-content .formula.locked .formula-label {
-  color: #ff6b6b;
+  color: var(--formula-locked-text);
 }
 
 .formula-header {
@@ -533,11 +763,11 @@ body.light-mode .formula-content .formula {
 }
 
 .formula-content .formula-symbol {
-  color: #ff6b6b;
+  color: var(--formula-symbol);
 }
 
 .formula-content .formula-equals {
-  color: #4ecdc4;
+  color: var(--formula-equals);
 }
 
 .formula-slider {
@@ -593,14 +823,14 @@ body.light-mode .formula-content .formula {
 
 .lock-btn-small.active {
   opacity: 1;
-  background: rgba(255, 107, 107, 0.2);
+  background: var(--formula-locked-bg);
   color: var(--accent-secondary);
   border-color: var(--accent-secondary);
   box-shadow: none;
 }
 
 .lock-btn-small.active:hover {
-  background: rgba(255, 107, 107, 0.3);
+  background: var(--formula-locked-border);
   transform: none;
 }
 
@@ -615,7 +845,7 @@ body.light-mode .formula-content .formula {
   transition: background var(--transition), box-shadow var(--transition), border-color var(--transition);
 }
 
-body.light-mode .info {
+.light-mode .info {
   box-shadow: 0 4px 20px rgba(61, 40, 20, 0.1);
 }
 

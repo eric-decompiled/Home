@@ -6,6 +6,7 @@ const storedTheme = localStorage.getItem('decompiled-theme');
 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
 const isLight = storedTheme ? storedTheme === 'light' : !prefersDark;
 if (isLight) {
+  document.documentElement.classList.add('light-mode');
   document.body.classList.add('light-mode');
 }
 requestAnimationFrame(() => document.documentElement.classList.remove('theme-loading'));
@@ -75,8 +76,8 @@ let sPlane3DCtx: CanvasRenderingContext2D | null = null
 let sPlane3DDebounceTimer: number | null = null
 
 // Component values (calculated from resonant frequency and Q)
-// Using a reference inductance, we derive R and C
-const referenceInductance = 0.01 // 10mH reference inductor
+// Inductance is fixed at 10mH, R and C are derived
+const inductance = 0.01 // 10mH fixed
 
 // Initialize audio context (must be triggered by user interaction)
 function initAudio() {
@@ -422,22 +423,19 @@ function clearSingleWaveform(ctx: CanvasRenderingContext2D | null) {
 function calculateComponentValues() {
   // For an RLC circuit:
   // Resonant frequency: f0 = 1 / (2π√(LC))
-  // Q factor (series): Q = (1/R)√(L/C) = ω0L/R
-  // Q factor (parallel): Q = R√(C/L) = R/(ω0L)
+  // Q factor (series): Q = ω0L/R
+  // Q factor (parallel): Q = R/(ω0L)
 
-  const L = referenceInductance // Fixed inductance (Henries)
+  const L = inductance
   const omega0 = 2 * Math.PI * resonantFrequency
 
   // From f0 = 1/(2π√(LC)), solve for C:
-  // C = 1 / (4π²f0²L)
   const C = 1 / (4 * Math.PI * Math.PI * resonantFrequency * resonantFrequency * L)
 
   let R: number
   if (circuitType === 'series') {
-    // Series RLC: Q = ω0L/R, so R = ω0L/Q
     R = (omega0 * L) / qFactor
   } else {
-    // Parallel RLC: Q = R/(ω0L), so R = Q*ω0L
     R = qFactor * omega0 * L
   }
 
@@ -914,17 +912,19 @@ function drawPoleZeroPlot() {
   }
 
   // Draw zeros for bandpass (series) and notch (parallel)
-  ctx.fillStyle = colors.accent
-  ctx.strokeStyle = colors.accent
   ctx.lineWidth = 3
 
   if (circuitType === 'series') {
-    // Bandpass: zero at origin
+    // Bandpass: zero at origin (grey to distinguish from poles/input)
+    ctx.fillStyle = colors.textSecondary
+    ctx.strokeStyle = colors.textSecondary
     drawZeroMarker(ctx, centerX, centerY)
     ctx.font = '11px Courier New, monospace'
     ctx.textAlign = 'left'
     ctx.fillText('z = 0', centerX + 15, centerY + 25)
   } else if (circuitType === 'parallel') {
+    ctx.fillStyle = colors.accent
+    ctx.strokeStyle = colors.accent
     // Notch: zeros on imaginary axis at ±jω₀
     const zeroY1 = centerY - omega0 * scaleY
     const zeroY2 = centerY + omega0 * scaleY
@@ -994,7 +994,7 @@ function scheduleSPlane3DRender() {
   sPlane3DDebounceTimer = window.setTimeout(() => {
     drawSPlane3D()
     sPlane3DDebounceTimer = null
-  }, 150) // 150ms debounce
+  }, 16) // ~60fps debounce
 }
 
 // Draw 3D surface plot of |H(s)| over the s-plane
@@ -1203,14 +1203,14 @@ function drawSPlane3D() {
     ctx.fill()
   }
 
-  // Draw zeros as green markers
+  // Draw zeros
   if (circuitType === 'series') {
-    // Zero at origin
+    // Zero at origin (grey)
     const zeroSigmaIdx = (sigmaRange / (sigmaRange * 1.2)) * gridSize
     const zeroOmegaIdx = (omegaRange / (omegaRange * 2)) * gridSize
     const z = project(zeroSigmaIdx, zeroOmegaIdx, 0)
 
-    ctx.strokeStyle = colors.accent
+    ctx.strokeStyle = colors.textSecondary
     ctx.lineWidth = 3
     ctx.beginPath()
     ctx.arc(z.x, z.y, 8, 0, 2 * Math.PI)
@@ -1249,6 +1249,61 @@ function drawSPlane3D() {
 
   // |H(s)| label
   ctx.fillText('|H(s)|', width - 50, 30)
+
+  // Draw input signal frequency marker on the jω axis
+  const inputOmega = 2 * Math.PI * signalFrequency
+
+  // Check if input frequency is within visible range
+  if (inputOmega <= omegaRange * 2) {
+    // Calculate magnitude at input frequency (on jω axis, σ=0)
+    let inputMagnitude: number
+    if (circuitType === 'series') {
+      const numerator = 2 * zeta * omega0 * inputOmega
+      const d1 = Math.sqrt(Math.pow(sigma, 2) + Math.pow(inputOmega - omegaD, 2))
+      const d2 = Math.sqrt(Math.pow(sigma, 2) + Math.pow(inputOmega + omegaD, 2))
+      inputMagnitude = numerator / (d1 * d2 + 0.001)
+    } else {
+      const zeroD1 = Math.sqrt(Math.pow(inputOmega - omega0, 2))
+      const zeroD2 = Math.sqrt(Math.pow(inputOmega + omega0, 2))
+      const numerator = zeroD1 * zeroD2
+      const d1 = Math.sqrt(Math.pow(sigma, 2) + Math.pow(inputOmega - omegaD, 2))
+      const d2 = Math.sqrt(Math.pow(sigma, 2) + Math.pow(inputOmega + omegaD, 2))
+      inputMagnitude = numerator / (d1 * d2 + 0.001)
+    }
+    inputMagnitude = Math.min(inputMagnitude, 50)
+    const inputZ = Math.log10(inputMagnitude + 1) * 30
+
+    // Project marker position (on jω axis: σ=0)
+    const sigmaIdx = (sigmaRange / (sigmaRange * 1.2)) * gridSize
+    const omegaIdx = ((inputOmega + omegaRange) / (omegaRange * 2)) * gridSize
+    const markerPos = project(sigmaIdx, omegaIdx, inputZ)
+
+    // Draw vertical line from base to marker
+    const basePos = project(sigmaIdx, omegaIdx, 0)
+    ctx.strokeStyle = colors.accent
+    ctx.lineWidth = 2
+    ctx.setLineDash([4, 4])
+    ctx.beginPath()
+    ctx.moveTo(basePos.x, basePos.y)
+    ctx.lineTo(markerPos.x, markerPos.y)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // Draw marker ball (green/accent to differentiate from red poles)
+    ctx.fillStyle = colors.accent
+    ctx.beginPath()
+    ctx.arc(markerPos.x, markerPos.y, 8, 0, 2 * Math.PI)
+    ctx.fill()
+    ctx.strokeStyle = colors.canvasBg
+    ctx.lineWidth = 2
+    ctx.stroke()
+
+    // Label
+    ctx.fillStyle = colors.accent
+    ctx.font = 'bold 11px -apple-system, sans-serif'
+    ctx.textAlign = 'left'
+    ctx.fillText(`Input: ${signalFrequency} Hz`, markerPos.x + 12, markerPos.y + 4)
+  }
 
   // Info box
   ctx.fillStyle = colors.canvasInfoBg
@@ -1323,6 +1378,7 @@ function qFactorToSlider(q: number): number {
   return ((logValue - minLog) / (maxLog - minLog)) * 100
 }
 
+
 // Musical note helpers
 function freqToMidi(freq: number): number {
   return 12 * Math.log2(freq / getA4Freq()) + A4_MIDI
@@ -1369,6 +1425,7 @@ function updateFrequency(freq: number) {
     ? `${Math.round(freq)} Hz (${freqToNoteName(freq)})`
     : `${freq} Hz`
   document.getElementById('freqValue')!.textContent = freqText
+  scheduleSPlane3DRender()
 }
 
 function updateAmplitude(amp: number) {
@@ -1506,9 +1563,9 @@ function updateFormulaBox() {
 
       <div class="formula">
         <div class="formula-header">
-          <div class="formula-label">Inductance (fixed)</div>
+          <div class="formula-label">Inductance</div>
         </div>
-        <div class="formula-equation"><span class="formula-symbol">L</span> <span class="formula-equals">=</span> reference</div>
+        <div class="formula-equation"><span class="formula-symbol">L</span> <span class="formula-equals">=</span> fixed</div>
         <div class="formula-result" id="inductanceResult"></div>
       </div>
 
@@ -1524,7 +1581,7 @@ function updateFormulaBox() {
         <div class="formula-header">
           <div class="formula-label">Resistance</div>
         </div>
-        <div class="formula-equation" id="resistanceEquation"></div>
+        <div class="formula-equation" id="resistanceEquation"><span class="formula-symbol">R</span></div>
         <div class="formula-result" id="resistanceResult"></div>
       </div>
 
@@ -1607,7 +1664,10 @@ function updateButtonState() {
 document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
   <div class="container">
     <header class="app-header">
-      <h1>Resonator Circuit Explorer</h1>
+      <div class="header-title">
+        <h1>Resonator Circuit Explorer</h1>
+        <button class="info-btn" id="info-btn" title="About RLC Circuits">i</button>
+      </div>
       <p>Explore Series and Parallel RLC resonator circuits with real-time audio and visualization</p>
       <div class="auto-mode-toggle">
         <label>
@@ -1618,8 +1678,47 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
           <input type="checkbox" id="useA432Tuning" ${useA432Tuning ? 'checked' : ''}>
           A4 = 432 Hz
         </label>
+        <div class="theme-controls">
+          <span class="theme-icon">${isLight ? '☀️' : '🌙'}</span>
+          <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode"></button>
+        </div>
       </div>
     </header>
+
+    <!-- Info Modal -->
+    <div class="modal-overlay" id="info-modal">
+      <div class="modal">
+        <button class="modal-close" id="modal-close">&times;</button>
+        <h2>About RLC Resonator Circuits</h2>
+
+        <h3>What is an RLC Circuit?</h3>
+        <p>An RLC circuit contains a <strong>Resistor (R)</strong>, <strong>Inductor (L)</strong>, and <strong>Capacitor (C)</strong>. These components interact to create frequency-selective behavior, making them fundamental to audio filters, radio tuners, and signal processing.</p>
+
+        <h3>Resonant Frequency</h3>
+        <p>Every RLC circuit has a <strong>resonant frequency</strong> (f₀) where the inductive and capacitive reactances cancel out:</p>
+        <code>f₀ = 1 / (2π√LC)</code>
+        <p>At this frequency, the circuit's response is at its peak (or minimum, depending on configuration).</p>
+
+        <h3>Q Factor (Quality Factor)</h3>
+        <p>The <strong>Q factor</strong> measures how "sharp" or selective the resonance is. Higher Q means:</p>
+        <ul>
+          <li>Narrower bandwidth (more selective filtering)</li>
+          <li>Stronger resonance peak</li>
+          <li>Longer ringing/decay time</li>
+        </ul>
+        <code>Q = f₀ / Bandwidth</code>
+
+        <h3>Series vs Parallel</h3>
+        <p><strong>Series RLC (Bandpass):</strong> Passes frequencies near resonance, attenuates others. Used in radio tuners to select a station.</p>
+        <p><strong>Parallel RLC (Notch/Band-reject):</strong> Blocks frequencies near resonance, passes others. Used to remove unwanted interference like 60Hz hum.</p>
+
+        <h3>Pole-Zero Analysis</h3>
+        <p>The <strong>s-plane</strong> visualization shows the system's poles (×) and zeros (○). Poles in the left half-plane indicate stability. The distance from poles to the imaginary axis determines how quickly oscillations decay.</p>
+
+        <h3>Musical Connection</h3>
+        <p>RLC circuits behave like acoustic resonators. A guitar string, drum head, or vocal tract all exhibit similar resonant behavior. The "Auto ♪" mode snaps frequencies to musical notes, letting you explore how filters interact with harmonic content.</p>
+      </div>
+    </div>
 
     <div class="panels">
       <section class="controls">
@@ -1683,13 +1782,8 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     </section>
 
     <section class="visualization">
-      <h2>Input Waveform</h2>
-      <canvas id="inputWaveformCanvas" width="800" height="150"></canvas>
-    </section>
-
-    <section class="visualization">
-      <h2>Output Waveform</h2>
-      <canvas id="outputWaveformCanvas" width="800" height="150"></canvas>
+      <h2>Transfer Function Magnitude |H(s)|</h2>
+      <canvas id="sPlane3DCanvas" width="800" height="400"></canvas>
     </section>
 
     <section class="visualization">
@@ -1698,8 +1792,13 @@ document.querySelector<HTMLDivElement>('#app')!.innerHTML = `
     </section>
 
     <section class="visualization">
-      <h2>Transfer Function Magnitude |H(s)|</h2>
-      <canvas id="sPlane3DCanvas" width="800" height="400"></canvas>
+      <h2>Input Waveform</h2>
+      <canvas id="inputWaveformCanvas" width="800" height="150"></canvas>
+    </section>
+
+    <section class="visualization">
+      <h2>Output Waveform</h2>
+      <canvas id="outputWaveformCanvas" width="800" height="150"></canvas>
     </section>
   </div>
 `
@@ -1796,14 +1895,59 @@ document.getElementById('useA432Tuning')?.addEventListener('change', (e) => {
   }
 })
 
+// Theme toggle - sync with main site's localStorage
+const THEME_KEY = 'decompiled-theme'
+
+function setTheme(theme: 'light' | 'dark') {
+  const isLightTheme = theme === 'light'
+  document.documentElement.classList.toggle('light-mode', isLightTheme)
+  document.body.classList.toggle('light-mode', isLightTheme)
+  localStorage.setItem(THEME_KEY, theme)
+  const themeIcon = document.querySelector('.theme-icon')
+  if (themeIcon) themeIcon.textContent = isLightTheme ? '☀️' : '🌙'
+  redrawAllCanvases()
+}
+
+const themeToggle = document.getElementById('theme-toggle') as HTMLButtonElement
+themeToggle?.addEventListener('click', () => {
+  const isCurrentlyLight = document.documentElement.classList.contains('light-mode')
+  setTheme(isCurrentlyLight ? 'dark' : 'light')
+})
+
+// Info modal
+const infoBtn = document.getElementById('info-btn') as HTMLButtonElement
+const infoModal = document.getElementById('info-modal') as HTMLDivElement
+const modalClose = document.getElementById('modal-close') as HTMLButtonElement
+
+infoBtn?.addEventListener('click', () => {
+  infoModal?.classList.add('open')
+})
+
+modalClose?.addEventListener('click', () => {
+  infoModal?.classList.remove('open')
+})
+
+infoModal?.addEventListener('click', (e) => {
+  if (e.target === infoModal) {
+    infoModal.classList.remove('open')
+  }
+})
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && infoModal?.classList.contains('open')) {
+    infoModal.classList.remove('open')
+  }
+})
+
 // Listen for theme changes from parent site and redraw canvases
 window.addEventListener('storage', (e) => {
   if (e.key === 'decompiled-theme') {
-    if (e.newValue === 'light') {
-      document.body.classList.add('light-mode')
-    } else {
-      document.body.classList.remove('light-mode')
-    }
+    const newTheme = e.newValue === 'light' ? 'light' : 'dark'
+    const isLightTheme = newTheme === 'light'
+    document.documentElement.classList.toggle('light-mode', isLightTheme)
+    document.body.classList.toggle('light-mode', isLightTheme)
+    const themeIcon = document.querySelector('.theme-icon')
+    if (themeIcon) themeIcon.textContent = isLightTheme ? '☀️' : '🌙'
     // Redraw all canvases with new theme colors
     redrawAllCanvases()
   }
