@@ -145,7 +145,8 @@
       "WebFetch(domain:numanme.co.uk)",
       "WebFetch(domain:www.mididb.com)",
       "Bash(git config:*)",
-      "WebFetch(domain:spessasus.github.io)"
+      "WebFetch(domain:spessasus.github.io)",
+      "Bash(npm run dev:*)"
     ]
   }
 }

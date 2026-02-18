@@ -41,6 +41,11 @@
   --ui-topbar-bg: rgba(255, 220, 180, 0.5);
 }
 
+/* Disable transitions on initial page load */
+.theme-loading * {
+  transition: none !important;
+}
+
 body {
   background-color: var(--ui-bg);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;

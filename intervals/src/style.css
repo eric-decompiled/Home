@@ -32,6 +32,11 @@ body.light-mode {
   --border-color: #e8c4a0;
 }
 
+/* Disable transitions on initial page load */
+.theme-loading * {
+  transition: none !important;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -179,17 +184,17 @@ canvas {
 }
 
 .interval-btn.correct {
-  background: rgba(22, 199, 154, 0.3);
-  border-color: #16c79a;
-  color: #16c79a;
+  background: color-mix(in srgb, var(--accent-primary) 30%, transparent);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
   opacity: 1;
   animation: pulse-correct 0.5s ease;
 }
 
 .interval-btn.incorrect {
-  background: rgba(233, 69, 96, 0.3);
-  border-color: #e94560;
-  color: #e94560;
+  background: color-mix(in srgb, var(--accent-secondary) 30%, transparent);
+  border-color: var(--accent-secondary);
+  color: var(--accent-secondary);
   opacity: 1;
   animation: shake 0.4s ease;
 }
@@ -248,18 +253,18 @@ canvas {
 }
 
 .feedback.correct {
-  background: rgba(22, 199, 154, 0.2);
-  color: #16c79a;
+  background: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  color: var(--accent-primary);
 }
 
 .feedback.incorrect {
-  background: rgba(233, 69, 96, 0.2);
-  color: #e94560;
+  background: color-mix(in srgb, var(--accent-secondary) 20%, transparent);
+  color: var(--accent-secondary);
 }
 
 .feedback.waiting {
-  background: rgba(15, 52, 96, 0.3);
-  color: #888;
+  background: color-mix(in srgb, var(--border-color) 30%, transparent);
+  color: var(--text-secondary);
 }
 
 /* Settings */
@@ -301,9 +306,9 @@ canvas {
 }
 
 .instrument-btn {
-  background: rgba(15, 52, 96, 0.4);
-  border: 1px solid #0f3460;
-  color: #888;
+  background: color-mix(in srgb, var(--border-color) 40%, transparent);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   padding: 8px 4px;
   font-size: 11px;
   font-weight: 500;
@@ -313,15 +318,15 @@ canvas {
 }
 
 .instrument-btn:hover {
-  background: rgba(22, 199, 154, 0.15);
-  border-color: #16c79a;
-  color: #ccc;
+  background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
 }
 
 .instrument-btn.active {
-  background: rgba(22, 199, 154, 0.25);
-  border-color: #16c79a;
-  color: #16c79a;
+  background: color-mix(in srgb, var(--accent-primary) 25%, transparent);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
 }
 
 .voice-grid {
@@ -332,9 +337,9 @@ canvas {
 }
 
 .voice-btn {
-  background: rgba(15, 52, 96, 0.4);
-  border: 1px solid #0f3460;
-  color: #888;
+  background: color-mix(in srgb, var(--border-color) 40%, transparent);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
   padding: 6px 4px;
   font-size: 10px;
   font-weight: 500;
@@ -344,21 +349,21 @@ canvas {
 }
 
 .voice-btn:hover {
-  background: rgba(233, 69, 96, 0.15);
-  border-color: #e94560;
-  color: #ccc;
+  background: color-mix(in srgb, var(--accent-secondary) 15%, transparent);
+  border-color: var(--accent-secondary);
+  color: var(--text-primary);
 }
 
 .voice-btn.active {
-  background: rgba(233, 69, 96, 0.25);
-  border-color: #e94560;
-  color: #e94560;
+  background: color-mix(in srgb, var(--accent-secondary) 25%, transparent);
+  border-color: var(--accent-secondary);
+  color: var(--accent-secondary);
 }
 
 .range-display {
   text-align: center;
   font-size: 12px;
-  color: #888;
+  color: var(--text-secondary);
   padding: 4px;
 }
 
@@ -371,13 +376,13 @@ canvas {
 .checkbox-row input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #16c79a;
+  accent-color: var(--accent-primary);
 }
 
 /* Direction indicator */
 .direction {
   font-size: 12px;
-  color: #888;
+  color: var(--text-secondary);
   text-align: center;
   margin-top: -8px;
 }

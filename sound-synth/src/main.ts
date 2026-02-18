@@ -1,5 +1,15 @@
 import './style.css'
 
+// Sync theme from main site's localStorage or system preference (disable transitions during init)
+document.documentElement.classList.add('theme-loading');
+const storedTheme = localStorage.getItem('decompiled-theme');
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const isLight = storedTheme ? storedTheme === 'light' : !prefersDark;
+if (isLight) {
+  document.body.classList.add('light-mode');
+}
+requestAnimationFrame(() => document.documentElement.classList.remove('theme-loading'));
+
 // Constants
 const NUM_HARMONICS = 12
 const PEAK_LEVEL = 0.25

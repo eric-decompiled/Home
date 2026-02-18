@@ -11,10 +11,16 @@
   --bg-tertiary: #1a2942;
   --accent-primary: #16c79a;
   --accent-secondary: #ff6b6b;
+  --accent-tertiary: #9b59b6;
+  --accent-warning: #ffd93d;
   --text-primary: #e0e0e0;
   --text-secondary: #8892b0;
   --border-color: #0f3460;
   --transition: 0.5s ease;
+  --btn-hover: #13a881;
+  --btn-secondary-hover: #ff5252;
+  --shadow-accent: rgba(22, 199, 154, 0.3);
+  --shadow-secondary: rgba(255, 107, 107, 0.3);
 }
 
 /* Light mode - Sunset theme */
@@ -24,9 +30,20 @@ body.light-mode {
   --bg-tertiary: #fff5e6;
   --accent-primary: #d4763a;
   --accent-secondary: #c94b4b;
+  --accent-tertiary: #8e44ad;
+  --accent-warning: #d4a017;
   --text-primary: #3d2814;
   --text-secondary: #7a5a3a;
   --border-color: #e8c4a0;
+  --btn-hover: #b8612e;
+  --btn-secondary-hover: #b33e3e;
+  --shadow-accent: rgba(212, 118, 58, 0.3);
+  --shadow-secondary: rgba(201, 75, 75, 0.3);
+}
+
+/* Disable transitions on initial page load */
+.theme-loading * {
+  transition: none !important;
 }
 
 body {
@@ -175,7 +192,7 @@ body {
   margin-left: 1.5rem;
   margin-top: 1rem;
   padding-left: 1rem;
-  border-left: 2px solid #9b59b6;
+  border-left: 2px solid var(--accent-tertiary);
 }
 
 .button-grid {
@@ -194,8 +211,8 @@ body {
 }
 
 .action-btn:hover {
-  background: #ff5252;
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  background: var(--btn-secondary-hover);
+  box-shadow: 0 4px 12px var(--shadow-secondary);
 }
 
 .toggle-btn {
@@ -210,8 +227,8 @@ body {
 }
 
 .toggle-btn.active:hover {
-  background: #ff5252;
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  background: var(--btn-secondary-hover);
+  box-shadow: 0 4px 12px var(--shadow-secondary);
 }
 
 select {
@@ -287,9 +304,9 @@ button {
 }
 
 button:hover {
-  background: #13a881;
+  background: var(--btn-hover);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(22, 199, 154, 0.3);
+  box-shadow: 0 4px 12px var(--shadow-accent);
 }
 
 button:active {
@@ -301,8 +318,8 @@ button:active {
 }
 
 .pluck-btn:hover {
-  background: #ff5252;
-  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  background: var(--btn-secondary-hover);
+  box-shadow: 0 4px 12px var(--shadow-secondary);
 }
 
 /* Visualization panels */

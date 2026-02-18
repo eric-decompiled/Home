@@ -1,4 +1,15 @@
 import './style.css'
+
+// Sync theme from main site's localStorage or system preference (disable transitions during init)
+document.documentElement.classList.add('theme-loading');
+const storedTheme = localStorage.getItem('decompiled-theme');
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const isLight = storedTheme ? storedTheme === 'light' : !prefersDark;
+if (isLight) {
+  document.body.classList.add('light-mode');
+}
+requestAnimationFrame(() => document.documentElement.classList.remove('theme-loading'));
+
 import { WorkletSynthesizer } from 'spessasynth_lib'
 
 // Voice range presets (MIDI note numbers)
@@ -112,6 +123,11 @@ let sweepPhase = 0;
 let targetPhase = 0;
 let revealProgress = 0;
 let isRevealing = false;
+
+// Helper to get CSS variable values for canvas drawing
+function getCSSVar(name: string): string {
+  return getComputedStyle(document.body).getPropertyValue(name).trim();
+}
 
 // Settings
 let playMode: 'melodic' | 'harmonic' | 'both' = 'both';
@@ -463,8 +479,13 @@ function animate() {
   const width = canvas.width;
   const height = canvas.height;
 
+  // Get theme colors from CSS variables
+  const bgTertiary = getCSSVar('--bg-tertiary');
+  const accentPrimary = getCSSVar('--accent-primary');
+  const accentSecondary = getCSSVar('--accent-secondary');
+
   // Clear canvas
-  ctx.fillStyle = '#1a1a2e';
+  ctx.fillStyle = bgTertiary;
   ctx.fillRect(0, 0, width, height);
 
   if (!showLissajous) {
@@ -486,14 +507,14 @@ function animate() {
     ctx.rotate(floatRotate);
 
     // Outer glow
-    ctx.shadowColor = '#16c79a';
+    ctx.shadowColor = accentPrimary;
     ctx.shadowBlur = 25 * scale;
 
-    // Create gradient for notes
+    // Create gradient for notes - use accent color with lighter midpoint
     const gradient = ctx.createLinearGradient(-noteSpacing, -stemHeight, noteSpacing, noteSize * 2);
-    gradient.addColorStop(0, '#16c79a');
-    gradient.addColorStop(0.5, '#4eebc2');
-    gradient.addColorStop(1, '#16c79a');
+    gradient.addColorStop(0, accentPrimary);
+    gradient.addColorStop(0.5, accentPrimary);
+    gradient.addColorStop(1, accentPrimary);
 
     ctx.fillStyle = gradient;
     ctx.strokeStyle = gradient;
@@ -550,7 +571,7 @@ function animate() {
       ctx.restore();
     }
 
-    // Sparkle effects
+    // Sparkle effects - parse accent color for rgba
     ctx.shadowBlur = 0;
     for (let i = 0; i < 5; i++) {
       const sparkleTime = time * 2 + i * 1.3;
@@ -559,10 +580,12 @@ function animate() {
       const sparkleSize = (Math.sin(sparkleTime * 3) * 0.5 + 0.5) * 4 * scale;
       const sparkleAlpha = Math.sin(sparkleTime * 2) * 0.3 + 0.4;
 
-      ctx.fillStyle = `rgba(78, 235, 194, ${sparkleAlpha})`;
+      ctx.globalAlpha = sparkleAlpha;
+      ctx.fillStyle = accentPrimary;
       ctx.beginPath();
       ctx.arc(sparkleX, sparkleY, sparkleSize, 0, Math.PI * 2);
       ctx.fill();
+      ctx.globalAlpha = 1;
     }
 
     ctx.restore();
@@ -643,12 +666,12 @@ function animate() {
 
   // Style based on reveal state
   if (isRevealing && revealProgress > 0.5) {
-    ctx.strokeStyle = '#16c79a';
-    ctx.shadowColor = '#16c79a';
+    ctx.strokeStyle = accentPrimary;
+    ctx.shadowColor = accentPrimary;
     ctx.shadowBlur = 15;
   } else {
-    ctx.strokeStyle = '#16c79a';
-    ctx.shadowColor = '#16c79a';
+    ctx.strokeStyle = accentPrimary;
+    ctx.shadowColor = accentPrimary;
     ctx.shadowBlur = 8;
   }
   ctx.lineWidth = 2;
@@ -661,15 +684,15 @@ function animate() {
 
   ctx.beginPath();
   ctx.arc(pointX, pointY, 6, 0, Math.PI * 2);
-  ctx.fillStyle = '#e94560';
-  ctx.shadowColor = '#e94560';
+  ctx.fillStyle = accentSecondary;
+  ctx.shadowColor = accentSecondary;
   ctx.shadowBlur = 15;
   ctx.fill();
   ctx.shadowBlur = 0;
 
   // Show ratio text when revealed
   if (isRevealing && revealProgress > 0.8 && currentInterval) {
-    ctx.fillStyle = '#16c79a';
+    ctx.fillStyle = accentPrimary;
     ctx.font = '20px "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`${freqX}:${freqY}`, centerX, height - 20);

@@ -1,5 +1,36 @@
 import './style.css'
 
+// Sync theme from main site's localStorage or system preference (disable transitions during init)
+document.documentElement.classList.add('theme-loading');
+const storedTheme = localStorage.getItem('decompiled-theme');
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const isLight = storedTheme ? storedTheme === 'light' : !prefersDark;
+if (isLight) {
+  document.body.classList.add('light-mode');
+}
+requestAnimationFrame(() => document.documentElement.classList.remove('theme-loading'));
+
+// Theme-aware color helper
+function getThemeColors() {
+  const style = getComputedStyle(document.body);
+  return {
+    bgPrimary: style.getPropertyValue('--bg-primary').trim() || '#0a0e27',
+    bgSecondary: style.getPropertyValue('--bg-secondary').trim() || '#16213e',
+    accent: style.getPropertyValue('--accent-primary').trim() || '#16c79a',
+    accentLight: style.getPropertyValue('--accent-light').trim() || '#1ee7ad',
+    accentSecondary: style.getPropertyValue('--accent-secondary').trim() || '#ff6b6b',
+    textPrimary: style.getPropertyValue('--text-primary').trim() || '#e0e0e0',
+    textSecondary: style.getPropertyValue('--text-secondary').trim() || '#8892b0',
+    borderColor: style.getPropertyValue('--border-color').trim() || '#0f3460',
+    canvasBg: style.getPropertyValue('--canvas-bg').trim() || '#0a0e27',
+    canvasGrid: style.getPropertyValue('--canvas-grid').trim() || '#0f3460',
+    canvasAxis: style.getPropertyValue('--canvas-axis').trim() || '#8892b0',
+    canvasInfoBg: style.getPropertyValue('--canvas-info-bg').trim() || 'rgba(22, 33, 62, 0.9)',
+    canvasInfoText: style.getPropertyValue('--canvas-info-text').trim() || '#e0e0e0',
+    canvasAccentGlow: style.getPropertyValue('--canvas-accent-glow').trim() || 'rgba(22, 199, 154, 0.15)',
+  };
+}
+
 // Audio context and nodes
 let audioCtx: AudioContext | null = null
 let sourceNode: OscillatorNode | AudioBufferSourceNode | null = null
@@ -237,10 +268,11 @@ function startVisualization() {
     const triggerIndex = findStableTrigger(inputDataArray, bufferLength, samplesPerPeriod)
 
     // Draw input waveform with synchronized trigger
-    drawWaveformWithTrigger(inputWaveformCtx, inputDataArray, triggerIndex, samplesToShow, '#ff6b6b')
+    const waveformColors = getThemeColors()
+    drawWaveformWithTrigger(inputWaveformCtx, inputDataArray, triggerIndex, samplesToShow, waveformColors.accentSecondary)
 
     // Draw output waveform using SAME trigger offset (keeps them synchronized)
-    drawWaveformWithTrigger(outputWaveformCtx, outputDataArray, triggerIndex, samplesToShow, '#16c79a')
+    drawWaveformWithTrigger(outputWaveformCtx, outputDataArray, triggerIndex, samplesToShow, waveformColors.accent)
   }
 
   draw()
@@ -306,8 +338,9 @@ function drawWaveformWithTrigger(
   const width = canvas.width
   const height = canvas.height
   const bufferLength = dataArray.length
+  const colors = getThemeColors()
 
-  ctx.fillStyle = '#0a0e27'
+  ctx.fillStyle = colors.canvasBg
   ctx.fillRect(0, 0, width, height)
 
   // Ensure we don't read past buffer
@@ -315,7 +348,7 @@ function drawWaveformWithTrigger(
 
   if (actualSamplesToShow <= 0) {
     // Not enough data, draw flat line
-    ctx.strokeStyle = '#0f3460'
+    ctx.strokeStyle = colors.canvasGrid
     ctx.lineWidth = 1
     ctx.beginPath()
     ctx.moveTo(0, height / 2)
@@ -350,7 +383,7 @@ function drawWaveformWithTrigger(
   // Draw period markers (subtle vertical lines)
   if (audioCtx) {
     const samplesPerPeriod = audioCtx.sampleRate / signalFrequency
-    ctx.strokeStyle = 'rgba(22, 199, 154, 0.15)'
+    ctx.strokeStyle = colors.canvasAccentGlow
     ctx.lineWidth = 1
     for (let p = 1; p < 4; p++) {
       const periodX = (p * samplesPerPeriod / actualSamplesToShow) * width
@@ -372,11 +405,12 @@ function clearWaveforms() {
 function clearSingleWaveform(ctx: CanvasRenderingContext2D | null) {
   if (!ctx) return
   const canvas = ctx.canvas
-  ctx.fillStyle = '#0a0e27'
+  const colors = getThemeColors()
+  ctx.fillStyle = colors.canvasBg
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
   // Draw center line
-  ctx.strokeStyle = '#0f3460'
+  ctx.strokeStyle = colors.canvasGrid
   ctx.lineWidth = 1
   ctx.beginPath()
   ctx.moveTo(0, canvas.height / 2)
@@ -437,21 +471,22 @@ function drawCircuitDiagram() {
   const width = canvas.width
   const height = canvas.height
   const ctx = circuitDiagramCtx
+  const colors = getThemeColors()
 
-  ctx.fillStyle = '#0a0e27'
+  ctx.fillStyle = colors.canvasBg
   ctx.fillRect(0, 0, width, height)
 
   if (circuitType === 'none') {
-    ctx.fillStyle = '#8892b0'
+    ctx.fillStyle = colors.textSecondary
     ctx.font = '11px -apple-system, sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText('Select a circuit type', width / 2, height / 2)
     return
   }
 
-  ctx.strokeStyle = '#16c79a'
+  ctx.strokeStyle = colors.accent
   ctx.lineWidth = 1.5
-  ctx.fillStyle = '#8892b0'
+  ctx.fillStyle = colors.textSecondary
   ctx.font = '9px -apple-system, sans-serif'
   ctx.textAlign = 'center'
 
@@ -726,13 +761,14 @@ function drawPoleZeroPlot() {
   const width = canvas.width
   const height = canvas.height
   const ctx = poleZeroCtx
+  const colors = getThemeColors()
 
   // Clear canvas
-  ctx.fillStyle = '#0a0e27'
+  ctx.fillStyle = colors.canvasBg
   ctx.fillRect(0, 0, width, height)
 
   if (circuitType === 'none') {
-    ctx.fillStyle = '#8892b0'
+    ctx.fillStyle = colors.textSecondary
     ctx.font = '14px -apple-system, sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText('Select a circuit type to view pole-zero plot', width / 2, height / 2)
@@ -765,7 +801,7 @@ function drawPoleZeroPlot() {
   const scaleY = (height * 0.4) / maxOmega
 
   // Draw grid
-  ctx.strokeStyle = '#0f3460'
+  ctx.strokeStyle = colors.canvasGrid
   ctx.lineWidth = 1
 
   // Vertical grid lines
@@ -787,7 +823,7 @@ function drawPoleZeroPlot() {
   }
 
   // Draw axes
-  ctx.strokeStyle = '#8892b0'
+  ctx.strokeStyle = colors.canvasAxis
   ctx.lineWidth = 2
 
   // Real axis (σ)
@@ -803,7 +839,7 @@ function drawPoleZeroPlot() {
   ctx.stroke()
 
   // Arrow heads
-  ctx.fillStyle = '#8892b0'
+  ctx.fillStyle = colors.canvasAxis
   // Right arrow (σ)
   ctx.beginPath()
   ctx.moveTo(width - 10, centerY - 5)
@@ -820,12 +856,12 @@ function drawPoleZeroPlot() {
   // Axis labels
   ctx.font = '12px -apple-system, sans-serif'
   ctx.textAlign = 'center'
-  ctx.fillStyle = '#8892b0'
+  ctx.fillStyle = colors.canvasAxis
   ctx.fillText('σ (Real)', width - 30, centerY - 10)
   ctx.fillText('jω (Imag)', centerX + 35, 15)
 
   // Draw unit circle (stability boundary)
-  ctx.strokeStyle = '#0f3460'
+  ctx.strokeStyle = colors.canvasGrid
   ctx.lineWidth = 1
   ctx.setLineDash([5, 5])
   ctx.beginPath()
@@ -835,8 +871,8 @@ function drawPoleZeroPlot() {
   ctx.setLineDash([])
 
   // Draw poles
-  ctx.fillStyle = '#ff6b6b'
-  ctx.strokeStyle = '#ff6b6b'
+  ctx.fillStyle = colors.accentSecondary
+  ctx.strokeStyle = colors.accentSecondary
   ctx.lineWidth = 3
 
   if (isUnderdamped) {
@@ -878,8 +914,8 @@ function drawPoleZeroPlot() {
   }
 
   // Draw zeros for bandpass (series) and notch (parallel)
-  ctx.fillStyle = '#16c79a'
-  ctx.strokeStyle = '#16c79a'
+  ctx.fillStyle = colors.accent
+  ctx.strokeStyle = colors.accent
   ctx.lineWidth = 3
 
   if (circuitType === 'series') {
@@ -903,13 +939,13 @@ function drawPoleZeroPlot() {
   }
 
   // Draw info box
-  ctx.fillStyle = 'rgba(22, 33, 62, 0.9)'
+  ctx.fillStyle = colors.canvasInfoBg
   ctx.fillRect(10, 10, 220, 100)
-  ctx.strokeStyle = '#0f3460'
+  ctx.strokeStyle = colors.canvasGrid
   ctx.lineWidth = 1
   ctx.strokeRect(10, 10, 220, 100)
 
-  ctx.fillStyle = '#e0e0e0'
+  ctx.fillStyle = colors.canvasInfoText
   ctx.font = '11px Courier New, monospace'
   ctx.textAlign = 'left'
   const dampingType = isUnderdamped ? 'Underdamped' : isCriticallyDamped ? 'Critically Damped' : 'Overdamped'
@@ -919,15 +955,15 @@ function drawPoleZeroPlot() {
   ctx.fillText(`f₀ = ${resonantFrequency} Hz`, 20, 90)
 
   // Legend
-  ctx.fillStyle = 'rgba(22, 33, 62, 0.9)'
+  ctx.fillStyle = colors.canvasInfoBg
   ctx.fillRect(width - 120, 10, 110, 60)
-  ctx.strokeStyle = '#0f3460'
+  ctx.strokeStyle = colors.canvasGrid
   ctx.strokeRect(width - 120, 10, 110, 60)
 
   ctx.font = '11px -apple-system, sans-serif'
-  ctx.fillStyle = '#ff6b6b'
+  ctx.fillStyle = colors.accentSecondary
   ctx.fillText('✕ Poles', width - 110, 30)
-  ctx.fillStyle = '#16c79a'
+  ctx.fillStyle = colors.accent
   ctx.fillText('○ Zeros', width - 110, 50)
 }
 
@@ -969,13 +1005,14 @@ function drawSPlane3D() {
   const width = canvas.width
   const height = canvas.height
   const ctx = sPlane3DCtx
+  const colors = getThemeColors()
 
   // Clear canvas
-  ctx.fillStyle = '#0a0e27'
+  ctx.fillStyle = colors.canvasBg
   ctx.fillRect(0, 0, width, height)
 
   if (circuitType === 'none') {
-    ctx.fillStyle = '#8892b0'
+    ctx.fillStyle = colors.textSecondary
     ctx.font = '14px -apple-system, sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText('Select a circuit type to view 3D transfer function', width / 2, height / 2)
@@ -1092,6 +1129,12 @@ function drawSPlane3D() {
   // Draw surface as wireframe mesh
   ctx.lineWidth = 0.5
 
+  // Parse the accent color for rgba manipulation
+  const accentHex = colors.accent
+  const r = parseInt(accentHex.slice(1, 3), 16)
+  const g = parseInt(accentHex.slice(3, 5), 16)
+  const b = parseInt(accentHex.slice(5, 7), 16)
+
   // Draw grid lines (back to front for proper occlusion)
   // First pass: horizontal lines (constant omega)
   for (let j = 0; j <= gridSize; j += 2) {
@@ -1110,7 +1153,7 @@ function drawSPlane3D() {
     }
 
     // Color based on position
-    ctx.strokeStyle = `rgba(22, 199, 154, ${0.3 + (j / gridSize) * 0.4})`
+    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.3 + (j / gridSize) * 0.4})`
     ctx.stroke()
   }
 
@@ -1130,13 +1173,13 @@ function drawSPlane3D() {
       }
     }
 
-    ctx.strokeStyle = `rgba(22, 199, 154, ${0.3 + (i / gridSize) * 0.4})`
+    ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.3 + (i / gridSize) * 0.4})`
     ctx.stroke()
   }
 
   // Draw poles as red markers
-  ctx.fillStyle = '#ff6b6b'
-  ctx.strokeStyle = '#ff6b6b'
+  ctx.fillStyle = colors.accentSecondary
+  ctx.strokeStyle = colors.accentSecondary
   ctx.lineWidth = 2
 
   const isUnderdamped = zeta < 1
@@ -1167,7 +1210,7 @@ function drawSPlane3D() {
     const zeroOmegaIdx = (omegaRange / (omegaRange * 2)) * gridSize
     const z = project(zeroSigmaIdx, zeroOmegaIdx, 0)
 
-    ctx.strokeStyle = '#16c79a'
+    ctx.strokeStyle = colors.accent
     ctx.lineWidth = 3
     ctx.beginPath()
     ctx.arc(z.x, z.y, 8, 0, 2 * Math.PI)
@@ -1181,7 +1224,7 @@ function drawSPlane3D() {
     const z1 = project(zeroSigmaIdx, zeroOmegaIdx1, 0)
     const z2 = project(zeroSigmaIdx, zeroOmegaIdx2, 0)
 
-    ctx.strokeStyle = '#16c79a'
+    ctx.strokeStyle = colors.accent
     ctx.lineWidth = 3
     ctx.beginPath()
     ctx.arc(z1.x, z1.y, 8, 0, 2 * Math.PI)
@@ -1192,7 +1235,7 @@ function drawSPlane3D() {
   }
 
   // Draw axis labels
-  ctx.fillStyle = '#8892b0'
+  ctx.fillStyle = colors.canvasAxis
   ctx.font = '12px -apple-system, sans-serif'
   ctx.textAlign = 'center'
 
@@ -1208,17 +1251,17 @@ function drawSPlane3D() {
   ctx.fillText('|H(s)|', width - 50, 30)
 
   // Info box
-  ctx.fillStyle = 'rgba(22, 33, 62, 0.9)'
+  ctx.fillStyle = colors.canvasInfoBg
   ctx.fillRect(10, 10, 180, 50)
-  ctx.strokeStyle = '#0f3460'
+  ctx.strokeStyle = colors.canvasGrid
   ctx.lineWidth = 1
   ctx.strokeRect(10, 10, 180, 50)
 
-  ctx.fillStyle = '#e0e0e0'
+  ctx.fillStyle = colors.canvasInfoText
   ctx.font = '11px -apple-system, sans-serif'
   ctx.textAlign = 'left'
   ctx.fillText('3D Transfer Function Surface', 20, 30)
-  ctx.fillStyle = '#8892b0'
+  ctx.fillStyle = colors.textSecondary
   ctx.fillText('Peaks at poles, valleys at zeros', 20, 48)
 }
 
@@ -1752,3 +1795,38 @@ document.getElementById('useA432Tuning')?.addEventListener('change', (e) => {
     updateResonantFrequency(resonantFrequency)
   }
 })
+
+// Listen for theme changes from parent site and redraw canvases
+window.addEventListener('storage', (e) => {
+  if (e.key === 'decompiled-theme') {
+    if (e.newValue === 'light') {
+      document.body.classList.add('light-mode')
+    } else {
+      document.body.classList.remove('light-mode')
+    }
+    // Redraw all canvases with new theme colors
+    redrawAllCanvases()
+  }
+})
+
+// Also observe body class changes for theme toggle
+const themeObserver = new MutationObserver((mutations) => {
+  for (const mutation of mutations) {
+    if (mutation.attributeName === 'class') {
+      redrawAllCanvases()
+    }
+  }
+})
+themeObserver.observe(document.body, { attributes: true })
+
+function redrawAllCanvases() {
+  // Small delay to ensure CSS variables are updated
+  requestAnimationFrame(() => {
+    drawCircuitDiagram()
+    drawPoleZeroPlot()
+    drawSPlane3D()
+    if (!isPlaying) {
+      clearWaveforms()
+    }
+  })
+}

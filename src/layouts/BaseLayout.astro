@@ -19,6 +19,18 @@ const base = import.meta.env.BASE_URL;
   <meta name="description" content={description}>
   <link rel="icon" type="image/png" href={`${base}favicon.png`}>
   <title>{title} | Decompiled Labs</title>
+  <script is:inline>
+    (function() {
+      document.documentElement.classList.add('theme-loading');
+      const stored = localStorage.getItem('decompiled-theme');
+      // If stored preference exists, use it; otherwise follow system preference
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const isLight = stored ? stored === 'light' : !prefersDark;
+      if (isLight) {
+        document.documentElement.classList.add('light-mode');
+      }
+    })();
+  </script>
 </head>
 <body>
   <div class="container">

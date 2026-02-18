@@ -1,5 +1,15 @@
 import './style.css'
 
+// Sync theme from main site's localStorage or system preference (disable transitions during init)
+document.documentElement.classList.add('theme-loading');
+const storedTheme = localStorage.getItem('decompiled-theme');
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const isLight = storedTheme ? storedTheme === 'light' : !prefersDark;
+if (isLight) {
+  document.body.classList.add('light-mode');
+}
+requestAnimationFrame(() => document.documentElement.classList.remove('theme-loading'));
+
 // Audio context and nodes
 let audioContext: AudioContext | null = null
 let scriptProcessor: ScriptProcessorNode | null = null
@@ -53,6 +63,11 @@ let prevSample = 0
 
 // Canvas contexts
 let diagramCtx: CanvasRenderingContext2D | null = null
+
+// Get CSS variable value from computed styles
+function getCSSVar(name: string): string {
+  return getComputedStyle(document.body).getPropertyValue(name).trim()
+}
 
 // Initialize audio context
 function initAudio() {
@@ -427,13 +442,22 @@ function drawCircuitDiagram() {
   const height = canvas.height
   const ctx = diagramCtx
 
+  // Get theme colors from CSS variables
+  const bgPrimary = getCSSVar('--bg-primary')
+  const bgTertiary = getCSSVar('--bg-tertiary')
+  const accentPrimary = getCSSVar('--accent-primary')
+  const accentSecondary = getCSSVar('--accent-secondary')
+  const accentWarning = getCSSVar('--accent-warning')
+  const textPrimary = getCSSVar('--text-primary')
+  const textSecondary = getCSSVar('--text-secondary')
+
   // Clear canvas
-  ctx.fillStyle = '#0a0e27'
+  ctx.fillStyle = bgPrimary
   ctx.fillRect(0, 0, width, height)
 
   // Special case: if delay is 0, show bypass message
   if (delaySamples === 0) {
-    ctx.fillStyle = '#8892b0'
+    ctx.fillStyle = textSecondary
     ctx.font = '16px -apple-system, sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText('No Filter (Bypass)', width / 2, height / 2 - 10)
@@ -446,7 +470,7 @@ function drawCircuitDiagram() {
   const centerY = height / 2
 
   // Title
-  ctx.fillStyle = '#16c79a'
+  ctx.fillStyle = accentPrimary
   ctx.font = 'bold 16px -apple-system, sans-serif'
   ctx.textAlign = 'center'
   ctx.fillText('Feedback Comb Filter', width / 2, 30)
@@ -469,13 +493,13 @@ function drawCircuitDiagram() {
   const outputX = splitX + 100
 
   // Input label
-  ctx.fillStyle = '#e0e0e0'
+  ctx.fillStyle = textPrimary
   ctx.font = '14px -apple-system, sans-serif'
   ctx.textAlign = 'center'
   ctx.fillText('Input', inputX, centerY + 5)
 
   // Arrow from input to summer
-  ctx.strokeStyle = '#16c79a'
+  ctx.strokeStyle = accentPrimary
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(inputX + 30, centerY)
@@ -489,20 +513,20 @@ function drawCircuitDiagram() {
   ctx.stroke()
 
   // Summing junction
-  ctx.fillStyle = '#0a0e27'
-  ctx.strokeStyle = '#16c79a'
+  ctx.fillStyle = bgPrimary
+  ctx.strokeStyle = accentPrimary
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.arc(summerX, centerY, 15, 0, 2 * Math.PI)
   ctx.fill()
   ctx.stroke()
-  ctx.fillStyle = '#e0e0e0'
+  ctx.fillStyle = textPrimary
   ctx.font = '20px -apple-system, sans-serif'
   ctx.textAlign = 'center'
   ctx.fillText('+', summerX, centerY + 7)
 
   // Arrow from summer to split
-  ctx.strokeStyle = '#16c79a'
+  ctx.strokeStyle = accentPrimary
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(summerX + 15, centerY)
@@ -516,13 +540,13 @@ function drawCircuitDiagram() {
   ctx.stroke()
 
   // Split point for output and feedback
-  ctx.fillStyle = '#16c79a'
+  ctx.fillStyle = accentPrimary
   ctx.beginPath()
   ctx.arc(splitX, centerY, 5, 0, 2 * Math.PI)
   ctx.fill()
 
   // Arrow to output
-  ctx.strokeStyle = '#16c79a'
+  ctx.strokeStyle = accentPrimary
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(splitX, centerY)
@@ -536,7 +560,7 @@ function drawCircuitDiagram() {
   ctx.stroke()
 
   // Output label
-  ctx.fillStyle = '#e0e0e0'
+  ctx.fillStyle = textPrimary
   ctx.font = '14px -apple-system, sans-serif'
   ctx.textAlign = 'center'
   ctx.fillText('Output', outputX, centerY + 5)
@@ -545,7 +569,7 @@ function drawCircuitDiagram() {
   const feedbackY = centerY + 90  // Slightly closer
 
   // Vertical line down from split
-  ctx.strokeStyle = '#16c79a'
+  ctx.strokeStyle = accentPrimary
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(splitX, centerY + 5)
@@ -556,19 +580,19 @@ function drawCircuitDiagram() {
   let feedbackX = splitX
 
   // Delay block (starting directly below split point)
-  ctx.fillStyle = '#1a2942'
+  ctx.fillStyle = bgTertiary
   ctx.fillRect(feedbackX - boxWidth/2, feedbackY - boxHeight/2, boxWidth, boxHeight)
-  ctx.strokeStyle = '#16c79a'
+  ctx.strokeStyle = accentPrimary
   ctx.lineWidth = 2
   ctx.strokeRect(feedbackX - boxWidth/2, feedbackY - boxHeight/2, boxWidth, boxHeight)
-  ctx.fillStyle = '#e0e0e0'
+  ctx.fillStyle = textPrimary
   ctx.font = '13px -apple-system, sans-serif'
   ctx.textAlign = 'center'
   ctx.fillText('Delay', feedbackX, feedbackY - 5)
   ctx.fillText(`${delaySamples} smp`, feedbackX, feedbackY + 10)
 
   // Arrow to next block
-  ctx.strokeStyle = '#16c79a'
+  ctx.strokeStyle = accentPrimary
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(feedbackX - boxWidth/2, feedbackY)
@@ -586,18 +610,18 @@ function drawCircuitDiagram() {
 
   // Lowpass block (if enabled)
   if (hasLowpass) {
-    ctx.fillStyle = '#1a2942'
+    ctx.fillStyle = bgTertiary
     ctx.fillRect(feedbackX - boxWidth/2, feedbackY - boxHeight/2, boxWidth, boxHeight)
-    ctx.strokeStyle = '#ff6b6b'
+    ctx.strokeStyle = accentSecondary
     ctx.lineWidth = 2
     ctx.strokeRect(feedbackX - boxWidth/2, feedbackY - boxHeight/2, boxWidth, boxHeight)
-    ctx.fillStyle = '#e0e0e0'
+    ctx.fillStyle = textPrimary
     ctx.font = '13px -apple-system, sans-serif'
     ctx.fillText('Lowpass', feedbackX, feedbackY - 5)
     ctx.fillText(`${(lowpassCutoff/1000).toFixed(1)}kHz`, feedbackX, feedbackY + 10)
 
     // Arrow to next block
-    ctx.strokeStyle = '#16c79a'
+    ctx.strokeStyle = accentPrimary
     ctx.lineWidth = 2
     ctx.beginPath()
     ctx.moveTo(feedbackX - boxWidth/2, feedbackY)
@@ -616,18 +640,18 @@ function drawCircuitDiagram() {
 
   // Noise block (if enabled)
   if (feedbackNoise > 0) {
-    ctx.fillStyle = '#1a2942'
+    ctx.fillStyle = bgTertiary
     ctx.fillRect(feedbackX - boxWidth/2, feedbackY - boxHeight/2, boxWidth, boxHeight)
-    ctx.strokeStyle = '#ffd93d'
+    ctx.strokeStyle = accentWarning
     ctx.lineWidth = 2
     ctx.strokeRect(feedbackX - boxWidth/2, feedbackY - boxHeight/2, boxWidth, boxHeight)
-    ctx.fillStyle = '#e0e0e0'
+    ctx.fillStyle = textPrimary
     ctx.font = '13px -apple-system, sans-serif'
     ctx.fillText('Noise', feedbackX, feedbackY - 5)
     ctx.fillText(`${feedbackNoise.toFixed(2)}`, feedbackX, feedbackY + 10)
 
     // Arrow to next block
-    ctx.strokeStyle = '#16c79a'
+    ctx.strokeStyle = accentPrimary
     ctx.lineWidth = 2
     ctx.beginPath()
     ctx.moveTo(feedbackX - boxWidth/2, feedbackY)
@@ -645,12 +669,12 @@ function drawCircuitDiagram() {
   }
 
   // Feedback gain block
-  ctx.fillStyle = '#1a2942'
+  ctx.fillStyle = bgTertiary
   ctx.fillRect(feedbackX - boxWidth/2, feedbackY - boxHeight/2, boxWidth, boxHeight)
-  ctx.strokeStyle = '#16c79a'
+  ctx.strokeStyle = accentPrimary
   ctx.lineWidth = 2
   ctx.strokeRect(feedbackX - boxWidth/2, feedbackY - boxHeight/2, boxWidth, boxHeight)
-  ctx.fillStyle = '#e0e0e0'
+  ctx.fillStyle = textPrimary
   ctx.font = '13px -apple-system, sans-serif'
   ctx.fillText('Gain', feedbackX, feedbackY - 5)
   ctx.fillText(feedback.toFixed(3), feedbackX, feedbackY + 10)
@@ -660,7 +684,7 @@ function drawCircuitDiagram() {
   const returnY = centerY - 50
 
   // Line left from gain block
-  ctx.strokeStyle = '#16c79a'
+  ctx.strokeStyle = accentPrimary
   ctx.lineWidth = 2
   ctx.beginPath()
   ctx.moveTo(feedbackX - boxWidth/2, feedbackY)
@@ -900,3 +924,14 @@ function buildUI() {
 
 // Initialize
 buildUI()
+
+// Listen for theme changes and redraw canvas
+const themeObserver = new MutationObserver((mutations) => {
+  mutations.forEach((mutation) => {
+    if (mutation.attributeName === 'class') {
+      drawCircuitDiagram()
+    }
+  })
+})
+
+themeObserver.observe(document.body, { attributes: true })

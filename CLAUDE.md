@@ -63,6 +63,29 @@ A portfolio site for communication and organizational technology apps, built wit
 
 **src/styles/global.css**: Theme variables for dark/light modes. Sub-projects should use the same CSS variables for consistency.
 
+## Theme System
+
+Dark/light mode preference is stored in `localStorage` under `decompiled-theme` (values: `'light'` or `'dark'`). If no preference is stored, the system preference (`prefers-color-scheme`) is used.
+
+**Main site**:
+- `BaseLayout.astro`: Early inline script checks localStorage, falls back to system preference
+- `Header.astro`: Toggle saves preference; "auto" button resets to system default
+- Listens for OS preference changes when using system default
+
+**Sub-apps**: Each app checks localStorage then system preference in `main.ts`:
+```ts
+const storedTheme = localStorage.getItem('decompiled-theme');
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const isLight = storedTheme ? storedTheme === 'light' : !prefersDark;
+if (isLight) {
+  document.documentElement.classList.add('light-mode');
+}
+```
+
+**CSS**: Use `.light-mode` selector (matches on `html` or `body`). All apps define the same sunset light theme variables.
+
+**Transition prevention**: `theme-loading` class disables transitions during initial load to prevent flash.
+
 ## Adding an App
 
 1. Create the project in its own directory with Vite

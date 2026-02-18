@@ -13,25 +13,48 @@ const isActive = (path: string) => {
 <header class="site-header">
   <a href={base} class="logo">Decompiled Labs</a>
 
+  <span class="nav-separator">|</span>
+
+  <nav class="nav-links">
+    <a href={base} class:list={[{ active: currentPath === base || currentPath === `${base}/` }]}>Home</a>
+    <a href={`${base}apps/`} class:list={[{ active: currentPath.includes('/apps') }]}>Apps</a>
+    <div class="theme-controls mobile-only">
+      <span class="theme-icon">🌙</span>
+      <button class="theme-toggle" title="Toggle light/dark mode"></button>
+      <button class="theme-reset" title="Use system preference">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+          <line x1="8" y1="21" x2="16" y2="21"></line>
+          <line x1="12" y1="17" x2="12" y2="21"></line>
+        </svg>
+      </button>
+    </div>
+  </nav>
+
   <button class="menu-toggle" aria-label="Toggle menu" aria-expanded="false">
     <span></span>
     <span></span>
     <span></span>
   </button>
 
-  <nav class="nav-links">
-    <a href={base} class:list={[{ active: currentPath === base || currentPath === `${base}/` }]}>Home</a>
-    <a href={`${base}apps/`} class:list={[{ active: currentPath.includes('/apps') }]}>Apps</a>
+  <div class="theme-controls desktop-only" id="theme-controls-desktop">
     <span class="theme-icon">🌙</span>
     <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode"></button>
-  </nav>
+    <button class="theme-reset" id="theme-reset" title="Use system preference">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+        <line x1="8" y1="21" x2="16" y2="21"></line>
+        <line x1="12" y1="17" x2="12" y2="21"></line>
+      </svg>
+    </button>
+  </div>
 </header>
 
 <style>
   .site-header {
     display: flex;
-    justify-content: space-between;
     align-items: center;
+    gap: 2rem;
     padding: 1rem 0;
     margin-bottom: 2rem;
     border-bottom: 1px solid var(--border-color);
@@ -45,10 +68,24 @@ const isActive = (path: string) => {
     letter-spacing: 2px;
   }
 
+  .nav-separator {
+    color: var(--border-color);
+    font-weight: 300;
+    user-select: none;
+  }
+
   .nav-links {
     display: flex;
     align-items: center;
-    gap: 2rem;
+    gap: 1.5rem;
+  }
+
+  .theme-controls {
+    margin-left: auto;
+  }
+
+  .theme-controls.mobile-only {
+    display: none;
   }
 
   .nav-links a {
@@ -77,25 +114,57 @@ const isActive = (path: string) => {
   .menu-toggle {
     display: none;
     flex-direction: column;
-    gap: 4px;
-    padding: 0.5rem;
-    background: none;
-    border: none;
+    justify-content: center;
+    gap: 5px;
+    width: 40px;
+    height: 40px;
+    padding: 8px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
     cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .menu-toggle:hover {
+    background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-secondary));
+    border-color: var(--accent-primary);
   }
 
   .menu-toggle span {
     display: block;
-    width: 24px;
+    width: 100%;
     height: 2px;
     background: var(--text-primary);
-    transition: all 0.3s;
+    border-radius: 1px;
+    transition: transform 0.3s ease, opacity 0.2s ease;
+    transform-origin: center;
+  }
+
+  .menu-toggle:hover span {
+    background: var(--accent-primary);
   }
 
   @media (max-width: 768px) {
-    .menu-toggle {
+    .site-header {
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .nav-separator {
+      display: none;
+    }
+
+    .theme-controls.desktop-only {
+      display: none;
+    }
+
+    .theme-controls.mobile-only {
       display: flex;
-      z-index: 100;
+      margin-left: 0;
+      margin-top: 1rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border-color);
     }
 
     .nav-links {
@@ -118,16 +187,32 @@ const isActive = (path: string) => {
       right: 0;
     }
 
+    .menu-toggle {
+      display: flex;
+      z-index: 100;
+      margin-left: auto;
+    }
+
+    .menu-toggle[aria-expanded="true"] {
+      background: color-mix(in srgb, var(--accent-primary) 15%, var(--bg-secondary));
+      border-color: var(--accent-primary);
+    }
+
+    .menu-toggle[aria-expanded="true"] span {
+      background: var(--accent-primary);
+    }
+
     .menu-toggle[aria-expanded="true"] span:nth-child(1) {
-      transform: rotate(45deg) translate(4px, 4px);
+      transform: rotate(45deg) translateY(7px);
     }
 
     .menu-toggle[aria-expanded="true"] span:nth-child(2) {
       opacity: 0;
+      transform: scaleX(0);
     }
 
     .menu-toggle[aria-expanded="true"] span:nth-child(3) {
-      transform: rotate(-45deg) translate(5px, -5px);
+      transform: rotate(-45deg) translateY(-7px);
     }
   }
 </style>
@@ -150,12 +235,63 @@ const isActive = (path: string) => {
     }
   });
 
-  // Theme toggle
-  const themeToggle = document.getElementById('theme-toggle');
-  themeToggle?.addEventListener('click', () => {
-    document.body.classList.toggle('light-mode');
-    const isLight = document.body.classList.contains('light-mode');
-    const themeIcon = document.querySelector('.theme-icon');
-    if (themeIcon) themeIcon.textContent = isLight ? '☀️' : '🌙';
+  // Theme toggle - sync with localStorage, default to system preference
+  const THEME_KEY = 'decompiled-theme';
+  const themeToggles = document.querySelectorAll('.theme-toggle');
+  const themeResets = document.querySelectorAll('.theme-reset');
+  const themeIcons = document.querySelectorAll('.theme-icon');
+
+  function getSystemPreference() {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function applyTheme(theme: string) {
+    const isLight = theme === 'light';
+    document.documentElement.classList.toggle('light-mode', isLight);
+    document.body.classList.toggle('light-mode', isLight);
+    themeIcons.forEach(icon => icon.textContent = isLight ? '☀️' : '🌙');
+  }
+
+  function updateResetVisibility() {
+    const hasManualPreference = localStorage.getItem(THEME_KEY) !== null;
+    themeResets.forEach(btn => btn.classList.toggle('visible', hasManualPreference));
+  }
+
+  // Initialize from localStorage or system preference
+  const storedTheme = localStorage.getItem(THEME_KEY);
+  const effectiveTheme = storedTheme ?? getSystemPreference();
+  applyTheme(effectiveTheme);
+  updateResetVisibility();
+
+  // Remove loading class to enable transitions (after first paint)
+  requestAnimationFrame(() => {
+    document.documentElement.classList.remove('theme-loading');
+  });
+
+  // Toggle between light/dark (saves preference)
+  themeToggles.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const isCurrentlyLight = document.body.classList.contains('light-mode');
+      const newTheme = isCurrentlyLight ? 'dark' : 'light';
+      localStorage.setItem(THEME_KEY, newTheme);
+      applyTheme(newTheme);
+      updateResetVisibility();
+    });
+  });
+
+  // Reset to system preference
+  themeResets.forEach(btn => {
+    btn.addEventListener('click', () => {
+      localStorage.removeItem(THEME_KEY);
+      applyTheme(getSystemPreference());
+      updateResetVisibility();
+    });
+  });
+
+  // Listen for system preference changes (when using system default)
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (localStorage.getItem(THEME_KEY) === null) {
+      applyTheme(getSystemPreference());
+    }
   });
 </script>

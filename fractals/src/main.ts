@@ -1,4 +1,15 @@
 import './style.css';
+
+// Sync theme from main site's localStorage or system preference (disable transitions during init)
+document.documentElement.classList.add('theme-loading');
+const storedTheme = localStorage.getItem('decompiled-theme');
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const isLight = storedTheme ? storedTheme === 'light' : !prefersDark;
+if (isLight) {
+  document.documentElement.classList.add('light-mode');
+}
+requestAnimationFrame(() => document.documentElement.classList.remove('theme-loading'));
+
 import { fractalEngine } from './fractal-engine.ts';
 import { analyzeMidiBuffer, type MusicTimeline } from './midi-analyzer.ts';
 import { audioPlayer } from './audio-player.ts';
@@ -2003,12 +2014,28 @@ for (const [name, btn] of Object.entries(mobileQualityButtons)) {
   btn.addEventListener('click', () => setQuality(name as QualityLevel));
 }
 
-// Theme toggle (always defaults to dark mode)
-themeToggle.addEventListener('click', () => {
-  document.body.classList.toggle('light-mode');
-  const isLight = document.body.classList.contains('light-mode');
+// Theme toggle - sync with main site's localStorage
+const THEME_KEY = 'decompiled-theme';
+
+function setTheme(theme: 'light' | 'dark') {
+  const isLight = theme === 'light';
+  document.documentElement.classList.toggle('light-mode', isLight);
+  document.body.classList.toggle('light-mode', isLight);
+  localStorage.setItem(THEME_KEY, theme);
   const themeIcon = document.querySelector('.theme-icon');
   if (themeIcon) themeIcon.textContent = isLight ? '☀️' : '🌙';
+}
+
+// Sync body class and icon with early init (documentElement already has class from top of file)
+if (document.documentElement.classList.contains('light-mode')) {
+  document.body.classList.add('light-mode');
+  const themeIcon = document.querySelector('.theme-icon');
+  if (themeIcon) themeIcon.textContent = '☀️';
+}
+
+themeToggle.addEventListener('click', () => {
+  const isCurrentlyLight = document.documentElement.classList.contains('light-mode');
+  setTheme(isCurrentlyLight ? 'dark' : 'light');
 });
 
 // Track DPR for coordinate transforms (declared here so setQuality can call resizeCanvas)
