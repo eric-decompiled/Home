@@ -12,7 +12,7 @@ requestAnimationFrame(() => document.documentElement.classList.remove('theme-loa
 
 import { fractalEngine } from './fractal-engine.ts';
 import { analyzeMidiBuffer, type MusicTimeline } from './midi-analyzer.ts';
-import { audioPlayer } from './audio-player.ts';
+import { audioPlayer, unlockAudio } from './audio-player.ts';
 import { musicMapper } from './music-mapper.ts';
 import { Compositor } from './effects/compositor.ts';
 import { FractalEffect } from './effects/fractal-effect.ts';
@@ -549,9 +549,9 @@ app.innerHTML = `
           <div class="quality-section" id="quality-section">
             <div class="quality-label">Render Quality</div>
             <div class="quality-buttons">
-              <button class="toggle-btn quality-btn" id="quality-low" title="50% resolution - fastest">Fast</button>
-              <button class="toggle-btn quality-btn" id="quality-medium" title="75% resolution - balanced">Balanced</button>
-              <button class="toggle-btn quality-btn active" id="quality-high" title="100% resolution - sharpest">Sharp</button>
+              <button class="toggle-btn quality-btn" id="quality-low" title="480p (854×480) - fastest">Fast</button>
+              <button class="toggle-btn quality-btn" id="quality-medium" title="720p (1280×720) - balanced">Balanced</button>
+              <button class="toggle-btn quality-btn active" id="quality-high" title="1080p (1920×1080) - sharpest">Sharp</button>
             </div>
           </div>
           <div class="theme-section" id="theme-section">
@@ -2143,31 +2143,39 @@ for (const [name, btn] of Object.entries(mobileBarPresets)) {
 // Sync all preset buttons on initial load (after all button refs are defined)
 syncPresetButtons(urlSettingsResult.presetApplied as PresetName ?? (urlToState(window.location.search) ? null : 'stars'));
 
-// Quality buttons for render scale
-type QualityLevel = 'low' | 'medium' | 'high';
-const qualityButtons: Record<QualityLevel, HTMLButtonElement> = {
+// Quality buttons for fixed render resolution
+// Maps UI names to compositor preset names (fast/balanced/sharp)
+const qualityMap = {
+  low: 'fast' as const,
+  medium: 'balanced' as const,
+  high: 'sharp' as const,
+};
+const qualityButtons = {
   low: document.getElementById('quality-low') as HTMLButtonElement,
   medium: document.getElementById('quality-medium') as HTMLButtonElement,
   high: document.getElementById('quality-high') as HTMLButtonElement,
 };
-const qualityScales: Record<QualityLevel, number> = {
-  low: 0.5,
-  medium: 0.75,
-  high: 1.0,
-};
 
-function setQuality(level: QualityLevel): void {
-  compositor.renderScale = qualityScales[level];
-  // Update button states (desktop and mobile)
+// Track current quality and whether user manually set it
+let currentQualityLevel: keyof typeof qualityMap = 'high';
+let userSetQuality = false;
+
+function setQuality(level: keyof typeof qualityMap, isUserAction = false): void {
+  currentQualityLevel = level;
+  if (isUserAction) {
+    userSetQuality = true;
+  }
+  compositor.setQualityPreset(qualityMap[level]);
+  // Update button states
   for (const [name, btn] of Object.entries(qualityButtons)) {
     btn.classList.toggle('active', name === level);
   }
-  // Trigger resize to apply new scale
+  // Trigger resize to apply new resolution
   resizeCanvas();
 }
 
 for (const [name, btn] of Object.entries(qualityButtons)) {
-  btn.addEventListener('click', () => setQuality(name as QualityLevel));
+  btn.addEventListener('click', () => setQuality(name as keyof typeof qualityMap, true));
 }
 
 // Theme toggle - sync with main site's localStorage
@@ -2747,6 +2755,9 @@ playlistVideoBtn.addEventListener('click', () => switchPlaylist('video'));
 playlistUploadsBtn.addEventListener('click', () => switchPlaylist('uploads'));
 
 songPicker.addEventListener('change', async () => {
+  // Unlock audio immediately during user gesture (before any await)
+  unlockAudio();
+
   if (songPicker.value === 'custom') return; // Already loaded
   const idx = parseInt(songPicker.value);
   if (!isNaN(idx)) {
@@ -2756,6 +2767,9 @@ songPicker.addEventListener('change', async () => {
 
 // Previous/Next track buttons
 prevBtn.addEventListener('click', async () => {
+  // Unlock audio immediately during user gesture (before any await)
+  unlockAudio();
+
   // If past 3 seconds, rewind to start instead of going to previous track
   const currentTime = audioPlayer.getCurrentTime();
   if (currentTime > 3) {
@@ -2775,6 +2789,9 @@ prevBtn.addEventListener('click', async () => {
 });
 
 nextBtn.addEventListener('click', async () => {
+  // Unlock audio immediately during user gesture (before any await)
+  unlockAudio();
+
   const currentIdx = parseInt(songPicker.value);
   if (isNaN(currentIdx) || songPicker.value === 'custom') return;
   const currentSongs = getCurrentSongs();
@@ -2987,8 +3004,8 @@ const LOW_FPS_THRESHOLD = 20;
 const LOW_FPS_DURATION = 3000; // 3 seconds
 
 // Quality auto-downgrade - switch to Balanced when FPS is consistently low
-const QUALITY_DOWNGRADE_THRESHOLD = 30;
-const QUALITY_DOWNGRADE_DURATION = 4000; // 4 seconds sustained
+const QUALITY_DOWNGRADE_THRESHOLD = 20;  // Sub 20 FPS triggers downgrade consideration
+const QUALITY_DOWNGRADE_DURATION = 3000; // 3 seconds sustained low FPS
 let qualityDowngradeStartTime: number | null = null;
 let hasAutoDowngraded = localStorage.getItem('autoDowngraded') === 'true';
 
@@ -3026,18 +3043,18 @@ fractalEngine.onFrameReady = (renderMs: number) => {
     }
 
     // Quality auto-downgrade (separate from pause detection)
-    if (isCurrentlyPlaying && !document.hidden && !hasAutoDowngraded) {
-      const currentQuality = compositor.renderScale;
-
-      if (currentQuality >= 1.0 && currentFps < QUALITY_DOWNGRADE_THRESHOLD) {
+    // Only auto-downgrade if: playing, visible, not already downgraded, user hasn't manually set quality
+    if (isCurrentlyPlaying && !document.hidden && !hasAutoDowngraded && !userSetQuality) {
+      // Only downgrade from Sharp to Balanced (not from Balanced to Fast)
+      if (currentQualityLevel === 'high' && currentFps < QUALITY_DOWNGRADE_THRESHOLD) {
         if (!qualityDowngradeStartTime) {
           qualityDowngradeStartTime = now;
         } else if (now - qualityDowngradeStartTime > QUALITY_DOWNGRADE_DURATION) {
           // Sustained low FPS on Sharp - downgrade to Balanced
-          setQuality('medium');
+          setQuality('medium', false);  // Not a user action
           hasAutoDowngraded = true;
           localStorage.setItem('autoDowngraded', 'true');
-          showToast('Switched to Balanced for smoother playback', 3000, 'info');
+          showToast('Switched to Balanced (720p) for smoother playback', 3000, 'info');
           qualityDowngradeStartTime = null;
         }
       } else {

@@ -35,7 +35,8 @@ let initPromise: Promise<void> | null = null;
 let pendingMidiBuffer: ArrayBuffer | null = null;
 
 // Mobile audio unlock: create and resume AudioContext on first user gesture
-function unlockAudio(): void {
+// Exported so it can be called at the start of click handlers before async work
+export function unlockAudio(): void {
   // Create AudioContext immediately during user gesture (required for iOS)
   if (!audioCtx) {
     audioCtx = new AudioContext();
@@ -66,11 +67,13 @@ if (typeof window !== "undefined") {
 let lastSeqTime = 0;
 let lastRealTime = 0;
 let smoothTime = 0;
+let seekTarget: number | null = null;  // Set after seek to override stale sequencer time
 
-function resetTimeTracking() {
-  lastSeqTime = 0;
+function resetTimeTracking(targetTime = 0) {
+  lastSeqTime = targetTime;
   lastRealTime = audioCtx?.currentTime ?? 0;
-  smoothTime = 0;
+  smoothTime = targetTime;
+  seekTarget = targetTime;
 }
 
 async function init(): Promise<void> {
@@ -189,9 +192,10 @@ export const audioPlayer = {
   },
 
   seek(time: number) {
-    resetTimeTracking();
+    const target = Math.max(0, time);
+    resetTimeTracking(target);
     if (sequencer) {
-      sequencer.currentTime = Math.max(0, time);
+      sequencer.currentTime = target;
     }
   },
 
@@ -201,6 +205,23 @@ export const audioPlayer = {
     // Get sequencer's reported time
     const seqTime = sequencer.currentHighResolutionTime;
     const realTime = audioCtx.currentTime;
+
+    // After a seek, the sequencer may report stale time briefly.
+    // Trust our seek target until sequencer catches up.
+    if (seekTarget !== null) {
+      // Check if sequencer has caught up to near the seek target
+      if (Math.abs(seqTime - seekTarget) < 1.0) {
+        // Sequencer is close to target, clear the override
+        seekTarget = null;
+        lastSeqTime = seqTime;
+        lastRealTime = realTime;
+        smoothTime = seqTime;
+        return seqTime;
+      } else {
+        // Sequencer still reporting stale time, use seek target
+        return smoothTime;
+      }
+    }
 
     // Backward jump = seek or song change, reset tracking
     if (seqTime < lastSeqTime - 0.01) {

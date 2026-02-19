@@ -4,6 +4,15 @@
 import type { VisualEffect, LayerState, BlendMode, MusicParams } from './effect-interface.ts';
 export type BgColorMode = 'black';
 
+// Fixed resolution presets (16:9 aspect ratio)
+export const QUALITY_PRESETS = {
+  fast: { width: 854, height: 480 },      // 480p - 0.4M pixels
+  balanced: { width: 1280, height: 720 }, // 720p - 0.9M pixels
+  sharp: { width: 1920, height: 1080 },   // 1080p - 2.1M pixels (max)
+} as const;
+
+export type QualityPreset = keyof typeof QUALITY_PRESETS;
+
 export class Compositor {
   private layers: LayerState[] = [];
   private compositeCanvas: HTMLCanvasElement;
@@ -14,8 +23,10 @@ export class Compositor {
   private displayHeight = 600;
   bgColorMode: BgColorMode = 'black';
 
-  // Render scale: 1.0 = full resolution, 0.5 = half resolution (4x faster)
-  // Default to 1.0 (sharp) for best quality
+  // Fixed resolution mode: render at preset size, CSS upscales to display
+  private _fixedResolution: { width: number; height: number } | null = QUALITY_PRESETS.sharp;
+
+  // Legacy render scale (used when fixedResolution is null)
   private _renderScale = 1.0;
 
   // State tracking to avoid redundant canvas state changes
@@ -106,12 +117,48 @@ export class Compositor {
     }
   }
 
+  /** Set a fixed render resolution (or null for native) */
+  setFixedResolution(resolution: { width: number; height: number } | null): void {
+    this._fixedResolution = resolution;
+    this.resize(this.displayWidth, this.displayHeight);
+  }
+
+  /** Set quality using a preset name */
+  setQualityPreset(preset: QualityPreset): void {
+    this._fixedResolution = QUALITY_PRESETS[preset];
+    this.resize(this.displayWidth, this.displayHeight);
+  }
+
+  /** Get current render dimensions */
+  getRenderSize(): { width: number; height: number } {
+    return { width: this.width, height: this.height };
+  }
+
   resize(width: number, height: number): void {
     this.displayWidth = width;
     this.displayHeight = height;
-    // Apply render scale to internal dimensions
-    this.width = Math.round(width * this._renderScale);
-    this.height = Math.round(height * this._renderScale);
+
+    if (this._fixedResolution) {
+      // Fixed resolution mode: use preset size, capped to not exceed display
+      // This prevents rendering MORE pixels than the display can show
+      const maxWidth = Math.min(this._fixedResolution.width, width);
+      const maxHeight = Math.min(this._fixedResolution.height, height);
+      // Maintain aspect ratio of the fixed resolution
+      const fixedAspect = this._fixedResolution.width / this._fixedResolution.height;
+      const displayAspect = maxWidth / maxHeight;
+      if (displayAspect > fixedAspect) {
+        this.height = maxHeight;
+        this.width = Math.round(maxHeight * fixedAspect);
+      } else {
+        this.width = maxWidth;
+        this.height = Math.round(maxWidth / fixedAspect);
+      }
+    } else {
+      // Legacy mode: apply render scale to display dimensions
+      this.width = Math.round(width * this._renderScale);
+      this.height = Math.round(height * this._renderScale);
+    }
+
     this.compositeCanvas.width = this.width;
     this.compositeCanvas.height = this.height;
     for (const layer of this.layers) {
