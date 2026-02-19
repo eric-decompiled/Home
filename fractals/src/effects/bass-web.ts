@@ -3,7 +3,7 @@
 // only on chord root changes, creating a deep harmonic undertone layer.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES, semitoneOffset } from './effect-utils.ts';
+import { samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES, semitoneOffset, TWO_PI } from './effect-utils.ts';
 
 interface NodeState {
   brightness: number;
@@ -186,7 +186,7 @@ export class BassWebEffect implements VisualEffect {
     const positions: Array<{ x: number; y: number }> = [];
     for (let i = 0; i < 12; i++) {
       const semitones = semitoneOffset(i, this.key);
-      const angle = (semitones / 12) * Math.PI * 2 - Math.PI / 2;
+      const angle = (semitones / 12) * TWO_PI - Math.PI / 2;
       positions.push({
         x: cx + Math.cos(angle) * r * breath,
         y: cy + Math.sin(angle) * r * breath,
@@ -282,7 +282,7 @@ export class BassWebEffect implements VisualEffect {
       } else {
         const dotR = 2.5 + node.brightness * 3;
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, dotR, 0, Math.PI * 2);
+        ctx.arc(pos.x, pos.y, dotR, 0, TWO_PI);
         ctx.fillStyle = `rgba(${node.r},${node.g},${node.b},${Math.min(1, alpha * 0.7).toFixed(3)})`;
         ctx.fill();
       }

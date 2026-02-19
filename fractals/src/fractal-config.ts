@@ -6,6 +6,7 @@
  */
 
 import { loadFractalAnchors, saveFractalAnchors, type FractalAnchors, type FractalAnchor } from './state.ts';
+import { TWO_PI } from './effects/effect-utils.ts';
 
 // --- User Presets ---
 
@@ -1124,8 +1125,8 @@ export class FractalConfigPanel {
       if (radiusSlider) radiusSlider.value = String(Math.round(anchor.orbitRadius * 250));
       if (skewSlider) skewSlider.value = String(Math.round(anchor.orbitSkew * 100));
       // Normalize rotation to 0-2π range for the slider
-      let normalizedRot = anchor.orbitRotation % (Math.PI * 2);
-      if (normalizedRot < 0) normalizedRot += Math.PI * 2;
+      let normalizedRot = anchor.orbitRotation % (TWO_PI);
+      if (normalizedRot < 0) normalizedRot += TWO_PI;
       if (rotSlider) rotSlider.value = String(Math.round(normalizedRot * 100));
       if (spreadSlider) spreadSlider.value = String(Math.round(anchor.beatSpread * 100));
     }
@@ -3048,7 +3049,7 @@ export class FractalConfigPanel {
               this.locusCtx.stroke();
 
               this.locusCtx.beginPath();
-              this.locusCtx.arc(op.x, op.y, isSelected ? 5 : 3, 0, Math.PI * 2);
+              this.locusCtx.arc(op.x, op.y, isSelected ? 5 : 3, 0, TWO_PI);
               this.locusCtx.fillStyle = ORBIT_COLORS[oi];
               this.locusCtx.fill();
 
@@ -3067,7 +3068,7 @@ export class FractalConfigPanel {
 
           // Center dot
           this.locusCtx.beginPath();
-          this.locusCtx.arc(p.x, p.y, isSelected ? 7 : (isSelectedDeg ? 5 : 4), 0, Math.PI * 2);
+          this.locusCtx.arc(p.x, p.y, isSelected ? 7 : (isSelectedDeg ? 5 : 4), 0, TWO_PI);
           this.locusCtx.fillStyle = col;
           this.locusCtx.fill();
           if (isSelected) {

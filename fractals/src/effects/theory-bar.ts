@@ -3,7 +3,7 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode, UpcomingChord } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
-import { samplePaletteEqualized, getNoteName } from './effect-utils.ts';
+import { samplePaletteEqualized, getNoteName, TWO_PI } from './effect-utils.ts';
 
 const QUALITY_LABELS: Record<string, string> = {
   major: '', minor: 'm', dim: 'dim', aug: 'aug',
@@ -200,10 +200,16 @@ export class TheoryBarEffect implements VisualEffect {
     this.currentTension = music.tension ?? 0;
 
     // Use precomputed tension color from music-mapper (avoids duplicate calculation)
-    this.tensionColor = [...music.tensionColor] as [number, number, number];
+    // Direct element copy instead of spread to avoid allocation
+    this.tensionColor[0] = music.tensionColor[0];
+    this.tensionColor[1] = music.tensionColor[1];
+    this.tensionColor[2] = music.tensionColor[2];
 
     // Store tension color in history for groove wave rainbow
-    this.colorHistory[this.grooveWriteIndex] = [...this.tensionColor];
+    // Direct element copy instead of spread to avoid allocation
+    this.colorHistory[this.grooveWriteIndex][0] = this.tensionColor[0];
+    this.colorHistory[this.grooveWriteIndex][1] = this.tensionColor[1];
+    this.colorHistory[this.grooveWriteIndex][2] = this.tensionColor[2];
     this.grooveWriteIndex = (this.grooveWriteIndex + 1) % GROOVE_HISTORY_LENGTH;
 
     // Detect bar change and trigger slide animation (every bar, not just chord changes)
@@ -745,20 +751,20 @@ export class TheoryBarEffect implements VisualEffect {
         // Outer glow - tied to arrival, stronger with tension
         if (this.beatArrival > 0.05) {
           ctx.beginPath();
-          ctx.arc(dotX, centerY, r2 + maxGlow * tensionBoost, 0, Math.PI * 2);
+          ctx.arc(dotX, centerY, r2 + maxGlow * tensionBoost, 0, TWO_PI);
           ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.25 * this.beatArrival * tensionBoost})`;
           ctx.fill();
         }
 
         // Middle glow - tied to groove
         ctx.beginPath();
-        ctx.arc(dotX, centerY, r2 + maxGlow * 0.5, 0, Math.PI * 2);
+        ctx.arc(dotX, centerY, r2 + maxGlow * 0.5, 0, TWO_PI);
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${(0.2 + this.beatGroove * 0.15) * tensionBoost})`;
         ctx.fill();
 
         // Core - brightness follows groove * tension
         ctx.beginPath();
-        ctx.arc(dotX, centerY, r2, 0, Math.PI * 2);
+        ctx.arc(dotX, centerY, r2, 0, TWO_PI);
         const coreAlpha = Math.min(1, (0.7 + this.beatGroove * 0.3) * tensionBoost);
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${coreAlpha})`;
         ctx.fill();
@@ -772,14 +778,14 @@ export class TheoryBarEffect implements VisualEffect {
         // Anticipation glow - stronger with tension
         if (anticipation > 0.25) {
           ctx.beginPath();
-          ctx.arc(dotX, centerY, r2 + maxGlow * 0.4 * tensionBoost, 0, Math.PI * 2);
+          ctx.arc(dotX, centerY, r2 + maxGlow * 0.4 * tensionBoost, 0, TWO_PI);
           ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${(anticipation - 0.25) * 0.2 * tensionBoost})`;
           ctx.fill();
         }
 
         // Core with anticipation * tension
         ctx.beginPath();
-        ctx.arc(dotX, centerY, r2, 0, Math.PI * 2);
+        ctx.arc(dotX, centerY, r2, 0, TWO_PI);
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${(0.2 + anticipation * 0.12) * tensionBoost})`;
         ctx.fill();
 
@@ -789,7 +795,7 @@ export class TheoryBarEffect implements VisualEffect {
         const r2 = dotRadius * breathe;
 
         ctx.beginPath();
-        ctx.arc(dotX, centerY, r2, 0, Math.PI * 2);
+        ctx.arc(dotX, centerY, r2, 0, TWO_PI);
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.2)`;
         ctx.fill();
       }

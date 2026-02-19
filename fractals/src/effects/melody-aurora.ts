@@ -5,7 +5,7 @@
 // Creates layered, flowing curtains of light.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { samplePaletteColor } from './effect-utils.ts';
+import { samplePaletteColor, TWO_PI } from './effect-utils.ts';
 
 interface Ribbon {
   y: number;
@@ -82,7 +82,7 @@ export class MelodyAuroraEffect implements VisualEffect {
           freq: 1.5 + (semitones % 7) * 0.4,
           amplitude: 0.02 + music.melodyVelocity * 0.04,
           speed: 0.3 + Math.random() * 0.4,
-          phase: this.time * 2 + Math.random() * Math.PI * 2,
+          phase: this.time * 2 + Math.random() * TWO_PI,
           r: c[0],
           g: c[1],
           b: c[2],
@@ -183,7 +183,7 @@ export class MelodyAuroraEffect implements VisualEffect {
       ctx.beginPath();
       for (let i = 0; i <= steps; i++) {
         const x = i * stepW;
-        const t = (i / steps) * Math.PI * 2 * ribbon.freq + ribbon.phase;
+        const t = (i / steps) * TWO_PI * ribbon.freq + ribbon.phase;
         // Layered sine waves for organic shape
         const wave = Math.sin(t) * 0.6
                    + Math.sin(t * 1.7 + 1.3) * 0.25

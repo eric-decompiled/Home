@@ -4,7 +4,7 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import {
-  samplePaletteColor, SPIRAL_RADIUS_SCALE, spiralPos, getNoteName
+  samplePaletteColor, SPIRAL_RADIUS_SCALE, spiralPos, getNoteName, TWO_PI
 } from './effect-utils.ts';
 
 export class MelodyNotesEffect implements VisualEffect {
@@ -87,7 +87,7 @@ export class MelodyNotesEffect implements VisualEffect {
     // Draw outer ring
     const ringColor = this.lastPitchClass >= 0 ? samplePaletteColor(this.lastPitchClass, 0.6) : [100, 100, 150];
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, TWO_PI);
     ctx.strokeStyle = `rgba(${ringColor[0]},${ringColor[1]},${ringColor[2]},0.06)`;
     ctx.lineWidth = 1.5;
     ctx.stroke();

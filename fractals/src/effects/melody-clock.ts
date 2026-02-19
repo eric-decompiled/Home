@@ -5,7 +5,7 @@
 // note name markers, compass physics for responsive motion.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { samplePaletteColor, SPIRAL_RADIUS_SCALE, spiralPos, getNoteName } from './effect-utils.ts';
+import { samplePaletteColor, SPIRAL_RADIUS_SCALE, spiralPos, getNoteName, TWO_PI } from './effect-utils.ts';
 import { gsap } from '../animation.ts';
 
 interface ArcSegment {
@@ -128,23 +128,23 @@ export class MelodyClockEffect implements VisualEffect {
       // Calculate target angle (include keyRotation so hand aligns with rotated markers)
       const fromRoot = ((pc - this.key + 12) % 12);
       const twist = (fromRoot / 12) * 0.15;
-      const newAngle = (pc / 12) * Math.PI * 2 - Math.PI / 2 + twist + this.keyRotation;
+      const newAngle = (pc / 12) * TWO_PI - Math.PI / 2 + twist + this.keyRotation;
 
       // Direction based on MIDI pitch
       let diff = newAngle - this.handAngle;
-      while (diff > Math.PI * 2) diff -= Math.PI * 2;
-      while (diff < -Math.PI * 2) diff += Math.PI * 2;
+      while (diff > TWO_PI) diff -= TWO_PI;
+      while (diff < -TWO_PI) diff += TWO_PI;
 
       if (this.lastMidiNote >= 0 && midiNote >= 0) {
         const ascending = midiNote >= this.lastMidiNote;
         if (ascending) {
-          if (diff < 0) diff += Math.PI * 2;
+          if (diff < 0) diff += TWO_PI;
         } else {
-          if (diff > 0) diff -= Math.PI * 2;
+          if (diff > 0) diff -= TWO_PI;
         }
       } else {
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= TWO_PI;
+        while (diff < -Math.PI) diff += TWO_PI;
       }
 
       this.targetAngle = this.handAngle + diff;
@@ -193,8 +193,8 @@ export class MelodyClockEffect implements VisualEffect {
 
     // === COMPASS PHYSICS ===
     let angleDiff = this.targetAngle - this.handAngle;
-    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+    while (angleDiff > Math.PI) angleDiff -= TWO_PI;
+    while (angleDiff < -Math.PI) angleDiff += TWO_PI;
 
     // Groove modulation: stronger pull on beats, drifts between
     const grooveMod = 0.4 + this.anticipation * 2.0 + this.energy * 0.8;
@@ -209,9 +209,9 @@ export class MelodyClockEffect implements VisualEffect {
     // Calculate bearing color based on current hand angle
     // Reverse the angle formula: pc = ((angle - keyRotation + PI/2) / (2*PI)) * 12
     let bearingAngle = this.handAngle - this.keyRotation + Math.PI / 2;
-    while (bearingAngle < 0) bearingAngle += Math.PI * 2;
-    while (bearingAngle >= Math.PI * 2) bearingAngle -= Math.PI * 2;
-    const bearingPC = Math.floor((bearingAngle / (Math.PI * 2)) * 12) % 12;
+    while (bearingAngle < 0) bearingAngle += TWO_PI;
+    while (bearingAngle >= TWO_PI) bearingAngle -= TWO_PI;
+    const bearingPC = Math.floor((bearingAngle / (TWO_PI)) * 12) % 12;
     const bearingCol = samplePaletteColor(bearingPC, 0.6);
     // Smooth color transition
     const colorSmooth = 1 - Math.exp(-8 * dt);
@@ -286,14 +286,14 @@ export class MelodyClockEffect implements VisualEffect {
 
     // --- Ornate outer ring with decorative double line ---
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, TWO_PI);
     ctx.strokeStyle = `rgba(${R},${G},${B},0.08)`;
     ctx.lineWidth = 1.5 * this.resScale;
     ctx.stroke();
 
     // Inner decorative ring
     ctx.beginPath();
-    ctx.arc(cx, cy, r * 0.92, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r * 0.92, 0, TWO_PI);
     ctx.strokeStyle = `rgba(${R},${G},${B},0.04)`;
     ctx.lineWidth = 0.5 * this.resScale;
     ctx.stroke();
@@ -301,7 +301,7 @@ export class MelodyClockEffect implements VisualEffect {
     // --- Decorative tick marks between notes ---
     for (let i = 0; i < 60; i++) {
       if (i % 5 === 0) continue; // Skip positions where note labels go
-      const tickAngle = (i / 60) * Math.PI * 2 - Math.PI / 2 + this.keyRotation;
+      const tickAngle = (i / 60) * TWO_PI - Math.PI / 2 + this.keyRotation;
       const innerR = r * 0.94;
       const outerR = r * 0.97;
       const tx1 = cx + Math.cos(tickAngle) * innerR;
@@ -320,7 +320,7 @@ export class MelodyClockEffect implements VisualEffect {
     // --- Filigree flourishes at cardinal points ---
     const flourishAlpha = 0.06 + this.energy * 0.04;
     for (let i = 0; i < 4; i++) {
-      const flourishAngle = (i / 4) * Math.PI * 2 + this.keyRotation;
+      const flourishAngle = (i / 4) * TWO_PI + this.keyRotation;
       const fx = cx + Math.cos(flourishAngle) * r * 0.75;
       const fy = cy + Math.sin(flourishAngle) * r * 0.75;
 
@@ -338,7 +338,7 @@ export class MelodyClockEffect implements VisualEffect {
 
       // Small dot at center of flourish
       ctx.beginPath();
-      ctx.arc(0, -3 * this.resScale, 1.5 * this.resScale, 0, Math.PI * 2);
+      ctx.arc(0, -3 * this.resScale, 1.5 * this.resScale, 0, TWO_PI);
       ctx.fillStyle = `rgba(${R},${G},${B},${(flourishAlpha * 0.8).toFixed(3)})`;
       ctx.fill();
 
@@ -375,8 +375,8 @@ export class MelodyClockEffect implements VisualEffect {
 
           let startA = seg.angle;
           let arcDiff = next.angle - seg.angle;
-          while (arcDiff > Math.PI) arcDiff -= Math.PI * 2;
-          while (arcDiff < -Math.PI) arcDiff += Math.PI * 2;
+          while (arcDiff > Math.PI) arcDiff -= TWO_PI;
+          while (arcDiff < -Math.PI) arcDiff += TWO_PI;
 
           const segR = Math.round(seg.r * 0.7 + next.r * 0.3);
           const segG = Math.round(seg.g * 0.7 + next.g * 0.3);
@@ -457,7 +457,7 @@ export class MelodyClockEffect implements VisualEffect {
       } else {
         // Draw small dot instead of note name
         ctx.beginPath();
-        ctx.arc(tx, ty, (isCurrent ? 3 : 2) * this.resScale, 0, Math.PI * 2);
+        ctx.arc(tx, ty, (isCurrent ? 3 : 2) * this.resScale, 0, TWO_PI);
         ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
         ctx.fill();
       }
@@ -555,29 +555,29 @@ export class MelodyClockEffect implements VisualEffect {
 
     // Dot 1 with ring
     ctx.beginPath();
-    ctx.arc(cc1.x, cc1.y, 3 * sc, 0, Math.PI * 2);
+    ctx.arc(cc1.x, cc1.y, 3 * sc, 0, TWO_PI);
     ctx.strokeStyle = `rgba(${R},${G},${B},${ringAlpha.toFixed(3)})`;
     ctx.lineWidth = 0.5 * sc;
     ctx.stroke();
     ctx.fillStyle = `rgba(${bR},${bG},${bB},${bassDotAlpha.toFixed(3)})`;
     ctx.beginPath();
-    ctx.arc(cc1.x, cc1.y, 1.8 * sc, 0, Math.PI * 2);
+    ctx.arc(cc1.x, cc1.y, 1.8 * sc, 0, TWO_PI);
     ctx.fill();
 
     // Dot 2 with ring
     ctx.beginPath();
-    ctx.arc(cc2.x, cc2.y, 2.5 * sc, 0, Math.PI * 2);
+    ctx.arc(cc2.x, cc2.y, 2.5 * sc, 0, TWO_PI);
     ctx.strokeStyle = `rgba(${R},${G},${B},${ringAlpha.toFixed(3)})`;
     ctx.stroke();
     ctx.fillStyle = `rgba(${bR},${bG},${bB},${bassDotAlpha.toFixed(3)})`;
     ctx.beginPath();
-    ctx.arc(cc2.x, cc2.y, 1.4 * sc, 0, Math.PI * 2);
+    ctx.arc(cc2.x, cc2.y, 1.4 * sc, 0, TWO_PI);
     ctx.fill();
 
     // Dot 3 (smaller, no ring)
     ctx.fillStyle = `rgba(${bR},${bG},${bB},${bassDotAlpha.toFixed(3)})`;
     ctx.beginPath();
-    ctx.arc(cc3.x, cc3.y, 1.0 * sc, 0, Math.PI * 2);
+    ctx.arc(cc3.x, cc3.y, 1.0 * sc, 0, TWO_PI);
     ctx.fill();
 
     // Small decorative diamonds between dots
@@ -640,14 +640,14 @@ export class MelodyClockEffect implements VisualEffect {
 
     // Outer decorative ring with scalloped effect
     ctx.beginPath();
-    ctx.arc(cx, cy, hubSz * 2.2, 0, Math.PI * 2);
+    ctx.arc(cx, cy, hubSz * 2.2, 0, TWO_PI);
     ctx.strokeStyle = `rgba(${R},${G},${B},${(0.04 + this.energy * 0.06).toFixed(3)})`;
     ctx.lineWidth = 0.5 * this.resScale;
     ctx.stroke();
 
     // Middle ring
     ctx.beginPath();
-    ctx.arc(cx, cy, hubSz * 1.5, 0, Math.PI * 2);
+    ctx.arc(cx, cy, hubSz * 1.5, 0, TWO_PI);
     ctx.strokeStyle = `rgba(${R},${G},${B},${(0.06 + this.energy * 0.08).toFixed(3)})`;
     ctx.lineWidth = 0.8 * this.resScale;
     ctx.stroke();
@@ -655,20 +655,20 @@ export class MelodyClockEffect implements VisualEffect {
     // Small ornamental dots around hub (use bass color, rotate with hand)
     const bassJewelAlpha = 0.12 + this.bassBrightness * 0.4 + this.energy * 0.12;
     for (let i = 0; i < 8; i++) {
-      const dotAngle = (i / 8) * Math.PI * 2 + this.handAngle;
+      const dotAngle = (i / 8) * TWO_PI + this.handAngle;
       const dotR = hubSz * 1.8;
       const dx = cx + Math.cos(dotAngle) * dotR;
       const dy = cy + Math.sin(dotAngle) * dotR;
       const dotSize = (1 + this.bassBrightness * 0.8) * this.resScale;
       ctx.beginPath();
-      ctx.arc(dx, dy, dotSize, 0, Math.PI * 2);
+      ctx.arc(dx, dy, dotSize, 0, TWO_PI);
       ctx.fillStyle = `rgba(${Math.round(this.bassR)},${Math.round(this.bassG)},${Math.round(this.bassB)},${bassJewelAlpha.toFixed(3)})`;
       ctx.fill();
     }
 
     // Inner ring
     ctx.beginPath();
-    ctx.arc(cx, cy, hubSz * 1.2, 0, Math.PI * 2);
+    ctx.arc(cx, cy, hubSz * 1.2, 0, TWO_PI);
     ctx.strokeStyle = `rgba(${R},${G},${B},${(0.08 + this.energy * 0.12).toFixed(3)})`;
     ctx.lineWidth = 1 * this.resScale;
     ctx.stroke();
@@ -683,13 +683,13 @@ export class MelodyClockEffect implements VisualEffect {
 
     // Bright center jewel
     ctx.beginPath();
-    ctx.arc(cx, cy, 2.5 + this.energy * 2, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 2.5 + this.energy * 2, 0, TWO_PI);
     ctx.fillStyle = `rgba(255,255,255,${(0.25 + this.energy * 0.35).toFixed(3)})`;
     ctx.fill();
 
     // Tiny highlight
     ctx.beginPath();
-    ctx.arc(cx - 0.8 * this.resScale, cy - 0.8 * this.resScale, 1 * this.resScale, 0, Math.PI * 2);
+    ctx.arc(cx - 0.8 * this.resScale, cy - 0.8 * this.resScale, 1 * this.resScale, 0, TWO_PI);
     ctx.fillStyle = `rgba(255,255,255,${(0.4 + this.energy * 0.3).toFixed(3)})`;
     ctx.fill();
 

@@ -2466,8 +2466,11 @@ function resetForSeek(seekTime: number) {
     timeline.timeSignatureEvents
   );
   musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
-  musicMapper.setSongDuration(timeline.duration, timeline.chords);
+  musicMapper.setSongDuration(timeline.duration, timeline.chords, timeline.notes);
   compositor.resetAll();
+  // Reset chord display cache
+  lastChordDisplayIdx = -1;
+  lastChordDisplayText = '';
   dirty = true;
 }
 
@@ -2542,7 +2545,7 @@ async function loadSong(index: number, autoPlay = false): Promise<boolean> {
     timeline.timeSignatureEvents
   );
   musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
-  musicMapper.setSongDuration(timeline.duration, timeline.chords);
+  musicMapper.setSongDuration(timeline.duration, timeline.chords, timeline.notes);
   audioPlayer.loadMidi(midiBuffer);  // Creates fresh sequencer
   needsInitialRender = true;
 
@@ -2710,7 +2713,7 @@ async function loadMidiFile(file: File) {
       timeline.timeSignatureEvents
     );
     musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
-    musicMapper.setSongDuration(timeline.duration, timeline.chords);
+    musicMapper.setSongDuration(timeline.duration, timeline.chords, timeline.notes);
     audioPlayer.loadMidi(midiBuffer);
     needsInitialRender = true;
 
@@ -2891,50 +2894,75 @@ const qualityLabels: Record<string, string> = {
   unknown: '?',
 };
 
+// Binary search for chord lookup: find last chord with time <= target
+function binarySearchChord(chords: { time: number }[], target: number): number {
+  let lo = 0, hi = chords.length - 1, result = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >>> 1;
+    if (chords[mid].time <= target) {
+      result = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return result;
+}
+
+let lastChordDisplayIdx = -1;
+let lastChordDisplayText = '';
+
 function updateChordDisplay(currentTime: number) {
   if (!timeline) return;
 
-  let currentChord = null;
-  for (let i = timeline.chords.length - 1; i >= 0; i--) {
-    if (timeline.chords[i].time <= currentTime) {
-      currentChord = timeline.chords[i];
-      break;
-    }
+  // Binary search for current chord
+  const chordIdx = binarySearchChord(timeline.chords, currentTime);
+
+  // Only update DOM if chord changed
+  if (chordIdx === lastChordDisplayIdx) return;
+  lastChordDisplayIdx = chordIdx;
+
+  if (chordIdx < 0) return;
+  const currentChord = timeline.chords[chordIdx];
+
+  const root = noteNames[currentChord.root];
+  const chordName = `${root}${qualityLabels[currentChord.quality] ?? ''}`;
+  const degree = currentChord.degree;
+
+  // Build Roman numeral with quality indicators
+  let display = chordName;
+  if (degree > 0) {
+    const isMinorQuality = ['minor', 'min7', 'dim', 'hdim7', 'dim7'].includes(currentChord.quality);
+    let numeral = isMinorQuality ? romanNumerals[degree].toLowerCase() : romanNumerals[degree];
+
+    // Add quality suffix to numeral
+    if (currentChord.quality === 'dim') numeral += '°';
+    else if (currentChord.quality === 'hdim7') numeral += 'ø7';
+    else if (currentChord.quality === 'dim7') numeral += '°7';
+    else if (currentChord.quality === 'dom7') numeral += '7';
+    else if (currentChord.quality === 'min7') numeral += '7';
+    else if (currentChord.quality === 'maj7') numeral += 'maj7';
+
+    display = `${chordName}  ${numeral}`;
   }
 
-  if (currentChord) {
-    const root = noteNames[currentChord.root];
-    const chordName = `${root}${qualityLabels[currentChord.quality] ?? ''}`;
-    const degree = currentChord.degree;
+  // Add tension bar (visual indicator)
+  const tensionBar = getTensionBar(currentChord.tension);
+  const newText = `${display} ${tensionBar}`;
 
-    // Build Roman numeral with quality indicators
-    let display = chordName;
-    if (degree > 0) {
-      const isMinorQuality = ['minor', 'min7', 'dim', 'hdim7', 'dim7'].includes(currentChord.quality);
-      let numeral = isMinorQuality ? romanNumerals[degree].toLowerCase() : romanNumerals[degree];
-
-      // Add quality suffix to numeral
-      if (currentChord.quality === 'dim') numeral += '°';
-      else if (currentChord.quality === 'hdim7') numeral += 'ø7';
-      else if (currentChord.quality === 'dim7') numeral += '°7';
-      else if (currentChord.quality === 'dom7') numeral += '7';
-      else if (currentChord.quality === 'min7') numeral += '7';
-      else if (currentChord.quality === 'maj7') numeral += 'maj7';
-
-      display = `${chordName}  ${numeral}`;
-    }
-
-    // Add tension bar (visual indicator)
-    const tensionBar = getTensionBar(currentChord.tension);
-
-    chordDisplay.textContent = `${display} ${tensionBar}`;
+  // Only update DOM if text actually changed (handles tension bar updates)
+  if (newText !== lastChordDisplayText) {
+    lastChordDisplayText = newText;
+    chordDisplay.textContent = newText;
   }
 }
 
+// Pre-computed tension bar strings (avoids per-frame string allocation)
+const TENSION_BARS = ['▫▫▫▫▫', '▪▫▫▫▫', '▪▪▫▫▫', '▪▪▪▫▫', '▪▪▪▪▫', '▪▪▪▪▪'];
+
 // Visual tension indicator using block characters
 function getTensionBar(tension: number): string {
-  const filled = Math.round(tension * 5);
-  return '▪'.repeat(filled) + '▫'.repeat(5 - filled);
+  return TENSION_BARS[Math.round(tension * 5)];
 }
 
 // --- Worker frame callback ---

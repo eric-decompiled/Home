@@ -8,6 +8,8 @@
  * Provides unified interface for MIDI-based or audio-based beat tracking.
  */
 
+import { TWO_PI } from './effects/effect-utils.ts';
+
 // --- Types ---
 
 export interface TempoEvent {
@@ -190,8 +192,8 @@ export function createMidiBeatSync(
       // Groove curve: smooth sine that peaks AT the beat (phase = 0)
       // cos(phase * 2π) peaks at 0, troughs at 0.5, normalize to 0-1
       // This creates motion that "lands" on the beat
-      const beatGroove = (Math.cos(beatPhase * Math.PI * 2) + 1) * 0.5;
-      const barGroove = (Math.cos(barPhase * Math.PI * 2) + 1) * 0.5;
+      const beatGroove = (Math.cos(beatPhase * TWO_PI) + 1) * 0.5;
+      const barGroove = (Math.cos(barPhase * TWO_PI) + 1) * 0.5;
 
       return {
         beatPhase,

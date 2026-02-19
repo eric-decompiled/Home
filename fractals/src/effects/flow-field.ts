@@ -3,6 +3,7 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
+import { rgba, TWO_PI } from './effect-utils.ts';
 
 // Simple 2D noise (permutation-based, good enough for flow fields)
 const PERM = new Uint8Array(512);
@@ -139,7 +140,7 @@ export class FlowFieldEffect implements VisualEffect {
     const x = Math.random() * this.width;
     const y = Math.random() * this.height;
     // Random initial velocity
-    const angle = Math.random() * Math.PI * 2;
+    const angle = Math.random() * TWO_PI;
     const speed = Math.random() * 0.5;
     return {
       x, y, px: x, py: y,
@@ -228,7 +229,7 @@ export class FlowFieldEffect implements VisualEffect {
 
       // Multi-octave noise for turbulence
       // Chord offsets shift which region of noise space we sample
-      let angle = noise2d(nx + this.noiseOffset, ny) * Math.PI * 2;
+      let angle = noise2d(nx + this.noiseOffset, ny) * TWO_PI;
       if (this.turbulence > 1) {
         angle += noise2d(nx * 2, ny * 2 + this.noiseOffset) * Math.PI * this.turbulence * 0.5;
       }
@@ -296,7 +297,7 @@ export class FlowFieldEffect implements VisualEffect {
     const g = this.useWhite ? 255 : this.colorG;
     const b = this.useWhite ? 255 : this.colorB;
 
-    ctx.strokeStyle = `rgba(${r},${g},${b},0.35)`;
+    ctx.strokeStyle = rgba(r, g, b, 0.35);
     ctx.lineWidth = this.lineWidth;
     ctx.beginPath();
     for (const p of this.particles) {

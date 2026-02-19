@@ -5,6 +5,7 @@
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode, UpcomingNote } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
 import { setNoteLookahead } from '../music-mapper.ts';
+import { rgba, TWO_PI } from './effect-utils.ts';
 
 // Piano range: A0 (21) to C8 (108)
 const MIDI_LO = 21;
@@ -226,8 +227,8 @@ export class PianoRollEffect implements VisualEffect {
           const pulse = 0.85 + grooveMod * 0.15;
           const alpha = (0.75 + brightness * 0.25) * pulse;
           const keyGradient = ctx.createLinearGradient(0, keyY, 0, keyY + kbHeight);
-          keyGradient.addColorStop(0, `rgba(${topColor[0]}, ${topColor[1]}, ${topColor[2]}, ${alpha})`);
-          keyGradient.addColorStop(1, `rgba(${bottomColor[0]}, ${bottomColor[1]}, ${bottomColor[2]}, ${alpha})`);
+          keyGradient.addColorStop(0, rgba(topColor[0], topColor[1], topColor[2], alpha));
+          keyGradient.addColorStop(1, rgba(bottomColor[0], bottomColor[1], bottomColor[2], alpha));
           ctx.fillStyle = keyGradient;
         } else {
           // Unlit white key gradient
@@ -246,7 +247,7 @@ export class PianoRollEffect implements VisualEffect {
         // Glow effect (no shadow blur)
         if (brightness > 0.5) {
           const [gr, gg, gb] = this.getNoteColorRGB(midi);
-          ctx.fillStyle = `rgba(${gr}, ${gg}, ${gb}, ${0.3 * brightness})`;
+          ctx.fillStyle = rgba(gr, gg, gb, 0.3 * brightness);
           ctx.fillRect(x + 2, keyY + 2, whiteKeyWidth - 5, kbHeight - 4);
         }
 
@@ -278,8 +279,8 @@ export class PianoRollEffect implements VisualEffect {
           const pulse = 0.85 + grooveMod * 0.15;
           const alpha = (0.75 + brightness * 0.25) * pulse;
           const keyGradient = ctx.createLinearGradient(0, keyY, 0, keyY + blackKeyHeight);
-          keyGradient.addColorStop(0, `rgba(${topColor[0]}, ${topColor[1]}, ${topColor[2]}, ${alpha})`);
-          keyGradient.addColorStop(1, `rgba(${bottomColor[0]}, ${bottomColor[1]}, ${bottomColor[2]}, ${alpha})`);
+          keyGradient.addColorStop(0, rgba(topColor[0], topColor[1], topColor[2], alpha));
+          keyGradient.addColorStop(1, rgba(bottomColor[0], bottomColor[1], bottomColor[2], alpha));
           ctx.fillStyle = keyGradient;
         } else {
           // Unlit black key gradient
@@ -293,7 +294,7 @@ export class PianoRollEffect implements VisualEffect {
         // Glow effect (no shadow blur)
         if (brightness > 0.5) {
           const [gr, gg, gb] = this.getNoteColorRGB(midi);
-          ctx.fillStyle = `rgba(${gr}, ${gg}, ${gb}, ${0.3 * brightness})`;
+          ctx.fillStyle = rgba(gr, gg, gb, 0.3 * brightness);
           ctx.fillRect(x + 2, keyY + 2, blackKeyWidth - 4, blackKeyHeight - 4);
         }
       }
@@ -379,11 +380,11 @@ export class PianoRollEffect implements VisualEffect {
       if (proximity > 0.5 && fadeMultiplier > 0.1) {
         const glowIntensity = (proximity - 0.5) / 0.5;
         // Fake glow with expanding translucent rectangles
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.08 * glowMod * glowIntensity})`;
+        ctx.fillStyle = rgba(r, g, b, 0.08 * glowMod * glowIntensity);
         ctx.beginPath();
         ctx.roundRect(x - 3, drawTop - 3, noteWidth + 6, drawHeight + 6, radius + 3);
         ctx.fill();
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.12 * glowMod * glowIntensity})`;
+        ctx.fillStyle = rgba(r, g, b, 0.12 * glowMod * glowIntensity);
         ctx.beginPath();
         ctx.roundRect(x - 1, drawTop - 1, noteWidth + 2, drawHeight + 2, radius + 1);
         ctx.fill();
@@ -393,9 +394,9 @@ export class PianoRollEffect implements VisualEffect {
       // Vertical: brighter at bottom (approaching keyboard), modulated by groove
       const bodyMod = 0.92 + grooveMod * 0.12;
       const vertGradient = ctx.createLinearGradient(0, drawTop, 0, drawBottom);
-      vertGradient.addColorStop(0, `rgba(${r * 0.3}, ${g * 0.3}, ${b * 0.3}, ${intensity * 0.5 * bodyMod})`);
-      vertGradient.addColorStop(0.7, `rgba(${r * 0.6}, ${g * 0.6}, ${b * 0.6}, ${intensity * 0.7})`);
-      vertGradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, ${intensity})`);
+      vertGradient.addColorStop(0, rgba(r * 0.3, g * 0.3, b * 0.3, intensity * 0.5 * bodyMod));
+      vertGradient.addColorStop(0.7, rgba(r * 0.6, g * 0.6, b * 0.6, intensity * 0.7));
+      vertGradient.addColorStop(1, rgba(r, g, b, intensity));
 
       ctx.fillStyle = vertGradient;
       ctx.beginPath();
@@ -428,7 +429,7 @@ export class PianoRollEffect implements VisualEffect {
 
       // === LAYER 6: Crisp neon border (modulated) ===
       const borderAlpha = 0.65 + grooveMod * 0.2;
-      ctx.strokeStyle = `rgba(${Math.min(255, r + 60)}, ${Math.min(255, g + 60)}, ${Math.min(255, b + 60)}, ${borderAlpha})`;
+      ctx.strokeStyle = rgba(Math.min(255, r + 60), Math.min(255, g + 60), Math.min(255, b + 60), borderAlpha);
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.roundRect(x, drawTop, noteWidth, drawHeight, radius);
@@ -438,11 +439,11 @@ export class PianoRollEffect implements VisualEffect {
       if (timeUntil <= 0 && timeUntil > -0.1) {
         const flashIntensity = 1 + timeUntil / 0.1; // 1 at hit, fades to 0
         // Layered glow instead of shadow
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.2 * flashIntensity})`;
+        ctx.fillStyle = rgba(r, g, b, 0.2 * flashIntensity);
         ctx.beginPath();
         ctx.roundRect(x - 4, drawTop - 4, noteWidth + 8, drawHeight + 8, radius + 4);
         ctx.fill();
-        ctx.fillStyle = `rgba(255, 255, 255, ${0.3 * flashIntensity})`;
+        ctx.fillStyle = rgba(255, 255, 255, 0.3 * flashIntensity);
         ctx.beginPath();
         ctx.roundRect(x, drawTop, noteWidth, drawHeight, radius);
         ctx.fill();
@@ -520,15 +521,15 @@ export class PianoRollEffect implements VisualEffect {
       const [r, g, b] = p.color;
 
       // Simple filled circle (no shadow blur, no gradient)
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      ctx.fillStyle = rgba(r, g, b, alpha);
       ctx.beginPath();
-      ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, size, 0, TWO_PI);
       ctx.fill();
 
       // White core
-      ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.6})`;
+      ctx.fillStyle = rgba(255, 255, 255, alpha * 0.6);
       ctx.beginPath();
-      ctx.arc(p.x, p.y, size * 0.4, 0, Math.PI * 2);
+      ctx.arc(p.x, p.y, size * 0.4, 0, TWO_PI);
       ctx.fill();
     }
   }

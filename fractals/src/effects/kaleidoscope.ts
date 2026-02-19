@@ -3,6 +3,7 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { gsap } from '../animation.ts';
+import { TWO_PI } from './effect-utils.ts';
 
 export class KaleidoscopeEffect implements VisualEffect {
   readonly id = 'kaleidoscope';
@@ -145,7 +146,7 @@ export class KaleidoscopeEffect implements VisualEffect {
 
     if (!this.sourceCanvas) return this.canvas;
 
-    const sliceAngle = (Math.PI * 2) / this.foldCount;
+    const sliceAngle = (TWO_PI) / this.foldCount;
 
     // Tighter radius: just enough to cover canvas diagonal + offset + zoom margin
     const diagonal = Math.sqrt(w * w + h * h);

@@ -2,7 +2,7 @@
 // Realistic starfield with nebulae, star clusters, depth parallax, and palette-informed colors.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { samplePaletteColor } from './effect-utils.ts';
+import { samplePaletteColor, rgba, TWO_PI, fastSin } from './effect-utils.ts';
 
 interface Star {
   x: number;
@@ -81,8 +81,11 @@ export class StarFieldEffect implements VisualEffect {
   private nebulaCtx: CanvasRenderingContext2D;
   private nebulaDirty = true;
 
+  // Pre-computed palette samples for fast star coloring (64 entries)
+  private paletteCache: [number, number, number][] = new Array(64);
+
   // Config - tuned for better defaults
-  private density = 5.0;
+  private density = 3.5;  // 500 * 3.5 = ~1750 stars (was 2500)
   private twinkleAmount = 0.3;
   private shimmerSpeed = 1.5;
   private nebulaOpacity = 0.55;
@@ -155,7 +158,7 @@ export class StarFieldEffect implements VisualEffect {
 
       for (let b = 0; b < blobCount; b++) {
         // Blobs spread out from center with varying sizes
-        const angle = (b / blobCount) * Math.PI * 2 + Math.random() * 0.8;
+        const angle = (b / blobCount) * TWO_PI + Math.random() * 0.8;
         const dist = baseRadius * (0.15 + Math.random() * 0.5);
 
         blobs.push({
@@ -164,7 +167,7 @@ export class StarFieldEffect implements VisualEffect {
           radius: baseRadius * (0.35 + Math.random() * 0.6),
           colorShift: (Math.random() - 0.5) * 0.15,
           opacity: 0.06 + Math.random() * 0.1,
-          rotation: Math.random() * Math.PI * 2,
+          rotation: Math.random() * TWO_PI,
           aspectRatio: 0.35 + Math.random() * 0.6,
         });
       }
@@ -172,7 +175,7 @@ export class StarFieldEffect implements VisualEffect {
       // Add 1-2 elongated "wisps" extending outward
       const wispCount = 1 + Math.floor(Math.random() * 2);
       for (let w = 0; w < wispCount; w++) {
-        const angle = Math.random() * Math.PI * 2;
+        const angle = Math.random() * TWO_PI;
         const dist = baseRadius * (0.6 + Math.random() * 0.6);
 
         blobs.push({
@@ -222,7 +225,7 @@ export class StarFieldEffect implements VisualEffect {
         const u = Math.random();
         const distFrac = Math.pow(u, 0.85); // Very mild center concentration
         const dist = cluster.radius * distFrac;
-        const angle = Math.random() * Math.PI * 2;
+        const angle = Math.random() * TWO_PI;
         const x = cluster.x + Math.cos(angle) * dist;
         const y = cluster.y + Math.sin(angle) * dist;
 
@@ -262,7 +265,7 @@ export class StarFieldEffect implements VisualEffect {
       y,
       baseSize,
       baseBrightness,
-      twinklePhase: Math.random() * Math.PI * 2,
+      twinklePhase: Math.random() * TWO_PI,
       twinkleSpeed: 0.5 + Math.random() * 2,
       twinkleOffset: (Math.random() - 0.5) * 0.1, // ±0.05 subtle variety
       shimmer: 0,
@@ -316,7 +319,7 @@ export class StarFieldEffect implements VisualEffect {
     const grooveSpeedMult = 1 + (beatGroove - 0.5) * 0.3;
 
     for (const star of this.stars) {
-      const threshold = star.twinklePhase / (Math.PI * 2);
+      const threshold = star.twinklePhase / (TWO_PI);
 
       if (this.smoothTension > threshold) {
         const intensity = (this.smoothTension - threshold) / (1 - threshold + 0.01);
@@ -402,7 +405,7 @@ export class StarFieldEffect implements VisualEffect {
 
         ctx.fillStyle = gradient;
         ctx.beginPath();
-        ctx.arc(0, 0, blob.radius, 0, Math.PI * 2);
+        ctx.arc(0, 0, blob.radius, 0, TWO_PI);
         ctx.fill();
 
         ctx.restore();
@@ -416,6 +419,14 @@ export class StarFieldEffect implements VisualEffect {
     // Speed varies with tension: calm shimmer at low, rapid twinkle at high
     const tensionSpeedMult = 1 + this.smoothTension * 1.0;
 
+    // Pre-compute palette colors (64 samples covering 0-1 range)
+    // This reduces 1750 samplePaletteColor calls to 64
+    const shift = this.smoothTension * 0.25 + this.chordRoot / 24;
+    for (let i = 0; i < 64; i++) {
+      const pos = ((i / 64 + shift) % 1 + 1) % 1;
+      this.paletteCache[i] = samplePaletteColor(this.paletteIdx, pos);
+    }
+
     for (const star of this.stars) {
       // Parallax offset based on depth (near stars move more)
       const parallaxMult = star.depth * this.parallaxStrength * 30;
@@ -428,9 +439,9 @@ export class StarFieldEffect implements VisualEffect {
       // Skip if off-screen (with margin)
       if (x < -10 || x > this.width + 10 || y < -10 || y > this.height + 10) continue;
 
-      // Twinkle - simplified to single frequency
+      // Twinkle - simplified to single frequency (using fast sine LUT)
       const twinkleTime = this.time * star.twinkleSpeed * tensionSpeedMult;
-      const twinkleFactor = 0.7 + 0.3 * Math.sin(twinkleTime + star.twinklePhase) + star.twinkleOffset;
+      const twinkleFactor = 0.7 + 0.3 * fastSin(twinkleTime + star.twinklePhase) + star.twinkleOffset;
 
       // Shimmer boost + beat arrival glow for brighter stars
       const shimmerBoost = star.shimmer * 0.25;
@@ -443,10 +454,9 @@ export class StarFieldEffect implements VisualEffect {
       // Size
       const size = star.baseSize * (1 + shimmerBoost * 0.3);
 
-      // Color from palette
-      const tensionShift = this.smoothTension * 0.25;
-      const colorPos = ((star.colorPos + tensionShift + this.chordRoot / 24) % 1 + 1) % 1;
-      const [pr, pg, pb] = samplePaletteColor(this.paletteIdx, colorPos);
+      // Color from pre-computed palette cache (shift already applied)
+      const cacheIdx = Math.floor(star.colorPos * 64) % 64;
+      const [pr, pg, pb] = this.paletteCache[cacheIdx];
 
       // Blend palette color with white (stars are never fully saturated)
       const saturation = 0.25 + star.shimmer * 0.35;
@@ -456,7 +466,7 @@ export class StarFieldEffect implements VisualEffect {
 
       // Small stars: just a filled rect (much faster than arc)
       if (size < 1.0) {
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        ctx.fillStyle = rgba(r, g, b, alpha);
         ctx.fillRect(x - size * 0.5, y - size * 0.5, size, size);
         continue;
       }
@@ -465,15 +475,15 @@ export class StarFieldEffect implements VisualEffect {
       if (size > 1.2) {
         // Single glow
         ctx.beginPath();
-        ctx.arc(x, y, size * 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.08})`;
+        ctx.arc(x, y, size * 2.5, 0, TWO_PI);
+        ctx.fillStyle = rgba(r, g, b, alpha * 0.08);
         ctx.fill();
       }
 
       // Core
       ctx.beginPath();
-      ctx.arc(x, y, size, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      ctx.arc(x, y, size, 0, TWO_PI);
+      ctx.fillStyle = rgba(r, g, b, alpha);
       ctx.fill();
     }
   }
@@ -497,7 +507,7 @@ export class StarFieldEffect implements VisualEffect {
 
   getDefaults(): Record<string, number | string | boolean> {
     return {
-      density: 5.0,
+      density: 3.5,
       twinkleAmount: 0.3,
       nebulaOpacity: 0.55,
       parallaxStrength: 0.12,

@@ -6,7 +6,7 @@
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import {
   samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES, semitoneOffset,
-  SPIRAL_RADIUS_SCALE, spiralPos, CHROMATIC_DEGREES_MAJOR, CHROMATIC_DEGREES_MINOR
+  SPIRAL_RADIUS_SCALE, spiralPos, CHROMATIC_DEGREES_MAJOR, CHROMATIC_DEGREES_MINOR, TWO_PI
 } from './effect-utils.ts';
 import { gsap } from '../animation.ts';
 
@@ -127,8 +127,8 @@ export class BassClockEffect implements VisualEffect {
       } else {
         // Key changed (song loaded): animate to new tonic
         let diff = tonicAngle - this.handAngle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= TWO_PI;
+        while (diff < -Math.PI) diff += TWO_PI;
 
         const beatDur = music.beatDuration || 0.5;
         gsap.to(this, {
@@ -174,8 +174,8 @@ export class BassClockEffect implements VisualEffect {
 
         // Calculate final angle using shortest path (avoid wrapping during animation)
         let diff = targetAngle - this.handAngle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= TWO_PI;
+        while (diff < -Math.PI) diff += TWO_PI;
         const finalAngle = this.handAngle + diff;
 
         const beatDur = music.beatDuration || 0.5;
@@ -219,8 +219,7 @@ export class BassClockEffect implements VisualEffect {
       }
     }
     // Decay all chromatic fades over one bar
-    const barDuration = (music.beatDuration ?? 0.5) * (music.beatsPerBar ?? 4);
-    const fadeRate = 4.6 / barDuration;  // ln(100) / barDuration to fade to ~1% over one bar
+    const fadeRate = 4.6 / (music.barDuration ?? 2.0);  // ln(100) / barDuration to fade to ~1% over one bar
     for (const [pitchClass, fade] of this.chromaticFade) {
       const newFade = fade * Math.exp(-fadeRate * dt);
       if (newFade < 0.01) {
@@ -291,7 +290,7 @@ export class BassClockEffect implements VisualEffect {
 
     // --- Inner ring ---
     ctx.beginPath();
-    ctx.arc(cx, cy, r , 0, Math.PI * 2);
+    ctx.arc(cx, cy, r , 0, TWO_PI);
     ctx.strokeStyle = `rgba(${R},${G},${B},0.08)`;
     ctx.lineWidth = 2 * this.resScale;
     ctx.stroke();
@@ -335,8 +334,8 @@ export class BassClockEffect implements VisualEffect {
 
           let startA = seg.angle;  // handAngle is already absolute
           let arcDiff = next.angle - seg.angle;
-          while (arcDiff > Math.PI) arcDiff -= Math.PI * 2;
-          while (arcDiff < -Math.PI) arcDiff += Math.PI * 2;
+          while (arcDiff > Math.PI) arcDiff -= TWO_PI;
+          while (arcDiff < -Math.PI) arcDiff += TWO_PI;
 
           // Blend colors along trail
           const segR = Math.round(seg.r * 0.7 + next.r * 0.3);
@@ -449,7 +448,7 @@ export class BassClockEffect implements VisualEffect {
       } else {
         // Small dot for chromatic notes not currently active (or when numerals disabled)
         ctx.beginPath();
-        ctx.arc(tx, ty, (isCurrent ? 3 : 2) * this.resScale, 0, Math.PI * 2);
+        ctx.arc(tx, ty, (isCurrent ? 3 : 2) * this.resScale, 0, TWO_PI);
         ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
         ctx.fill();
       }
@@ -527,11 +526,11 @@ export class BassClockEffect implements VisualEffect {
     handWithHoles.closePath();
     // Cutout holes (counter-clockwise for evenodd)
     handWithHoles.moveTo(cc1.x + cutoutSize1, cc1.y);
-    handWithHoles.arc(cc1.x, cc1.y, cutoutSize1, 0, Math.PI * 2, true);
+    handWithHoles.arc(cc1.x, cc1.y, cutoutSize1, 0, TWO_PI, true);
     handWithHoles.moveTo(cc2.x + cutoutSize2, cc2.y);
-    handWithHoles.arc(cc2.x, cc2.y, cutoutSize2, 0, Math.PI * 2, true);
+    handWithHoles.arc(cc2.x, cc2.y, cutoutSize2, 0, TWO_PI, true);
     handWithHoles.moveTo(cc3.x + cutoutSize3, cc3.y);
-    handWithHoles.arc(cc3.x, cc3.y, cutoutSize3, 0, Math.PI * 2, true);
+    handWithHoles.arc(cc3.x, cc3.y, cutoutSize3, 0, TWO_PI, true);
 
     // Fill with evenodd to create holes
     ctx.fillStyle = fillStr;
@@ -552,17 +551,17 @@ export class BassClockEffect implements VisualEffect {
 
     ctx.strokeStyle = `rgba(${R},${G},${B},${(alpha * 0.5).toFixed(3)})`;
     ctx.beginPath();
-    ctx.arc(cc1.x, cc1.y, cutoutSize1, 0, Math.PI * 2);
+    ctx.arc(cc1.x, cc1.y, cutoutSize1, 0, TWO_PI);
     ctx.stroke();
 
     ctx.strokeStyle = `rgba(${R},${G},${B},${(alpha * 0.7).toFixed(3)})`;
     ctx.beginPath();
-    ctx.arc(cc2.x, cc2.y, cutoutSize2, 0, Math.PI * 2);
+    ctx.arc(cc2.x, cc2.y, cutoutSize2, 0, TWO_PI);
     ctx.stroke();
 
     ctx.strokeStyle = `rgba(${R},${G},${B},${(alpha * 0.95).toFixed(3)})`;
     ctx.beginPath();
-    ctx.arc(cc3.x, cc3.y, cutoutSize3, 0, Math.PI * 2);
+    ctx.arc(cc3.x, cc3.y, cutoutSize3, 0, TWO_PI);
     ctx.stroke();
 
     // --- Counterweight (heavy circle) ---
@@ -576,12 +575,12 @@ export class BassClockEffect implements VisualEffect {
     const cwCenter = { x: tailEnd.x + tdx * cwRadius, y: tailEnd.y + tdy * cwRadius };
 
     const counterweight = new Path2D();
-    counterweight.arc(cwCenter.x, cwCenter.y, cwRadius, 0, Math.PI * 2);
+    counterweight.arc(cwCenter.x, cwCenter.y, cwRadius, 0, TWO_PI);
     fillP(counterweight);
 
     // Counterweight inner circle
     const cwInner = new Path2D();
-    cwInner.arc(cwCenter.x, cwCenter.y, cwRadius * 0.5, 0, Math.PI * 2);
+    cwInner.arc(cwCenter.x, cwCenter.y, cwRadius * 0.5, 0, TWO_PI);
     ctx.strokeStyle = colStr;
     ctx.lineWidth = strokeW * 0.6;
     ctx.stroke(cwInner);
@@ -597,7 +596,7 @@ export class BassClockEffect implements VisualEffect {
 
     // Counterweight center point (33% size of main hub point)
     ctx.beginPath();
-    ctx.arc(cwCenter.x, cwCenter.y, 1 + this.energy * 0.7, 0, Math.PI * 2);
+    ctx.arc(cwCenter.x, cwCenter.y, 1 + this.energy * 0.7, 0, TWO_PI);
     ctx.fillStyle = `rgba(255,255,255,${(0.25 + this.energy * 0.35).toFixed(3)})`;
     ctx.fill();
 
@@ -625,7 +624,7 @@ export class BassClockEffect implements VisualEffect {
     // --- Center hub (larger for bass, pulses with anticipation) ---
     const hubSz = 8 + this.energy * 6 + this.anticipation * 5;
     ctx.beginPath();
-    ctx.arc(cx, cy, hubSz * 1.3, 0, Math.PI * 2);
+    ctx.arc(cx, cy, hubSz * 1.3, 0, TWO_PI);
     ctx.strokeStyle = `rgba(${R},${G},${B},${(0.1 + this.energy * 0.15).toFixed(3)})`;
     ctx.lineWidth = 1.5;
     ctx.stroke();
@@ -638,7 +637,7 @@ export class BassClockEffect implements VisualEffect {
     ctx.fillRect(cx - hubSz * 2, cy - hubSz * 2, hubSz * 4, hubSz * 4);
 
     ctx.beginPath();
-    ctx.arc(cx, cy, 3 + this.energy * 2, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 3 + this.energy * 2, 0, TWO_PI);
     ctx.fillStyle = `rgba(255,255,255,${(0.25 + this.energy * 0.35).toFixed(3)})`;
     ctx.fill();
 

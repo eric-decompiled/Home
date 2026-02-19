@@ -5,8 +5,9 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import {
-  samplePaletteColor, semitoneOffset, MAJOR_OFFSETS, MINOR_OFFSETS,
-  SPIRAL_MIDI_LO, SPIRAL_MIDI_HI, SPIRAL_MIDI_RANGE, SPIRAL_RADIUS_SCALE, spiralPos
+  samplePaletteColor, rgba, semitoneOffset, MAJOR_OFFSETS, MINOR_OFFSETS,
+  SPIRAL_MIDI_LO, SPIRAL_MIDI_HI, SPIRAL_MIDI_RANGE, SPIRAL_RADIUS_SCALE, spiralPos,
+  TWO_PI, fastExp
 } from './effect-utils.ts';
 import { gsap } from '../animation.ts';
 
@@ -57,7 +58,9 @@ export class NoteSpiralEffect implements VisualEffect {
   private nodes: SpiralNode[] = [];
   private trails: Trail[] = [];
   private lastMidiByTrack: Map<number, number> = new Map(); // track → last MIDI note
+  // Reusable arrays to avoid per-frame allocations
   private upcomingNotes: { midi: number; timeUntil: number; lookahead: number }[] = [];
+  private pitchClassCountBuffer: number[] = new Array(12).fill(0);
   private time = 0;
   private key = 0;
   private keyMode: 'major' | 'minor' = 'major';
@@ -249,8 +252,8 @@ export class NoteSpiralEffect implements VisualEffect {
 
       // Create gradient from note color to next note color
       const grad = sctx.createLinearGradient(p0.x, p0.y, p1.x, p1.y);
-      grad.addColorStop(0, `rgba(${c0[0]},${c0[1]},${c0[2]},${baseAlpha})`);
-      grad.addColorStop(1, `rgba(${c1[0]},${c1[1]},${c1[2]},${baseAlpha})`);
+      grad.addColorStop(0, rgba(c0[0], c0[1], c0[2], baseAlpha));
+      grad.addColorStop(1, rgba(c1[0], c1[1], c1[2], baseAlpha));
 
       sctx.beginPath();
       sctx.moveTo(p0.x, p0.y);
@@ -272,7 +275,7 @@ export class NoteSpiralEffect implements VisualEffect {
 
     // Fake shadow using offset darker circle
     bctx.beginPath();
-    bctx.arc(cx + 8, discCy + 8, maxR * 0.98, 0, Math.PI * 2);
+    bctx.arc(cx + 8, discCy + 8, maxR * 0.98, 0, TWO_PI);
     bctx.fillStyle = 'rgba(0,0,0,0.6)';
     bctx.fill();
 
@@ -284,7 +287,7 @@ export class NoteSpiralEffect implements VisualEffect {
     depthGrad.addColorStop(1, 'rgba(0,0,5,0.75)');
 
     bctx.beginPath();
-    bctx.arc(cx, discCy, maxR * 0.98, 0, Math.PI * 2);
+    bctx.arc(cx, discCy, maxR * 0.98, 0, TWO_PI);
     bctx.fillStyle = depthGrad;
     bctx.fill();
 
@@ -308,7 +311,7 @@ export class NoteSpiralEffect implements VisualEffect {
     lightGrad.addColorStop(1, 'rgba(150,170,200,0.01)');
 
     bctx.beginPath();
-    bctx.arc(cx, discCy, maxR * 0.98, 0, Math.PI * 2);
+    bctx.arc(cx, discCy, maxR * 0.98, 0, TWO_PI);
     bctx.fillStyle = lightGrad;
     bctx.fill();
     bctx.globalCompositeOperation = 'source-over';
@@ -424,25 +427,27 @@ export class NoteSpiralEffect implements VisualEffect {
     }
     // Filter anticipation notes with per-pitch-class buffer
     // Allow most notes through, only shed when a pitch class is overloaded
+    // Single-pass: filter, count, and build result without intermediate arrays
     const MAX_PER_PITCH_CLASS = 4;  // Allow up to 4 notes per pitch class (octave doublings, etc.)
-    const filtered = music.upcomingNotes
-      .filter(n => n.midi >= MIDI_LO && n.midi < MIDI_HI && n.timeUntil > lowerBound && n.timeUntil <= lookahead)
-      .sort((a, b) => a.timeUntil - b.timeUntil);  // Process closest notes first
 
-    // Buffer per pitch class - only reject if buffer is full
-    const pitchClassCount = new Map<number, number>();
-    const accepted: { midi: number; timeUntil: number }[] = [];
+    // Reuse pitch class count array (12 elements, reset each frame)
+    const pitchClassCount = this.pitchClassCountBuffer;
+    pitchClassCount.fill(0);
 
-    for (const n of filtered) {
+    // Clear and reuse the upcomingNotes array
+    this.upcomingNotes.length = 0;
+
+    // Single pass through notes - input is already sorted by timeUntil
+    for (const n of music.upcomingNotes) {
+      if (n.midi < MIDI_LO || n.midi >= MIDI_HI) continue;
+      if (n.timeUntil <= lowerBound || n.timeUntil > lookahead) continue;
+
       const pc = n.midi % 12;
-      const count = pitchClassCount.get(pc) || 0;
-      if (count < MAX_PER_PITCH_CLASS) {
-        accepted.push(n);
-        pitchClassCount.set(pc, count + 1);
+      if (pitchClassCount[pc] < MAX_PER_PITCH_CLASS) {
+        pitchClassCount[pc]++;
+        this.upcomingNotes.push({ midi: n.midi, timeUntil: n.timeUntil, lookahead });
       }
     }
-
-    this.upcomingNotes = accepted.map(n => ({ midi: n.midi, timeUntil: n.timeUntil, lookahead }));
 
     // === GROOVE CURVES ===
     const beatArrival = music.beatArrival ?? 0;
@@ -465,14 +470,16 @@ export class NoteSpiralEffect implements VisualEffect {
 
     // Decay nodes - long TTL so notes linger on spiral
     const nodeDecay = 0.4 + music.tension * 0.3;
+    const nodeDecayFactor = fastExp(-nodeDecay * dt);
     for (const node of this.nodes) {
-      node.brightness *= Math.exp(-nodeDecay * dt);
+      node.brightness *= nodeDecayFactor;
     }
 
     // Decay trails (faster at high tension for more frantic feel)
     const trailDecay = 0.16 + music.tension * 0.15;
+    const trailDecayFactor = fastExp(-trailDecay * dt);
     for (let i = this.trails.length - 1; i >= 0; i--) {
-      this.trails[i].strength *= Math.exp(-trailDecay * dt);
+      this.trails[i].strength *= trailDecayFactor;
       this.trails[i].age += dt;
       if (this.trails[i].strength < 0.005) {
         this.trails.splice(i, 1);
@@ -567,7 +574,7 @@ export class NoteSpiralEffect implements VisualEffect {
 
         // Outer glow
         drawPath();
-        ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(s * 0.15 * this.intensity).toFixed(3)})`;
+        ctx.strokeStyle = rgba(mr, mg, mb, s * 0.15 * this.intensity);
         ctx.lineWidth = (10 + s * 8) * avgScale;
         ctx.stroke();
 
@@ -577,7 +584,7 @@ export class NoteSpiralEffect implements VisualEffect {
         const wr = Math.min(255, mr + Math.round((255 - mr) * bright * 0.4));
         const wg = Math.min(255, mg + Math.round((255 - mg) * bright * 0.4));
         const wb = Math.min(255, mb + Math.round((255 - mb) * bright * 0.4));
-        ctx.strokeStyle = `rgba(${wr},${wg},${wb},${(s * 0.55 * this.intensity).toFixed(3)})`;
+        ctx.strokeStyle = rgba(wr, wg, wb, s * 0.55 * this.intensity);
         ctx.lineWidth = (2 + s * 3) * avgScale;
         ctx.stroke();
       }
@@ -601,14 +608,14 @@ export class NoteSpiralEffect implements VisualEffect {
       // Glow grows slightly as note approaches
       const glowR = 8 + t * 6;
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, glowR * pos.scale, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(alpha * 0.5).toFixed(3)})`;
+      ctx.arc(pos.x, pos.y, glowR * pos.scale, 0, TWO_PI);
+      ctx.fillStyle = rgba(c[0], c[1], c[2], alpha * 0.5);
       ctx.fill();
 
       // Inner core
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, glowR * 0.4 * pos.scale, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${alpha.toFixed(3)})`;
+      ctx.arc(pos.x, pos.y, glowR * 0.4 * pos.scale, 0, TWO_PI);
+      ctx.fillStyle = rgba(c[0], c[1], c[2], alpha);
       ctx.fill();
     }
 
@@ -691,10 +698,10 @@ export class NoteSpiralEffect implements VisualEffect {
               case 'cone': {
                 // Triangular flashlight beam
                 const grad = ctx.createLinearGradient(pos.x, pos.y, tipX, tipY);
-                grad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.5).toFixed(3)})`);
-                grad.addColorStop(0.25, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.2).toFixed(3)})`);
-                grad.addColorStop(0.6, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.06).toFixed(3)})`);
-                grad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                grad.addColorStop(0, rgba(node.r, node.g, node.b, beamAlpha * 0.5));
+                grad.addColorStop(0.25, rgba(node.r, node.g, node.b, beamAlpha * 0.2));
+                grad.addColorStop(0.6, rgba(node.r, node.g, node.b, beamAlpha * 0.06));
+                grad.addColorStop(1, rgba(node.r, node.g, node.b, 0));
                 const edgeL = beamLen * 0.7;
                 const conePath = new Path2D();
                 conePath.moveTo(pos.x, pos.y);
@@ -714,15 +721,15 @@ export class NoteSpiralEffect implements VisualEffect {
                 ctx.beginPath();
                 ctx.moveTo(pos.x, pos.y);
                 ctx.lineTo(tipX, tipY);
-                ctx.strokeStyle = `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.15).toFixed(3)})`;
+                ctx.strokeStyle = rgba(node.r, node.g, node.b, beamAlpha * 0.15);
                 ctx.lineWidth = 12 * pos.scale;
                 ctx.stroke();
                 // Mid glow
-                ctx.strokeStyle = `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.4).toFixed(3)})`;
+                ctx.strokeStyle = rgba(node.r, node.g, node.b, beamAlpha * 0.4);
                 ctx.lineWidth = 4 * pos.scale;
                 ctx.stroke();
                 // Core
-                ctx.strokeStyle = `rgba(255,255,255,${(beamAlpha * 0.7).toFixed(3)})`;
+                ctx.strokeStyle = rgba(255, 255, 255, beamAlpha * 0.7);
                 ctx.lineWidth = 1.5 * pos.scale;
                 ctx.stroke();
                 ctx.restore();
@@ -745,8 +752,8 @@ export class NoteSpiralEffect implements VisualEffect {
                 const bCol = Math.round(node.b * darkFactor);
 
                 ctx.beginPath();
-                ctx.arc(pos.x, pos.y, ringR, 0, Math.PI * 2);
-                ctx.strokeStyle = `rgba(${rCol},${gCol},${bCol},${ringAlpha.toFixed(3)})`;
+                ctx.arc(pos.x, pos.y, ringR, 0, TWO_PI);
+                ctx.strokeStyle = rgba(rCol, gCol, bCol, ringAlpha);
                 ctx.lineWidth = ringThickness;
                 ctx.stroke();
                 break;
@@ -759,9 +766,9 @@ export class NoteSpiralEffect implements VisualEffect {
                 ctx.translate(pos.x, pos.y);
                 ctx.rotate(beamAngle);
                 const grad = ctx.createRadialGradient(tearLen * 0.3, 0, 0, tearLen * 0.3, 0, tearLen * 0.7);
-                grad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.6).toFixed(3)})`);
-                grad.addColorStop(0.5, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.25).toFixed(3)})`);
-                grad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                grad.addColorStop(0, rgba(node.r, node.g, node.b, beamAlpha * 0.6));
+                grad.addColorStop(0.5, rgba(node.r, node.g, node.b, beamAlpha * 0.25));
+                grad.addColorStop(1, rgba(node.r, node.g, node.b, 0));
                 ctx.beginPath();
                 ctx.moveTo(0, 0);
                 ctx.quadraticCurveTo(tearLen * 0.5, -tearWidth, tearLen, 0);
@@ -783,12 +790,12 @@ export class NoteSpiralEffect implements VisualEffect {
                   const cy2 = cloudY + Math.sin(offsetAngle) * offsetDist;
                   const cR = cloudR * (0.4 + c * 0.15);
                   const grad = ctx.createRadialGradient(cx2, cy2, 0, cx2, cy2, cR);
-                  grad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.2).toFixed(3)})`);
-                  grad.addColorStop(0.4, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.08).toFixed(3)})`);
-                  grad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                  grad.addColorStop(0, rgba(node.r, node.g, node.b, beamAlpha * 0.2));
+                  grad.addColorStop(0.4, rgba(node.r, node.g, node.b, beamAlpha * 0.08));
+                  grad.addColorStop(1, rgba(node.r, node.g, node.b, 0));
                   ctx.fillStyle = grad;
                   ctx.beginPath();
-                  ctx.arc(cx2, cy2, cR, 0, Math.PI * 2);
+                  ctx.arc(cx2, cy2, cR, 0, TWO_PI);
                   ctx.fill();
                 }
                 break;
@@ -802,9 +809,9 @@ export class NoteSpiralEffect implements VisualEffect {
                 ctx.translate(pos.x, pos.y);
                 ctx.rotate(beamAngle + Math.PI); // tail trails behind
                 const tailGrad = ctx.createLinearGradient(0, 0, tailLen, 0);
-                tailGrad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.5).toFixed(3)})`);
-                tailGrad.addColorStop(0.3, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.2).toFixed(3)})`);
-                tailGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                tailGrad.addColorStop(0, rgba(node.r, node.g, node.b, beamAlpha * 0.5));
+                tailGrad.addColorStop(0.3, rgba(node.r, node.g, node.b, beamAlpha * 0.2));
+                tailGrad.addColorStop(1, rgba(node.r, node.g, node.b, 0));
                 ctx.beginPath();
                 ctx.moveTo(0, -headR * 0.5);
                 ctx.quadraticCurveTo(tailLen * 0.5, 0, tailLen, 0);
@@ -814,12 +821,12 @@ export class NoteSpiralEffect implements VisualEffect {
                 ctx.restore();
                 // Bright head
                 const headGrad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, headR);
-                headGrad.addColorStop(0, `rgba(255,255,255,${(beamAlpha * 0.8).toFixed(3)})`);
-                headGrad.addColorStop(0.3, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.6).toFixed(3)})`);
-                headGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                headGrad.addColorStop(0, rgba(255, 255, 255, beamAlpha * 0.8));
+                headGrad.addColorStop(0.3, rgba(node.r, node.g, node.b, beamAlpha * 0.6));
+                headGrad.addColorStop(1, rgba(node.r, node.g, node.b, 0));
                 ctx.fillStyle = headGrad;
                 ctx.beginPath();
-                ctx.arc(pos.x, pos.y, headR, 0, Math.PI * 2);
+                ctx.arc(pos.x, pos.y, headR, 0, TWO_PI);
                 ctx.fill();
                 break;
               }
@@ -844,7 +851,7 @@ export class NoteSpiralEffect implements VisualEffect {
                     cy = pos.y + Math.sin(sparkAngle) * sparkLen * t + Math.sin(sparkAngle + Math.PI/2) * jitter;
                     ctx.lineTo(cx, cy);
                   }
-                  ctx.strokeStyle = `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.4).toFixed(3)})`;
+                  ctx.strokeStyle = rgba(node.r, node.g, node.b, beamAlpha * 0.4);
                   ctx.lineWidth = 2 * pos.scale;
                   ctx.stroke();
                 }
@@ -856,24 +863,24 @@ export class NoteSpiralEffect implements VisualEffect {
                 const petals = 6;
                 const petalLen = beamLen * 0.5;
                 for (let p = 0; p < petals; p++) {
-                  const petalAngle = beamAngle + (p / petals) * Math.PI * 2;
+                  const petalAngle = beamAngle + (p / petals) * TWO_PI;
                   const px = pos.x + Math.cos(petalAngle) * petalLen * 0.5;
                   const py = pos.y + Math.sin(petalAngle) * petalLen * 0.5;
                   const grad = ctx.createRadialGradient(px, py, 0, px, py, petalLen * 0.4);
-                  grad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.4).toFixed(3)})`);
-                  grad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                  grad.addColorStop(0, rgba(node.r, node.g, node.b, beamAlpha * 0.4));
+                  grad.addColorStop(1, rgba(node.r, node.g, node.b, 0));
                   ctx.fillStyle = grad;
                   ctx.beginPath();
-                  ctx.ellipse(px, py, petalLen * 0.15, petalLen * 0.4, petalAngle, 0, Math.PI * 2);
+                  ctx.ellipse(px, py, petalLen * 0.15, petalLen * 0.4, petalAngle, 0, TWO_PI);
                   ctx.fill();
                 }
                 // Center
                 const centerGrad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, 6 * pos.scale);
-                centerGrad.addColorStop(0, `rgba(255,255,255,${(beamAlpha * 0.6).toFixed(3)})`);
-                centerGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                centerGrad.addColorStop(0, rgba(255, 255, 255, beamAlpha * 0.6));
+                centerGrad.addColorStop(1, rgba(node.r, node.g, node.b, 0));
                 ctx.fillStyle = centerGrad;
                 ctx.beginPath();
-                ctx.arc(pos.x, pos.y, 6 * pos.scale, 0, Math.PI * 2);
+                ctx.arc(pos.x, pos.y, 6 * pos.scale, 0, TWO_PI);
                 ctx.fill();
                 break;
               }
@@ -900,8 +907,8 @@ export class NoteSpiralEffect implements VisualEffect {
                 }
                 ctx.closePath();
                 const waveGrad = ctx.createLinearGradient(0, 0, waveLen, 0);
-                waveGrad.addColorStop(0, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.5).toFixed(3)})`);
-                waveGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},0)`);
+                waveGrad.addColorStop(0, rgba(node.r, node.g, node.b, beamAlpha * 0.5));
+                waveGrad.addColorStop(1, rgba(node.r, node.g, node.b, 0));
                 ctx.fillStyle = waveGrad;
                 ctx.fill();
                 ctx.restore();
@@ -922,9 +929,9 @@ export class NoteSpiralEffect implements VisualEffect {
                 ctx.lineTo(crystalLen * 0.4, crystalW);
                 ctx.closePath();
                 const crystalGrad = ctx.createLinearGradient(0, 0, crystalLen, 0);
-                crystalGrad.addColorStop(0, `rgba(255,255,255,${(beamAlpha * 0.6).toFixed(3)})`);
-                crystalGrad.addColorStop(0.5, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.4).toFixed(3)})`);
-                crystalGrad.addColorStop(1, `rgba(${node.r},${node.g},${node.b},${(beamAlpha * 0.1).toFixed(3)})`);
+                crystalGrad.addColorStop(0, rgba(255, 255, 255, beamAlpha * 0.6));
+                crystalGrad.addColorStop(0.5, rgba(node.r, node.g, node.b, beamAlpha * 0.4));
+                crystalGrad.addColorStop(1, rgba(node.r, node.g, node.b, beamAlpha * 0.1));
                 ctx.fillStyle = crystalGrad;
                 ctx.fill();
                 // Highlight edge
@@ -932,7 +939,7 @@ export class NoteSpiralEffect implements VisualEffect {
                 ctx.moveTo(0, 0);
                 ctx.lineTo(crystalLen * 0.4, -crystalW);
                 ctx.lineTo(crystalLen, 0);
-                ctx.strokeStyle = `rgba(255,255,255,${(beamAlpha * 0.3).toFixed(3)})`;
+                ctx.strokeStyle = rgba(255, 255, 255, beamAlpha * 0.3);
                 ctx.lineWidth = 1;
                 ctx.stroke();
                 ctx.restore();
@@ -976,14 +983,14 @@ export class NoteSpiralEffect implements VisualEffect {
                   const coreAlpha = beamAlpha * 1.2 * beatFade;
                   const outerAlpha = beamAlpha * 0.45 * beatFade;
                   // Outer glow
-                  ctx.fillStyle = `rgba(${node.r},${node.g},${node.b},${outerAlpha.toFixed(3)})`;
+                  ctx.fillStyle = rgba(node.r, node.g, node.b, outerAlpha);
                   ctx.beginPath();
-                  ctx.arc(fx, fy, flyR * 2, 0, Math.PI * 2);
+                  ctx.arc(fx, fy, flyR * 2, 0, TWO_PI);
                   ctx.fill();
                   // Core
-                  ctx.fillStyle = `rgba(255,255,220,${coreAlpha.toFixed(3)})`;
+                  ctx.fillStyle = rgba(255, 255, 220, coreAlpha);
                   ctx.beginPath();
-                  ctx.arc(fx, fy, flyR * 0.6, 0, Math.PI * 2);
+                  ctx.arc(fx, fy, flyR * 0.6, 0, TWO_PI);
                   ctx.fill();
                 }
                 break;
@@ -999,15 +1006,15 @@ export class NoteSpiralEffect implements VisualEffect {
         const glowIntensity = this.intensity * 1.0 * (1.0 + this.currentTension * 0.25);
 
         // Outer glow - use attack/sustain colors
-        ctx.fillStyle = `rgba(${glowR},${glowG},${glowB},${(alpha * 0.08 * glowIntensity).toFixed(3)})`;
+        ctx.fillStyle = rgba(glowR, glowG, glowB, alpha * 0.08 * glowIntensity);
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, glowRadius, 0, Math.PI * 2);
+        ctx.arc(pos.x, pos.y, glowRadius, 0, TWO_PI);
         ctx.fill();
 
         // Mid glow
-        ctx.fillStyle = `rgba(${glowR},${glowG},${glowB},${(alpha * 0.18 * glowIntensity).toFixed(3)})`;
+        ctx.fillStyle = rgba(glowR, glowG, glowB, alpha * 0.18 * glowIntensity);
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, glowRadius * 0.5, 0, Math.PI * 2);
+        ctx.arc(pos.x, pos.y, glowRadius * 0.5, 0, TWO_PI);
         ctx.fill();
 
         // Core glow - whiter during attack for hot center
@@ -1015,9 +1022,9 @@ export class NoteSpiralEffect implements VisualEffect {
         const coreR = Math.min(255, glowR + Math.round((255 - glowR) * coreWhite));
         const coreG = Math.min(255, glowG + Math.round((255 - glowG) * coreWhite));
         const coreB = Math.min(255, glowB + Math.round((255 - glowB) * coreWhite));
-        ctx.fillStyle = `rgba(${coreR},${coreG},${coreB},${(alpha * 0.45 * glowIntensity).toFixed(3)})`;
+        ctx.fillStyle = rgba(coreR, coreG, coreB, alpha * 0.45 * glowIntensity);
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, glowRadius * 0.2, 0, Math.PI * 2);
+        ctx.arc(pos.x, pos.y, glowRadius * 0.2, 0, TWO_PI);
         ctx.fill();
       }
 
@@ -1033,16 +1040,16 @@ export class NoteSpiralEffect implements VisualEffect {
       // Soft glow outline around dot (scaled by depth)
       if (this.glowOutlines && dotAlpha > 0.12) {
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, dotR + 3 * pos.scale, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255,255,255,${(dotAlpha * 0.35 * this.intensity).toFixed(3)})`;
+        ctx.arc(pos.x, pos.y, dotR + 3 * pos.scale, 0, TWO_PI);
+        ctx.strokeStyle = rgba(255, 255, 255, dotAlpha * 0.35 * this.intensity);
         ctx.lineWidth = 2.5 * pos.scale;
         ctx.stroke();
       }
 
       // Use pre-computed attack/sustain colors (glowR, glowG, glowB)
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, dotR, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${glowR},${glowG},${glowB},${Math.min(1, dotAlpha * this.intensity).toFixed(3)})`;
+      ctx.arc(pos.x, pos.y, dotR, 0, TWO_PI);
+      ctx.fillStyle = rgba(glowR, glowG, glowB, Math.min(1, dotAlpha * this.intensity));
       ctx.fill();
 
       // Soft top highlight - subtle rim light
@@ -1050,7 +1057,7 @@ export class NoteSpiralEffect implements VisualEffect {
         ctx.beginPath();
         ctx.arc(pos.x, pos.y - dotR * 0.3, dotR * 0.6, Math.PI, 0);
         const highlightAlpha = alpha * lightFactor * 0.2 * this.intensity;
-        ctx.strokeStyle = `rgba(255,255,255,${highlightAlpha.toFixed(3)})`;
+        ctx.strokeStyle = rgba(255, 255, 255, highlightAlpha);
         ctx.lineWidth = 1.4 * pos.scale;
         ctx.stroke();
       }
@@ -1061,8 +1068,8 @@ export class NoteSpiralEffect implements VisualEffect {
         const pulseR = (7 + pulseT * 28) * pos.scale;
         const pulseAlpha = (1 - pulseT) * (1 - pulseT) * 0.18 * node.velocity;
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, pulseR, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(${glowR},${glowG},${glowB},${pulseAlpha.toFixed(3)})`;
+        ctx.arc(pos.x, pos.y, pulseR, 0, TWO_PI);
+        ctx.strokeStyle = rgba(glowR, glowG, glowB, pulseAlpha);
         ctx.lineWidth = 1.5 * (1 - pulseT);
         ctx.stroke();
       }
@@ -1075,7 +1082,7 @@ export class NoteSpiralEffect implements VisualEffect {
       if (midi < MIDI_LO || midi >= MIDI_HI) continue;
       const pos = this.notePos(midi, cx, cy, maxR * breath);
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, 3, 0, Math.PI * 2);
+      ctx.arc(pos.x, pos.y, 3, 0, TWO_PI);
       ctx.fillStyle = '#fff';
       ctx.fill();
     }

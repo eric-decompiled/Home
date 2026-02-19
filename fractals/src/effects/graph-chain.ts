@@ -13,7 +13,7 @@
 // See: research/graph-evolution.md for detailed design notes.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { samplePaletteColor } from './effect-utils.ts';
+import { samplePaletteColor, rgba, TWO_PI } from './effect-utils.ts';
 
 // Register categories for hierarchical connections
 type Register = 'bass' | 'mid' | 'melody';
@@ -188,7 +188,7 @@ export class GraphChainEffect implements VisualEffect {
 
     // Simple spawn near center with slight randomness
     const radius = 50 + Math.random() * 100;
-    const angle = Math.random() * Math.PI * 2;
+    const angle = Math.random() * TWO_PI;
     const x = cx + Math.cos(angle) * radius;
     const y = cy + Math.sin(angle) * radius;
 
@@ -727,7 +727,7 @@ export class GraphChainEffect implements VisualEffect {
       ctx.beginPath();
       ctx.moveTo(n0.x, n0.y);
       ctx.quadraticCurveTo(cpX, cpY, n1.x, n1.y);
-      ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(fadeAlpha * 0.2).toFixed(3)})`;
+      ctx.strokeStyle = rgba(mr, mg, mb, fadeAlpha * 0.2);
       ctx.lineWidth = this.edgeWidth * 3.5 * this.resScale;
       ctx.stroke();
 
@@ -735,7 +735,7 @@ export class GraphChainEffect implements VisualEffect {
       ctx.beginPath();
       ctx.moveTo(n0.x, n0.y);
       ctx.quadraticCurveTo(cpX, cpY, n1.x, n1.y);
-      ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(fadeAlpha * 0.85).toFixed(3)})`;
+      ctx.strokeStyle = rgba(mr, mg, mb, fadeAlpha * 0.85);
       ctx.lineWidth = this.edgeWidth * this.resScale;
       ctx.stroke();
     }
@@ -771,23 +771,23 @@ export class GraphChainEffect implements VisualEffect {
 
       // Outer glow
       ctx.beginPath();
-      ctx.arc(node.x, node.y, size * 2.2, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${node.r},${node.g},${node.b},${(alpha * 0.15 * this.glowIntensity).toFixed(3)})`;
+      ctx.arc(node.x, node.y, size * 2.2, 0, TWO_PI);
+      ctx.fillStyle = rgba(node.r, node.g, node.b, alpha * 0.15 * this.glowIntensity);
       ctx.fill();
 
       // Mid glow
       ctx.beginPath();
-      ctx.arc(node.x, node.y, size * 1.4, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${node.r},${node.g},${node.b},${(alpha * 0.4 * this.glowIntensity).toFixed(3)})`;
+      ctx.arc(node.x, node.y, size * 1.4, 0, TWO_PI);
+      ctx.fillStyle = rgba(node.r, node.g, node.b, alpha * 0.4 * this.glowIntensity);
       ctx.fill();
 
       // Bright core
       ctx.beginPath();
-      ctx.arc(node.x, node.y, size, 0, Math.PI * 2);
+      ctx.arc(node.x, node.y, size, 0, TWO_PI);
       const coreR = isLive ? Math.min(255, node.r + 80) : Math.min(255, node.r + 40);
       const coreG = isLive ? Math.min(255, node.g + 80) : Math.min(255, node.g + 40);
       const coreB = isLive ? Math.min(255, node.b + 80) : Math.min(255, node.b + 40);
-      ctx.fillStyle = `rgba(${coreR},${coreG},${coreB},${(alpha * 0.9).toFixed(3)})`;
+      ctx.fillStyle = rgba(coreR, coreG, coreB, alpha * 0.9);
       ctx.fill();
     }
 

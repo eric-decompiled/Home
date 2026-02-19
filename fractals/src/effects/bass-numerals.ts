@@ -6,7 +6,7 @@ import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effec
 import {
   samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES,
   CHROMATIC_DEGREES_MAJOR, CHROMATIC_DEGREES_MINOR, semitoneOffset,
-  SPIRAL_RADIUS_SCALE, spiralPos
+  SPIRAL_RADIUS_SCALE, spiralPos, TWO_PI
 } from './effect-utils.ts';
 
 export class BassNumeralsEffect implements VisualEffect {
@@ -88,7 +88,7 @@ export class BassNumeralsEffect implements VisualEffect {
     // Draw outer ring
     const ringColor = this.chordRoot >= 0 ? samplePaletteColor(this.chordRoot, 0.6) : [100, 100, 150];
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, TWO_PI);
     ctx.strokeStyle = `rgba(${ringColor[0]},${ringColor[1]},${ringColor[2]},0.08)`;
     ctx.lineWidth = 2;
     ctx.stroke();
@@ -151,7 +151,7 @@ export class BassNumeralsEffect implements VisualEffect {
       } else {
         // Small dot for chromatic notes
         ctx.beginPath();
-        ctx.arc(tx, ty, isCurrent ? 3 : 2, 0, Math.PI * 2);
+        ctx.arc(tx, ty, isCurrent ? 3 : 2, 0, TWO_PI);
         ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
         ctx.fill();
       }

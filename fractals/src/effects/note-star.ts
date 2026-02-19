@@ -4,8 +4,8 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import {
-  samplePaletteColor, SPIRAL_MIDI_LO, SPIRAL_MIDI_HI,
-  SPIRAL_RADIUS_SCALE, spiralPos
+  samplePaletteColor, rgba, SPIRAL_MIDI_LO, SPIRAL_MIDI_HI,
+  SPIRAL_RADIUS_SCALE, spiralPos, TWO_PI
 } from './effect-utils.ts';
 
 const MIDI_LO = SPIRAL_MIDI_LO;
@@ -58,6 +58,9 @@ export class NoteStarEffect implements VisualEffect {
   // This avoids timing issues with continuous tracking across different tempos
   private anticipationPulses: Map<string, { alpha: number; midi: number; pitchClass: number }> = new Map();
   private lastBeatIndex = -1;
+
+  // Reusable Set for tracking active notes (avoids per-frame allocation)
+  private activeNotes: Set<number> = new Set();
 
   // Beam constants - solid lines for sustained notes
   private static readonly SUSTAIN_THRESHOLD_BEATS = 2; // only beam notes held 2+ beats
@@ -144,16 +147,17 @@ export class NoteStarEffect implements VisualEffect {
     const grooveIntensity = 0.55 + this.beatGrooveCurrent * 0.25 + this.barGrooveCurrent * 0.25;
 
     // Track which notes are currently active (for sustain detection)
-    const activeNotes = new Set<number>();
+    // Reuse Set to avoid per-frame allocation
+    this.activeNotes.clear();
     for (const voice of music.activeVoices) {
       if (voice.midi >= MIDI_LO && voice.midi < MIDI_HI) {
-        activeNotes.add(voice.midi);
+        this.activeNotes.add(voice.midi);
       }
     }
 
     // Update sustained status for existing stars
     for (const star of this.stars) {
-      star.sustained = activeNotes.has(star.startMidi);
+      star.sustained = this.activeNotes.has(star.startMidi);
     }
 
     // Spawn stars on note onsets
@@ -240,14 +244,14 @@ export class NoteStarEffect implements VisualEffect {
         // Fixed glow size (no growth - pulse fades out quickly)
         const glowR = 6;
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, glowR, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${(alpha * 0.4).toFixed(3)})`;
+        ctx.arc(pos.x, pos.y, glowR, 0, TWO_PI);
+        ctx.fillStyle = rgba(c[0], c[1], c[2], alpha * 0.4);
         ctx.fill();
 
         // Inner core
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, glowR * 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${c[0]},${c[1]},${c[2]},${alpha.toFixed(3)})`;
+        ctx.arc(pos.x, pos.y, glowR * 0.4, 0, TWO_PI);
+        ctx.fillStyle = rgba(c[0], c[1], c[2], alpha);
         ctx.fill();
       }
     }
@@ -265,7 +269,7 @@ export class NoteStarEffect implements VisualEffect {
 
       // Spiral twist based on semitones traveled (quarter speed)
       const midiTraveled = star.startMidi - effectiveMidi;
-      const spiralTwist = (midiTraveled / 48) * Math.PI * 2;
+      const spiralTwist = (midiTraveled / 48) * TWO_PI;
 
       const totalRotation = this.keyRotation + spiralTwist;
       const pos = spiralPos(effectiveMidi, star.pitchClass, this.key, totalRotation, cx, cy, maxR, this.spiralTightness);
@@ -299,7 +303,7 @@ export class NoteStarEffect implements VisualEffect {
           const segEased = 1 - Math.pow(1 - t, 2);
           const segMidi = MIDI_LO + (star.startMidi - MIDI_LO) * (1 - segEased);
           const segTraveled = star.startMidi - segMidi;
-          const segTwist = (segTraveled / 48) * Math.PI * 2;
+          const segTwist = (segTraveled / 48) * TWO_PI;
           const segRotation = this.keyRotation + segTwist;
           const segPos = spiralPos(segMidi, star.pitchClass, this.key, segRotation, cx, cy, maxR, this.spiralTightness);
           points.push({ x: segPos.x, y: segPos.y });
@@ -324,25 +328,25 @@ export class NoteStarEffect implements VisualEffect {
 
         // Wide outer glow
         drawBeamPath();
-        ctx.strokeStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(beamAlpha * 0.2).toFixed(3)})`;
+        ctx.strokeStyle = rgba(star.color[0], star.color[1], star.color[2], beamAlpha * 0.2);
         ctx.lineWidth = 16;
         ctx.stroke();
 
         // Mid glow
         drawBeamPath();
-        ctx.strokeStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(beamAlpha * 0.4).toFixed(3)})`;
+        ctx.strokeStyle = rgba(star.color[0], star.color[1], star.color[2], beamAlpha * 0.4);
         ctx.lineWidth = 8;
         ctx.stroke();
 
         // Bright core
         drawBeamPath();
-        ctx.strokeStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(beamAlpha * 0.7).toFixed(3)})`;
+        ctx.strokeStyle = rgba(star.color[0], star.color[1], star.color[2], beamAlpha * 0.7);
         ctx.lineWidth = 4;
         ctx.stroke();
 
         // Hot white center
         drawBeamPath();
-        ctx.strokeStyle = `rgba(255,255,255,${(beamAlpha * 0.5).toFixed(3)})`;
+        ctx.strokeStyle = rgba(255, 255, 255, beamAlpha * 0.5);
         ctx.lineWidth = 2;
         ctx.stroke();
       }
@@ -352,33 +356,33 @@ export class NoteStarEffect implements VisualEffect {
         // Layer 1: Soft outer glow
         const glowSize = size * (1.6 + groovePulse * 0.4);
         const grad = ctx.createRadialGradient(pos.x, pos.y, 0, pos.x, pos.y, glowSize);
-        grad.addColorStop(0, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.5).toFixed(3)})`);
-        grad.addColorStop(0.35, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.25).toFixed(3)})`);
-        grad.addColorStop(1, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},0)`);
+        grad.addColorStop(0, rgba(star.color[0], star.color[1], star.color[2], alpha * 0.5));
+        grad.addColorStop(0.35, rgba(star.color[0], star.color[1], star.color[2], alpha * 0.25));
+        grad.addColorStop(1, rgba(star.color[0], star.color[1], star.color[2], 0));
 
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, glowSize, 0, Math.PI * 2);
+        ctx.arc(pos.x, pos.y, glowSize, 0, TWO_PI);
         ctx.fillStyle = grad;
         ctx.fill();
 
         // Layer 2: Mid ring (softer colored halo)
         const midSize = size * 1.2;
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, midSize, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.35).toFixed(3)})`;
+        ctx.arc(pos.x, pos.y, midSize, 0, TWO_PI);
+        ctx.fillStyle = rgba(star.color[0], star.color[1], star.color[2], alpha * 0.35);
         ctx.fill();
 
         // Layer 3: Solid colored core
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(alpha * 0.8).toFixed(3)})`;
+        ctx.arc(pos.x, pos.y, size, 0, TWO_PI);
+        ctx.fillStyle = rgba(star.color[0], star.color[1], star.color[2], alpha * 0.8);
         ctx.fill();
 
         // Layer 4: Center highlight (toned down)
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, size * 0.3, 0, Math.PI * 2);
+        ctx.arc(pos.x, pos.y, size * 0.3, 0, TWO_PI);
         const centerAlpha = Math.min(0.7, alpha * (0.6 + groovePulse * 0.25));
-        ctx.fillStyle = `rgba(255,255,255,${centerAlpha.toFixed(3)})`;
+        ctx.fillStyle = rgba(255, 255, 255, centerAlpha);
         ctx.fill();
       }
 
@@ -393,8 +397,8 @@ export class NoteStarEffect implements VisualEffect {
           const ringR = shapeSize * 2 * (r + 1);
           const ringAlpha = shapeAlpha * (1 - r / rings) * 0.4;
           ctx.beginPath();
-          ctx.arc(pos.x, pos.y, ringR, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${ringAlpha.toFixed(3)})`;
+          ctx.arc(pos.x, pos.y, ringR, 0, TWO_PI);
+          ctx.strokeStyle = rgba(star.color[0], star.color[1], star.color[2], ringAlpha);
           ctx.lineWidth = 3 - r;
           ctx.stroke();
         }
@@ -407,7 +411,7 @@ export class NoteStarEffect implements VisualEffect {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         for (let s = 0; s < numSparks; s++) {
-          const sparkAngle = (s / numSparks) * Math.PI * 2 + this.time * 2;
+          const sparkAngle = (s / numSparks) * TWO_PI + this.time * 2;
           const sparkLen = shapeSize * 3 * (0.5 + Math.random() * 0.5);
           ctx.beginPath();
           ctx.moveTo(pos.x, pos.y);
@@ -420,7 +424,7 @@ export class NoteStarEffect implements VisualEffect {
             sy = pos.y + Math.sin(sparkAngle) * sparkLen * t + Math.sin(sparkAngle + Math.PI/2) * jitter;
             ctx.lineTo(sx, sy);
           }
-          ctx.strokeStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(shapeAlpha * 0.5).toFixed(3)})`;
+          ctx.strokeStyle = rgba(star.color[0], star.color[1], star.color[2], shapeAlpha * 0.5);
           ctx.lineWidth = 2;
           ctx.stroke();
         }
@@ -436,7 +440,7 @@ export class NoteStarEffect implements VisualEffect {
         else if (beatPhase > 0.6) beatFade = 1.0 - (beatPhase - 0.6) / 0.4;
 
         for (let f = 0; f < numFlies; f++) {
-          const flyAngle = (f / numFlies) * Math.PI * 2 + this.time * 3 + star.pitchClass;
+          const flyAngle = (f / numFlies) * TWO_PI + this.time * 3 + star.pitchClass;
           const flyDist = shapeSize * 2 * (0.8 + Math.sin(this.time * 4 + f) * 0.3);
           const wobble = Math.sin(this.time * 6 + f * 2) * 4;
           const fx = pos.x + Math.cos(flyAngle) * flyDist + wobble;
@@ -445,14 +449,14 @@ export class NoteStarEffect implements VisualEffect {
           const flyAlpha = shapeAlpha * 0.6 * beatFade;
 
           // Outer glow
-          ctx.fillStyle = `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(flyAlpha * 0.3).toFixed(3)})`;
+          ctx.fillStyle = rgba(star.color[0], star.color[1], star.color[2], flyAlpha * 0.3);
           ctx.beginPath();
-          ctx.arc(fx, fy, flyR * 2, 0, Math.PI * 2);
+          ctx.arc(fx, fy, flyR * 2, 0, TWO_PI);
           ctx.fill();
           // Core
-          ctx.fillStyle = `rgba(255,255,220,${flyAlpha.toFixed(3)})`;
+          ctx.fillStyle = rgba(255, 255, 220, flyAlpha);
           ctx.beginPath();
-          ctx.arc(fx, fy, flyR * 0.6, 0, Math.PI * 2);
+          ctx.arc(fx, fy, flyR * 0.6, 0, TWO_PI);
           ctx.fill();
         }
       }
@@ -464,13 +468,13 @@ export class NoteStarEffect implements VisualEffect {
         const startEased = 1 - Math.pow(1 - trailStart, 2);
         const startMidi = MIDI_LO + (star.startMidi - MIDI_LO) * (1 - startEased);
         const startTraveled = star.startMidi - startMidi;
-        const startTwist = (startTraveled / 48) * Math.PI * 2;
+        const startTwist = (startTraveled / 48) * TWO_PI;
         const startRotation = this.keyRotation + startTwist;
         const startPos = spiralPos(startMidi, star.pitchClass, this.key, startRotation, cx, cy, maxR, this.spiralTightness);
 
         const grad = ctx.createLinearGradient(startPos.x, startPos.y, pos.x, pos.y);
-        grad.addColorStop(0, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},0)`);
-        grad.addColorStop(1, `rgba(${star.color[0]},${star.color[1]},${star.color[2]},${(shapeAlpha * 0.4).toFixed(3)})`);
+        grad.addColorStop(0, rgba(star.color[0], star.color[1], star.color[2], 0));
+        grad.addColorStop(1, rgba(star.color[0], star.color[1], star.color[2], shapeAlpha * 0.4));
         ctx.beginPath();
         ctx.moveTo(startPos.x, startPos.y);
         ctx.lineTo(pos.x, pos.y);

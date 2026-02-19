@@ -3,7 +3,7 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
-import { samplePaletteColor } from './effect-utils.ts';
+import { samplePaletteColor, TWO_PI } from './effect-utils.ts';
 
 const SIM_W = 320;
 const SIM_H = 240;
@@ -236,7 +236,7 @@ export class WaveInterferenceEffect implements VisualEffect {
     if (music.melodyOnset && music.melodyPitchClass >= 0) {
       const fromRoot = (music.melodyPitchClass - music.key + 12) % 12;
       // π/2 = top, going clockwise (decreasing angle)
-      const angle = Math.PI / 2 - (fromRoot / 12) * Math.PI * 2;
+      const angle = Math.PI / 2 - (fromRoot / 12) * TWO_PI;
 
       // Radius from MIDI note: C2(36) to C7(96) → 0.08 to 0.28
       const midiNote = music.melodyMidiNote ?? 60;

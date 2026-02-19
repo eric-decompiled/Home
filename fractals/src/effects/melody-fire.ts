@@ -4,7 +4,7 @@
 // Smaller and sharper than bass-fire.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { samplePaletteColor, SPIRAL_RADIUS_SCALE, spiralPos } from './effect-utils.ts';
+import { samplePaletteColor, SPIRAL_RADIUS_SCALE, spiralPos, TWO_PI } from './effect-utils.ts';
 import { gsap } from '../animation.ts';
 
 interface TrailPoint {
@@ -112,19 +112,19 @@ export class MelodyFireEffect implements VisualEffect {
 
       // Direction based on MIDI pitch (ascending vs descending)
       let diff = newAngle - this.fireAngle;
-      while (diff > Math.PI * 2) diff -= Math.PI * 2;
-      while (diff < -Math.PI * 2) diff += Math.PI * 2;
+      while (diff > TWO_PI) diff -= TWO_PI;
+      while (diff < -TWO_PI) diff += TWO_PI;
 
       if (this.lastMidiNote >= 0 && midiNote >= 0) {
         const ascending = midiNote >= this.lastMidiNote;
         if (ascending) {
-          if (diff < 0) diff += Math.PI * 2;
+          if (diff < 0) diff += TWO_PI;
         } else {
-          if (diff > 0) diff -= Math.PI * 2;
+          if (diff > 0) diff -= TWO_PI;
         }
       } else {
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= TWO_PI;
+        while (diff < -Math.PI) diff += TWO_PI;
       }
 
       this.targetAngle = this.fireAngle + diff;
@@ -140,8 +140,8 @@ export class MelodyFireEffect implements VisualEffect {
 
     // === COMPASS PHYSICS ===
     let angleDiff = this.targetAngle - this.fireAngle;
-    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+    while (angleDiff > Math.PI) angleDiff -= TWO_PI;
+    while (angleDiff < -Math.PI) angleDiff += TWO_PI;
 
     // Slightly stiffer spring for snappier response
     const springK = 15.0;
@@ -154,9 +154,9 @@ export class MelodyFireEffect implements VisualEffect {
 
     // Calculate bearing color from current angle
     let bearingAngle = this.fireAngle + Math.PI / 2;
-    while (bearingAngle < 0) bearingAngle += Math.PI * 2;
-    while (bearingAngle >= Math.PI * 2) bearingAngle -= Math.PI * 2;
-    const bearingPC = Math.floor((bearingAngle / (Math.PI * 2)) * 12) % 12;
+    while (bearingAngle < 0) bearingAngle += TWO_PI;
+    while (bearingAngle >= TWO_PI) bearingAngle -= TWO_PI;
+    const bearingPC = Math.floor((bearingAngle / (TWO_PI)) * 12) % 12;
     const bearingCol = samplePaletteColor(bearingPC, 0.65);
     this.bearingR = bearingCol[0];
     this.bearingG = bearingCol[1];
@@ -284,13 +284,13 @@ export class MelodyFireEffect implements VisualEffect {
     // Hot center point - smaller, sharper
     const centerSz = 1.5 + this.energy * 2 + this.brightness * 1.5;
     ctx.beginPath();
-    ctx.arc(fireX, fireY, centerSz, 0, Math.PI * 2);
+    ctx.arc(fireX, fireY, centerSz, 0, TWO_PI);
     ctx.fillStyle = `rgba(255,255,255,${(0.35 + this.energy * 0.3 + this.brightness * 0.25).toFixed(3)})`;
     ctx.fill();
 
     // --- Outer ring (subtle) ---
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, TWO_PI);
     ctx.strokeStyle = `rgba(${R},${G},${B},0.04)`;
     ctx.lineWidth = 1;
     ctx.stroke();
@@ -307,7 +307,7 @@ export class MelodyFireEffect implements VisualEffect {
       const tickAlpha = isCurrent ? 0.6 + this.brightness * 0.3 : 0.12;
 
       ctx.beginPath();
-      ctx.arc(tx, ty, isCurrent ? 2.5 : 1.5, 0, Math.PI * 2);
+      ctx.arc(tx, ty, isCurrent ? 2.5 : 1.5, 0, TWO_PI);
       ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
       ctx.fill();
 
@@ -333,7 +333,7 @@ export class MelodyFireEffect implements VisualEffect {
     ctx.fillRect(cx - hubSz * 1.5, cy - hubSz * 1.5, hubSz * 3, hubSz * 3);
 
     ctx.beginPath();
-    ctx.arc(cx, cy, 2 + this.energy, 0, Math.PI * 2);
+    ctx.arc(cx, cy, 2 + this.energy, 0, TWO_PI);
     ctx.fillStyle = `rgba(255,255,255,${(0.2 + this.energy * 0.2).toFixed(3)})`;
     ctx.fill();
 

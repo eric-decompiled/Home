@@ -4,7 +4,7 @@
 // recently-played notes, building a web of melodic relationships.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
-import { samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, chordTriad, semitoneOffset } from './effect-utils.ts';
+import { samplePaletteColor, MAJOR_OFFSETS, MINOR_OFFSETS, chordTriad, semitoneOffset, TWO_PI } from './effect-utils.ts';
 
 interface NodeState {
   brightness: number;
@@ -207,7 +207,7 @@ export class MelodyWebEffect implements VisualEffect {
     const positions: Array<{ x: number; y: number }> = [];
     for (let i = 0; i < 12; i++) {
       const semitones = semitoneOffset(i, this.key);
-      const angle = (semitones / 12) * Math.PI * 2 - Math.PI / 2;
+      const angle = (semitones / 12) * TWO_PI - Math.PI / 2;
       positions.push({
         x: cx + Math.cos(angle) * r * breath,
         y: cy + Math.sin(angle) * r * breath,
@@ -325,7 +325,7 @@ export class MelodyWebEffect implements VisualEffect {
       const baseR = inKey ? 4 : 2;
       const dotR = baseR + node.brightness * 4 + (inChord ? 3 : 0);
       ctx.beginPath();
-      ctx.arc(pos.x, pos.y, dotR, 0, Math.PI * 2);
+      ctx.arc(pos.x, pos.y, dotR, 0, TWO_PI);
       ctx.fillStyle = `rgba(${cr},${cg},${cb},${Math.min(1, alpha).toFixed(3)})`;
       ctx.fill()
 
@@ -336,7 +336,7 @@ export class MelodyWebEffect implements VisualEffect {
         const pulseR = 10 + pulseT * 20;
         const pulseAlpha = (1 - pulseT) * 0.3;
         ctx.beginPath();
-        ctx.arc(pos.x, pos.y, pulseR, 0, Math.PI * 2);
+        ctx.arc(pos.x, pos.y, pulseR, 0, TWO_PI);
         ctx.strokeStyle = `rgba(${node.r},${node.g},${node.b},${pulseAlpha.toFixed(3)})`;
         ctx.lineWidth = 1.5 * (1 - pulseT);
         ctx.stroke();

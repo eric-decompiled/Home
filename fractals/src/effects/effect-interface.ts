@@ -35,6 +35,7 @@ export interface MusicParams {
   bpm: number;
   beatDuration: number;
   beatsPerBar: number;
+  barDuration: number;     // beatDuration * beatsPerBar (pre-computed)
   beatPosition: number;    // 0-1 within current beat
   barPosition: number;     // 0-1 within current bar
   beatIndex: number;       // which beat in bar (0-3)

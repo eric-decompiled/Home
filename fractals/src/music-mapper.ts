@@ -3,6 +3,7 @@ import type { MusicParams, ActiveVoice, UpcomingNote, UpcomingChord, RGB } from 
 import { createMidiBeatSync, createIdleBeatSync, type BeatSync, type TempoEvent, type TimeSignatureEvent } from './beat-sync.ts';
 import { palettes } from './fractal-engine.ts';
 import { audioPlayer } from './audio-player.ts';
+import { TWO_PI, KEY_ANGLES } from './effects/effect-utils.ts';
 
 // --- Beat strength by meter position ---
 // Returns 0-1 based on metrical hierarchy (1.0 = downbeat, lower = weaker beats)
@@ -114,7 +115,7 @@ window.addEventListener('storage', (e) => {
 // Root pitch class applies a tiny rotation around the degree anchor
 function centerForChord(degree: number, root: number): CValue {
   const anchor = anchors[degree] ?? anchors[0];
-  const angle = (root / 12) * Math.PI * 2;
+  const angle = KEY_ANGLES[root];
   // Very small radius — these c-values are precisely tuned for visual weight
   const radius = 0.005;
   return {
@@ -255,9 +256,8 @@ const keyRotationState = { value: 0 }; // animated by GSAP
 let currentActiveVoices: ActiveVoice[] = [];
 let lastActiveKeys = new Set<string>(); // "channel:midi" for onset detection
 
-// All notes for lookahead (piano roll)
-let allNotes: NoteEvent[] = [];
-let noteLookaheadSeconds = 4.0;  // how far ahead to look for upcoming notes
+// Lookahead window for piano roll
+let noteLookaheadSeconds = 4.0;
 
 // Allow external control of lookahead (for piano roll speed setting)
 export function setNoteLookahead(seconds: number): void {
@@ -271,6 +271,83 @@ let allChords: ChordEvent[] = [];
 let simplifiedBarChords: ChordEvent[] = [];
 let totalBars = 0;
 let songBarDuration = 2.0; // cached bar duration for the song
+
+// Pre-built indexes (created at song load, not per-frame)
+// All notes pre-converted to UpcomingNote format (timeUntil updated at runtime)
+let prebuiltNotes: UpcomingNote[] = [];
+// Current chord index - incremented as time advances, avoids binary search
+let currentChordIdx = -1;
+// Reusable result arrays to avoid per-frame allocations
+const upcomingNotesResult: UpcomingNote[] = [];
+const upcomingChordsResult: UpcomingChord[] = [
+  { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 },
+  { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 },
+  { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 },
+  { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 },
+];
+const barChordsResult: UpcomingChord[] = [
+  { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 },
+  { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 },
+  { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 },
+  { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 },
+];
+let lastBarChordsBar = -1;
+let lastUpcomingChordsBar = -1;
+
+// Reusable MusicParams object - updated in place each frame (no allocation)
+const reusableMusicParams: MusicParams = {
+  currentTime: 0,
+  dt: 0,
+  bpm: 0,
+  beatDuration: 0.5,
+  beatsPerBar: 4,
+  barDuration: 2.0,
+  beatPosition: 0,
+  barPosition: 0,
+  beatIndex: 0,
+  beatStrength: 1.0,
+  onBeat: false,
+  onBar: false,
+  beatStability: 1.0,
+  nextBeatIn: 0.5,
+  nextBarIn: 2.0,
+  beatAnticipation: 0,
+  barAnticipation: 0,
+  beatArrival: 0,
+  barArrival: 0,
+  beatGroove: 0.5,
+  barGroove: 0.5,
+  chordRoot: 0,
+  chordDegree: 1,
+  chordQuality: 'major',
+  tension: 0,
+  harmonicTensionSmooth: 0,
+  harmonicTensionRelease: 0,
+  onHarmonicRelease: false,
+  rhythmicTension: 0,
+  rhythmicTensionSmooth: 0,
+  rhythmicRelease: 0,
+  onRhythmicRelease: false,
+  key: 0,
+  keyMode: 'major',
+  useFlats: false,
+  keyRotation: 0,
+  melodyPitchClass: -1,
+  melodyMidiNote: -1,
+  melodyVelocity: 0,
+  melodyOnset: false,
+  bassPitchClass: -1,
+  bassMidiNote: -1,
+  bassVelocity: 0,
+  drumEnergy: 0,
+  loudness: 0,
+  paletteIndex: 0,
+  activeVoices: [],
+  upcomingNotes: [],
+  upcomingChords: [],
+  barChords: [],
+  tensionColor: [120, 120, 120],
+};
 
 // Precompute I/V colors and full tension LUT when key changes
 // This moves ALL color interpolation to song load time
@@ -367,108 +444,123 @@ function buildSimplifiedBarChords(duration: number): void {
 }
 
 // Get simplified bar chords for Theory Bar display
+// Uses pre-allocated result array, updates in place when bar changes
 function computeBarChords(currentTime: number): UpcomingChord[] {
-  if (simplifiedBarChords.length === 0 || songBarDuration <= 0) return [];
+  if (simplifiedBarChords.length === 0 || songBarDuration <= 0) return barChordsResult;
 
   const currentBar = Math.floor(currentTime / songBarDuration);
 
-  const result: UpcomingChord[] = [];
-  for (let barOffset = -1; barOffset <= 2; barOffset++) {
-    const bar = currentBar + barOffset;
-    const barTime = bar * songBarDuration;
+  // Only rebuild when bar changes; otherwise just update timeUntil
+  if (currentBar !== lastBarChordsBar) {
+    lastBarChordsBar = currentBar;
+    for (let i = 0; i < 4; i++) {
+      const bar = currentBar + (i - 1);  // -1, 0, 1, 2
+      const barTime = bar * songBarDuration;
+      const result = barChordsResult[i];
 
-    if (bar < 0 || bar >= simplifiedBarChords.length) {
-      result.push({ time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 });
-    } else {
-      const chord = simplifiedBarChords[bar];
-      result.push({
-        time: barTime,
-        root: chord.root,
-        quality: chord.quality,
-        degree: chord.degree,
-        numeral: chord.numeral,  // precomputed during MIDI analysis
-        timeUntil: barTime - currentTime,
-      });
+      if (bar < 0 || bar >= simplifiedBarChords.length) {
+        result.time = -1;
+        result.root = -1;
+        result.quality = '';
+        result.degree = 0;
+        result.numeral = '';
+      } else {
+        const chord = simplifiedBarChords[bar];
+        result.time = barTime;
+        result.root = chord.root;
+        result.quality = chord.quality;
+        result.degree = chord.degree;
+        result.numeral = chord.numeral;
+      }
     }
   }
 
-  return result;
+  // Always update timeUntil (cheap)
+  for (const chord of barChordsResult) {
+    if (chord.time >= 0) {
+      chord.timeUntil = chord.time - currentTime;
+    }
+  }
+
+  return barChordsResult;
 }
 
+// Get upcoming chords by bar for theory display
+// Uses pre-allocated result array, updates in place when bar changes
 function computeUpcomingChords(currentTime: number): UpcomingChord[] {
-  if (allChords.length === 0) return [];
+  if (allChords.length === 0) return upcomingChordsResult;
 
-  // Get bar duration from current tempo
   const barDuration = beatDuration * beatsPerBar;
-  if (barDuration <= 0) return [];
+  if (barDuration <= 0) return upcomingChordsResult;
 
-  // Calculate current bar number
   const currentBar = Math.floor(currentTime / barDuration);
 
-  // Helper to find chord playing at a given time (uses binary search)
-  const getChordAtTime = (time: number): UpcomingChord => {
-    if (time < 0) {
-      return { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 };
+  // Only rebuild when bar changes
+  if (currentBar !== lastUpcomingChordsBar) {
+    lastUpcomingChordsBar = currentBar;
+    for (let i = 0; i < 4; i++) {
+      const barTime = (currentBar + (i - 1)) * barDuration;  // -1, 0, 1, 2
+      const result = upcomingChordsResult[i];
+
+      if (barTime < 0) {
+        result.time = -1;
+        result.root = -1;
+        result.quality = '';
+        result.degree = 0;
+        result.numeral = '';
+      } else {
+        const idx = binarySearchTime(allChords, barTime);
+        if (idx < 0) {
+          result.time = -1;
+          result.root = -1;
+          result.quality = '';
+          result.degree = 0;
+          result.numeral = '';
+        } else {
+          const chord = allChords[idx];
+          result.time = barTime;
+          result.root = chord.root;
+          result.quality = chord.quality;
+          result.degree = chord.degree;
+          result.numeral = chord.numeral;
+        }
+      }
     }
-
-    // Binary search for the chord active at this time
-    const idx = binarySearchTime(allChords, time);
-    if (idx < 0) {
-      return { time: -1, root: -1, quality: '', degree: 0, numeral: '', timeUntil: 0 };
-    }
-
-    const chord = allChords[idx];
-    return {
-      time: time,
-      root: chord.root,
-      quality: chord.quality,
-      degree: chord.degree,
-      numeral: chord.numeral,  // precomputed during MIDI analysis
-      timeUntil: time - currentTime,
-    };
-  };
-
-  // Build array: [prev bar, current bar, next bar, next-next bar]
-  const result: UpcomingChord[] = [];
-  for (let barOffset = -1; barOffset <= 2; barOffset++) {
-    const barTime = (currentBar + barOffset) * barDuration;
-    result.push(getChordAtTime(barTime));
   }
 
-  return result;
+  // Always update timeUntil
+  for (const chord of upcomingChordsResult) {
+    if (chord.time >= 0) {
+      chord.timeUntil = chord.time - currentTime;
+    }
+  }
+
+  return upcomingChordsResult;
 }
 
 function computeUpcomingNotes(currentTime: number): UpcomingNote[] {
-  const upcoming: UpcomingNote[] = [];
-  const windowStart = currentTime - 0.1;  // include notes that just started
+  // Use pre-built notes array (no object creation per frame)
+  // Binary search for window bounds, update timeUntil in place
+  const windowStart = currentTime - 0.1;
   const windowEnd = currentTime + noteLookaheadSeconds;
 
-  // Binary search to find starting point (first note that could overlap)
-  // Notes are sorted by start time, so find first note starting after (windowStart - maxDuration)
-  // Use conservative estimate: start from notes that begin within ~10s before windowStart
-  const searchStart = Math.max(0, binarySearchFirstGE(allNotes, windowStart - 10));
+  // Binary search for first note that could be in window
+  // (note ends after windowStart, so note.time > windowStart - maxDuration)
+  const searchStart = Math.max(0, binarySearchFirstGE(prebuiltNotes, windowStart - 10));
 
-  for (let i = searchStart; i < allNotes.length; i++) {
-    const note = allNotes[i];
-    // Stop when note starts after window (all subsequent notes are later)
-    if (note.time >= windowEnd) break;
-    if (note.isDrum) continue;  // skip drum notes
+  // Fill reusable result array (no allocation)
+  upcomingNotesResult.length = 0;
+  for (let i = searchStart; i < prebuiltNotes.length; i++) {
+    const note = prebuiltNotes[i];
+    if (note.time >= windowEnd) break;  // past window
     const noteEnd = note.time + note.duration;
-    // Include if note overlaps with window
     if (noteEnd > windowStart) {
-      upcoming.push({
-        midi: note.midi,
-        pitchClass: note.midi % 12,
-        velocity: note.velocity,
-        time: note.time,
-        duration: note.duration,
-        timeUntil: note.time - currentTime,
-        track: note.channel,
-      });
+      note.timeUntil = note.time - currentTime;  // update in place
+      upcomingNotesResult.push(note);
     }
   }
 
-  return upcoming;
+  return upcomingNotesResult;
 }
 
 export const musicMapper = {
@@ -506,18 +598,40 @@ export const musicMapper = {
     currentChordDegree = 1;
     currentChordQuality = mode === 'minor' ? 'minor' : 'major';
     // Initialize rotation to align this key at 12 o'clock
-    keyRotationTarget = -pitchClass * (Math.PI * 2 / 12);
+    keyRotationTarget = -pitchClass * (TWO_PI / 12);
     keyRotationState.value = keyRotationTarget;
     // Precompute tension color endpoints for this key
     updateCachedKeyColors(pitchClass);
   },
 
 
-  setSongDuration(duration: number, chords: ChordEvent[]) {
+  setSongDuration(duration: number, chords: ChordEvent[], notes?: NoteEvent[]) {
     // Store chords and cache bar duration, then build simplified bar chords
     allChords = chords;
     songBarDuration = beatDuration * beatsPerBar;
     buildSimplifiedBarChords(duration);
+
+    // Pre-build notes index if provided (avoids per-frame object creation)
+    if (notes) {
+      prebuiltNotes = [];
+      for (const note of notes) {
+        if (note.isDrum) continue;  // skip drum notes
+        prebuiltNotes.push({
+          midi: note.midi,
+          pitchClass: note.midi % 12,
+          velocity: note.velocity,
+          time: note.time,
+          duration: note.duration,
+          timeUntil: 0,  // updated at runtime
+          track: note.channel,
+        });
+      }
+    }
+
+    // Reset indexes
+    currentChordIdx = -1;
+    lastBarChordsBar = -1;
+    lastUpcomingChordsBar = -1;
   },
 
   getIdleAnchor(): CValue {
@@ -531,25 +645,28 @@ export const musicMapper = {
     drums: DrumHit[],
     notes: NoteEvent[]
   ): FractalParams {
-    // Store notes and chords for lookahead
-    allNotes = notes;
+    // Store chords for lookahead (notes are pre-built in setSongDuration)
     allChords = chords;
 
-    // --- Find current chord ---
-    let chordIdx = -1;
-    for (let i = chords.length - 1; i >= 0; i--) {
-      if (chords[i].time <= currentTime) {
-        chordIdx = i;
-        break;
+    // --- Find current chord (incremental index advancement) ---
+    // O(1) for normal playback; binary search only on seek/reset
+    if (currentChordIdx < 0 || (currentChordIdx > 0 && chords[currentChordIdx].time > currentTime)) {
+      // Time jumped backward or first frame - binary search to find position
+      currentChordIdx = binarySearchTime(chords, currentTime);
+    } else {
+      // Advance index while next chord has started
+      while (currentChordIdx + 1 < chords.length && chords[currentChordIdx + 1].time <= currentTime) {
+        currentChordIdx++;
       }
     }
 
-    if (chordIdx >= 0 && chordIdx !== lastChordIndex) {
-      lastChordIndex = chordIdx;
-      const chord = chords[chordIdx];
+    if (currentChordIdx >= 0 && currentChordIdx !== lastChordIndex) {
+      lastChordIndex = currentChordIdx;
+      const chord = chords[currentChordIdx];
 
       const center = centerForChord(chord.degree, chord.root);
-      targetCenter = { ...center };
+      // Direct assignment - centerForChord already returns a new object
+      targetCenter = center;
       targetTension = chord.tension;
       currentPalette = chord.root;
       currentFractalType = center.type;
@@ -752,20 +869,36 @@ export const musicMapper = {
     // Iterations: tension only
     const iterBase = Math.round(120 + currentTension * 60);
 
-    // --- Find melody (highest note) and bass (lowest note) ---
-    // No fixed split point - melody is highest sounding, bass is lowest sounding
+    // --- Single pass: find melody/bass AND build active voices ---
+    // Merged iteration for performance (was two separate loops)
     let highestMidi = -1, highestVel = 0;
     let lowestMidi = 999, lowestVel = 0;
+    const newActiveKeys = new Set<string>();
+    const voices: ActiveVoice[] = [];
+
     for (let i = notes.length - 1; i >= 0; i--) {
       const n = notes[i];
       if (n.time > currentTime) continue;
       if (n.time < currentTime - 2.0) break;
       if (n.isDrum) continue;
       if (n.time + n.duration >= currentTime) {
+        // Melody/bass detection
         if (n.midi > highestMidi) { highestMidi = n.midi; highestVel = n.velocity; }
         if (n.midi < lowestMidi) { lowestMidi = n.midi; lowestVel = n.velocity; }
+        // Active voice tracking
+        const key = `${n.channel}:${n.midi}`;
+        newActiveKeys.add(key);
+        voices.push({
+          midi: n.midi,
+          pitchClass: n.midi % 12,
+          velocity: n.velocity,
+          track: n.channel,
+          onset: !lastActiveKeys.has(key),
+        });
       }
     }
+    lastActiveKeys = newActiveKeys;
+    currentActiveVoices = voices;
 
     // Track melody onset
     const melPC = highestMidi >= 0 ? highestMidi % 12 : -1;
@@ -793,29 +926,6 @@ export const musicMapper = {
     currentBassMidi = lowestMidi < 999 ? lowestMidi : -1;
     currentBassVel = lowestVel;
 
-    // --- Build active voices with onset detection ---
-    const newActiveKeys = new Set<string>();
-    const voices: ActiveVoice[] = [];
-    for (let i = notes.length - 1; i >= 0; i--) {
-      const n = notes[i];
-      if (n.time > currentTime) continue;
-      if (n.time < currentTime - 2.0) break;
-      if (n.isDrum) continue;
-      if (n.time + n.duration >= currentTime) {
-        const key = `${n.channel}:${n.midi}`;
-        newActiveKeys.add(key);
-        voices.push({
-          midi: n.midi,
-          pitchClass: n.midi % 12,
-          velocity: n.velocity,
-          track: n.channel,
-          onset: !lastActiveKeys.has(key),
-        });
-      }
-    }
-    lastActiveKeys = newActiveKeys;
-    currentActiveVoices = voices;
-
     return {
       cReal: currentCenter.real + offsetReal,
       cImag: currentCenter.imag + offsetImag,
@@ -832,120 +942,130 @@ export const musicMapper = {
   },
 
   getMusicParams(dt: number, currentTime: number): MusicParams {
-    return {
-      currentTime,
-      dt,
-      bpm: hasPlayedOnce ? currentBpm : 0,
-      beatDuration,
-      beatsPerBar,
-      beatPosition: currentBeatPosition,
-      barPosition: currentBarPosition,
-      beatIndex: currentBeatIndex,
-      beatStrength: computeBeatStrength(currentBeatIndex, beatsPerBar),
-      onBeat: frameOnBeat,
-      onBar: frameOnBar,
-      beatStability: currentBeatStability,
-      nextBeatIn: currentNextBeatIn,
-      nextBarIn: currentNextBarIn,
-      // Groove curves
-      beatAnticipation: currentBeatAnticipation,
-      barAnticipation: currentBarAnticipation,
-      beatArrival: currentBeatArrival,
-      barArrival: currentBarArrival,
-      beatGroove: currentBeatGroove,
-      barGroove: currentBarGroove,
-      chordRoot: currentChordRoot,
-      chordDegree: currentChordDegree,
-      chordQuality: currentChordQuality,
-      tension: currentTension,
-      harmonicTensionSmooth: tensionSmooth,
-      harmonicTensionRelease: tensionRelease,
-      onHarmonicRelease: frameHarmonicRelease,
-      rhythmicTension: rhythmicTension,
-      rhythmicTensionSmooth: rhythmicTensionSmooth,
-      rhythmicRelease: rhythmicRelease,
-      onRhythmicRelease: frameRhythmicRelease,
-      key: currentKey,
-      keyMode: currentKeyMode,
-      useFlats: currentUseFlats,
-      keyRotation: keyRotationState.value,
-      melodyPitchClass: currentMelodyPC,
-      melodyMidiNote: currentMelodyMidi,
-      melodyVelocity: currentMelodyVel,
-      melodyOnset: frameMelodyOnset,
-      bassPitchClass: currentBassPC,
-      bassMidiNote: currentBassMidi,
-      bassVelocity: currentBassVel,
-      drumEnergy: frameDrumEnergy,
-      loudness: audioPlayer.getLoudness(),
-      paletteIndex: currentChordRoot,
-      activeVoices: currentActiveVoices,
-      upcomingNotes: computeUpcomingNotes(currentTime),
-      upcomingChords: computeUpcomingChords(currentTime),
-      barChords: computeBarChords(currentTime),
-      tensionColor: computeTensionColor(currentTension),
-    };
+    // Update reusable object in place (no allocation)
+    const p = reusableMusicParams;
+    p.currentTime = currentTime;
+    p.dt = dt;
+    p.bpm = hasPlayedOnce ? currentBpm : 0;
+    p.beatDuration = beatDuration;
+    p.beatsPerBar = beatsPerBar;
+    p.barDuration = beatDuration * beatsPerBar;
+    p.beatPosition = currentBeatPosition;
+    p.barPosition = currentBarPosition;
+    p.beatIndex = currentBeatIndex;
+    p.beatStrength = computeBeatStrength(currentBeatIndex, beatsPerBar);
+    p.onBeat = frameOnBeat;
+    p.onBar = frameOnBar;
+    p.beatStability = currentBeatStability;
+    p.nextBeatIn = currentNextBeatIn;
+    p.nextBarIn = currentNextBarIn;
+    p.beatAnticipation = currentBeatAnticipation;
+    p.barAnticipation = currentBarAnticipation;
+    p.beatArrival = currentBeatArrival;
+    p.barArrival = currentBarArrival;
+    p.beatGroove = currentBeatGroove;
+    p.barGroove = currentBarGroove;
+    p.chordRoot = currentChordRoot;
+    p.chordDegree = currentChordDegree;
+    p.chordQuality = currentChordQuality;
+    p.tension = currentTension;
+    p.harmonicTensionSmooth = tensionSmooth;
+    p.harmonicTensionRelease = tensionRelease;
+    p.onHarmonicRelease = frameHarmonicRelease;
+    p.rhythmicTension = rhythmicTension;
+    p.rhythmicTensionSmooth = rhythmicTensionSmooth;
+    p.rhythmicRelease = rhythmicRelease;
+    p.onRhythmicRelease = frameRhythmicRelease;
+    p.key = currentKey;
+    p.keyMode = currentKeyMode;
+    p.useFlats = currentUseFlats;
+    p.keyRotation = keyRotationState.value;
+    p.melodyPitchClass = currentMelodyPC;
+    p.melodyMidiNote = currentMelodyMidi;
+    p.melodyVelocity = currentMelodyVel;
+    p.melodyOnset = frameMelodyOnset;
+    p.bassPitchClass = currentBassPC;
+    p.bassMidiNote = currentBassMidi;
+    p.bassVelocity = currentBassVel;
+    p.drumEnergy = frameDrumEnergy;
+    p.loudness = audioPlayer.getLoudness();
+    p.paletteIndex = currentChordRoot;
+    p.activeVoices = currentActiveVoices;
+    p.upcomingNotes = computeUpcomingNotes(currentTime);
+    p.upcomingChords = computeUpcomingChords(currentTime);
+    p.barChords = computeBarChords(currentTime);
+    // Update tensionColor in place (no array allocation)
+    const tc = computeTensionColor(currentTension);
+    p.tensionColor[0] = tc[0];
+    p.tensionColor[1] = tc[1];
+    p.tensionColor[2] = tc[2];
+    return p;
   },
 
   getIdleMusicParams(dt: number): MusicParams {
-    return {
-      currentTime: 0,
-      dt,
-      bpm: hasPlayedOnce ? currentBpm : 0,
-      beatDuration: 0.5,
-      beatsPerBar: 4,
-      beatPosition: 0,
-      barPosition: 0,
-      beatIndex: 0,
-      beatStrength: 1.0,
-      onBeat: false,
-      onBar: false,
-      beatStability: 1.0,
-      nextBeatIn: 0.5,
-      nextBarIn: 2.0,
-      // Groove curves (idle = no anticipation, no arrival)
-      beatAnticipation: 0,
-      barAnticipation: 0,
-      beatArrival: 0,
-      barArrival: 0,
-      beatGroove: 0.5,
-      barGroove: 0.5,
-      chordRoot: currentKey,
-      chordDegree: 1,
-      chordQuality: 'major',
-      tension: 0,
-      harmonicTensionSmooth: 0,
-      harmonicTensionRelease: 0,
-      onHarmonicRelease: false,
-      rhythmicTension: 0,
-      rhythmicTensionSmooth: 0,
-      rhythmicRelease: 0,
-      onRhythmicRelease: false,
-      key: currentKey,
-      keyMode: currentKeyMode,
-      useFlats: currentUseFlats,
-      keyRotation: keyRotationState.value,
-      melodyPitchClass: -1,
-      melodyMidiNote: -1,
-      melodyVelocity: 0,
-      melodyOnset: false,
-      bassPitchClass: -1,
-      bassMidiNote: -1,
-      bassVelocity: 0,
-      drumEnergy: 0,
-      loudness: 0,
-      paletteIndex: currentKey,
-      activeVoices: [],
-      upcomingNotes: [],
-      upcomingChords: [],
-      barChords: [],
-      tensionColor: computeTensionColor(0),  // idle = no tension
-    };
+    // Reuse same object (idle and playing are mutually exclusive)
+    const p = reusableMusicParams;
+    p.currentTime = 0;
+    p.dt = dt;
+    p.bpm = hasPlayedOnce ? currentBpm : 0;
+    p.beatDuration = 0.5;
+    p.beatsPerBar = 4;
+    p.barDuration = 2.0;
+    p.beatPosition = 0;
+    p.barPosition = 0;
+    p.beatIndex = 0;
+    p.beatStrength = 1.0;
+    p.onBeat = false;
+    p.onBar = false;
+    p.beatStability = 1.0;
+    p.nextBeatIn = 0.5;
+    p.nextBarIn = 2.0;
+    p.beatAnticipation = 0;
+    p.barAnticipation = 0;
+    p.beatArrival = 0;
+    p.barArrival = 0;
+    p.beatGroove = 0.5;
+    p.barGroove = 0.5;
+    p.chordRoot = currentKey;
+    p.chordDegree = 1;
+    p.chordQuality = 'major';
+    p.tension = 0;
+    p.harmonicTensionSmooth = 0;
+    p.harmonicTensionRelease = 0;
+    p.onHarmonicRelease = false;
+    p.rhythmicTension = 0;
+    p.rhythmicTensionSmooth = 0;
+    p.rhythmicRelease = 0;
+    p.onRhythmicRelease = false;
+    p.key = currentKey;
+    p.keyMode = currentKeyMode;
+    p.useFlats = currentUseFlats;
+    p.keyRotation = keyRotationState.value;
+    p.melodyPitchClass = -1;
+    p.melodyMidiNote = -1;
+    p.melodyVelocity = 0;
+    p.melodyOnset = false;
+    p.bassPitchClass = -1;
+    p.bassMidiNote = -1;
+    p.bassVelocity = 0;
+    p.drumEnergy = 0;
+    p.loudness = 0;
+    p.paletteIndex = currentKey;
+    p.activeVoices = [];
+    p.upcomingNotes = [];
+    p.upcomingChords = [];
+    p.barChords = [];
+    // Update tensionColor in place
+    const tc = computeTensionColor(0);
+    p.tensionColor[0] = tc[0];
+    p.tensionColor[1] = tc[1];
+    p.tensionColor[2] = tc[2];
+    return p;
   },
 
   reset() {
     // Reset key rotation
-    keyRotationTarget = -currentKey * (Math.PI * 2 / 12);
+    keyRotationTarget = -currentKey * (TWO_PI / 12);
     keyRotationState.value = keyRotationTarget;
     // Reset chord to tonic
     currentChordRoot = currentKey;
@@ -1014,6 +1134,10 @@ export const musicMapper = {
     currentBarArrival = 0;
     currentBeatGroove = 0;
     currentBarGroove = 0;
+    // Reset indexes for pre-built lookups
+    currentChordIdx = -1;
+    lastBarChordsBar = -1;
+    lastUpcomingChordsBar = -1;
     // Reset BeatSync internal state
     beatSync.reset();
   },

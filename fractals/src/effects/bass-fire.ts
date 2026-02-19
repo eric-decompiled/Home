@@ -5,9 +5,9 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import {
-  samplePaletteColor, SPIRAL_RADIUS_SCALE, spiralPos,
+  samplePaletteColor, rgba, SPIRAL_RADIUS_SCALE, spiralPos,
   MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES, semitoneOffset,
-  CHROMATIC_DEGREES_MAJOR, CHROMATIC_DEGREES_MINOR
+  CHROMATIC_DEGREES_MAJOR, CHROMATIC_DEGREES_MINOR, TWO_PI
 } from './effect-utils.ts';
 import { gsap } from '../animation.ts';
 
@@ -108,8 +108,8 @@ export class BassFireEffect implements VisualEffect {
 
     // Sample trail points as fire moves (angle-based)
     let angleDiff = this.fireAngle - this.lastTrailAngle;
-    while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-    while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+    while (angleDiff > Math.PI) angleDiff -= TWO_PI;
+    while (angleDiff < -Math.PI) angleDiff += TWO_PI;
     if (Math.abs(angleDiff) > 0.02) {
       this.trail.push({
         angle: this.fireAngle,
@@ -147,8 +147,8 @@ export class BassFireEffect implements VisualEffect {
       } else {
         // Animate to new tonic with shortest path
         let diff = tonicAngle - this.fireAngle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
+        while (diff > Math.PI) diff -= TWO_PI;
+        while (diff < -Math.PI) diff += TWO_PI;
 
         const beatDur = music.beatDuration || 0.5;
         gsap.to(this, {
@@ -180,8 +180,8 @@ export class BassFireEffect implements VisualEffect {
 
       // Shortest path rotation
       let diff = targetAngle - this.fireAngle;
-      while (diff > Math.PI) diff -= Math.PI * 2;
-      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= TWO_PI;
+      while (diff < -Math.PI) diff += TWO_PI;
 
       gsap.to(this, {
         fireAngle: this.fireAngle + diff,
@@ -205,8 +205,7 @@ export class BassFireEffect implements VisualEffect {
       }
     }
     // Decay all chromatic fades over one bar
-    const barDuration = (music.beatDuration ?? 0.5) * (music.beatsPerBar ?? 4);
-    const fadeRate = 4.6 / barDuration;
+    const fadeRate = 4.6 / (music.barDuration ?? 2.0);
     for (const [pitchClass, fade] of this.chromaticFade) {
       const newFade = fade * Math.exp(-fadeRate * dt);
       if (newFade < 0.01) {
@@ -270,7 +269,7 @@ export class BassFireEffect implements VisualEffect {
         ctx.beginPath();
         ctx.moveTo(ptX, ptY);
         ctx.lineTo(nextX, nextY);
-        ctx.strokeStyle = `rgba(${pt.r},${pt.g},${pt.b},${glowAlpha.toFixed(3)})`;
+        ctx.strokeStyle = rgba(pt.r, pt.g, pt.b, glowAlpha);
         ctx.lineWidth = baseWidth * 2.5;
         ctx.stroke();
 
@@ -279,7 +278,7 @@ export class BassFireEffect implements VisualEffect {
         ctx.beginPath();
         ctx.moveTo(ptX, ptY);
         ctx.lineTo(nextX, nextY);
-        ctx.strokeStyle = `rgba(${pt.r},${pt.g},${pt.b},${coreAlpha.toFixed(3)})`;
+        ctx.strokeStyle = rgba(pt.r, pt.g, pt.b, coreAlpha);
         ctx.lineWidth = baseWidth;
         ctx.stroke();
 
@@ -292,7 +291,7 @@ export class BassFireEffect implements VisualEffect {
           ctx.beginPath();
           ctx.moveTo(ptX, ptY);
           ctx.lineTo(nextX, nextY);
-          ctx.strokeStyle = `rgba(${hotR},${hotG},${hotB},${hotAlpha.toFixed(3)})`;
+          ctx.strokeStyle = rgba(hotR, hotG, hotB, hotAlpha);
           ctx.lineWidth = baseWidth * 0.4;
           ctx.stroke();
         }
@@ -305,27 +304,27 @@ export class BassFireEffect implements VisualEffect {
 
     // Outer glow - very large, soft
     const outerGrd = ctx.createRadialGradient(fireX, fireY, 0, fireX, fireY, orbSz * 5);
-    outerGrd.addColorStop(0, `rgba(${R},${G},${B},${(orbA * 0.15).toFixed(3)})`);
-    outerGrd.addColorStop(0.4, `rgba(${R},${G},${B},${(orbA * 0.08).toFixed(3)})`);
-    outerGrd.addColorStop(0.7, `rgba(${R},${G},${B},${(orbA * 0.03).toFixed(3)})`);
-    outerGrd.addColorStop(1, `rgba(${R},${G},${B},0)`);
+    outerGrd.addColorStop(0, rgba(R, G, B, orbA * 0.15));
+    outerGrd.addColorStop(0.4, rgba(R, G, B, orbA * 0.08));
+    outerGrd.addColorStop(0.7, rgba(R, G, B, orbA * 0.03));
+    outerGrd.addColorStop(1, rgba(R, G, B, 0));
     ctx.fillStyle = outerGrd;
     ctx.fillRect(fireX - orbSz * 5, fireY - orbSz * 5, orbSz * 10, orbSz * 10);
 
     // Core glow - larger, more transparent
     const coreGrd = ctx.createRadialGradient(fireX, fireY, 0, fireX, fireY, orbSz * 2.5);
-    coreGrd.addColorStop(0, `rgba(255,255,255,${(orbA * 0.35).toFixed(3)})`);
-    coreGrd.addColorStop(0.2, `rgba(${R},${G},${B},${(orbA * 0.25).toFixed(3)})`);
-    coreGrd.addColorStop(0.6, `rgba(${R},${G},${B},${(orbA * 0.1).toFixed(3)})`);
-    coreGrd.addColorStop(1, `rgba(${R},${G},${B},0)`);
+    coreGrd.addColorStop(0, rgba(255, 255, 255, orbA * 0.35));
+    coreGrd.addColorStop(0.2, rgba(R, G, B, orbA * 0.25));
+    coreGrd.addColorStop(0.6, rgba(R, G, B, orbA * 0.1));
+    coreGrd.addColorStop(1, rgba(R, G, B, 0));
     ctx.fillStyle = coreGrd;
     ctx.fillRect(fireX - orbSz * 2.5, fireY - orbSz * 2.5, orbSz * 5, orbSz * 5);
 
     // Hot center point - smaller, softer
     const centerSz = 2 + this.energy * 3 + this.brightness * 2;
     ctx.beginPath();
-    ctx.arc(fireX, fireY, centerSz, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255,255,255,${(0.25 + this.energy * 0.25 + this.brightness * 0.2).toFixed(3)})`;
+    ctx.arc(fireX, fireY, centerSz, 0, TWO_PI);
+    ctx.fillStyle = rgba(255, 255, 255, 0.25 + this.energy * 0.25 + this.brightness * 0.2);
     ctx.fill();
 
     // --- Roman numeral markers ---
@@ -334,7 +333,7 @@ export class BassFireEffect implements VisualEffect {
 
     // Inner ring
     ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r, 0, TWO_PI);
     ctx.strokeStyle = `rgba(${R},${G},${B},0.08)`;
     ctx.lineWidth = 2 * this.resScale;
     ctx.stroke();
@@ -373,7 +372,7 @@ export class BassFireEffect implements VisualEffect {
           ctx.shadowBlur = 15;
         }
 
-        ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
+        ctx.fillStyle = rgba(tc[0], tc[1], tc[2], tickAlpha);
         ctx.fillText(numeral, 0, 0);
         ctx.shadowBlur = 0;
         ctx.restore();
@@ -393,15 +392,15 @@ export class BassFireEffect implements VisualEffect {
           ctx.shadowBlur = 12;
         }
 
-        ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${fadeAlpha.toFixed(3)})`;
+        ctx.fillStyle = rgba(tc[0], tc[1], tc[2], fadeAlpha);
         ctx.fillText(chromaticNumeral, 0, 0);
         ctx.shadowBlur = 0;
         ctx.restore();
       } else {
         // Draw dot instead of numeral
         ctx.beginPath();
-        ctx.arc(tx, ty, (isCurrent ? 3 : 2) * this.resScale, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${tc[0]},${tc[1]},${tc[2]},${tickAlpha.toFixed(3)})`;
+        ctx.arc(tx, ty, (isCurrent ? 3 : 2) * this.resScale, 0, TWO_PI);
+        ctx.fillStyle = rgba(tc[0], tc[1], tc[2], tickAlpha);
         ctx.fill();
       }
 
@@ -409,8 +408,8 @@ export class BassFireEffect implements VisualEffect {
       if (isCurrent && this.brightness > 0.05) {
         const glowR = r * 0.08;
         const grd = ctx.createRadialGradient(tx, ty, 0, tx, ty, glowR);
-        grd.addColorStop(0, `rgba(${tc[0]},${tc[1]},${tc[2]},${(this.brightness * 0.6).toFixed(3)})`);
-        grd.addColorStop(1, `rgba(${tc[0]},${tc[1]},${tc[2]},0)`);
+        grd.addColorStop(0, rgba(tc[0], tc[1], tc[2], this.brightness * 0.6));
+        grd.addColorStop(1, rgba(tc[0], tc[1], tc[2], 0));
         ctx.fillStyle = grd;
         ctx.fillRect(tx - glowR, ty - glowR, glowR * 2, glowR * 2);
       }
@@ -421,31 +420,31 @@ export class BassFireEffect implements VisualEffect {
 
     // Outer ring
     ctx.beginPath();
-    ctx.arc(cx, cy, hubSz * 1.6, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(${R},${G},${B},${(0.1 + this.energy * 0.1).toFixed(3)})`;
+    ctx.arc(cx, cy, hubSz * 1.6, 0, TWO_PI);
+    ctx.strokeStyle = rgba(R, G, B, 0.1 + this.energy * 0.1);
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
     // Wide outer glow (gentle)
     const outerHubGrd = ctx.createRadialGradient(cx, cy, 0, cx, cy, hubSz * 2.8);
-    outerHubGrd.addColorStop(0, `rgba(${R},${G},${B},${(0.08 + this.energy * 0.06 + this.anticipation * 0.08).toFixed(3)})`);
-    outerHubGrd.addColorStop(0.5, `rgba(${R},${G},${B},${(0.03 + this.energy * 0.02).toFixed(3)})`);
-    outerHubGrd.addColorStop(1, `rgba(${R},${G},${B},0)`);
+    outerHubGrd.addColorStop(0, rgba(R, G, B, 0.08 + this.energy * 0.06 + this.anticipation * 0.08));
+    outerHubGrd.addColorStop(0.5, rgba(R, G, B, 0.03 + this.energy * 0.02));
+    outerHubGrd.addColorStop(1, rgba(R, G, B, 0));
     ctx.fillStyle = outerHubGrd;
     ctx.fillRect(cx - hubSz * 3, cy - hubSz * 3, hubSz * 6, hubSz * 6);
 
     // Inner radial gradient glow
     const hubGrd = ctx.createRadialGradient(cx, cy, 0, cx, cy, hubSz * 1.8);
-    hubGrd.addColorStop(0, `rgba(255,255,255,${(0.15 + this.energy * 0.15 + this.anticipation * 0.1).toFixed(3)})`);
-    hubGrd.addColorStop(0.5, `rgba(${R},${G},${B},${(0.1 + this.energy * 0.06).toFixed(3)})`);
-    hubGrd.addColorStop(1, `rgba(${R},${G},${B},0)`);
+    hubGrd.addColorStop(0, rgba(255, 255, 255, 0.15 + this.energy * 0.15 + this.anticipation * 0.1));
+    hubGrd.addColorStop(0.5, rgba(R, G, B, 0.1 + this.energy * 0.06));
+    hubGrd.addColorStop(1, rgba(R, G, B, 0));
     ctx.fillStyle = hubGrd;
     ctx.fillRect(cx - hubSz * 2, cy - hubSz * 2, hubSz * 4, hubSz * 4);
 
     // Center hot point
     ctx.beginPath();
-    ctx.arc(cx, cy, 4 + this.energy * 2 + this.anticipation * 2, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255,255,255,${(0.25 + this.energy * 0.2 + this.anticipation * 0.15).toFixed(3)})`;
+    ctx.arc(cx, cy, 4 + this.energy * 2 + this.anticipation * 2, 0, TWO_PI);
+    ctx.fillStyle = rgba(255, 255, 255, 0.25 + this.energy * 0.2 + this.anticipation * 0.15);
     ctx.fill();
 
     ctx.restore();

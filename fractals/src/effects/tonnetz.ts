@@ -4,7 +4,7 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
-import { getNoteName } from './effect-utils.ts';
+import { getNoteName, TWO_PI } from './effect-utils.ts';
 
 interface HexCoord {
   q: number;
@@ -263,7 +263,7 @@ export class TonnetzEffect implements VisualEffect {
           gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
           ctx.fillStyle = gradient;
           ctx.beginPath();
-          ctx.arc(x, y, glowRadius, 0, Math.PI * 2);
+          ctx.arc(x, y, glowRadius, 0, TWO_PI);
           ctx.fill();
         }
 
@@ -274,7 +274,7 @@ export class TonnetzEffect implements VisualEffect {
 
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${baseAlpha})`;
         ctx.beginPath();
-        ctx.arc(x, y, nodeRadius * (1 + brightness * 0.3), 0, Math.PI * 2);
+        ctx.arc(x, y, nodeRadius * (1 + brightness * 0.3), 0, TWO_PI);
         ctx.fill();
 
         ctx.strokeStyle = `rgba(${pcColor[0]}, ${pcColor[1]}, ${pcColor[2]}, ${0.3 + brightness * 0.5})`;
