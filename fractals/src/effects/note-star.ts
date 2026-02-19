@@ -170,10 +170,10 @@ export class NoteStarEffect implements VisualEffect {
       const noteDuration = matchingNote?.duration ?? 0;
       const qualifiesForBeam = noteDuration >= beamThresholdSec;
 
-      const loudnessFactor = 0.25 + this.loudness * 0.75;
+      const loudnessFactor = 0.5 + this.loudness * 0.5;
       const c = samplePaletteColor(voice.pitchClass, 0.75);
-      // Compress velocity: high floor, narrow range for consistent brightness
-      const compressedVel = 0.5 + 0.5 * Math.pow(voice.velocity, 0.5);
+      // Heavy compression: quiet notes stay bright, loud notes only slightly brighter
+      const compressedVel = 0.75 + 0.25 * Math.pow(voice.velocity, 0.4);
       const noteIntensity = compressedVel * loudnessFactor * grooveIntensity;
 
       this.stars.push({
@@ -272,16 +272,16 @@ export class NoteStarEffect implements VisualEffect {
 
       // Pulse size and alpha with groove (compressed for softer look)
       // Gentle brightness fade as stars slow down near center
-      const progressFade = 1 - eased * 0.25;
+      const progressFade = 1 - eased * 0.2;
       const baseSize = 2.5 + star.velocity * 3 * (1 - eased * 0.85);
       const size = baseSize * groovePulse;
-      const alpha = Math.min(0.75, star.alpha * this.intensity * groovePulse * 0.7 * progressFade);
+      const alpha = Math.min(0.85, star.alpha * this.intensity * groovePulse * 0.85 * progressFade);
 
       if (alpha < 0.01) continue;
 
       // === SOLID LIGHT BEAM following spiral (sustained notes 2+ beats) ===
       if (star.hasBeam && star.progress > 0.01) {
-        const loudnessFactor = 0.3 + this.loudness * 0.7;
+        const loudnessFactor = 0.5 + this.loudness * 0.5;
         // Attack curve: bright on strike, settles to sustain level
         // Peak at ~0.1s, then exponential decay to 40% sustain
         const attackPeak = Math.min(1, star.age / 0.1); // Rise 0->1 over 0.1s

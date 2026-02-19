@@ -140,7 +140,7 @@ export class ChladniEffect implements VisualEffect {
   readonly name = 'Chladni';
   readonly isPostProcess = false;
   readonly defaultBlend: BlendMode = 'source-over';
-  readonly defaultOpacity = 0.35;
+  readonly defaultOpacity = 0.45;
 
   private outputCanvas: HTMLCanvasElement;
   private glCanvas: HTMLCanvasElement;
@@ -340,7 +340,7 @@ export class ChladniEffect implements VisualEffect {
     }
 
     // Apply tension brightness to base colors each frame
-    const tensionBrightness = 0.8 + this.smoothedTension * 0.2;  // 0.8 to 1.0
+    const tensionBrightness = 0.9 + this.smoothedTension * 0.1;  // 0.9 to 1.0
     this.color1 = [this.baseColor1[0] * tensionBrightness, this.baseColor1[1] * tensionBrightness, this.baseColor1[2] * tensionBrightness];
     this.color2 = [this.baseColor2[0] * tensionBrightness, this.baseColor2[1] * tensionBrightness, this.baseColor2[2] * tensionBrightness];
     this.color3 = [this.baseColor3[0] * tensionBrightness, this.baseColor3[1] * tensionBrightness, this.baseColor3[2] * tensionBrightness];

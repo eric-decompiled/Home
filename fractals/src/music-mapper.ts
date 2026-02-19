@@ -206,6 +206,7 @@ let lastChordIndex = -1;
 let currentBeatPosition = 0;
 let currentBarPosition = 0;
 let currentBeatIndex = 0;
+let prevFrameBeatPhase = 0; // Track beat phase from previous frame for eighth-note detection
 let currentChordRoot = 0;
 let currentChordDegree = 1;
 let currentChordQuality = 'major';
@@ -606,59 +607,7 @@ export const musicMapper = {
       tensionReleaseArmed = true;
     }
 
-    // === RHYTHMIC TENSION (syncopation + anticipation → white rings) ===
-    // Build tension from: beat anticipation + off-beat activity
-    // Release on strong beats (1 and 3)
-
-    // Get beat state for rhythm calculations (will be computed again below but we need it here)
-    const rhythmBeat = beatSync.update(currentTime, 0); // peek without advancing
-
-    // Anticipation component: builds as we approach beats
-    const anticipationComponent = rhythmBeat.beatAnticipation * 0.6;
-
-    // Syncopation component: note activity on weak beat positions (off the grid)
-    // Off-beat = beatPhase between 0.3-0.7 (not near beat boundaries)
-    const isOffBeat = rhythmBeat.beatPhase > 0.2 && rhythmBeat.beatPhase < 0.8;
-    const offBeatActivity = (frameMelodyOnset && isOffBeat) ? 0.5 : 0;
-
-    // Combine into rhythmic tension
-    const targetRhythmicTension = Math.min(1, anticipationComponent + offBeatActivity);
-    rhythmicTension += (targetRhythmicTension - rhythmicTension) * 8 * dt;
-
-    // Smooth average for comparison
-    rhythmicTensionSmooth += (rhythmicTension - rhythmicTensionSmooth) * 3 * dt;
-
-    // Release on strong beats (beat 1 or 3) when there's tension built up
-    frameRhythmicRelease = false;
-    const isStrongBeat = rhythmBeat.onBeat && (rhythmBeat.beatIndex === 0 || rhythmBeat.beatIndex === 2);
-    if (isStrongBeat && rhythmicTensionSmooth > 0.15) {
-      rhythmicRelease = Math.min(1, rhythmicTensionSmooth + 0.3);
-      frameRhythmicRelease = true;
-    }
-
-    // Decay release
-    rhythmicRelease *= Math.exp(-5 * dt);
-
-    // --- Process drum hits → rotation and energy ---
-    frameDrumEnergy = 0;
-    const noteLookback = 0.05;
-    for (let i = lastDrumIndex + 1; i < drums.length; i++) {
-      const d = drums[i];
-      if (d.time > currentTime) break;
-      if (d.time < currentTime - noteLookback) { lastDrumIndex = i; continue; }
-
-      lastDrumIndex = i;
-      frameDrumEnergy = Math.min(1, frameDrumEnergy + d.energy);
-
-      // Compute beat strength at drum hit time for rotation direction
-      const beatInBar = Math.floor((d.time % (beatDuration * beatsPerBar)) / beatDuration);
-      const hitBeatStrength = computeBeatStrength(beatInBar, beatsPerBar);
-
-      // Rotation: strong beats push forward, weak beats pull back
-      rotationVelocity += (hitBeatStrength * 2 - 1) * d.energy * 0.6;
-    }
-
-    // --- Get beat state from BeatSync ---
+    // --- Get beat state from BeatSync (ONCE per frame to avoid state corruption) ---
     const beat = beatSync.update(currentTime, dt);
 
     // Update module state from BeatSync (dynamic tempo support)
@@ -686,6 +635,55 @@ export const musicMapper = {
     currentBeatGroove = beat.beatGroove;
     currentBarGroove = beat.barGroove;
 
+    // === RHYTHMIC TENSION (syncopation + anticipation → white rings) ===
+    // Build tension from: beat anticipation + off-beat activity
+    // Release on strong beats (1 and 3)
+
+    // Anticipation component: builds as we approach beats
+    const anticipationComponent = beat.beatAnticipation * 0.6;
+
+    // Syncopation component: note activity on weak beat positions (off the grid)
+    // Off-beat = beatPhase between 0.3-0.7 (not near beat boundaries)
+    const isOffBeat = beat.beatPhase > 0.2 && beat.beatPhase < 0.8;
+    const offBeatActivity = (frameMelodyOnset && isOffBeat) ? 0.5 : 0;
+
+    // Combine into rhythmic tension
+    const targetRhythmicTension = Math.min(1, anticipationComponent + offBeatActivity);
+    rhythmicTension += (targetRhythmicTension - rhythmicTension) * 8 * dt;
+
+    // Smooth average for comparison
+    rhythmicTensionSmooth += (rhythmicTension - rhythmicTensionSmooth) * 3 * dt;
+
+    // Release on strong beats (beat 1 or 3) when there's tension built up
+    frameRhythmicRelease = false;
+    const isStrongBeat = beat.onBeat && (beat.beatIndex === 0 || beat.beatIndex === 2);
+    if (isStrongBeat && rhythmicTensionSmooth > 0.15) {
+      rhythmicRelease = Math.min(1, rhythmicTensionSmooth + 0.3);
+      frameRhythmicRelease = true;
+    }
+
+    // Decay release
+    rhythmicRelease *= Math.exp(-5 * dt);
+
+    // --- Process drum hits → rotation and energy ---
+    frameDrumEnergy = 0;
+    const noteLookback = 0.05;
+    for (let i = lastDrumIndex + 1; i < drums.length; i++) {
+      const d = drums[i];
+      if (d.time > currentTime) break;
+      if (d.time < currentTime - noteLookback) { lastDrumIndex = i; continue; }
+
+      lastDrumIndex = i;
+      frameDrumEnergy = Math.min(1, frameDrumEnergy + d.energy);
+
+      // Compute beat strength at drum hit time for rotation direction
+      const beatInBar = Math.floor((d.time % (beatDuration * beatsPerBar)) / beatDuration);
+      const hitBeatStrength = computeBeatStrength(beatInBar, beatsPerBar);
+
+      // Rotation: strong beats push forward, weak beats pull back
+      rotationVelocity += (hitBeatStrength * 2 - 1) * d.energy * 0.6;
+    }
+
     // --- Beat-grid rotation impulses ---
     if (beat.onBeat) {
       // Beats 0,2 → CCW (+), beats 1,3 → CW (-)
@@ -695,12 +693,12 @@ export const musicMapper = {
     }
 
     // Eighth-note subdivision impulses (at 0.5 beat phase)
-    // We detect crossing 0.5 by checking if we went from <0.5 to >=0.5
-    const prevBeatPhase = (currentTime - dt > 0) ? (beatSync.update(currentTime - dt, 0).beatPhase) : 0;
-    if (prevBeatPhase < 0.5 && beat.beatPhase >= 0.5 && dt > 0) {
+    // Use tracked previous beat phase instead of re-calling beatSync.update()
+    if (prevFrameBeatPhase < 0.5 && beat.beatPhase >= 0.5 && dt > 0) {
       const cw8 = (beat.beatIndex % 2 === 0) ? 1 : -1;
       rotationVelocity += cw8 * 0.20;
     }
+    prevFrameBeatPhase = beat.beatPhase;
 
     // --- Rotation friction + integration ---
     const safeDt = Math.min(dt, 0.1);  // prevent explosion on tab switch
@@ -990,6 +988,33 @@ export const musicMapper = {
     lastMelodyMidi = -1;
     melodicTensionAccum = 0;
     hasPlayedOnce = false;
+    // Reset beat phase tracking
+    prevFrameBeatPhase = 0;
+    currentBeatPosition = 0;
+    currentBarPosition = 0;
+    currentBeatIndex = 0;
+    // Reset melody/bass tracking
+    frameMelodyOnset = false;
+    currentMelodyPC = -1;
+    currentMelodyMidi = -1;
+    currentMelodyVel = 0;
+    currentBassPC = -1;
+    currentBassMidi = -1;
+    currentBassVel = 0;
+    // Reset beat events
+    frameOnBeat = false;
+    frameOnBar = false;
+    currentBeatStability = 1.0;
+    currentNextBeatIn = 0;
+    currentNextBarIn = 0;
+    // Reset groove curves
+    currentBeatAnticipation = 0;
+    currentBarAnticipation = 0;
+    currentBeatArrival = 0;
+    currentBarArrival = 0;
+    currentBeatGroove = 0;
+    currentBarGroove = 0;
+    // Reset BeatSync internal state
     beatSync.reset();
   },
 

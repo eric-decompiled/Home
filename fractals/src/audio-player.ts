@@ -120,8 +120,24 @@ function ensureInit(): Promise<void> {
 }
 
 export const audioPlayer = {
+  /** Destroy the current sequencer and stop all sounds. Call before loading a new song. */
+  destroy() {
+    if (sequencer) {
+      sequencer.pause();
+      sequencer = null;
+    }
+    if (synth) {
+      synth.stopAll(true);
+    }
+    pendingMidiBuffer = null;
+    resetTimeTracking();
+  },
+
   /** Store the MIDI buffer. Audio init is deferred to play(). */
   loadMidi(midiBuffer: ArrayBuffer) {
+    // Destroy old sequencer first - fresh start
+    this.destroy();
+
     midiBuffer = unwrapRiff(midiBuffer);
     pendingMidiBuffer = midiBuffer;
     // If synth is already up, load immediately
@@ -134,21 +150,14 @@ export const audioPlayer = {
   _loadSequencer(midiBuffer: ArrayBuffer) {
     if (!synth) return;
     resetTimeTracking();
-    if (sequencer) {
-      sequencer.pause();
-      synth.stopAll(true);
-      sequencer.loadNewSongList([{ binary: midiBuffer }]);
-      sequencer.currentTime = 0;
-      sequencer.pause();
-    } else {
-      sequencer = new Sequencer(synth);
-      sequencer.loadNewSongList([{ binary: midiBuffer }]);
-      sequencer.currentTime = 0;
-      sequencer.pause();
-    }
+    // Always create a fresh sequencer
+    sequencer = new Sequencer(synth);
+    sequencer.loadNewSongList([{ binary: midiBuffer }]);
+    sequencer.currentTime = 0;
+    sequencer.pause();
   },
 
-  async play() {
+  async play(): Promise<boolean> {
     // Unlock audio immediately during user gesture (before any await)
     unlockAudio();
 
@@ -160,7 +169,7 @@ export const audioPlayer = {
       this._loadSequencer(pendingMidiBuffer);
       pendingMidiBuffer = null;
     }
-    if (!sequencer) return;
+    if (!sequencer) return false;
 
     if (audioCtx && audioCtx.state === "suspended") {
       await audioCtx.resume();
@@ -168,6 +177,7 @@ export const audioPlayer = {
 
     resetTimeTracking();
     sequencer.play();
+    return true;
   },
 
   pause() {
@@ -175,14 +185,7 @@ export const audioPlayer = {
   },
 
   stop() {
-    resetTimeTracking();
-    if (sequencer) {
-      sequencer.pause();
-      sequencer.currentTime = 0;
-    }
-    if (synth) {
-      synth.stopAll(true);
-    }
+    this.destroy();
   },
 
   seek(time: number) {

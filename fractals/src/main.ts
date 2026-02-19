@@ -238,7 +238,7 @@ let dirty = true;
 let lastTime = 0;
 let displayWidth = 800;
 let displayHeight = 600;
-let isPlaying = false;
+let loadToken = 0; // Increments on each load to detect stale callbacks
 let idlePhase = 0;
 let needsInitialRender = true; // Render first frame when paused
 
@@ -889,10 +889,8 @@ let debugOverlayVisible = false;
 playOverlay.addEventListener('click', async () => {
   playOverlay.classList.remove('visible');
   // Trigger play which will unlock audio
-  if (!isPlaying) {
+  if (!audioPlayer.isPlaying()) {
     await audioPlayer.play();
-    isPlaying = true;
-    setPlayBtnState(true);
   }
 });
 
@@ -977,7 +975,7 @@ async function switchPlaylist(category: PlaylistCategory): Promise<void> {
   if (currentPlaylist === category) return;
 
   // Remember if we were playing before switching
-  const wasPlaying = isPlaying;
+  const wasPlaying = audioPlayer.isPlaying();
 
   currentPlaylist = category;
 
@@ -1000,14 +998,7 @@ async function switchPlaylist(category: PlaylistCategory): Promise<void> {
   // Load first song if available
   if (currentSongs.length > 0) {
     songPicker.value = '0';
-    await loadSong(0);
-
-    // If we were playing before, continue playing the new song
-    if (wasPlaying) {
-      await audioPlayer.play();
-      isPlaying = true;
-      setPlayBtnState(true);
-    }
+    await loadSong(0, wasPlaying);
   }
 }
 
@@ -2455,20 +2446,61 @@ function formatTime(seconds: number): string {
 
 // --- Song loading ---
 
-async function loadSong(index: number) {
-  const song = getCurrentSongs()[index];
-  audioPlayer.stop();
-  isPlaying = false;
-  setPlayBtnState(false);
+/**
+ * Reset all playback state for a song switch.
+ * Call this before loading a new song.
+ */
+/**
+ * Reset analysis state when seeking within a song.
+ * Resets musicMapper and compositor but keeps playback running.
+ */
+function resetForSeek(seekTime: number) {
+  if (!timeline) return;
+
+  audioPlayer.seek(seekTime);
+  musicMapper.reset();
+  musicMapper.setTempo(
+    timeline.tempo,
+    timeline.timeSignature,
+    timeline.tempoEvents,
+    timeline.timeSignatureEvents
+  );
+  musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
+  musicMapper.setSongDuration(timeline.duration, timeline.chords);
+  compositor.resetAll();
+  dirty = true;
+}
+
+/**
+ * Unified song loading function.
+ * Destroys old state, loads new song, optionally auto-plays.
+ * Returns true if load succeeded, false if failed or superseded.
+ */
+async function loadSong(index: number, autoPlay = false): Promise<boolean> {
+  const myToken = ++loadToken;
+
+  // 1. STOP - destroy everything
+  audioPlayer.destroy();
+  timeline = null;
   musicMapper.reset();
   compositor.resetAll();
-  
+
+  // 2. DISABLE UI
+  playBtn.disabled = true;
+  seekBar.disabled = true;
+  seekBar.value = '0';
+  seekBar.style.setProperty('--progress', '0');
+  lastDisplayedSecond = -1;
+  timeDisplay.textContent = '0:00 / 0:00';
   keyDisplay.textContent = 'Key: ...';
   keyDisplay.style.color = '';
   bpmDisplay.textContent = 'BPM: ...';
   chordDisplay.textContent = 'Loading...';
 
+  // 3. LOAD
+  const song = getCurrentSongs()[index];
   let midiBuffer: ArrayBuffer;
+
   if (song.data) {
     // Use in-memory data for uploaded songs
     midiBuffer = song.data;
@@ -2483,11 +2515,13 @@ async function loadSong(index: number) {
       console.error('Failed to fetch MIDI:', e);
       showToast(`Failed to load: ${song.file}`);
       chordDisplay.textContent = 'Load failed';
-      timeline = null;
-      return;
+      return false;
     }
   }
 
+  if (myToken !== loadToken) return false;  // Superseded
+
+  // 4. ANALYZE
   try {
     timeline = analyzeMidiBuffer(midiBuffer);
   } catch (e) {
@@ -2495,9 +2529,12 @@ async function loadSong(index: number) {
     showToast(`Failed to analyze: ${song.file}`);
     chordDisplay.textContent = 'Analysis failed';
     timeline = null;
-    return;
+    return false;
   }
 
+  if (myToken !== loadToken) return false;  // Superseded
+
+  // 5. INITIALIZE (fresh resources)
   musicMapper.setTempo(
     timeline.tempo,
     timeline.timeSignature,
@@ -2506,22 +2543,28 @@ async function loadSong(index: number) {
   );
   musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
   musicMapper.setSongDuration(timeline.duration, timeline.chords);
-  audioPlayer.loadMidi(midiBuffer);
-  needsInitialRender = true; // Trigger first frame render
+  audioPlayer.loadMidi(midiBuffer);  // Creates fresh sequencer
+  needsInitialRender = true;
 
+  // 6. ENABLE UI
   const modeLabel = timeline.keyMode === 'minor' ? 'm' : '';
   keyDisplay.textContent = `Key: ${noteNames[timeline.key]}${modeLabel}`;
   bpmDisplay.textContent = `BPM: ${Math.round(timeline.tempo)}`;
   chordDisplay.textContent = `${timeline.timeSignature[0]}/${timeline.timeSignature[1]}`;
-
   seekBar.max = String(timeline.duration);
   seekBar.step = '0.016';
   seekBar.value = '0';
   seekBar.disabled = false;
   playBtn.disabled = false;
-
   updateTimeDisplay(0);
   dirty = true;
+
+  // 7. AUTO-PLAY if requested
+  if (autoPlay && myToken === loadToken) {
+    await audioPlayer.play();
+  }
+
+  return true;
 }
 
 let lastDisplayedSecond = -1;
@@ -2573,15 +2616,13 @@ async function removeCurrentUpload(): Promise<void> {
   const idx = parseInt(songPicker.value);
   if (isNaN(idx) || idx < 0 || idx >= uploadedSongs.length) return;
 
-  const wasPlaying = isPlaying;
+  const wasPlaying = audioPlayer.isPlaying();
   uploadedSongs.splice(idx, 1);
   saveUploadsToStorage();
 
   if (uploadedSongs.length === 0) {
     // No more uploads, stop playback and switch to pop playlist
-    audioPlayer.stop();
-    isPlaying = false;
-    setPlayBtnState(false);
+    audioPlayer.destroy();
     playlistUploadsBtn.style.display = 'none';
     (playlistPickerMenu.querySelector('[data-playlist="uploads"]') as HTMLElement).style.display = 'none';
     await switchPlaylist('pop');
@@ -2589,50 +2630,43 @@ async function removeCurrentUpload(): Promise<void> {
     // Select next song (or previous if at end)
     const newIdx = Math.min(idx, uploadedSongs.length - 1);
     rebuildUploadsPicker(newIdx);
-    await loadSong(newIdx);
-    // Continue playing if we were playing
-    if (wasPlaying) {
-      await audioPlayer.play();
-      isPlaying = true;
-      setPlayBtnState(true);
-    }
+    await loadSong(newIdx, wasPlaying);
   }
 }
 
 async function loadMidiFile(file: File) {
-  audioPlayer.stop();
-  isPlaying = false;
-  setPlayBtnState(false);
+  const myToken = ++loadToken;
+
+  // 1. STOP - destroy everything
+  audioPlayer.destroy();
+  timeline = null;
   musicMapper.reset();
   compositor.resetAll();
-  
+
+  // 2. DISABLE UI
+  playBtn.disabled = true;
+  seekBar.disabled = true;
+  seekBar.value = '0';
+  seekBar.style.setProperty('--progress', '0');
+  lastDisplayedSecond = -1;
+  timeDisplay.textContent = '0:00 / 0:00';
   keyDisplay.textContent = 'Key: ...';
   keyDisplay.style.color = '';
   bpmDisplay.textContent = 'BPM: ...';
-  chordDisplay.textContent = file.name;
+  chordDisplay.textContent = file.name; // Show filename while loading
 
   try {
     const midiBuffer = await file.arrayBuffer();
+
+    if (myToken !== loadToken) return;  // Superseded
+
     timeline = analyzeMidiBuffer(midiBuffer);
 
-    musicMapper.setTempo(
-      timeline.tempo,
-      timeline.timeSignature,
-      timeline.tempoEvents,
-      timeline.timeSignatureEvents
-    );
-    musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
-    audioPlayer.loadMidi(midiBuffer);
-    needsInitialRender = true; // Trigger first frame render
-
-    const modeLabel = timeline.keyMode === 'minor' ? 'm' : '';
-    keyDisplay.textContent = `Key: ${noteNames[timeline.key]}${modeLabel}`;
-    bpmDisplay.textContent = `BPM: ${Math.round(timeline.tempo)}`;
+    if (myToken !== loadToken) return;  // Superseded
 
     // Use song name from MIDI metadata, fallback to filename without extension
     const baseName = file.name.replace(/\.(mid|midi)$/i, '');
     const displayName = timeline.name || baseName;
-    chordDisplay.textContent = `${timeline.timeSignature[0]}/${timeline.timeSignature[1]}`;
 
     // Add to uploads playlist (in memory)
     const uploadEntry: SongEntry = {
@@ -2668,14 +2702,32 @@ async function loadMidiFile(file: File) {
     const uploadIdx = existingIdx >= 0 ? existingIdx : uploadedSongs.length - 1;
     rebuildUploadsPicker(uploadIdx);
 
+    // Initialize state (fresh resources)
+    musicMapper.setTempo(
+      timeline.tempo,
+      timeline.timeSignature,
+      timeline.tempoEvents,
+      timeline.timeSignatureEvents
+    );
+    musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
+    musicMapper.setSongDuration(timeline.duration, timeline.chords);
+    audioPlayer.loadMidi(midiBuffer);
+    needsInitialRender = true;
+
+    // Enable UI
+    const modeLabel = timeline.keyMode === 'minor' ? 'm' : '';
+    keyDisplay.textContent = `Key: ${noteNames[timeline.key]}${modeLabel}`;
+    bpmDisplay.textContent = `BPM: ${Math.round(timeline.tempo)}`;
+    chordDisplay.textContent = `${timeline.timeSignature[0]}/${timeline.timeSignature[1]}`;
     seekBar.max = String(timeline.duration);
     seekBar.step = '0.016';
     seekBar.value = '0';
     seekBar.disabled = false;
     playBtn.disabled = false;
-
     updateTimeDisplay(0);
     dirty = true;
+
+    // File uploads don't auto-play - user clicks play
   } catch (e) {
     console.error('Failed to load MIDI:', e);
     chordDisplay.textContent = 'Load failed - invalid MIDI?';
@@ -2695,8 +2747,7 @@ songPicker.addEventListener('change', async () => {
   if (songPicker.value === 'custom') return; // Already loaded
   const idx = parseInt(songPicker.value);
   if (!isNaN(idx)) {
-    await loadSong(idx);
-    if (!isPlaying) playBtn.click();
+    await loadSong(idx, true);  // Auto-play selected song
   }
 });
 
@@ -2717,8 +2768,7 @@ prevBtn.addEventListener('click', async () => {
   const currentSongs = getCurrentSongs();
   const prevIdx = (currentIdx - 1 + currentSongs.length) % currentSongs.length;
   songPicker.value = String(prevIdx);
-  await loadSong(prevIdx);
-  if (!isPlaying) playBtn.click();
+  await loadSong(prevIdx, true);  // Auto-play
 });
 
 nextBtn.addEventListener('click', async () => {
@@ -2727,8 +2777,7 @@ nextBtn.addEventListener('click', async () => {
   const currentSongs = getCurrentSongs();
   const nextIdx = (currentIdx + 1) % currentSongs.length;
   songPicker.value = String(nextIdx);
-  await loadSong(nextIdx);
-  if (!isPlaying) playBtn.click();
+  await loadSong(nextIdx, true);  // Auto-play
 });
 
 // --- Custom MIDI file input (drag & drop + file picker) ---
@@ -2780,16 +2829,13 @@ canvas.addEventListener('drop', (e) => {
 });
 
 playBtn.addEventListener('click', async () => {
-  if (!timeline) return;
+  if (!timeline || playBtn.disabled) return;
 
-  if (isPlaying) {
+  // Query truth directly - no cached variable
+  if (audioPlayer.isPlaying()) {
     audioPlayer.pause();
-    isPlaying = false;
-    setPlayBtnState(false);
   } else {
     await audioPlayer.play();
-    isPlaying = true;
-    setPlayBtnState(true);
   }
 });
 
@@ -2827,21 +2873,8 @@ seekBar.addEventListener('touchstart', () => { seeking = true; });
 
 seekBar.addEventListener('input', () => {
   const t = parseFloat(seekBar.value);
-
-  if (timeline) {
-    audioPlayer.seek(t);
-    musicMapper.reset();
-    musicMapper.setTempo(
-      timeline.tempo,
-      timeline.timeSignature,
-      timeline.tempoEvents,
-      timeline.timeSignatureEvents
-    );
-    musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
-  }
-
+  resetForSeek(t);
   updateTimeDisplay(t);
-  dirty = true;
 });
 
 seekBar.addEventListener('mouseup', () => { seeking = false; });
@@ -2950,14 +2983,13 @@ fractalEngine.onFrameReady = (renderMs: number) => {
     fpsDisplay.textContent = `${currentFps} fps | ${currentRenderMs.toFixed(0)}ms | ${renderFidelity.toFixed(2)}x`;
 
     // Low FPS detection (only when tab is visible and playing)
-    if (isPlaying && !document.hidden && currentFps < LOW_FPS_THRESHOLD) {
+    const isCurrentlyPlaying = audioPlayer.isPlaying();
+    if (isCurrentlyPlaying && !document.hidden && currentFps < LOW_FPS_THRESHOLD) {
       if (!lowFpsStartTime) {
         lowFpsStartTime = now;
       } else if (now - lowFpsStartTime > LOW_FPS_DURATION) {
         // Sustained low FPS - pause and warn
         audioPlayer.pause();
-        isPlaying = false;
-        setPlayBtnState(false);
         showToast('Performance issue - try Fast quality or simpler preset');
         lowFpsStartTime = null;
       }
@@ -2966,7 +2998,7 @@ fractalEngine.onFrameReady = (renderMs: number) => {
     }
 
     // Quality auto-downgrade (separate from pause detection)
-    if (isPlaying && !document.hidden && !hasAutoDowngraded) {
+    if (isCurrentlyPlaying && !document.hidden && !hasAutoDowngraded) {
       const currentQuality = compositor.renderScale;
 
       if (currentQuality >= 1.0 && currentFps < QUALITY_DOWNGRADE_THRESHOLD) {
@@ -3004,56 +3036,59 @@ function loop(time: number): void {
   lastTime = time;
   seekBarFrameCount++;
 
-  if (isPlaying && timeline) {
-    // --- MIDI mode ---
-    const currentTime = audioPlayer.getCurrentTime();
+  // Sync button state to truth EVERY frame
+  const playing = timeline && audioPlayer.isPlaying();
+  setPlayBtnState(!!playing);
 
-    if (currentTime > 0.5 && (audioPlayer.isFinished() || currentTime >= timeline.duration)) {
+  // Check for song completion FIRST (sequencer pauses itself when done, so isPlaying() is false)
+  if (timeline && audioPlayer.isFinished()) {
+    const currentTime = audioPlayer.getCurrentTime();
+    if (currentTime > 0.5) {  // Sanity check - not at start of song
       // Auto-play next song
       const currentIdx = parseInt(songPicker.value);
       const currentSongs = getCurrentSongs();
       if (!isNaN(currentIdx) && currentIdx < currentSongs.length - 1) {
         const nextIdx = currentIdx + 1;
         songPicker.value = String(nextIdx);
-        loadSong(nextIdx).then(() => {
-          audioPlayer.play();
-          isPlaying = true;
-          setPlayBtnState(true);
-        });
+        loadSong(nextIdx, true);  // autoPlay = true
+        requestAnimationFrame(loop);
+        return;  // Exit loop - loadSong handles everything async
       } else {
-        // End of playlist
-        audioPlayer.pause();
-        isPlaying = false;
-        setPlayBtnState(false);
-        audioPlayer.seek(0);
-        musicMapper.reset();
+        // End of playlist - reset to beginning
+        resetForSeek(0);
+        updateTimeDisplay(0);
       }
-    } else {
-      // Throttle seek bar updates to every 4 frames (~15fps)
-      if (!seeking && (seekBarFrameCount & 3) === 0) {
-        seekBar.value = String(currentTime);
-        seekBar.style.setProperty('--progress', String(currentTime / timeline.duration));
-      }
-      updateTimeDisplay(currentTime);
-      updateChordDisplay(currentTime);
-
-      // Get fractal params from music (always computed — fractal effect reads them)
-      const params = musicMapper.update(dt, currentTime, timeline.chords, timeline.drums, timeline.notes);
-
-      // Generic music params for all other effects
-      const musicParams = musicMapper.getMusicParams(dt, currentTime);
-
-      // Set fractal-specific params
-      fractalEffect.setFractalParams(
-        params.cReal, params.cImag, 1.0,
-        params.baseIter, renderFidelity,
-        params.fractalType, params.phoenixP,
-        params.rotation, params.paletteIndex
-      );
-      compositor.update(dt, musicParams);
-
-      dirty = true;
     }
+  }
+
+  if (playing && timeline) {
+    // --- MIDI mode ---
+    const currentTime = audioPlayer.getCurrentTime();
+
+    // Throttle seek bar updates to every 4 frames (~15fps)
+    if (!seeking && (seekBarFrameCount & 3) === 0) {
+      seekBar.value = String(currentTime);
+      seekBar.style.setProperty('--progress', String(currentTime / timeline.duration));
+    }
+    updateTimeDisplay(currentTime);
+    updateChordDisplay(currentTime);
+
+    // Get fractal params from music (always computed — fractal effect reads them)
+    const params = musicMapper.update(dt, currentTime, timeline.chords, timeline.drums, timeline.notes);
+
+    // Generic music params for all other effects
+    const musicParams = musicMapper.getMusicParams(dt, currentTime);
+
+    // Set fractal-specific params
+    fractalEffect.setFractalParams(
+      params.cReal, params.cImag, 1.0,
+      params.baseIter, renderFidelity,
+      params.fractalType, params.phoenixP,
+      params.rotation, params.paletteIndex
+    );
+    compositor.update(dt, musicParams);
+
+    dirty = true;
   } else if (timeline) {
     // Paused with a song loaded - render initial frame then freeze
     if (needsInitialRender) {

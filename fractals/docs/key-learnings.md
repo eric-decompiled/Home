@@ -87,6 +87,14 @@
 - **Profiling infrastructure**: Expose `compositor.profileEnabled` and `getProfileStats()` for per-effect timing. Essential for finding bottlenecks
 - **Spatial hash grid for graph physics**: Instead of O(n²) all-pairs repulsion, hash nodes into grid cells matching cutoff distance (300px). Each node checks only 9 adjacent cells. Enables unlimited nodes with linear scaling - no pruning needed
 
+### State Management
+- **Audio player is the source of truth**: Don't cache `isPlaying` in a separate variable—it desyncs. Query `audioPlayer.isPlaying()` directly
+- **Recreate resources on song switch**: Call `destroy()` to null sequencer, then create fresh one on `loadMidi()`. Prevents stale state from previous song
+- **Single unified load function with autoPlay param**: One `loadSong(index, autoPlay)` function handles all entry points (song picker, prev/next, playlist switch, auto-advance). Explicit autoPlay parameter instead of "remembering" previous state
+- **Token-based stale callback detection**: Increment `loadToken` on each load, capture as `myToken`. Check `myToken === loadToken` after async operations to detect if superseded by newer load
+- **Sync UI in render loop**: Call `setPlayBtnState(audioPlayer.isPlaying())` every frame. Single source of truth, always correct, no manual syncing needed
+- **Disable UI during load**: Set `playBtn.disabled = true` immediately when starting load. Re-enable after success. Prevents race conditions from clicking during async operations
+
 ### UI/UX
 - **Fullscreen with PWA fallback**: Fullscreen API doesn't work on iOS Safari. Provide "Add to Home Screen"
 - **Hide controls in fullscreen**: Slide up, reveal on mouse-to-top (desktop) or tap-near-top (mobile)
@@ -191,6 +199,12 @@
 ### Mobile UI
 - **touch-action on scroll containers**: Setting `touch-action: pan-y` on overlay or scroll container can interfere with native scrolling. Let the browser handle it naturally with `overflow-y: scroll`
 - **overflow: auto for touch scroll**: `auto` is less reliable than `scroll` for touch devices. Use `overflow-y: scroll` explicitly
+
+### State Management
+- **Cached `isPlaying` variable**: Separate variable desyncs from `audioPlayer.isPlaying()` truth. Rapid song switching causes button to get "stuck" in wrong state
+- **Reusing sequencer across songs**: Calling `sequencer.loadNewSongList()` on existing sequencer carries over timing/state artifacts. Create fresh sequencer each load
+- **Multiple async callbacks tracking generation**: Pattern like `const thisGen = loadGeneration + 1; await loadSong(); if (loadGeneration === thisGen) { ... }` is fragile across multiple call sites. Put autoPlay inside the load function itself
+- **Manual `setPlayBtnState(true/false)` calls scattered across code**: Easy to miss cases, get out of sync. Single render loop sync is foolproof
 
 ### Bundle Size
 - **Motion One for simple tweening**: Despite being marketed as lightweight, `motion` package pulls in `framer-motion` (5.4MB node_modules) because it's the React-focused version. Even `motion-dom` is 4.2MB. For simple `gsap.to()` replacements, a custom solution is smaller
