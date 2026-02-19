@@ -46,7 +46,7 @@ A portfolio site for communication and organizational technology apps, built wit
 
 | Directory | Slug | Description | Featured |
 |-----------|------|-------------|----------|
-| `fractals` | fractured-jukebox | MIDI-driven music visualizer with fractals | Yes |
+| `fractured-jukebox` | fractured-jukebox | MIDI-driven music visualizer with fractals | Yes |
 | `lissajous` | lissajous | Lissajous curves and musical intervals | Yes |
 | `resonator` | resonator | RLC resonator for audio synthesis | Yes |
 | `sound-synth` | sound-synth | Interactive harmonics explorer | - |
@@ -59,7 +59,7 @@ A portfolio site for communication and organizational technology apps, built wit
 
 **src/data/projects.ts**: Project metadata array. The `tier` field marks featured apps shown on homepage.
 
-**build-projects.js**: Iterates sub-projects, runs `npm install` and `vite build`, copies output to `public/apps/{slug}/`. Supports source directory to output slug mapping (e.g., `fractals` → `fractured-jukebox`).
+**build-projects.js**: Iterates sub-projects, runs `npm install` and `vite build`, copies output to `public/apps/{slug}/`.
 
 **src/styles/global.css**: Theme variables for dark/light modes. Sub-projects should use the same CSS variables for consistency.
 

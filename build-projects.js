@@ -12,7 +12,7 @@ const publicDir = path.join(rootDir, 'public');
 // Projects to build: { sourceDir, outputSlug }
 // If just a string, sourceDir and outputSlug are the same
 const projects = [
-  { sourceDir: 'fractals', outputSlug: 'fractured-jukebox' },
+  'fractured-jukebox',
   'lissajous',
   'sound-synth',
   'resonator',
