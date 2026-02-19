@@ -5,7 +5,7 @@
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import {
   samplePaletteColor, rgba, SPIRAL_MIDI_LO, SPIRAL_MIDI_HI,
-  SPIRAL_RADIUS_SCALE, spiralPos, TWO_PI
+  SPIRAL_RADIUS_SCALE, spiralPos, TWO_PI, fastSin
 } from './effect-utils.ts';
 
 const MIDI_LO = SPIRAL_MIDI_LO;
@@ -441,8 +441,8 @@ export class NoteStarEffect implements VisualEffect {
 
         for (let f = 0; f < numFlies; f++) {
           const flyAngle = (f / numFlies) * TWO_PI + this.time * 3 + star.pitchClass;
-          const flyDist = shapeSize * 2 * (0.8 + Math.sin(this.time * 4 + f) * 0.3);
-          const wobble = Math.sin(this.time * 6 + f * 2) * 4;
+          const flyDist = shapeSize * 2 * (0.8 + fastSin(this.time * 4 + f) * 0.3);
+          const wobble = fastSin(this.time * 6 + f * 2) * 4;
           const fx = pos.x + Math.cos(flyAngle) * flyDist + wobble;
           const fy = pos.y + Math.sin(flyAngle) * flyDist + wobble;
           const flyR = 2 + Math.sin(this.time * 8 + f) * 0.5;

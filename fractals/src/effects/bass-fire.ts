@@ -7,7 +7,7 @@ import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effec
 import {
   samplePaletteColor, rgba, SPIRAL_RADIUS_SCALE, spiralPos,
   MAJOR_OFFSETS, MINOR_OFFSETS, MAJOR_DEGREES, MINOR_DEGREES, semitoneOffset,
-  CHROMATIC_DEGREES_MAJOR, CHROMATIC_DEGREES_MINOR, TWO_PI
+  CHROMATIC_DEGREES_MAJOR, CHROMATIC_DEGREES_MINOR, TWO_PI, fastExp
 } from './effect-utils.ts';
 import { gsap } from '../animation.ts';
 
@@ -97,7 +97,7 @@ export class BassFireEffect implements VisualEffect {
 
     // Energy from drums
     this.energy += music.drumEnergy * 0.6;
-    this.energy *= Math.exp(-2.5 * dt);
+    this.energy *= fastExp(-2.5 * dt);
 
     // Groove curves
     const barAnticipation = music.barAnticipation ?? 0;
@@ -207,7 +207,7 @@ export class BassFireEffect implements VisualEffect {
     // Decay all chromatic fades over one bar
     const fadeRate = 4.6 / (music.barDuration ?? 2.0);
     for (const [pitchClass, fade] of this.chromaticFade) {
-      const newFade = fade * Math.exp(-fadeRate * dt);
+      const newFade = fade * fastExp(-fadeRate * dt);
       if (newFade < 0.01) {
         this.chromaticFade.delete(pitchClass);
       } else {

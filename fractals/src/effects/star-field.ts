@@ -56,6 +56,12 @@ export class StarFieldEffect implements VisualEffect {
   private height = 600;
   private ready = false;
 
+  // Track dimensions when stars were last generated
+  // Only regenerate if size change exceeds threshold
+  private generatedWidth = 0;
+  private generatedHeight = 0;
+  private static readonly REGEN_THRESHOLD = 200; // Only regen if size changes by this much
+
   private stars: Star[] = [];
   private nebulae: Nebula[] = [];
   private clusters: StarCluster[] = [];
@@ -92,6 +98,9 @@ export class StarFieldEffect implements VisualEffect {
   private parallaxStrength = 0.12;
   private densityDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Deferred initialization - wait for layout to settle
+  private initPending = true;
+
   constructor() {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d')!;
@@ -104,17 +113,78 @@ export class StarFieldEffect implements VisualEffect {
   }
 
   resize(width: number, height: number): void {
+    // Skip if dimensions unchanged
+    if (width === this.width && height === this.height) {
+      return;
+    }
+
     this.width = width;
     this.height = height;
     this.canvas.width = width;
     this.canvas.height = height;
-    this.nebulaCanvas.width = width;
-    this.nebulaCanvas.height = height;
+
+    // On first init, defer generation until after layout settles
+    // Use double-rAF to ensure we're past the initial layout/paint cycle
+    if (this.initPending) {
+      this.initPending = false;
+      // Set canvas sizes immediately
+      this.nebulaCanvas.width = width;
+      this.nebulaCanvas.height = height;
+      // Generate after two animation frames (ensures layout is complete)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          // Use current dimensions (may have changed)
+          this.generateStarfield();
+        });
+      });
+      return;
+    }
+
+    // Check if we need to regenerate stars
+    const needsRegen = this.shouldRegenerate(width, height);
+
+    if (needsRegen) {
+      this.generateStarfield();
+    }
+
+    // Only resize nebula canvas if dimensions changed significantly
+    if (needsRegen || this.nebulaCanvas.width !== width || this.nebulaCanvas.height !== height) {
+      this.nebulaCanvas.width = width;
+      this.nebulaCanvas.height = height;
+      this.nebulaDirty = true;
+    }
+
+    this.ready = true;
+  }
+
+  /** Generate all starfield elements for current dimensions */
+  private generateStarfield(): void {
+    this.generatedWidth = this.width;
+    this.generatedHeight = this.height;
     this.spawnClusters();
     this.spawnNebulae();
     this.spawnStars();
+    this.nebulaCanvas.width = this.width;
+    this.nebulaCanvas.height = this.height;
     this.nebulaDirty = true;
     this.ready = true;
+  }
+
+  /** Check if we need to regenerate stars based on size change threshold */
+  private shouldRegenerate(width: number, height: number): boolean {
+    // First time or previous generation was too small - always regenerate
+    // This handles page load where initial dimensions may be incomplete
+    const MIN_VALID_SIZE = 400;
+    if (this.generatedWidth < MIN_VALID_SIZE || this.generatedHeight < MIN_VALID_SIZE) {
+      return true;
+    }
+
+    // Regenerate if size changed significantly in either direction
+    const threshold = StarFieldEffect.REGEN_THRESHOLD;
+    const widthDiff = Math.abs(width - this.generatedWidth);
+    const heightDiff = Math.abs(height - this.generatedHeight);
+
+    return widthDiff > threshold || heightDiff > threshold;
   }
 
   private spawnClusters(): void {
@@ -516,16 +586,20 @@ export class StarFieldEffect implements VisualEffect {
 
   setConfigValue(key: string, value: number | string | boolean): void {
     switch (key) {
-      case 'density':
-        this.density = value as number;
-        // Debounce star respawn (500ms) since it's expensive
+      case 'density': {
+        const newDensity = value as number;
+        // Skip if density unchanged (avoids repaint on preset switches)
+        if (newDensity === this.density) break;
+        this.density = newDensity;
+        // Short debounce for responsive slider feedback
         if (this.densityDebounceTimer) clearTimeout(this.densityDebounceTimer);
         this.densityDebounceTimer = setTimeout(() => {
           this.spawnStars();
           this.nebulaDirty = true;  // Redraw background
           this.densityDebounceTimer = null;
-        }, 500);
+        }, 100);
         break;
+      }
       case 'twinkleAmount':
         this.twinkleAmount = value as number;
         break;

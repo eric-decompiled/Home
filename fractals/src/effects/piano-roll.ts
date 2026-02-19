@@ -3,9 +3,8 @@
 // Notes fall from above and land on keys when they play.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode, UpcomingNote } from './effect-interface.ts';
-import { palettes } from '../fractal-engine.ts';
 import { setNoteLookahead } from '../music-mapper.ts';
-import { rgba, TWO_PI } from './effect-utils.ts';
+import { rgba, TWO_PI, samplePaletteColor } from './effect-utils.ts';
 
 // Piano range: A0 (21) to C8 (108)
 const MIDI_LO = 21;
@@ -543,48 +542,23 @@ export class PianoRollEffect implements VisualEffect {
   private getKeyGradientColors(midi: number): [[number, number, number], [number, number, number]] {
     const pc = midi % 12;
     const octaveT = (midi - MIDI_LO) / (MIDI_HI - MIDI_LO); // 0-1 across piano range
-    const palette = palettes[pc];
-
-    if (palette && palette.stops.length >= 4) {
-      // Pick two stops with wider gap based on octave
-      // Low octaves: stops 0-3, Mid octaves: stops 1-4, High octaves: stops 2-5
-      const baseIndex = Math.floor(octaveT * 2); // 0-2 range
-      const topIndex = Math.min(baseIndex + 3, palette.stops.length - 1);
-      const bottomIndex = baseIndex;
-
-      const topColor = palette.stops[bottomIndex].color as [number, number, number];
-      const bottomColor = palette.stops[topIndex].color as [number, number, number];
-      return [topColor, bottomColor];
-    }
-
-    // Fallback
-    const bright: [number, number, number] = [200, 150, 180];
-    const dark: [number, number, number] = [80, 40, 60];
-    return [bright, dark];
+    // Use samplePaletteColor which respects custom color overrides
+    // Create gradient from darker (top) to brighter (bottom) based on octave
+    const topPos = 0.2 + octaveT * 0.3;    // darker end
+    const bottomPos = 0.5 + octaveT * 0.4; // brighter end
+    const topColor = samplePaletteColor(pc, topPos);
+    const bottomColor = samplePaletteColor(pc, bottomPos);
+    return [topColor, bottomColor];
   }
 
 
   private getNoteColorRGB(midi: number): [number, number, number] {
     const pc = midi % 12;
     const octaveBrightness = this.getOctaveBrightness(midi);
-    const palette = palettes[pc];
-    if (palette && palette.stops.length >= 4) {
-      // Pick stop based on octave (lower = earlier stops, higher = later stops)
-      const stopIndex = Math.floor(1 + octaveBrightness * 3); // 1-4 range
-      const stop = palette.stops[Math.min(stopIndex, palette.stops.length - 1)];
-      return stop.color as [number, number, number];
-    }
-    // Fallback: generate from hue with octave brightness
-    const hue = (pc / 12) * 360;
-    const h = hue / 60;
-    const base = Math.round(80 + octaveBrightness * 100);
-    const x = Math.round(base * (1 - Math.abs(h % 2 - 1)));
-    if (h < 1) return [base, x, 0];
-    if (h < 2) return [x, base, 0];
-    if (h < 3) return [0, base, x];
-    if (h < 4) return [0, x, base];
-    if (h < 5) return [x, 0, base];
-    return [base, 0, x];
+    // Use samplePaletteColor which respects custom color overrides
+    // Map octave brightness (0.25-1.0) to palette position (0.3-0.8)
+    const pos = 0.3 + octaveBrightness * 0.5;
+    return samplePaletteColor(pc, pos);
   }
 
   isReady(): boolean { return this.ready; }

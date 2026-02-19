@@ -247,7 +247,6 @@ export class TheoryBarEffect implements VisualEffect {
     const fontSmall = Math.round(14 * scale);
     const fontMedium = Math.round(18 * scale);
     const fontLarge = Math.round(26 * scale);
-    const fontTiny = Math.round(12 * scale);
 
     // Semi-transparent background bar (full width, rounded top corners only)
     const radius = 6 * scale;
@@ -547,9 +546,10 @@ export class TheoryBarEffect implements VisualEffect {
       this.drawGrooveWaveInline(ctx, grooveStart, centerY, grooveWidth, barHeight - 8 * scale);
     }
 
-    // --- FPS (right-aligned) ---
-    ctx.font = `${fontTiny}px "SF Mono", Monaco, Consolas, monospace`;
-    ctx.fillStyle = '#555';
+    // --- FPS (right-aligned, smaller font) ---
+    const fontFps = Math.round(10 * scale);
+    ctx.font = `${fontFps}px "SF Mono", Monaco, Consolas, monospace`;
+    ctx.fillStyle = 'rgba(22, 199, 154, 0.5)';  // Accent green with transparency
     ctx.textAlign = 'right';
     ctx.fillText(`${this.currentFps} fps`, this.width - padding - 8 * scale, centerY);
 

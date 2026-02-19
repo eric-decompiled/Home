@@ -571,12 +571,26 @@ app.innerHTML = `
       <div class="canvas-wrap">
         <canvas id="canvas"></canvas>
         <div class="play-overlay visible" id="play-overlay">
+          <div class="play-overlay-info play-overlay-left">
+            <div class="play-overlay-title">Views</div>
+            <div class="play-overlay-item"><span class="play-overlay-label">Stars</span> — Travelling Stars</div>
+            <div class="play-overlay-item"><span class="play-overlay-label">Clock</span> — Musical Mechanics</div>
+            <div class="play-overlay-item"><span class="play-overlay-label">Warp</span> — Mandala Kaleidoscope</div>
+            <div class="play-overlay-item"><span class="play-overlay-label">Piano</span> — Classic Visualizer</div>
+          </div>
           <button class="play-overlay-btn" id="play-overlay-btn">
             <svg viewBox="0 0 24 24" width="64" height="64">
               <path fill="currentColor" d="M8 5v14l11-7z"/>
             </svg>
             <span>Click to Play</span>
           </button>
+          <div class="play-overlay-info play-overlay-right">
+            <div class="play-overlay-title">Music</div>
+            <div class="play-overlay-item"><span class="play-overlay-label">Classics</span> — Pop & Rock Hits</div>
+            <div class="play-overlay-item"><span class="play-overlay-label">Classical</span> — Bach to Debussy</div>
+            <div class="play-overlay-item"><span class="play-overlay-label">Games</span> — Game Soundtracks</div>
+            <div class="play-overlay-item"><span class="play-overlay-label">Upload</span> — Your Own MIDI Files</div>
+          </div>
         </div>
       </div>
     </div>
@@ -832,9 +846,13 @@ const pauseIcon = playBtn.querySelector('.pause-icon') as SVGElement;
 const setPlayBtnState = (playing: boolean) => {
   playIcon.style.display = playing ? 'none' : 'block';
   pauseIcon.style.display = playing ? 'block' : 'none';
-  // Dismiss play overlay whenever playback starts
+  const overlay = document.getElementById('play-overlay');
   if (playing) {
-    document.getElementById('play-overlay')?.classList.remove('visible');
+    // Dismiss play overlay whenever playback starts
+    overlay?.classList.remove('visible');
+  } else if (timeline) {
+    // Show play overlay when paused (only if a song is loaded)
+    overlay?.classList.add('visible');
   }
 };
 const prevBtn = document.getElementById('prev-btn') as HTMLButtonElement;
@@ -942,7 +960,7 @@ canvas.addEventListener('touchend', (e) => {
       toggleTheoryBar(true);
     }
     tapCount = 0;
-  }, 500);
+  }, 800);
 }, { passive: true });
 
 // Triple-click on canvas to toggle theory bar (mirrors triple-tap on mobile)
@@ -959,7 +977,7 @@ canvas.addEventListener('click', () => {
       toggleTheoryBar(true);
     }
     clickCount = 0;
-  }, 400);
+  }, 800);
 });
 
 // --- Hamburger opens layer panel (like Custom button) ---
@@ -2157,13 +2175,26 @@ const qualityButtons = {
 };
 
 // Track current quality and whether user manually set it
+const QUALITY_KEY = 'fractals-quality';
 let currentQualityLevel: keyof typeof qualityMap = 'high';
 let userSetQuality = false;
+
+// Load stored quality preference, default to balanced
+function detectDefaultQuality(): keyof typeof qualityMap {
+  const stored = localStorage.getItem(QUALITY_KEY);
+  if (stored && (stored === 'low' || stored === 'medium' || stored === 'high')) {
+    userSetQuality = true;
+    return stored;
+  }
+  return 'medium';
+}
 
 function setQuality(level: keyof typeof qualityMap, isUserAction = false): void {
   currentQualityLevel = level;
   if (isUserAction) {
     userSetQuality = true;
+    // Persist user's manual choice
+    localStorage.setItem(QUALITY_KEY, level);
   }
   compositor.setQualityPreset(qualityMap[level]);
   // Update button states
@@ -2172,6 +2203,14 @@ function setQuality(level: keyof typeof qualityMap, isUserAction = false): void 
   }
   // Trigger resize to apply new resolution
   resizeCanvas();
+}
+
+// Apply auto-detected or stored quality on startup
+currentQualityLevel = detectDefaultQuality();
+compositor.setQualityPreset(qualityMap[currentQualityLevel]);
+// Update button states to reflect initial quality
+for (const [name, btn] of Object.entries(qualityButtons)) {
+  btn.classList.toggle('active', name === currentQualityLevel);
 }
 
 for (const [name, btn] of Object.entries(qualityButtons)) {

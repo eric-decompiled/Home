@@ -83,6 +83,9 @@
 - **Resolution scaling for compositor**: Render at 75% internal resolution, upscale at final blit. 2x speedup with minimal visual impact. Use `imageSmoothingQuality = 'high'` for clean upscale
 - **Path2D caching for clip paths**: Cache complex paths (kaleidoscope wedges) instead of recreating each frame. 42% faster for kaleidoscope effect
 - **Nebula caching for starfield**: Pre-render expensive radial gradients to off-screen canvas. Only re-render when nebula count changes
+- **Starfield regeneration thresholds**: Only regenerate stars when canvas size changes by >200px. Smaller resizes reuse existing stars. Prevents expensive respawn on minor viewport adjustments
+- **Double-rAF for deferred initialization**: Use nested `requestAnimationFrame(() => requestAnimationFrame(() => ...))` to defer star generation until after layout settles. Ensures accurate canvas dimensions on page load
+- **Config value change guards**: Check if value actually changed before triggering expensive operations. Preset switches reset configs to defaults—without guards, debounced respawns trigger even when value is unchanged
 - **Canvas state batching**: Track `globalAlpha` and `globalCompositeOperation` to avoid redundant state changes
 - **Profiling infrastructure**: Expose `compositor.profileEnabled` and `getProfileStats()` for per-effect timing. Essential for finding bottlenecks
 - **Spatial hash grid for graph physics**: Instead of O(n²) all-pairs repulsion, hash nodes into grid cells matching cutoff distance (300px). Each node checks only 9 adjacent cells. Enables unlimited nodes with linear scaling - no pruning needed
@@ -165,6 +168,8 @@
 
 ### Performance
 - **Heavy particle systems**: Crash framerate—keep overlays minimal
+- **Oversized starfield buffer**: Generating stars for 1.3x canvas size to avoid regeneration on resize causes sparse appearance—stars positioned in larger space but only portion visible. Better to use regeneration thresholds at actual canvas size
+- **setTimeout for layout-dependent init**: Fixed delays (100ms) can fire before layout completes or waste time waiting. Double-rAF syncs precisely with browser paint cycle
 - **Shadow blur for glow effects**: Extremely expensive, causes frame drops
 - **Radial gradients per particle**: Too expensive at scale. Use simple filled circles
 - **WebGL post-process with Canvas2D source**: Texture upload (`texImage2D`) every frame is slower than Canvas2D drawImage. WebGL only wins if entire pipeline is GPU-based
