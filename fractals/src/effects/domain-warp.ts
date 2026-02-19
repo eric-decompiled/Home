@@ -151,11 +151,13 @@ export class DomainWarpEffect implements VisualEffect {
   private height = 600;
 
   private time = 0;
+  private warpMult = 1.0;       // User-configurable multiplier
   private currentWarp = 2.0;
   private currentScale = 3.5;
   private currentFlow = 0.15;
   private currentDetail = 0.1;
   private amplitude = 1.0;
+  private warpWalk = 0;         // Random walk with mean reversion
 
   // Spatial wave tanks: bass from bottom, melody from side
   // Each has position + velocity for momentum
@@ -181,7 +183,7 @@ export class DomainWarpEffect implements VisualEffect {
   private color2: [number, number, number] = [0.1, 0.2, 0.5];
   private color3: [number, number, number] = [0.4, 0.6, 0.8];
   private color4: [number, number, number] = [0.8, 0.9, 1.0];
-  private colorByChord = true;
+  private colorByChord = false;
 
   constructor() {
     this.outputCanvas = document.createElement('canvas');
@@ -337,33 +339,55 @@ export class DomainWarpEffect implements VisualEffect {
     const tensionRate = 2.0;
     this.smoothTension += (music.tension - this.smoothTension) * tensionRate * dt;
 
-    // Music modulates the RATE of forward flow
-    const flowRate = 1.0 + waveLevel * 0.2 + this.smoothTension * 0.25 + this.melodyEnergy * 0.1;
+    // === GROOVE CURVES for musical motion ===
+    const barGroove = music.barGroove ?? 0.5;
+    const barArrival = music.barArrival ?? 0;
+    const barAnticipation = music.barAnticipation ?? 0;
+
+    // Organic noise - multiple sine waves at irrational frequencies
+    const noise1 = Math.sin(this.time * 0.73) * 0.5 + Math.sin(this.time * 1.17) * 0.3 + Math.sin(this.time * 2.31) * 0.2;
+    const noise2 = Math.sin(this.time * 0.47 + 1.5) * 0.4 + Math.sin(this.time * 1.89) * 0.35 + Math.sin(this.time * 0.31) * 0.25;
+
+    // Music modulates the RATE of forward flow - bar-locked + noise
+    const grooveFlow = (barGroove - 0.5) * 0.03 + barArrival * 0.025 + noise1 * 0.05;
+    const flowRate = 1.0 + waveLevel * 0.2 + this.smoothTension * 0.2 + grooveFlow;
     this.time += dt * flowRate;
 
-    // === TENSION-DRIVEN PARAMETERS ===
-    // All visual parameters driven by smoothed tension for consistency
-    // Low tension (0): smooth, calm, resolved
-    // High tension (1): complex, active, unresolved
+    // === GROOVE-DRIVEN PARAMETERS ===
     const t = this.smoothTension;
-    const barCycle = music.currentTime * 0.08;
 
-    // Interpolate between relaxed and tense states
-    const targetWarp = 2.0 + t * 1.5 + waveLevel * 0.3;           // 2.0 → 3.5
-    const targetScale = 3.6 + t * 0.9 + Math.sin(barCycle) * 0.1; // 3.6 → 4.5
-    const targetFlow = 0.15 + t * 0.07;                            // 0.15 → 0.22
-    const targetDetail = 0.10 + t * 0.15 + waveLevel * 0.02;      // 0.10 → 0.25
+    // Warp pulses with bar groove + noise for organic variation
+    const grooveWarp = (barGroove - 0.5) * 0.06 + barArrival * 0.09 - barAnticipation * 0.025 + noise2 * 0.15;
+    const targetWarp = 2.0 + t * 1.0 + waveLevel * 0.4 + grooveWarp;
 
-    // Flow speed follows tension smoothly
-    this.currentFlow += (targetFlow - this.currentFlow) * 1.5 * dt;
+    // Scale stays constant
+    const targetScale = 3.6;
 
-    // Smooth follow (heavier smoothing for less warble)
-    this.currentWarp += (targetWarp - this.currentWarp) * 1.5 * dt;
-    this.currentWarp = Math.min(this.currentWarp, 6.5);
+    // Flow speed responds to bar groove (faster on downbeat)
+    const targetFlow = 0.12 + t * 0.05 + (barGroove - 0.5) * 0.006;
 
-    this.currentScale += (targetScale - this.currentScale) * 1.5 * dt;
+    // Detail increases with tension and bar arrival
+    const targetDetail = 0.10 + t * 0.12 + barArrival * 0.025 + waveLevel * 0.03;
 
-    this.currentDetail += (targetDetail - this.currentDetail) * 2.0 * dt;
+    // Flow speed follows groove more tightly
+    this.currentFlow += (targetFlow - this.currentFlow) * 4.0 * dt;
+
+    // Random walk with mean reversion (Ornstein-Uhlenbeck process)
+    const walkNoise = (Math.random() - 0.5) * 0.3;  // Random impulse
+    const meanReversion = -this.warpWalk * 2.0;      // Pull back toward 0
+    this.warpWalk += (walkNoise + meanReversion) * dt;
+    this.warpWalk = Math.max(-0.5, Math.min(0.5, this.warpWalk));  // Clamp range
+
+    // Faster follow for groove responsiveness
+    // warpMult (1-10 UI) scales the final warp value, scaled down for subtler effect
+    const effectiveWarp = 0.5 + this.warpMult * 0.3;  // 1->0.8, 10->3.5
+    const scaledTargetWarp = (targetWarp + this.warpWalk) * effectiveWarp;
+    this.currentWarp += (scaledTargetWarp - this.currentWarp) * 6.0 * dt;
+    this.currentWarp = Math.min(this.currentWarp, 15.0);
+
+    this.currentScale += (targetScale - this.currentScale) * 5.0 * dt;
+
+    this.currentDetail += (targetDetail - this.currentDetail) * 5.0 * dt;
 
     // Amplitude: gentle swell from wave
     this.amplitude = 1.0 + waveLevel * 0.03;
@@ -433,19 +457,22 @@ export class DomainWarpEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'colorByChord', label: 'By Chord', type: 'toggle', value: this.colorByChord, inline: true },
+      { key: 'warpMult', label: 'Warp', type: 'range', value: this.warpMult, min: 1, max: 10, step: 1, inline: true },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {
     return {
-      warpAmount: 2.0,
+      warpMult: 1.0,
       warpScale: 3.5,
-      colorByChord: true,
+      colorByChord: false,
     };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
-    if (key === 'warpAmount') this.currentWarp = value as number;
+    if (key === 'warpMult') this.warpMult = value as number;
     if (key === 'warpScale') this.currentScale = value as number;
     if (key === 'colorByChord') this.colorByChord = value as boolean;
   }

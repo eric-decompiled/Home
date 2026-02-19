@@ -53,7 +53,7 @@ interface GraphEdge {
 
 export class GraphChainEffect implements VisualEffect {
   readonly id = 'graph-chain';
-  readonly name = 'Graph Chain';
+  readonly name = 'Chain';
   readonly isPostProcess = false;
   readonly defaultBlend: BlendMode = 'screen';
   readonly defaultOpacity = 1.0;
@@ -814,7 +814,9 @@ export class GraphChainEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'glowIntensity', label: 'Glow', type: 'range', value: this.glowIntensity, min: 0.5, max: 2.0, step: 0.1 },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

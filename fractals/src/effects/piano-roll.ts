@@ -5,6 +5,7 @@
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode, UpcomingNote } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
 import { audioPlayer } from '../audio-player.ts';
+import { setNoteLookahead } from '../music-mapper.ts';
 
 // Piano range: A0 (21) to C8 (108)
 const MIDI_LO = 21;
@@ -93,13 +94,17 @@ export class PianoRollEffect implements VisualEffect {
 
   // Visual settings
   private keyboardHeight = 0.12;  // fraction of canvas height
-  private fallDuration = 3.0;     // seconds for note to fall from top to keyboard
+  private speedUI = 5;            // UI value 1-10, higher = faster
+  private fallDuration = 4.0;     // seconds for note to fall (computed from speedUI)
   private noteGapBase = 2;        // base pixels between notes (scaled by resScale)
   private latencyOffset = 0.0;    // seconds to delay visual (positive = visual later, for late audio)
 
   constructor() {
     this.canvas = document.createElement('canvas');
     this.ctx = this.canvas.getContext('2d')!;
+    // Initialize fallDuration and lookahead from default speedUI
+    this.fallDuration = 1.5 + (10 - this.speedUI) * 0.5;
+    setNoteLookahead(this.fallDuration + 1.0);
   }
 
   // Resolution scale factor for 4K support
@@ -594,19 +599,28 @@ export class PianoRollEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'speedUI', label: 'Speed', type: 'range', value: this.speedUI, min: 1, max: 10, step: 1 },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {
     return {
-      fallDuration: 3.0,
+      speedUI: 5,
       keyboardHeight: 0.12,
       pianoSound: false,
     };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
-    if (key === 'fallDuration') this.fallDuration = value as number;
+    if (key === 'speedUI') {
+      this.speedUI = value as number;
+      // Invert: higher speed = shorter fall duration
+      // speedUI 1 → fallDuration 6.0 (slow), speedUI 10 → fallDuration 1.5 (fast)
+      this.fallDuration = 1.5 + (10 - this.speedUI) * 0.5;
+      // Lookahead = fallDuration + 1s buffer (slower = more lookahead)
+      setNoteLookahead(this.fallDuration + 1.0);
+    }
     if (key === 'keyboardHeight') this.keyboardHeight = value as number;
     if (key === 'pianoSound') audioPlayer.setPianoMode(value as boolean);
   }

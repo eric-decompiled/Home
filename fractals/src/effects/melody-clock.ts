@@ -66,6 +66,12 @@ export class MelodyClockEffect implements VisualEffect {
   private attractionStrength = 1.0;
   private lastOnsetTime = 0;
 
+  // Bass tracking for hub jewels
+  private bassR = 100;
+  private bassG = 100;
+  private bassB = 150;
+  private bassBrightness = 0;
+
   // Config
   private showNotes = true;
 
@@ -161,6 +167,18 @@ export class MelodyClockEffect implements VisualEffect {
       this.attractionStrength = 1.0;
       this.lastOnsetTime = this.time;
     }
+
+    // Track bass notes for hub jewels
+    if (music.bassPitchClass >= 0) {
+      const bassCol = samplePaletteColor(music.bassPitchClass, 0.6);
+      // Smooth color transition
+      const bassSmooth = 1 - Math.exp(-4 * dt);
+      this.bassR += (bassCol[0] - this.bassR) * bassSmooth;
+      this.bassG += (bassCol[1] - this.bassG) * bassSmooth;
+      this.bassB += (bassCol[2] - this.bassB) * bassSmooth;
+      this.bassBrightness = Math.min(1, this.bassBrightness + music.bassVelocity * 0.5);
+    }
+    this.bassBrightness *= Math.exp(-3 * dt);
 
     // Decay attraction when no notes are playing (only after first note)
     if (this.lastOnsetTime > 0) {
@@ -267,12 +285,66 @@ export class MelodyClockEffect implements VisualEffect {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // --- Outer ring (thinner than bass clock) ---
+    // --- Ornate outer ring with decorative double line ---
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = `rgba(${R},${G},${B},0.06)`;
-    ctx.lineWidth = 1 * this.resScale;
+    ctx.strokeStyle = `rgba(${R},${G},${B},0.08)`;
+    ctx.lineWidth = 1.5 * this.resScale;
     ctx.stroke();
+
+    // Inner decorative ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.92, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${R},${G},${B},0.04)`;
+    ctx.lineWidth = 0.5 * this.resScale;
+    ctx.stroke();
+
+    // --- Decorative tick marks between notes ---
+    for (let i = 0; i < 60; i++) {
+      if (i % 5 === 0) continue; // Skip positions where note labels go
+      const tickAngle = (i / 60) * Math.PI * 2 - Math.PI / 2 + this.keyRotation;
+      const innerR = r * 0.94;
+      const outerR = r * 0.97;
+      const tx1 = cx + Math.cos(tickAngle) * innerR;
+      const ty1 = cy + Math.sin(tickAngle) * innerR;
+      const tx2 = cx + Math.cos(tickAngle) * outerR;
+      const ty2 = cy + Math.sin(tickAngle) * outerR;
+
+      ctx.beginPath();
+      ctx.moveTo(tx1, ty1);
+      ctx.lineTo(tx2, ty2);
+      ctx.strokeStyle = `rgba(${R},${G},${B},0.03)`;
+      ctx.lineWidth = 0.5 * this.resScale;
+      ctx.stroke();
+    }
+
+    // --- Filigree flourishes at cardinal points ---
+    const flourishAlpha = 0.06 + this.energy * 0.04;
+    for (let i = 0; i < 4; i++) {
+      const flourishAngle = (i / 4) * Math.PI * 2 + this.keyRotation;
+      const fx = cx + Math.cos(flourishAngle) * r * 0.75;
+      const fy = cy + Math.sin(flourishAngle) * r * 0.75;
+
+      // Small ornamental curve
+      ctx.save();
+      ctx.translate(fx, fy);
+      ctx.rotate(flourishAngle + Math.PI / 2);
+
+      ctx.beginPath();
+      ctx.moveTo(-8 * this.resScale, 0);
+      ctx.quadraticCurveTo(0, -6 * this.resScale, 8 * this.resScale, 0);
+      ctx.strokeStyle = `rgba(${R},${G},${B},${flourishAlpha.toFixed(3)})`;
+      ctx.lineWidth = 0.8 * this.resScale;
+      ctx.stroke();
+
+      // Small dot at center of flourish
+      ctx.beginPath();
+      ctx.arc(0, -3 * this.resScale, 1.5 * this.resScale, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${R},${G},${B},${(flourishAlpha * 0.8).toFixed(3)})`;
+      ctx.fill();
+
+      ctx.restore();
+    }
 
     // --- Arc trail with comet tail gradient ---
     // Skip when loudness is very low for performance
@@ -476,18 +548,61 @@ export class MelodyClockEffect implements VisualEffect {
     ctx.fill(handPath);
     strokeP(handPath);
 
-    // Small accent dots along hand (elegant markers instead of industrial cutouts)
-    const dotAlpha = alpha * 0.6;
-    ctx.fillStyle = `rgba(${R},${G},${B},${dotAlpha.toFixed(3)})`;
+    // Small accent dots along hand with decorative rings (elegant markers)
+    // Rings use melody color, fills use bass color
+    const bassDotAlpha = Math.min(1, 0.7 + this.bassBrightness * 0.3);
+    const ringAlpha = alpha * 0.25;
+    const bR = Math.round(this.bassR), bG = Math.round(this.bassG), bB = Math.round(this.bassB);
+
+    // Dot 1 with ring
     ctx.beginPath();
-    ctx.arc(cc1.x, cc1.y, 1.5 * sc, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(cc1.x, cc1.y, 3 * sc, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${R},${G},${B},${ringAlpha.toFixed(3)})`;
+    ctx.lineWidth = 0.5 * sc;
+    ctx.stroke();
+    ctx.fillStyle = `rgba(${bR},${bG},${bB},${bassDotAlpha.toFixed(3)})`;
     ctx.beginPath();
-    ctx.arc(cc2.x, cc2.y, 1.2 * sc, 0, Math.PI * 2);
+    ctx.arc(cc1.x, cc1.y, 1.8 * sc, 0, Math.PI * 2);
     ctx.fill();
+
+    // Dot 2 with ring
     ctx.beginPath();
-    ctx.arc(cc3.x, cc3.y, 0.9 * sc, 0, Math.PI * 2);
+    ctx.arc(cc2.x, cc2.y, 2.5 * sc, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${R},${G},${B},${ringAlpha.toFixed(3)})`;
+    ctx.stroke();
+    ctx.fillStyle = `rgba(${bR},${bG},${bB},${bassDotAlpha.toFixed(3)})`;
+    ctx.beginPath();
+    ctx.arc(cc2.x, cc2.y, 1.4 * sc, 0, Math.PI * 2);
     ctx.fill();
+
+    // Dot 3 (smaller, no ring)
+    ctx.fillStyle = `rgba(${bR},${bG},${bB},${bassDotAlpha.toFixed(3)})`;
+    ctx.beginPath();
+    ctx.arc(cc3.x, cc3.y, 1.0 * sc, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Small decorative diamonds between dots
+    const diamondAlpha = alpha * 0.3;
+    const drawDiamond = (x: number, y: number, size: number) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(angle);
+      ctx.beginPath();
+      ctx.moveTo(0, -size);
+      ctx.lineTo(size * 0.6, 0);
+      ctx.lineTo(0, size);
+      ctx.lineTo(-size * 0.6, 0);
+      ctx.closePath();
+      ctx.fillStyle = `rgba(${R},${G},${B},${diamondAlpha.toFixed(3)})`;
+      ctx.fill();
+      ctx.restore();
+    };
+
+    // Diamonds between the octave dots
+    const mid1 = ptAt((oct2Pos.radius / handLen + oct3Pos.radius / handLen) / 2, 0);
+    const mid2 = ptAt((oct3Pos.radius / handLen + oct4Pos.radius / handLen) / 2, 0);
+    drawDiamond(mid1.x, mid1.y, 2 * sc);
+    drawDiamond(mid2.x, mid2.y, 1.5 * sc);
 
     // --- Short decorative tail (no heavy counterweight) ---
     const tailLen = handLen * 0.12;
@@ -521,24 +636,62 @@ export class MelodyClockEffect implements VisualEffect {
     ctx.fillStyle = orbGrd;
     ctx.fillRect(tipPt.x - orbSz * 2, tipPt.y - orbSz * 2, orbSz * 4, orbSz * 4);
 
-    // --- Center hub (smaller, more delicate) ---
+    // --- Ornate center hub with multiple decorative rings ---
     const hubSz = 5 + this.energy * 4 + this.anticipation * 3;
+
+    // Outer decorative ring with scalloped effect
+    ctx.beginPath();
+    ctx.arc(cx, cy, hubSz * 2.2, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${R},${G},${B},${(0.04 + this.energy * 0.06).toFixed(3)})`;
+    ctx.lineWidth = 0.5 * this.resScale;
+    ctx.stroke();
+
+    // Middle ring
+    ctx.beginPath();
+    ctx.arc(cx, cy, hubSz * 1.5, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(${R},${G},${B},${(0.06 + this.energy * 0.08).toFixed(3)})`;
+    ctx.lineWidth = 0.8 * this.resScale;
+    ctx.stroke();
+
+    // Small ornamental dots around hub (use bass color, rotate with hand)
+    const bassJewelAlpha = 0.12 + this.bassBrightness * 0.4 + this.energy * 0.12;
+    for (let i = 0; i < 8; i++) {
+      const dotAngle = (i / 8) * Math.PI * 2 + this.handAngle;
+      const dotR = hubSz * 1.8;
+      const dx = cx + Math.cos(dotAngle) * dotR;
+      const dy = cy + Math.sin(dotAngle) * dotR;
+      const dotSize = (1 + this.bassBrightness * 0.8) * this.resScale;
+      ctx.beginPath();
+      ctx.arc(dx, dy, dotSize, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${Math.round(this.bassR)},${Math.round(this.bassG)},${Math.round(this.bassB)},${bassJewelAlpha.toFixed(3)})`;
+      ctx.fill();
+    }
+
+    // Inner ring
     ctx.beginPath();
     ctx.arc(cx, cy, hubSz * 1.2, 0, Math.PI * 2);
     ctx.strokeStyle = `rgba(${R},${G},${B},${(0.08 + this.energy * 0.12).toFixed(3)})`;
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1 * this.resScale;
     ctx.stroke();
 
+    // Hub glow
     const hubGrd = ctx.createRadialGradient(cx, cy, 0, cx, cy, hubSz * 1.5);
-    hubGrd.addColorStop(0, `rgba(255,255,255,${(0.12 + this.energy * 0.2).toFixed(3)})`);
-    hubGrd.addColorStop(0.5, `rgba(${R},${G},${B},${(0.08 + this.energy * 0.08).toFixed(3)})`);
+    hubGrd.addColorStop(0, `rgba(255,255,255,${(0.15 + this.energy * 0.25).toFixed(3)})`);
+    hubGrd.addColorStop(0.4, `rgba(${R},${G},${B},${(0.1 + this.energy * 0.1).toFixed(3)})`);
     hubGrd.addColorStop(1, `rgba(${R},${G},${B},0)`);
     ctx.fillStyle = hubGrd;
     ctx.fillRect(cx - hubSz * 1.5, cy - hubSz * 1.5, hubSz * 3, hubSz * 3);
 
+    // Bright center jewel
     ctx.beginPath();
-    ctx.arc(cx, cy, 2 + this.energy * 1.5, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255,255,255,${(0.2 + this.energy * 0.3).toFixed(3)})`;
+    ctx.arc(cx, cy, 2.5 + this.energy * 2, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${(0.25 + this.energy * 0.35).toFixed(3)})`;
+    ctx.fill();
+
+    // Tiny highlight
+    ctx.beginPath();
+    ctx.arc(cx - 0.8 * this.resScale, cy - 0.8 * this.resScale, 1 * this.resScale, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${(0.4 + this.energy * 0.3).toFixed(3)})`;
     ctx.fill();
 
     ctx.restore();

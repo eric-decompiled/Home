@@ -147,6 +147,7 @@ export interface EffectConfig {
   max?: number;
   step?: number;
   options?: string[];
+  inline?: boolean;  // Display side-by-side with next config
 }
 
 export type BlendMode = 'source-over' | 'screen' | 'multiply' | 'overlay' | 'lighten' | 'color-dodge';

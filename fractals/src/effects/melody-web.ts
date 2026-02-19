@@ -356,7 +356,9 @@ export class MelodyWebEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'webIntensity', label: 'Intensity', type: 'range', value: this.webIntensity, min: 0.5, max: 2.0, step: 0.1 },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

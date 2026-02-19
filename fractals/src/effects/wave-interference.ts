@@ -145,7 +145,7 @@ export class WaveInterferenceEffect implements VisualEffect {
   private maxSources = 6;
   private time = 0;
   private wavelength = 100;
-  private decayRate = 8.0;
+  private decayRate = 10.0;
   private intensity = 1.0;
   private bassWaveAmp = 0;
   private bassWaveFreq = 10;
@@ -392,13 +392,15 @@ export class WaveInterferenceEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'decayRate', label: 'Diffusion', type: 'range', value: this.decayRate, min: 2.0, max: 20.0, step: 1.0 },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {
     return {
       maxSources: 6,
-      decayRate: 8.0,
+      decayRate: 10.0,
       intensity: 1.0,
       reflection: 0.5,
     };

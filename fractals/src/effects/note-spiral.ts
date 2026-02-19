@@ -37,7 +37,7 @@ interface Trail {
 
 export class NoteSpiralEffect implements VisualEffect {
   readonly id = 'note-spiral';
-  readonly name = 'Note Spiral';
+  readonly name = 'Spiral';
   readonly isPostProcess = false;
   readonly defaultBlend: BlendMode = 'source-over';
   readonly defaultOpacity = 1.0;
@@ -273,15 +273,15 @@ export class NoteSpiralEffect implements VisualEffect {
     // Fake shadow using offset darker circle
     bctx.beginPath();
     bctx.arc(cx + 8, discCy + 8, maxR * 0.98, 0, Math.PI * 2);
-    bctx.fillStyle = 'rgba(0,0,0,0.4)';
+    bctx.fillStyle = 'rgba(0,0,0,0.6)';
     bctx.fill();
 
     // Vertical gradient - warm gray at top, cool black at bottom
     const depthGrad = bctx.createLinearGradient(cx, discTop, cx, discBottom);
-    depthGrad.addColorStop(0, 'rgba(38,36,42,0.5)');
-    depthGrad.addColorStop(0.35, 'rgba(22,22,28,0.5)');
-    depthGrad.addColorStop(0.65, 'rgba(10,12,18,0.5)');
-    depthGrad.addColorStop(1, 'rgba(0,0,5,0.5)');
+    depthGrad.addColorStop(0, 'rgba(38,36,42,0.75)');
+    depthGrad.addColorStop(0.35, 'rgba(22,22,28,0.75)');
+    depthGrad.addColorStop(0.65, 'rgba(10,12,18,0.75)');
+    depthGrad.addColorStop(1, 'rgba(0,0,5,0.75)');
 
     bctx.beginPath();
     bctx.arc(cx, discCy, maxR * 0.98, 0, Math.PI * 2);
@@ -567,8 +567,8 @@ export class NoteSpiralEffect implements VisualEffect {
 
         // Outer glow
         drawPath();
-        ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(s * 0.08 * this.intensity).toFixed(3)})`;
-        ctx.lineWidth = (8 + s * 6) * avgScale;
+        ctx.strokeStyle = `rgba(${mr},${mg},${mb},${(s * 0.15 * this.intensity).toFixed(3)})`;
+        ctx.lineWidth = (10 + s * 8) * avgScale;
         ctx.stroke();
 
         // Core
@@ -577,8 +577,8 @@ export class NoteSpiralEffect implements VisualEffect {
         const wr = Math.min(255, mr + Math.round((255 - mr) * bright * 0.4));
         const wg = Math.min(255, mg + Math.round((255 - mg) * bright * 0.4));
         const wb = Math.min(255, mb + Math.round((255 - mb) * bright * 0.4));
-        ctx.strokeStyle = `rgba(${wr},${wg},${wb},${(s * 0.35 * this.intensity).toFixed(3)})`;
-        ctx.lineWidth = (1.5 + s * 2) * avgScale;
+        ctx.strokeStyle = `rgba(${wr},${wg},${wb},${(s * 0.55 * this.intensity).toFixed(3)})`;
+        ctx.lineWidth = (2 + s * 3) * avgScale;
         ctx.stroke();
       }
     }
@@ -729,17 +729,26 @@ export class NoteSpiralEffect implements VisualEffect {
                 break;
               }
               case 'ring': {
-                // Expanding circular ripples
-                const rings = 3;
-                for (let r = 0; r < rings; r++) {
-                  const ringR = beamLen * 0.3 * (r + 1);
-                  const ringAlpha = beamAlpha * (1 - r / rings) * 0.4;
-                  ctx.beginPath();
-                  ctx.arc(pos.x, pos.y, ringR, 0, Math.PI * 2);
-                  ctx.strokeStyle = `rgba(${node.r},${node.g},${node.b},${ringAlpha.toFixed(3)})`;
-                  ctx.lineWidth = (3 - r) * pos.scale;
-                  ctx.stroke();
-                }
+                // Single expanding ring - bass vs melody characteristics
+                // pitchT: 0 = bass, 1 = treble
+                const pitchT = (midi - MIDI_LO) / MIDI_RANGE;
+
+                // Bass: smaller, thicker, darker | Melody: larger, thinner, brighter
+                const ringR = beamLen * (0.3 + pitchT * 0.4);  // 0.3 to 0.7
+                const ringThickness = (12 - pitchT * 7) * pos.scale;  // 12 to 5
+                const ringAlpha = beamAlpha * (0.85 + pitchT * 0.1);  // 0.85 to 0.95
+
+                // Darken bass colors
+                const darkFactor = 0.5 + pitchT * 0.5;  // 0.5 to 1.0
+                const rCol = Math.round(node.r * darkFactor);
+                const gCol = Math.round(node.g * darkFactor);
+                const bCol = Math.round(node.b * darkFactor);
+
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, ringR, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(${rCol},${gCol},${bCol},${ringAlpha.toFixed(3)})`;
+                ctx.lineWidth = ringThickness;
+                ctx.stroke();
                 break;
               }
               case 'teardrop': {
@@ -961,11 +970,11 @@ export class NoteSpiralEffect implements VisualEffect {
                   const flyDist = baseDist;
                   const fx = pos.x + Math.cos(flyAngle) * flyDist + Math.cos(flyAngle + Math.PI/2) * wobble;
                   const fy = pos.y + Math.sin(flyAngle) * flyDist + Math.sin(flyAngle + Math.PI/2) * wobble;
-                  const flyR = (1.5 + seed2 * 2) * pos.scale;
+                  const flyR = (2.5 + seed2 * 3) * pos.scale;
 
                   // Apply beat fade to alpha (brightened)
-                  const coreAlpha = beamAlpha * 0.8 * beatFade;
-                  const outerAlpha = beamAlpha * 0.25 * beatFade;
+                  const coreAlpha = beamAlpha * 1.2 * beatFade;
+                  const outerAlpha = beamAlpha * 0.45 * beatFade;
                   // Outer glow
                   ctx.fillStyle = `rgba(${node.r},${node.g},${node.b},${outerAlpha.toFixed(3)})`;
                   ctx.beginPath();
@@ -987,16 +996,16 @@ export class NoteSpiralEffect implements VisualEffect {
         // Point glow at note position - layered fills instead of gradient (faster)
         const tensionGlow = 1.0 + this.currentTension * 0.4;
         const glowRadius = (10 + alpha * 22 + node.velocity * 10) * tensionGlow * pos.scale;
-        const glowIntensity = this.intensity * 0.8 * (1.0 + this.currentTension * 0.25);
+        const glowIntensity = this.intensity * 1.0 * (1.0 + this.currentTension * 0.25);
 
         // Outer glow - use attack/sustain colors
-        ctx.fillStyle = `rgba(${glowR},${glowG},${glowB},${(alpha * 0.05 * glowIntensity).toFixed(3)})`;
+        ctx.fillStyle = `rgba(${glowR},${glowG},${glowB},${(alpha * 0.08 * glowIntensity).toFixed(3)})`;
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, glowRadius, 0, Math.PI * 2);
         ctx.fill();
 
         // Mid glow
-        ctx.fillStyle = `rgba(${glowR},${glowG},${glowB},${(alpha * 0.12 * glowIntensity).toFixed(3)})`;
+        ctx.fillStyle = `rgba(${glowR},${glowG},${glowB},${(alpha * 0.18 * glowIntensity).toFixed(3)})`;
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, glowRadius * 0.5, 0, Math.PI * 2);
         ctx.fill();
@@ -1006,7 +1015,7 @@ export class NoteSpiralEffect implements VisualEffect {
         const coreR = Math.min(255, glowR + Math.round((255 - glowR) * coreWhite));
         const coreG = Math.min(255, glowG + Math.round((255 - glowG) * coreWhite));
         const coreB = Math.min(255, glowB + Math.round((255 - glowB) * coreWhite));
-        ctx.fillStyle = `rgba(${coreR},${coreG},${coreB},${(alpha * 0.35 * glowIntensity).toFixed(3)})`;
+        ctx.fillStyle = `rgba(${coreR},${coreG},${coreB},${(alpha * 0.45 * glowIntensity).toFixed(3)})`;
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, glowRadius * 0.2, 0, Math.PI * 2);
         ctx.fill();
@@ -1014,8 +1023,8 @@ export class NoteSpiralEffect implements VisualEffect {
 
       // Dot: diatonic notes brighter, chromatic visible
       // Scale dot by depth (higher notes = larger = closer)
-      const baseAlpha = inKey ? 0.25 : 0.10;
-      const dotAlpha = baseAlpha + alpha * 0.5;
+      const baseAlpha = inKey ? 0.40 : 0.18;
+      const dotAlpha = baseAlpha + alpha * 0.6;
       if (dotAlpha < 0.005) continue;
 
       const baseDotR = inKey ? (4.0 + alpha * 4) : (2.5 + alpha * 3);
@@ -1025,7 +1034,7 @@ export class NoteSpiralEffect implements VisualEffect {
       if (this.glowOutlines && dotAlpha > 0.12) {
         ctx.beginPath();
         ctx.arc(pos.x, pos.y, dotR + 3 * pos.scale, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(255,255,255,${(dotAlpha * 0.25 * this.intensity).toFixed(3)})`;
+        ctx.strokeStyle = `rgba(255,255,255,${(dotAlpha * 0.35 * this.intensity).toFixed(3)})`;
         ctx.lineWidth = 2.5 * pos.scale;
         ctx.stroke();
       }
@@ -1090,7 +1099,7 @@ export class NoteSpiralEffect implements VisualEffect {
     return [
       {
         key: 'activeShapes',
-        label: 'Shapes',
+        label: 'Ornaments',
         type: 'multi-toggle',
         value: Array.from(this.activeShapes).join(','),
         options: ['ring', 'trails', 'spark', 'firefly'],

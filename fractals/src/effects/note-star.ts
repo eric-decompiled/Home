@@ -26,7 +26,7 @@ interface TravelingStar {
 
 export class NoteStarEffect implements VisualEffect {
   readonly id = 'note-star';
-  readonly name = 'Note Star';
+  readonly name = 'Star';
   readonly isPostProcess = false;
   readonly defaultBlend: BlendMode = 'screen';
   readonly defaultOpacity = 1.0;
@@ -498,7 +498,7 @@ export class NoteStarEffect implements VisualEffect {
     return [
       {
         key: 'activeShapes',
-        label: 'Shapes',
+        label: 'Ornaments',
         type: 'multi-toggle',
         value: Array.from(this.activeShapes).join(','),
         options: ['ring', 'trails', 'spark', 'firefly'],

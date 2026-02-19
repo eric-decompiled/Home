@@ -214,7 +214,9 @@ export class MelodyAuroraEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'waveScale', label: 'Scale', type: 'range', value: this.waveScale, min: 0.5, max: 2.0, step: 0.1 },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

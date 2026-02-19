@@ -104,22 +104,43 @@ interface ChladniAnchor {
 }
 
 const DEGREE_ANCHORS: Record<number, ChladniAnchor> = {
-  0: { m: 2, n: 3, sign: 1 },     // chromatic fallback — simple
-  1: { m: 1, n: 2, sign: 1 },     // I — clean, simple cross
-  2: { m: 3, n: 5, sign: -1 },    // ii — moderate complexity
-  3: { m: 2, n: 5, sign: 1 },     // iii — elegant
-  4: { m: 4, n: 7, sign: 1 },     // IV — rich, subdominant feel
-  5: { m: 5, n: 8, sign: -1 },    // V — complex, dominant tension
-  6: { m: 3, n: 7, sign: 1 },     // vi — warm, flowing
-  7: { m: 6, n: 11, sign: -1 },   // vii — dense, leading-tone tension
+  0: { m: 3, n: 4, sign: 1 },     // chromatic fallback — simple
+  1: { m: 2, n: 3, sign: 1 },     // I — clean, simple cross
+  2: { m: 4, n: 7, sign: -1 },    // ii — moderate complexity
+  3: { m: 3, n: 7, sign: 1 },     // iii — elegant
+  4: { m: 5, n: 9, sign: 1 },     // IV — rich, subdominant feel
+  5: { m: 6, n: 10, sign: -1 },   // V — complex, dominant tension
+  6: { m: 4, n: 9, sign: 1 },     // vi — warm, flowing
+  7: { m: 8, n: 13, sign: -1 },   // vii — dense, leading-tone tension
 };
+
+// Voice leading smoothness: measures how smooth a chord root motion is
+// Based on interval class — inverted from rootMotionTension
+// Returns 1.0 for smooth (jazz-like stepwise), 0.3 for jarring (tritone)
+function computeVoiceLeadingSmoothness(prevRoot: number, currRoot: number): number {
+  if (prevRoot < 0) return 1.0;  // No previous chord — assume smooth
+  const interval = Math.abs(currRoot - prevRoot);
+  const semitones = Math.min(interval, 12 - interval);  // Interval class (0-6)
+
+  const smoothnessMap: Record<number, number> = {
+    0: 1.0,   // Same chord: maximum smoothness
+    5: 0.95,  // P4: very smooth (circle of 5ths motion)
+    7: 0.95,  // P5: very smooth (but interval class maps 7→5)
+    4: 0.8,   // M3: smooth (shared tones in thirds)
+    3: 0.8,   // m3: smooth
+    2: 0.65,  // M2: moderate stepwise motion
+    1: 0.5,   // m2: chromatic, less smooth
+    6: 0.3,   // Tritone: jarring
+  };
+  return smoothnessMap[semitones] ?? 0.5;
+}
 
 export class ChladniEffect implements VisualEffect {
   readonly id = 'chladni';
   readonly name = 'Chladni';
   readonly isPostProcess = false;
   readonly defaultBlend: BlendMode = 'source-over';
-  readonly defaultOpacity = 1.0;
+  readonly defaultOpacity = 0.35;
 
   private outputCanvas: HTMLCanvasElement;
   private glCanvas: HTMLCanvasElement;
@@ -139,10 +160,20 @@ export class ChladniEffect implements VisualEffect {
   private amplitude = 1.0;
   private rotation = 0;
   private rotationVelocity = 0;
-  private lineWidth = 0.08;
+  private baseLineWidth = 0.12;  // User-configurable base
+  private lineWidth = 0.12;      // Computed (modulated by tension)
   private lastChordDegree = -1;
+  private lastChordRoot = -1;    // For voice leading smoothness
+  private smoothedTension = 0;   // Smoothed tension for gradual brightness changes
+  private lastPaletteIndex = -1; // For detecting palette changes
 
-  // Colors
+  // Base colors (tweened on palette change, before tension modulation)
+  private baseColor1: [number, number, number] = [0.0, 0.15, 0.3];
+  private baseColor2: [number, number, number] = [0.2, 0.6, 0.8];
+  private baseColor3: [number, number, number] = [0.9, 0.95, 1.0];
+  private baseBgColor: [number, number, number] = [0.02, 0.02, 0.05];
+
+  // Final colors (base * tension brightness, computed each frame)
   private color1: [number, number, number] = [0.0, 0.15, 0.3];
   private color2: [number, number, number] = [0.2, 0.6, 0.8];
   private color3: [number, number, number] = [0.9, 0.95, 1.0];
@@ -211,19 +242,27 @@ export class ChladniEffect implements VisualEffect {
     // Degree → anchor
     const anchor = DEGREE_ANCHORS[music.chordDegree] ?? DEGREE_ANCHORS[0];
 
-    // Detect chord changes and tween smoothly
+    // Detect chord changes and tween based on voice leading smoothness
     if (music.chordDegree !== this.lastChordDegree && music.chordDegree >= 0) {
       this.lastChordDegree = music.chordDegree;
 
+      // Compute voice leading smoothness from root motion
+      const smoothness = computeVoiceLeadingSmoothness(this.lastChordRoot, music.chordRoot);
+      this.lastChordRoot = music.chordRoot;
+
       const beatDur = music.beatDuration || 0.5;
-      const tweenDur = beatDur * 1.5;
+      // Smooth voice leading = longer tween (subtle morph)
+      // Rough voice leading = shorter tween (dramatic shift)
+      // Range: 0.5x to 2x base duration
+      const baseDur = beatDur * 4;
+      const tweenDur = baseDur * (0.5 + smoothness * 1.5);
 
       // Tween mode numbers with musical timing
       gsap.to(this, {
         currentM: anchor.m,
         currentN: anchor.n,
         duration: tweenDur,
-        ease: 'power2.inOut',
+        ease: 'power3.inOut',
         overwrite: true,
       });
 
@@ -231,7 +270,7 @@ export class ChladniEffect implements VisualEffect {
       gsap.to(this, {
         currentSign: anchor.sign,
         duration: tweenDur * 0.5,
-        ease: 'power2.inOut',
+        ease: 'power3.inOut',
       });
     }
 
@@ -239,6 +278,7 @@ export class ChladniEffect implements VisualEffect {
     const beatAnticipation = music.beatAnticipation ?? 0;
     const beatArrival = music.beatArrival ?? 0;
     const barArrival = music.barArrival ?? 0;
+    const barGroove = music.barGroove ?? 0;
 
     // Beat → amplitude pulse - gentle breathing with the music
     if (music.kick) this.amplitude = Math.max(this.amplitude, 1.25);
@@ -247,6 +287,11 @@ export class ChladniEffect implements VisualEffect {
     this.amplitude = Math.max(this.amplitude, 1.0 + beatArrival * 0.2 + barArrival * 0.25);
     // Anticipation creates subtle buildup
     this.amplitude += beatAnticipation * 0.05;
+    // Bar groove adds subtle breathing (peaks at bar boundary)
+    this.amplitude += barGroove * 0.25;
+    // Smooth the tension for gradual brightness changes
+    const tensionSmoothing = 0.02;  // Lower = smoother/slower response
+    this.smoothedTension += (music.tension - this.smoothedTension) * tensionSmoothing;
     this.amplitude += (1.0 - this.amplitude) * (1 - Math.exp(-2.0 * dt));  // Slower decay
 
     // Rotation from beats - gentle, musical motion
@@ -258,20 +303,50 @@ export class ChladniEffect implements VisualEffect {
     this.rotation += this.rotationVelocity * dt;
 
     // Tension → line width (higher tension = finer lines = more detail)
-    this.lineWidth = 0.12 - music.tension * 0.06;
+    // baseLineWidth is user-configurable, tension modulates around it
+    this.lineWidth = this.baseLineWidth - music.tension * 0.06;
 
-    // Colors from palette
-    if (music.paletteIndex >= 0 && music.paletteIndex < palettes.length) {
+    // Colors from palette - tween base colors on palette change
+    if (music.paletteIndex >= 0 && music.paletteIndex < palettes.length &&
+        music.paletteIndex !== this.lastPaletteIndex) {
+      this.lastPaletteIndex = music.paletteIndex;
+
       const p = palettes[music.paletteIndex];
-      const c1 = p.stops[1]?.color ?? [0, 40, 80];
-      const c2 = p.stops[3]?.color ?? [50, 150, 200];
-      const c3 = p.stops[4]?.color ?? [230, 240, 255];
-      this.color1 = [c1[0] / 255, c1[1] / 255, c1[2] / 255];
-      this.color2 = [c2[0] / 255, c2[1] / 255, c2[2] / 255];
-      this.color3 = [c3[0] / 255, c3[1] / 255, c3[2] / 255];
+      const c1 = p.stops[0]?.color ?? [0, 40, 80];
+      const c2 = p.stops[2]?.color ?? [50, 150, 200];
+      const c3 = p.stops[3]?.color ?? [230, 240, 255];
       const bg = p.stops[0]?.color ?? [5, 5, 13];
-      this.bgColor = [bg[0] / 255, bg[1] / 255, bg[2] / 255];
+
+      // Desaturate by blending toward grayscale (40% saturation)
+      const desat = 0.4;
+      const desaturate = (c: number[]) => {
+        const gray = (c[0] + c[1] + c[2]) / 3;
+        return [
+          (c[0] * desat + gray * (1 - desat)) / 255,
+          (c[1] * desat + gray * (1 - desat)) / 255,
+          (c[2] * desat + gray * (1 - desat)) / 255,
+        ];
+      };
+
+      const target1 = desaturate(c1);
+      const target2 = desaturate(c2);
+      const target3 = desaturate(c3);
+      const targetBg = [bg[0] / 255, bg[1] / 255, bg[2] / 255];
+
+      // Tween base colors over an 8th note
+      const eighthNote = (music.beatDuration || 0.5) / 2;
+      gsap.to(this.baseColor1, { 0: target1[0], 1: target1[1], 2: target1[2], duration: eighthNote, ease: 'power2.inOut' });
+      gsap.to(this.baseColor2, { 0: target2[0], 1: target2[1], 2: target2[2], duration: eighthNote, ease: 'power2.inOut' });
+      gsap.to(this.baseColor3, { 0: target3[0], 1: target3[1], 2: target3[2], duration: eighthNote, ease: 'power2.inOut' });
+      gsap.to(this.baseBgColor, { 0: targetBg[0], 1: targetBg[1], 2: targetBg[2], duration: eighthNote, ease: 'power2.inOut' });
     }
+
+    // Apply tension brightness to base colors each frame
+    const tensionBrightness = 0.8 + this.smoothedTension * 0.2;  // 0.8 to 1.0
+    this.color1 = [this.baseColor1[0] * tensionBrightness, this.baseColor1[1] * tensionBrightness, this.baseColor1[2] * tensionBrightness];
+    this.color2 = [this.baseColor2[0] * tensionBrightness, this.baseColor2[1] * tensionBrightness, this.baseColor2[2] * tensionBrightness];
+    this.color3 = [this.baseColor3[0] * tensionBrightness, this.baseColor3[1] * tensionBrightness, this.baseColor3[2] * tensionBrightness];
+    this.bgColor = [this.baseBgColor[0] * tensionBrightness, this.baseBgColor[1] * tensionBrightness, this.baseBgColor[2] * tensionBrightness];
   }
 
   render(): HTMLCanvasElement {
@@ -321,14 +396,16 @@ export class ChladniEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'lineWidth', label: 'Line Width', type: 'range', value: this.baseLineWidth, min: 0.05, max: 0.50, step: 0.05 },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {
-    return { lineWidth: 0.08 };
+    return { lineWidth: 0.12 };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
-    if (key === 'lineWidth') this.lineWidth = value as number;
+    if (key === 'lineWidth') this.baseLineWidth = value as number;
   }
 }

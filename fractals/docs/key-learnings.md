@@ -39,6 +39,12 @@
 - **Quadratic curves for spiral trails**: `quadraticCurveTo` through midpoints creates smooth curves following spiral path. Avoids visible line segments from `lineTo`
 - **Trail connected to head**: Trail should end at `star.progress` (not offset behind) so it stays attached as they travel together
 - **Shared shape system across effects**: Note Spiral and Note Star share toggleable decorations (ring, trails, spark, firefly). Core rendering (stars+beams for Note Star, dots+trails for Note Spiral) always on; decorations optional via multi-toggle. Reduces code duplication, gives users consistent vocabulary across effects
+- **Voice leading smoothness for transitions**: Measure chord root motion interval class (0-6 semitones). Smooth motion (P4/P5 = circle of 5ths) gets longer tweens; rough motion (tritone) gets shorter, more dramatic transitions. Map via lookup: `{0: 1.0, 5: 0.95, 4: 0.8, 3: 0.8, 2: 0.65, 1: 0.5, 6: 0.3}`
+- **Tension-based color brightness**: Use smoothed tension (low smoothing factor ~0.02 for slow response) to modulate effect brightness. High tension = brighter, low tension = faded. Creates musical dynamics where resolved passages feel calm, tense passages pop
+- **Color tweening on chord changes**: Store base colors separate from final colors. GSAP tween base colors on palette change (8th note duration), apply tension brightness on top each frame. Smooth color transitions without affecting tension modulation
+- **Pitch-differentiated ornaments**: Ring ornaments vary by pitch - bass (low pitchT) gets thicker lines, darker colors, smaller radius; melody (high pitchT) gets thinner lines, brighter colors, larger radius. Creates visual register distinction
+- **Cross-effect data sharing via MusicParams**: Melody clock can display bass info (color, brightness) for hub jewels. Track bass pitch class and velocity, smooth color transitions, use for decorative elements. Creates visual unity without coupling effects directly
+- **Ornate clock decorations**: Multiple concentric hub rings, rotating jewels at hand angle, filigree flourishes at cardinal points, tick marks between note labels, diamond shapes along hand. Small dots with decorative rings at octave positions. Layered detail creates elegant aesthetic
 
 ### Physics & Animation
 - **Compass physics for clock hands**: Spring-damper system (springK=12, damping=5) creates weighty motion with natural overshoot and settle. Hand swings toward target, overshoots slightly, drifts back. New notes can interrupt mid-motion smoothly. Feels more physical than tweening
@@ -94,6 +100,7 @@
 - **Contextual delete button**: Show trash icon next to picker only when viewing uploads. Better than dropdown option which didn't work reliably
 - **Graceful removal with playback continuity**: When deleting current upload, continue playing next song if was playing, or pause if no more uploads. Switch to default playlist when last upload removed
 - **Preset configs for unused effects**: Even if a preset doesn't use bass-clock/melody-clock, add `{ showNumerals: false, showNotes: false }` to prevent overlay numerals/notes from showing when those slots are empty
+- **CSS Grid for consistent button sizing**: Use `display: grid; grid-template-columns: repeat(3, 1fr)` for radio button groups instead of flexbox. Buttons get equal width regardless of label length, creating clean aligned rows
 
 ### URL Sharing
 - **URL query params for sharing**: Encode as short keys, use `history.replaceState()`. Default preset = clean URL

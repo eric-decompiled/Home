@@ -450,7 +450,9 @@ export class TonnetzEffect implements VisualEffect {
   dispose(): void { this.ready = false; }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'hexSize', label: 'Size', type: 'range', value: this.hexSize, min: 30, max: 80, step: 5 },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

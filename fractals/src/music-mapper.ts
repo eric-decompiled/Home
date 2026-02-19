@@ -248,7 +248,12 @@ let currentTracks: TrackInfo[] = [];
 
 // All notes for lookahead (piano roll)
 let allNotes: NoteEvent[] = [];
-const LOOKAHEAD_SECONDS = 4.0;  // how far ahead to look for upcoming notes
+let noteLookaheadSeconds = 4.0;  // how far ahead to look for upcoming notes
+
+// Allow external control of lookahead (for piano roll speed setting)
+export function setNoteLookahead(seconds: number): void {
+  noteLookaheadSeconds = seconds;
+}
 
 // All chords for theory bar lookahead
 let allChords: ChordEvent[] = [];
@@ -427,7 +432,7 @@ function computeUpcomingChords(currentTime: number): UpcomingChord[] {
 function computeUpcomingNotes(currentTime: number): UpcomingNote[] {
   const upcoming: UpcomingNote[] = [];
   const windowStart = currentTime - 0.1;  // include notes that just started
-  const windowEnd = currentTime + LOOKAHEAD_SECONDS;
+  const windowEnd = currentTime + noteLookaheadSeconds;
 
   // Binary search to find starting point (first note that could overlap)
   // Notes are sorted by start time, so find first note starting after (windowStart - maxDuration)

@@ -111,7 +111,7 @@ const PRESETS_STORAGE_KEY = 'fractured-jukebox-presets';
 
 // --- URL Compression Mappings ---
 
-export const SLOT_KEYS = ['bg', 'fg', 'overlay', 'melody', 'bass', 'hud'] as const;
+export const SLOT_KEYS = ['fg', 'bg', 'overlay', 'melody', 'bass', 'hud'] as const;
 export type SlotKey = typeof SLOT_KEYS[number];
 
 // Effect ID ↔ short name for layer params (single words where possible)
@@ -334,8 +334,8 @@ export function getCurrentState(
   const state: VisualizerState = {
     version: 1,
     layers: {
-      bg: layerSlots[0].activeId,
-      fg: layerSlots[1].activeId,
+      fg: layerSlots[0].activeId,  // Foreground is now index 0
+      bg: layerSlots[1].activeId,  // Background is now index 1
       overlay: null,  // Legacy field kept for backwards compat
       overlays: overlays ?? [],  // New array format
       melody: layerSlots[3].activeId,
@@ -401,7 +401,7 @@ export function applyState(
   allEffects: Map<string, VisualEffect>
 ): { overlays: string[] } {
   // Apply layers (except overlay which uses the new overlays array)
-  const slotKeys: SlotKey[] = ['bg', 'fg', 'overlay', 'melody', 'bass', 'hud'];
+  const slotKeys: SlotKey[] = ['fg', 'bg', 'overlay', 'melody', 'bass', 'hud'];
   for (let i = 0; i < slotKeys.length; i++) {
     if (slotKeys[i] === 'overlay') continue; // Handle overlay separately
     const effectId = state.layers[slotKeys[i]];

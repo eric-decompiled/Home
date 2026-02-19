@@ -2,6 +2,7 @@
 // Particles flowing through a Perlin-like noise vector field.
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
+import { palettes } from '../fractal-engine.ts';
 
 // Simple 2D noise (permutation-based, good enough for flow fields)
 const PERM = new Uint8Array(512);
@@ -79,10 +80,13 @@ export class FlowFieldEffect implements VisualEffect {
   private flowSpeed = 0.4; // Gentle base flow
   private turbulence = 1.0;
   private noiseScale = 0.003;
-  private fadeRate = 0.018; // Slower fade = longer trails, brighter overall
+  private trailsUI = 7;     // UI value 1-10, mapped exponentially to fadeRate
+  private fadeRate = 0.003 * Math.pow(20, Math.pow((7 - 0.1) / 9.9, 1.8)); // Computed from trailsUI=7
+  private lineWidth = 2.5;  // Particle line thickness
   private noiseOffset = 0;
   private perturbation = 0;
-  private angleOffset = 0;
+  private chordNoiseX = 0;   // Chord-based noise space offset
+  private chordNoiseY = 0;
 
   private colorR = 255;
   private colorG = 255;
@@ -154,20 +158,30 @@ export class FlowFieldEffect implements VisualEffect {
     // Music mapping
     this.noiseOffset += dt * 0.1;
 
-    // Chord root → angle offset
-    this.angleOffset = (music.chordRoot / 12) * Math.PI * 2;
+    // Chord-based noise space offsets (samples different "regions" of noise)
+    // Root shifts horizontally, degree shifts vertically
+    this.chordNoiseX = (music.chordRoot / 12) * 50;
+    this.chordNoiseY = (music.chordDegree / 7) * 50;
+
+    // Chord quality affects turbulence
+    // Major = smooth flow, minor = more turbulent, dim/aug = chaotic
+    let qualityTurbulence = 0;
+    if (music.chordQuality.includes('dim') || music.chordQuality.includes('aug')) {
+      qualityTurbulence = 0.4;
+    } else if (music.chordQuality.includes('m') && !music.chordQuality.includes('maj')) {
+      qualityTurbulence = 0.2;
+    }
 
     // Smooth tension with weighted average (time constant ~0.5s)
     const tensionRate = 2.0;
     this.smoothTension += (music.tension - this.smoothTension) * tensionRate * dt;
 
-    // Tension → flow complexity (subtle, avoid clumping)
-    // Low tension: smooth, laminar flow; High tension: slightly more turbulent
-    this.turbulence = 0.3 + this.smoothTension * 0.4;
+    // Tension + quality → flow complexity
+    this.turbulence = 0.3 + this.smoothTension * 0.4 + qualityTurbulence;
     // Gentle flow speed variation with tension
     this.flowSpeed = 0.4 + this.smoothTension * 0.2;
-    // Subtle noise detail change
-    this.noiseScale = 0.002 + this.smoothTension * 0.0005;
+    // Noise scale shifts with chord degree for variety
+    this.noiseScale = 0.002 + this.smoothTension * 0.0005 + (music.chordDegree % 3) * 0.0002;
 
     // === GROOVE CURVES (rhythm driver) ===
     const beatGroove = music.beatGroove ?? 0.5;
@@ -192,12 +206,15 @@ export class FlowFieldEffect implements VisualEffect {
 
     this.perturbation *= Math.exp(-3.0 * dt);
 
-    // Color from tension (I→V interpolation based on harmonic tension)
+    // Color from song key palette
     if (!this.useWhite) {
-      const [r, g, b] = music.tensionColor;
-      this.colorR = r;
-      this.colorG = g;
-      this.colorB = b;
+      const keyPalette = palettes[music.key] ?? palettes[0];
+      const keyColor = keyPalette.stops[3]?.color ?? [200, 200, 255];
+      // Blend key color with tension color for subtle variation
+      const [tr, tg, tb] = music.tensionColor;
+      this.colorR = Math.round(keyColor[0] * 0.7 + tr * 0.3);
+      this.colorG = Math.round(keyColor[1] * 0.7 + tg * 0.3);
+      this.colorB = Math.round(keyColor[2] * 0.7 + tb * 0.3);
     }
 
     // Step particles
@@ -206,15 +223,15 @@ export class FlowFieldEffect implements VisualEffect {
       p.px = p.x;
       p.py = p.y;
 
-      const nx = p.x * this.noiseScale;
-      const ny = p.y * this.noiseScale;
+      const nx = p.x * this.noiseScale + this.chordNoiseX;
+      const ny = p.y * this.noiseScale + this.chordNoiseY;
 
       // Multi-octave noise for turbulence
+      // Chord offsets shift which region of noise space we sample
       let angle = noise2d(nx + this.noiseOffset, ny) * Math.PI * 2;
       if (this.turbulence > 1) {
         angle += noise2d(nx * 2, ny * 2 + this.noiseOffset) * Math.PI * this.turbulence * 0.5;
       }
-      angle += this.angleOffset;
 
       // Perturbation burst
       if (this.perturbation > 0.01) {
@@ -264,17 +281,23 @@ export class FlowFieldEffect implements VisualEffect {
   render(): HTMLCanvasElement {
     const ctx = this.ctx;
 
-    // Fade existing
+    // Fade existing - use destination-out to actually subtract brightness
+    // This prevents accumulation that causes white bleed
+    ctx.globalCompositeOperation = 'destination-out';
     ctx.fillStyle = `rgba(0,0,0,${this.fadeRate})`;
     ctx.fillRect(0, 0, this.width, this.height);
+    // Floor subtraction - always remove a minimum to prevent lingering dim pixels
+    ctx.fillStyle = 'rgba(0,0,0,0.008)';
+    ctx.fillRect(0, 0, this.width, this.height);
+    ctx.globalCompositeOperation = 'source-over';
 
     // Draw particle lines
     const r = this.useWhite ? 255 : this.colorR;
     const g = this.useWhite ? 255 : this.colorG;
     const b = this.useWhite ? 255 : this.colorB;
 
-    ctx.strokeStyle = `rgba(${r},${g},${b},0.6)`;
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = `rgba(${r},${g},${b},0.35)`;
+    ctx.lineWidth = this.lineWidth;
     ctx.beginPath();
     for (const p of this.particles) {
       const dx = p.x - p.px;
@@ -299,7 +322,10 @@ export class FlowFieldEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'trailsUI', label: 'Decay', type: 'range', value: this.trailsUI, min: 0.1, max: 10, step: 0.1 },
+      { key: 'lineWidth', label: 'Size', type: 'range', value: this.lineWidth, min: 0.5, max: 10, step: 0.5 },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {
@@ -307,7 +333,8 @@ export class FlowFieldEffect implements VisualEffect {
       particleCount: 800,
       flowSpeed: 0.4,
       noiseScale: 0.003,
-      fadeRate: 0.018,
+      trailsUI: 7,
+      lineWidth: 2.5,
       mouseStrength: 60,
       useWhite: false,
     };
@@ -325,8 +352,14 @@ export class FlowFieldEffect implements VisualEffect {
       case 'noiseScale':
         this.noiseScale = value as number;
         break;
-      case 'fadeRate':
-        this.fadeRate = value as number;
+      case 'trailsUI':
+        this.trailsUI = value as number;
+        // Exponential mapping with power curve: 1→0.003 (long trails), 10→0.06 (short trails)
+        // Power of 1.8 gives more fine control at low end (slider 7 ≈ old slider 5)
+        this.fadeRate = 0.003 * Math.pow(20, Math.pow((this.trailsUI - 0.1) / 9.9, 1.8));
+        break;
+      case 'lineWidth':
+        this.lineWidth = value as number;
         break;
       case 'mouseStrength':
         this.mouseStrength = value as number;
