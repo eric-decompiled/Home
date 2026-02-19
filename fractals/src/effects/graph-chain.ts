@@ -565,8 +565,8 @@ export class GraphChainEffect implements VisualEffect {
     this.anticipationTension = beatAnticipation * 0.4 + barAnticipation * 0.3;
 
     // === DRUMS: Groove-driven physics impulse ===
-    // Combine discrete kick detection with continuous groove curves
-    const impulseMagnitude = (music.kick ? 0.5 : 0) + beatArrival * 0.4 + barArrival * 0.6;
+    // Combine drum energy with continuous groove curves
+    const impulseMagnitude = music.drumEnergy * 0.5 + beatArrival * 0.4 + barArrival * 0.6;
     if (impulseMagnitude > 0.1) {
       // Push outward from center on beat arrival
       const cx = this.width / 2;

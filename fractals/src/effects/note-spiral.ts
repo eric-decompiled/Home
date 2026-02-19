@@ -447,9 +447,9 @@ export class NoteSpiralEffect implements VisualEffect {
     // === GROOVE CURVES ===
     const beatArrival = music.beatArrival ?? 0;
 
-    // Beat pulse — brighten active nodes (subtle pulse on kicks)
-    if (music.kick) {
-      const pulseStrength = 0.08 + music.tension * 0.05;
+    // Beat pulse — brighten active nodes on strong drum hits
+    if (music.drumEnergy > 0.5) {
+      const pulseStrength = (0.08 + music.tension * 0.05) * music.drumEnergy;
       for (const node of this.nodes) {
         if (node.brightness > 0.05) node.brightness += pulseStrength;
       }

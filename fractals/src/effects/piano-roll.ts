@@ -4,7 +4,6 @@
 
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode, UpcomingNote } from './effect-interface.ts';
 import { palettes } from '../fractal-engine.ts';
-import { audioPlayer } from '../audio-player.ts';
 import { setNoteLookahead } from '../music-mapper.ts';
 
 // Piano range: A0 (21) to C8 (108)
@@ -608,7 +607,6 @@ export class PianoRollEffect implements VisualEffect {
     return {
       speedUI: 5,
       keyboardHeight: 0.12,
-      pianoSound: false,
     };
   }
 
@@ -622,6 +620,5 @@ export class PianoRollEffect implements VisualEffect {
       setNoteLookahead(this.fallDuration + 1.0);
     }
     if (key === 'keyboardHeight') this.keyboardHeight = value as number;
-    if (key === 'pianoSound') audioPlayer.setPianoMode(value as boolean);
   }
 }

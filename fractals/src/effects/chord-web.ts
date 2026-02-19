@@ -138,11 +138,11 @@ export class ChordWebEffect implements VisualEffect {
     const beatArrival = music.beatArrival ?? 0;
     const barArrival = music.barArrival ?? 0;
 
-    // Beat pulse — brighten active nodes on kick
-    if (music.kick) {
+    // Beat pulse — brighten active nodes on strong drum hits
+    if (music.drumEnergy > 0.5) {
       for (const node of this.nodes) {
         if (node.brightness > 0.05) {
-          node.brightness = Math.min(1.0, node.brightness + 0.15);
+          node.brightness = Math.min(1.0, node.brightness + 0.15 * music.drumEnergy);
         }
       }
     }

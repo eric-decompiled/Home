@@ -148,11 +148,11 @@ export class MelodyWebEffect implements VisualEffect {
     const beatArrival = music.beatArrival ?? 0;
     const barArrival = music.barArrival ?? 0;
 
-    // Beat pulse — briefly brighten all active nodes
-    if (music.kick) {
+    // Beat pulse — briefly brighten all active nodes on strong drum hits
+    if (music.drumEnergy > 0.5) {
       for (const node of this.nodes) {
         if (node.brightness > 0.05) {
-          node.brightness = Math.min(1.0, node.brightness + 0.2);
+          node.brightness = Math.min(1.0, node.brightness + 0.2 * music.drumEnergy);
         }
       }
     }

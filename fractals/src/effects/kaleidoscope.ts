@@ -92,9 +92,8 @@ export class KaleidoscopeEffect implements VisualEffect {
     // Groove curves drive the main rhythmic motion
     const grooveRotation = (beatGroove - 0.5) * 0.18 + (barGroove - 0.5) * 0.10;
 
-    // Discrete impulses from kicks/snares (noticeable accents)
-    if (music.kick) this.rotationVelocity += 0.045;
-    if (music.snare) this.rotationVelocity -= 0.03;
+    // Beat strength drives rotation direction: strong beats push forward, weak beats pull back
+    this.rotationVelocity += (music.beatStrength * 2 - 1) * music.drumEnergy * 0.045;
     // Arrival adds small punch
     this.rotationVelocity += beatArrival * 0.015;
 
@@ -116,9 +115,8 @@ export class KaleidoscopeEffect implements VisualEffect {
     this.zoomTarget += barAnticipation * 0.012;
     // Arrival creates soft "hit" (reduced)
     this.zoomTarget += beatArrival * 0.01 + barArrival * 0.012;
-    // Kick/snare zoom accents (reduced)
-    if (music.kick) this.zoomTarget += 0.01;
-    if (music.snare) this.zoomTarget += 0.006;
+    // Drum zoom accents
+    this.zoomTarget += music.drumEnergy * 0.01;
     this.zoomTarget = Math.max(1.03, Math.min(1.08, this.zoomTarget));
 
     // Zoom pulse with asymmetric response: gentle attack, very slow decay

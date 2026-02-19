@@ -15,39 +15,12 @@ export interface ChordEvent {
   root: number;       // pitch class 0-11 (C=0)
   degree: number;     // scale degree 1-7 relative to key (0 if chromatic)
   tension: number;    // 0-1 harmonic tension (pre-computed from degree + quality)
-  nextDegree: number; // degree of the following chord (0 if last/unknown)
-  isSecondary: boolean;          // true if this is a secondary dominant (V/x or viio/x)
-  secondaryTarget: number;       // target degree being tonicized (2-7), 0 if not secondary
-  isChromatic: boolean;          // true if root or quality doesn't fit current key
-  numeral: string;    // precomputed roman numeral (e.g., "I", "V7", "ii", "V/V")
+  numeral: string;    // precomputed roman numeral (e.g., "I", "V7", "ii")
 }
 
 export interface DrumHit {
   time: number;
-  type: 'kick' | 'snare' | 'hihat' | 'tom' | 'crash';
-}
-
-// Per-bar section detection (drums + melodic markers)
-export interface BarDrumInfo {
-  barIndex: number;
-  startTime: number;
-  endTime: number;
-  totalHits: number;
-  kickCount: number;
-  snareCount: number;
-  hihatCount: number;
-  tomCount: number;
-  crashCount: number;       // crash cymbals (49, 57) - mark section starts
-  density: number;          // hits per beat (normalized by beatsPerBar)
-  energyDelta: number;      // change in energy from previous bar (-1 to 1)
-  // Melodic markers (for orchestral hits, stabs, etc.)
-  avgVelocity: number;      // 0-1 average velocity of notes this bar
-  maxPolyphony: number;     // peak simultaneous notes (high = orchestral stab)
-  hasVelocitySpike: boolean; // sudden loud notes vs neighbors
-  hasPolyphonySpike: boolean; // sudden many-note hit (orchestral stab signature)
-  isFill: boolean;          // high snare/tom density relative to neighbors
-  isBreakdown: boolean;     // near-zero density
-  isTransition: boolean;    // any strong transition marker (fill, crash, energy spike, stab)
+  energy: number;  // 0-1, weighted by drum type (kick=1.0, snare=0.35, tom=0.4, crash=0.25, hihat=0.15)
 }
 
 export interface NoteEvent {
@@ -59,25 +32,6 @@ export interface NoteEvent {
   isDrum: boolean;
 }
 
-export interface TrackInfo {
-  index: number;           // track index (matches NoteEvent.channel)
-  name: string;            // track name from MIDI
-  instrumentName: string;  // GM instrument name
-  instrumentFamily: string; // "piano", "strings", "brass", etc.
-  instrumentNumber: number; // GM program 0-127
-  isDrum: boolean;
-  midiChannel: number;     // actual MIDI channel (0-15)
-}
-
-export interface KeyRegion {
-  startTime: number;     // seconds
-  endTime: number;       // seconds
-  key: number;           // pitch class 0-11
-  mode: 'major' | 'minor';
-  confidence: number;    // correlation coefficient 0-1
-  ambiguity: number;     // 0 = clear, 1 = ambiguous (1st vs 2nd best close)
-}
-
 export interface MusicTimeline {
   name: string;                           // song name from MIDI metadata
   tempo: number;                          // initial tempo (backward compat)
@@ -87,13 +41,10 @@ export interface MusicTimeline {
   key: number;           // pitch class 0-11
   keyMode: 'major' | 'minor';
   useFlats: boolean;     // true if key signature uses flats (F, Bb, Eb, etc.)
-  keyRegions: KeyRegion[];                // local key changes (modulations)
   duration: number;      // total seconds
   chords: ChordEvent[];
   drums: DrumHit[];
-  barDrumInfo: BarDrumInfo[];             // per-bar drum density for section detection
   notes: NoteEvent[];
-  tracks: TrackInfo[];
 }
 
 // --- Chord detection ---
@@ -152,100 +103,6 @@ function getScaleDegree(root: number, key: number, mode: 'major' | 'minor'): num
   return idx >= 0 ? idx + 1 : 0; // 1-7 or 0 if chromatic
 }
 
-// Expected chord qualities for each scale degree
-// See research/music-analysis-improvements.md for theory
-const DIATONIC_QUALITIES: Record<'major' | 'minor', Record<number, ChordQuality[]>> = {
-  major: {
-    1: ['major', 'maj7'],           // I, Imaj7
-    2: ['minor', 'min7'],           // ii, ii7
-    3: ['minor', 'min7'],           // iii, iii7
-    4: ['major', 'maj7'],           // IV, IVmaj7
-    5: ['major', 'dom7'],           // V, V7
-    6: ['minor', 'min7'],           // vi, vi7
-    7: ['dim', 'hdim7'],            // viio, viiø7
-  },
-  minor: {
-    1: ['minor', 'min7'],           // i, i7
-    2: ['dim', 'hdim7'],            // iio, iiø7
-    3: ['major', 'maj7', 'aug'],    // III (or III+)
-    4: ['minor', 'min7'],           // iv, iv7
-    5: ['minor', 'min7', 'major', 'dom7'], // v or V (harmonic minor)
-    6: ['major', 'maj7'],           // VI, VImaj7
-    7: ['major', 'dom7', 'dim', 'dim7'],   // VII or viio
-  },
-};
-
-function isDiatonicQuality(
-  degree: number,
-  quality: ChordQuality,
-  mode: 'major' | 'minor'
-): boolean {
-  const expected = DIATONIC_QUALITIES[mode][degree];
-  return expected?.includes(quality) ?? false;
-}
-
-function isChromatic(
-  root: number,
-  quality: ChordQuality,
-  key: number,
-  mode: 'major' | 'minor'
-): boolean {
-  const degree = getScaleDegree(root, key, mode);
-  if (degree === 0) return true; // chromatic root
-  return !isDiatonicQuality(degree, quality, mode);
-}
-
-interface SecondaryDominantInfo {
-  isSecondary: boolean;
-  target: number;  // Scale degree being tonicized (2-7), 0 if not secondary
-}
-
-/**
- * Detect if a chord is a secondary dominant (V/x or viio/x)
- * Secondary dominants are chromatic chords that resolve by fifth to a diatonic chord
- */
-function detectSecondaryDominant(
-  current: { root: number; quality: ChordQuality },
-  next: { root: number; degree: number } | null,
-  key: number,
-  mode: 'major' | 'minor'
-): SecondaryDominantInfo {
-  if (!next || next.degree === 0) {
-    return { isSecondary: false, target: 0 };
-  }
-
-  // Calculate interval of resolution
-  const interval = ((next.root - current.root) % 12 + 12) % 12;
-
-  // V/x: Major or dom7 chord resolving down by 5th (= up by P4 = 5 semitones)
-  const resolvesByFifth = interval === 5;
-  const isSecDomQuality = current.quality === 'major' || current.quality === 'dom7';
-
-  // viio/x: Diminished chord resolving up by half step
-  const isSecLeadingTone = (current.quality === 'dim' || current.quality === 'dim7' || current.quality === 'hdim7') && interval === 1;
-
-  if (isSecDomQuality && resolvesByFifth) {
-    // Target must be a diatonic chord (not the tonic - that's just V)
-    if (next.degree > 1 && next.degree <= 7) {
-      // Verify the current chord is NOT diatonic (would be regular V, not V/x)
-      const currentDegree = getScaleDegree(current.root, key, mode);
-      const currentIsDiatonic = currentDegree > 0 && isDiatonicQuality(currentDegree, current.quality, mode);
-
-      if (!currentIsDiatonic) {
-        return { isSecondary: true, target: next.degree };
-      }
-    }
-  }
-
-  if (isSecLeadingTone) {
-    if (next.degree > 1 && next.degree <= 7) {
-      return { isSecondary: true, target: next.degree };
-    }
-  }
-
-  return { isSecondary: false, target: 0 };
-}
-
 function detectChordWeighted(
   weights: number[],
   diatonicSet: Set<number>
@@ -292,268 +149,45 @@ function detectChordWeighted(
 }
 
 // --- Drum classification ---
+// Returns energy weight: kick=1.0, snare=0.35, tom=0.4, crash=0.25, hihat=0.15
 
-function classifyDrum(noteNumber: number): 'kick' | 'snare' | 'hihat' | 'tom' | 'crash' | null {
+function getDrumEnergy(noteNumber: number): number {
   // General MIDI drum map (note numbers on channel 10 / 0-indexed channel 9)
-  if (noteNumber === 35 || noteNumber === 36) return 'kick';
-  if (noteNumber === 38 || noteNumber === 40 || noteNumber === 37) return 'snare';
-  if (noteNumber === 39) return 'snare'; // hand clap
-  // Crash cymbals: strong section markers (49 = Crash 1, 57 = Crash 2)
-  if (noteNumber === 49 || noteNumber === 57) return 'crash';
-  // Hi-hats: 42 (closed), 44 (pedal), 46 (open) - check BEFORE tom range
-  if (noteNumber === 42 || noteNumber === 44 || noteNumber === 46) return 'hihat';
-  // Rides/splash/chinese treated as hihat for density
+  if (noteNumber === 35 || noteNumber === 36) return 1.0;  // kick
+  if (noteNumber === 38 || noteNumber === 40 || noteNumber === 37) return 0.35;  // snare
+  if (noteNumber === 39) return 0.35;  // hand clap (snare-like)
+  if (noteNumber === 49 || noteNumber === 57) return 0.25;  // crash cymbals
+  // Hi-hats and cymbals
+  if (noteNumber === 42 || noteNumber === 44 || noteNumber === 46) return 0.15;  // hi-hats
   if (noteNumber === 51 || noteNumber === 52 || noteNumber === 53 ||
-      noteNumber === 55 || noteNumber === 59) return 'hihat';
-  if (noteNumber === 54 || noteNumber === 56) return 'hihat'; // tambourine, cowbell
-  // Toms: 41, 43, 45, 47, 48, 50 (used in fills/transitions)
+      noteNumber === 55 || noteNumber === 59) return 0.15;  // rides/splash
+  if (noteNumber === 54 || noteNumber === 56) return 0.15;  // tambourine, cowbell
+  // Toms
   if (noteNumber === 41 || noteNumber === 43 || noteNumber === 45 ||
-      noteNumber === 47 || noteNumber === 48 || noteNumber === 50) return 'tom';
-  return null;
-}
-
-// --- Section detection via drum + melodic analysis ---
-
-function computeBarDrumInfo(
-  drums: DrumHit[],
-  notes: NoteEvent[],
-  numBars: number,
-  barDuration: number,
-  beatsPerBar: number
-): BarDrumInfo[] {
-  const barInfo: BarDrumInfo[] = [];
-
-  // Pre-compute melodic notes (non-drum)
-  const melodicNotes = notes.filter(n => !n.isDrum);
-
-  // First pass: count hits per bar + melodic analysis
-  for (let bar = 0; bar < numBars; bar++) {
-    const startTime = bar * barDuration;
-    const endTime = startTime + barDuration;
-
-    // Drum counting
-    let kickCount = 0, snareCount = 0, hihatCount = 0, tomCount = 0, crashCount = 0;
-    for (const d of drums) {
-      if (d.time >= endTime) break;
-      if (d.time >= startTime) {
-        switch (d.type) {
-          case 'kick': kickCount++; break;
-          case 'snare': snareCount++; break;
-          case 'hihat': hihatCount++; break;
-          case 'tom': tomCount++; break;
-          case 'crash': crashCount++; break;
-        }
-      }
-    }
-
-    // Melodic analysis: velocity and polyphony (for orchestral stabs)
-    let velocitySum = 0;
-    let noteCount = 0;
-    let maxPolyphony = 0;
-
-    // Find notes in this bar and compute max simultaneous notes
-    const barNotes = melodicNotes.filter(n => n.time >= startTime && n.time < endTime);
-    for (const note of barNotes) {
-      velocitySum += note.velocity;
-      noteCount++;
-    }
-
-    // Compute polyphony: how many notes are sounding at each note onset
-    for (const note of barNotes) {
-      let simultaneous = 0;
-      for (const other of barNotes) {
-        // Other note overlaps with this one's onset
-        if (other.time <= note.time && other.time + other.duration > note.time) {
-          simultaneous++;
-        }
-      }
-      maxPolyphony = Math.max(maxPolyphony, simultaneous);
-    }
-
-    const totalHits = kickCount + snareCount + hihatCount + tomCount + crashCount;
-    const avgVelocity = noteCount > 0 ? velocitySum / noteCount : 0;
-
-    barInfo.push({
-      barIndex: bar,
-      startTime,
-      endTime,
-      totalHits,
-      kickCount,
-      snareCount,
-      hihatCount,
-      tomCount,
-      crashCount,
-      density: totalHits / beatsPerBar,
-      energyDelta: 0,  // computed in later pass
-      avgVelocity,
-      maxPolyphony,
-      hasVelocitySpike: false,  // computed in later pass
-      hasPolyphonySpike: false, // computed in later pass
-      isFill: false,
-      isBreakdown: false,
-      isTransition: false,
-    });
-  }
-
-  // Find max density for normalization
-  const maxDensity = Math.max(...barInfo.map(b => b.density), 1);
-
-  // Second pass: detect fills and breakdowns
-  // Based on Groove MIDI Dataset analysis:
-  // - Fills have HIGH tom ratio (50-75%) and NO/FEW hihats
-  // - Beats have lower tom ratio (19-27%) and more hihats
-  for (let i = 0; i < barInfo.length; i++) {
-    const bar = barInfo[i];
-    bar.density = bar.density / maxDensity; // Normalize to 0-1
-
-    // Breakdown: very low density for this bar
-    bar.isBreakdown = bar.totalHits <= 2;
-
-    // Fill detection using multiple signals:
-    const fillHits = bar.snareCount + bar.tomCount;
-    const totalHits = bar.totalHits || 1;
-    const tomRatio = bar.tomCount / totalHits;
-    const hihatRatio = bar.hihatCount / totalHits;
-
-    // A fill typically has:
-    // 1. High tom ratio (>35%) - toms dominate during fills
-    // 2. Low hihat ratio (<15%) - hihats drop out during fills
-    // 3. At least 4 snare+tom hits
-    const hasHighToms = tomRatio > 0.35;
-    const hasLowHihats = hihatRatio < 0.15;
-    const hasEnoughHits = fillHits >= 4;
-
-    // Also check for spike relative to neighbors (original logic)
-    const prevFillHits = i > 0 ? barInfo[i - 1].snareCount + barInfo[i - 1].tomCount : 0;
-    const nextFillHits = i < barInfo.length - 1 ? barInfo[i + 1].snareCount + barInfo[i + 1].tomCount : 0;
-    const isSpike = fillHits > prevFillHits * 1.3 || fillHits > nextFillHits * 1.3;
-
-    // Fill if: (high toms + low hihats + enough hits) OR (spike with enough hits)
-    bar.isFill = (hasHighToms && hasLowHihats && hasEnoughHits) || (isSpike && hasEnoughHits && hasHighToms);
-  }
-
-  // Third pass: temporal constraint - fills are transient (1-2 bars), not persistent
-  // If we see many consecutive "fills", only keep ones at transition points
-  let consecutiveFills = 0;
-  for (let i = 0; i < barInfo.length; i++) {
-    if (barInfo[i].isFill) {
-      consecutiveFills++;
-      // More than 2 consecutive fills is suspicious - probably steady beat mislabeled
-      if (consecutiveFills > 2) {
-        // Keep this as fill only if it's a spike (transition point)
-        const fillHits = barInfo[i].snareCount + barInfo[i].tomCount;
-        const prevFillHits = barInfo[i - 1].snareCount + barInfo[i - 1].tomCount;
-        const nextFillHits = i < barInfo.length - 1 ? barInfo[i + 1].snareCount + barInfo[i + 1].tomCount : 0;
-        const isTransitionPoint = fillHits > prevFillHits * 1.3 || fillHits > nextFillHits * 1.3;
-        if (!isTransitionPoint) {
-          barInfo[i].isFill = false;
-        }
-      }
-    } else {
-      consecutiveFills = 0;
-    }
-  }
-
-  // Fourth pass: compute energy deltas, melodic spikes, and combined transition flag
-  for (let i = 0; i < barInfo.length; i++) {
-    const bar = barInfo[i];
-    const prevBar = i > 0 ? barInfo[i - 1] : null;
-    const nextBar = i < barInfo.length - 1 ? barInfo[i + 1] : null;
-
-    // Energy delta: how much did density change from previous bar
-    if (prevBar) {
-      bar.energyDelta = bar.density - prevBar.density;
-    }
-
-    // Velocity spike: much louder than neighbors (orchestral stab!)
-    const prevVel = prevBar?.avgVelocity ?? bar.avgVelocity;
-    const nextVel = nextBar?.avgVelocity ?? bar.avgVelocity;
-    const neighborAvgVel = (prevVel + nextVel) / 2;
-    bar.hasVelocitySpike = bar.avgVelocity > 0.7 && bar.avgVelocity > neighborAvgVel * 1.3;
-
-    // Polyphony spike: many notes at once vs neighbors (DUH DUH DUH DUH!)
-    const prevPoly = prevBar?.maxPolyphony ?? 0;
-    const nextPoly = nextBar?.maxPolyphony ?? 0;
-    const neighborMaxPoly = Math.max(prevPoly, nextPoly);
-    // Stab = high polyphony (4+ voices) AND significantly higher than neighbors
-    bar.hasPolyphonySpike = bar.maxPolyphony >= 4 && bar.maxPolyphony > neighborMaxPoly * 1.5;
-
-    // Combined transition detection:
-    // - Crash cymbal (especially on beat 1 of bar = section start)
-    // - Drum fill leading into this bar
-    // - Large energy increase (>30% jump)
-    // - Coming out of breakdown
-    // - Orchestral stab (velocity spike or polyphony spike)
-    const hasCrash = bar.crashCount > 0;
-    const prevWasFill = prevBar?.isFill ?? false;
-    const prevWasBreakdown = prevBar?.isBreakdown ?? false;
-    const hasEnergySpike = bar.energyDelta > 0.3;
-    const hasStab = bar.hasVelocitySpike || bar.hasPolyphonySpike;
-
-    bar.isTransition = hasCrash || prevWasFill || prevWasBreakdown || hasEnergySpike || bar.isFill || hasStab;
-  }
-
-  return barInfo;
+      noteNumber === 47 || noteNumber === 48 || noteNumber === 50) return 0.4;
+  return 0;
 }
 
 // --- Key detection via Krumhansl-Schmuckler ---
 
-// Multiple key profiles from MIR research
-// See research/music-analysis-improvements.md for sources
-export type KeyProfile = 'krumhansl' | 'temperley' | 'shaath';
+// Krumhansl (1990) - Cognitive experiments with listeners
+const KRUMHANSL_MAJOR = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+const KRUMHANSL_MINOR = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
 
-const KEY_PROFILES: Record<KeyProfile, { major: number[]; minor: number[] }> = {
-  // Krumhansl (1990) - Cognitive experiments with listeners
-  // Best for: General use, pop
-  krumhansl: {
-    major: [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88],
-    minor: [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17],
-  },
-  // Temperley (1999) - Corpus analysis, equalized major/minor weights
-  // Best for: Classical, removes minor key bias
-  temperley: {
-    major: [5.0, 2.0, 3.5, 2.0, 4.5, 4.0, 2.0, 4.5, 2.0, 3.5, 1.5, 4.0],
-    minor: [5.0, 2.0, 3.5, 4.5, 2.0, 4.0, 2.0, 4.5, 3.5, 2.0, 1.5, 4.0],
-  },
-  // Shaath (2011) - Retuned for popular/electronic music
-  // Best for: Pop, rock, electronic
-  shaath: {
-    major: [6.6, 2.0, 3.5, 2.3, 4.6, 4.0, 2.5, 5.2, 2.4, 3.8, 2.3, 3.4],
-    minor: [6.5, 2.8, 3.5, 5.4, 2.7, 3.5, 2.5, 5.1, 4.0, 2.7, 4.3, 3.2],
-  },
-};
-
-// Default profile for backwards compatibility
-const DEFAULT_KEY_PROFILE: KeyProfile = 'krumhansl';
-
-interface KeyDetectionResult {
-  key: number;
-  mode: 'major' | 'minor';
-  confidence: number;
-  ambiguity: number;  // 0 = clear winner, 1 = very ambiguous
-  secondBest: {
-    key: number;
-    mode: 'major' | 'minor';
-    confidence: number;
-  };
-}
-
-function detectKeyWithConfidence(
-  pitchHistogram: number[],
-  profile: KeyProfile = DEFAULT_KEY_PROFILE
-): KeyDetectionResult {
-  const profiles = KEY_PROFILES[profile];
-  const scores: Array<{ key: number; mode: 'major' | 'minor'; corr: number }> = [];
+function detectKey(pitchHistogram: number[]): { key: number; mode: 'major' | 'minor' } {
+  let bestKey = 0;
+  let bestMode: 'major' | 'minor' = 'major';
+  let bestCorr = -Infinity;
 
   for (let shift = 0; shift < 12; shift++) {
     for (const mode of ['major', 'minor'] as const) {
-      const profileData = profiles[mode];
+      const profile = mode === 'major' ? KRUMHANSL_MAJOR : KRUMHANSL_MINOR;
       let sum = 0;
       let sumH = 0, sumP = 0;
       let sumH2 = 0, sumP2 = 0;
       for (let i = 0; i < 12; i++) {
         const h = pitchHistogram[(i + shift) % 12];
-        const p = profileData[i];
+        const p = profile[i];
         sumH += h; sumP += p;
         sumH2 += h * h; sumP2 += p * p;
         sum += h * p;
@@ -561,215 +195,18 @@ function detectKeyWithConfidence(
       const meanH = sumH / 12, meanP = sumP / 12;
       const corr = (sum / 12 - meanH * meanP) /
         (Math.sqrt(sumH2 / 12 - meanH * meanH) * Math.sqrt(sumP2 / 12 - meanP * meanP) + 1e-10);
-      // Small bias toward major keys (most songs are major, helps with ambiguous cases like C maj vs A min)
+      // Small bias toward major keys (helps with ambiguous cases like C maj vs A min)
       const adjustedCorr = mode === 'major' ? corr + 0.02 : corr;
-      scores.push({ key: shift, mode, corr: adjustedCorr });
-    }
-  }
 
-  // Sort by correlation descending
-  scores.sort((a, b) => b.corr - a.corr);
-  const best = scores[0];
-  const second = scores[1];
-
-  // Compute ambiguity: how close is 2nd best to 1st?
-  // relativeStrength approaches 0 when they're equal, high when 1st is clearly better
-  const relativeStrength = (best.corr - second.corr) / (Math.abs(best.corr) + 0.001);
-  const ambiguity = 1 - Math.min(1, relativeStrength * 2);
-
-  // Normalize correlation to 0-1 (correlations are typically 0.3-0.9)
-  const confidence = Math.max(0, Math.min(1, (best.corr + 1) / 2));
-  const secondConfidence = Math.max(0, Math.min(1, (second.corr + 1) / 2));
-
-  return {
-    key: best.key,
-    mode: best.mode,
-    confidence,
-    ambiguity,
-    secondBest: {
-      key: second.key,
-      mode: second.mode,
-      confidence: secondConfidence,
-    },
-  };
-}
-
-function detectKey(
-  pitchHistogram: number[],
-  profile: KeyProfile = DEFAULT_KEY_PROFILE
-): { key: number; mode: 'major' | 'minor' } {
-  const { key, mode } = detectKeyWithConfidence(pitchHistogram, profile);
-  return { key, mode };
-}
-
-// --- Local key / modulation detection ---
-
-/**
- * Detect key regions using windowed Krumhansl-Schmuckler with hysteresis.
- * Uses tempo-based windows (bars) for musically meaningful detection.
- * @param windowBars - How many bars of music to analyze at once (default 2)
- * @param hopBars - How often to sample (default 0.5 = twice per bar)
- * @param minStableWindows - How many consecutive windows must agree before switching key
- */
-function detectKeyRegions(
-  notes: NoteEvent[],
-  totalDuration: number,
-  barDuration: number,
-  windowBars: number = 2,
-  hopBars: number = 0.5,
-  minStableWindows: number = 2,
-  confidenceThreshold: number = 0.1,
-  profile: KeyProfile = DEFAULT_KEY_PROFILE
-): KeyRegion[] {
-  const windowSeconds = barDuration * windowBars;
-  const hopSeconds = barDuration * hopBars;
-
-  if (notes.length === 0 || totalDuration < windowSeconds) {
-    return [];
-  }
-
-  // Build histogram for each window
-  interface WindowResult {
-    time: number;
-    key: number;
-    mode: 'major' | 'minor';
-    confidence: number;
-    ambiguity: number;
-  }
-
-  const windowResults: WindowResult[] = [];
-
-  for (let t = 0; t < totalDuration - windowSeconds / 2; t += hopSeconds) {
-    const windowStart = t;
-    const windowEnd = t + windowSeconds;
-
-    // Build pitch histogram for this window
-    const histogram = new Array(12).fill(0);
-    for (const note of notes) {
-      if (note.isDrum) continue;
-      const noteEnd = note.time + note.duration;
-      if (noteEnd > windowStart && note.time < windowEnd) {
-        const overlapStart = Math.max(note.time, windowStart);
-        const overlapEnd = Math.min(noteEnd, windowEnd);
-        const weight = (overlapEnd - overlapStart) * note.velocity;
-        histogram[note.midi % 12] += weight;
+      if (adjustedCorr > bestCorr) {
+        bestCorr = adjustedCorr;
+        bestKey = shift;
+        bestMode = mode;
       }
     }
-
-    const result = detectKeyWithConfidence(histogram, profile);
-    windowResults.push({
-      time: t + windowSeconds / 2, // center of window
-      key: result.key,
-      mode: result.mode,
-      confidence: result.confidence,
-      ambiguity: result.ambiguity,
-    });
   }
 
-  if (windowResults.length === 0) return [];
-
-  // Apply hysteresis: require new key to appear consistently before switching
-  const regions: KeyRegion[] = [];
-  let currentKey = windowResults[0].key;
-  let currentMode = windowResults[0].mode;
-  let regionStart = 0;
-  let candidateKey = currentKey;
-  let candidateMode = currentMode;
-  let candidateCount = 0;
-  let candidateConfidenceSum = 0;
-
-  const minStableCount = Math.max(1, minStableWindows);
-
-  for (const w of windowResults) {
-    const isSameKey = w.key === currentKey && w.mode === currentMode;
-    const isSameCandidate = w.key === candidateKey && w.mode === candidateMode;
-
-    if (isSameKey) {
-      // Matches current key, reset candidate
-      candidateCount = 0;
-      candidateConfidenceSum = 0;
-    } else if (isSameCandidate) {
-      // Matches candidate, increment count
-      candidateCount++;
-      candidateConfidenceSum += w.confidence;
-
-      // Check if candidate is stable enough to become new key
-      const avgConfidence = candidateConfidenceSum / candidateCount;
-      if (candidateCount >= minStableCount && avgConfidence > confidenceThreshold) {
-        // Commit previous region
-        if (regions.length > 0 || regionStart < w.time - hopSeconds) {
-          const regionWindows = windowResults
-            .filter(r => r.time >= regionStart && r.time < w.time - hopSeconds * candidateCount);
-          const regionConfidence = regionWindows.length > 0
-            ? regionWindows.reduce((a, b) => a + b.confidence, 0) / regionWindows.length
-            : 0.5;
-          const regionAmbiguity = regionWindows.length > 0
-            ? regionWindows.reduce((a, b) => a + b.ambiguity, 0) / regionWindows.length
-            : 0.5;
-
-          regions.push({
-            startTime: regionStart,
-            endTime: w.time - hopSeconds * candidateCount,
-            key: currentKey,
-            mode: currentMode,
-            confidence: regionConfidence,
-            ambiguity: regionAmbiguity,
-          });
-        }
-
-        // Start new region
-        regionStart = w.time - hopSeconds * candidateCount;
-        currentKey = candidateKey;
-        currentMode = candidateMode;
-        candidateCount = 0;
-        candidateConfidenceSum = 0;
-      }
-    } else {
-      // New candidate
-      candidateKey = w.key;
-      candidateMode = w.mode;
-      candidateCount = 1;
-      candidateConfidenceSum = w.confidence;
-    }
-  }
-
-  // Close final region
-  const finalWindows = windowResults.filter(r => r.time >= regionStart);
-  const finalConfidence = finalWindows.length > 0
-    ? finalWindows.reduce((a, b) => a + b.confidence, 0) / finalWindows.length
-    : 0.5;
-  const finalAmbiguity = finalWindows.length > 0
-    ? finalWindows.reduce((a, b) => a + b.ambiguity, 0) / finalWindows.length
-    : 0.5;
-
-  regions.push({
-    startTime: regionStart,
-    endTime: totalDuration,
-    key: currentKey,
-    mode: currentMode,
-    confidence: finalConfidence,
-    ambiguity: finalAmbiguity,
-  });
-
-  // Filter out very short regions (less than 4 bars) - likely tonicizations, not true modulations
-  // Merge short regions into surrounding regions
-  const minRegionDuration = barDuration * 4;
-  const filtered: KeyRegion[] = [];
-
-  for (let i = 0; i < regions.length; i++) {
-    const r = regions[i];
-    const duration = r.endTime - r.startTime;
-
-    if (duration >= minRegionDuration || filtered.length === 0) {
-      // Keep this region (or it's the first one)
-      filtered.push({ ...r });
-    } else {
-      // Region too short - extend previous region to cover it
-      filtered[filtered.length - 1].endTime = r.endTime;
-    }
-  }
-
-  return filtered;
+  return { key: bestKey, mode: bestMode };
 }
 
 // --- Main analyzer ---
@@ -829,7 +266,6 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
   const beatDuration = 60 / tempo;
   const notes: NoteEvent[] = [];
   const drums: DrumHit[] = [];
-  const tracks: TrackInfo[] = [];
   const pitchHistogram = new Array(12).fill(0);
 
   let totalDuration = 0;
@@ -843,16 +279,6 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
     const nameIsDrum = drumKeywords.some(kw => instrName.includes(kw) || trackName.includes(kw));
     const trackIsDrum = track.channel === 9 || nameIsDrum;
 
-    tracks.push({
-      index: trackIdx,
-      name: track.name ?? '',
-      instrumentName: track.instrument?.name ?? '',
-      instrumentFamily: track.instrument?.family ?? '',
-      instrumentNumber: track.instrument?.number ?? 0,
-      isDrum: trackIsDrum,
-      midiChannel: track.channel ?? 0,
-    });
-
     for (const note of track.notes) {
       const endTime = note.time + note.duration;
       if (endTime > totalDuration) totalDuration = endTime;
@@ -860,9 +286,9 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
       const noteIsDrum = trackIsDrum;
 
       if (noteIsDrum) {
-        const drumType = classifyDrum(note.midi);
-        if (drumType) {
-          drums.push({ time: note.time, type: drumType });
+        const energy = getDrumEnergy(note.midi);
+        if (energy > 0) {
+          drums.push({ time: note.time, energy });
         }
       } else {
         notes.push({
@@ -894,9 +320,6 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
   const numHalfBars = numBars * 2;
   const chords: ChordEvent[] = [];
 
-  // Compute per-bar drum info for section detection (includes melodic stab detection)
-  const barDrumInfo = computeBarDrumInfo(drums, notes, numBars, barDuration, beatsPerBar);
-
   for (let halfBar = 0; halfBar < numHalfBars; halfBar++) {
     const tStart = halfBar * halfBarDuration;
     const tEnd = tStart + halfBarDuration;
@@ -927,36 +350,28 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
     if (!prev || prev.quality !== chord.quality || prev.root !== chord.root) {
       // Use earliest note onset as chord time (not beat boundary)
       const chordTime = earliestOnset < tEnd ? earliestOnset : tStart;
-      const chordIsChromatic = isChromatic(chord.root, chord.quality, key, keyMode);
       chords.push({
         time: chordTime,
         quality: chord.quality,
         root: chord.root,
         degree,
         tension: 0,           // computed in post-pass
-        nextDegree: 0,        // computed in post-pass
-        isSecondary: false,   // computed in post-pass
-        secondaryTarget: 0,   // computed in post-pass
-        isChromatic: chordIsChromatic,
-        numeral: '',          // computed in post-pass (after isSecondary)
+        numeral: '',          // computed in post-pass
       });
     }
   }
 
   // --- Helper: build roman numeral for chord ---
   const ROMAN_NUMERALS = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
-  const buildChordNumeral = (chord: { degree: number; quality: ChordQuality; isSecondary: boolean; secondaryTarget: number }): string => {
-    if (chord.isSecondary && chord.secondaryTarget > 0) {
-      return `V/${ROMAN_NUMERALS[chord.secondaryTarget]}`;
-    }
-    if (chord.degree > 0 && chord.degree <= 7) {
-      const isMinor = ['minor', 'min7', 'dim', 'hdim7', 'dim7'].includes(chord.quality);
-      let numeral = isMinor ? ROMAN_NUMERALS[chord.degree].toLowerCase() : ROMAN_NUMERALS[chord.degree];
-      if (chord.quality === 'dim') numeral += '°';
-      else if (chord.quality === 'hdim7') numeral += 'ø7';
-      else if (chord.quality === 'dim7') numeral += '°7';
-      else if (chord.quality === 'dom7' || chord.quality === 'min7') numeral += '7';
-      else if (chord.quality === 'maj7') numeral += 'Δ7';
+  const buildChordNumeral = (degree: number, quality: ChordQuality): string => {
+    if (degree > 0 && degree <= 7) {
+      const isMinor = ['minor', 'min7', 'dim', 'hdim7', 'dim7'].includes(quality);
+      let numeral = isMinor ? ROMAN_NUMERALS[degree].toLowerCase() : ROMAN_NUMERALS[degree];
+      if (quality === 'dim') numeral += '°';
+      else if (quality === 'hdim7') numeral += 'ø7';
+      else if (quality === 'dim7') numeral += '°7';
+      else if (quality === 'dom7' || quality === 'min7') numeral += '7';
+      else if (quality === 'maj7') numeral += 'Δ7';
       return numeral;
     }
     return '';
@@ -1037,20 +452,7 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
   // Combine components with weights (based on Lerdahl's findings)
   // Hierarchical: 40%, Dissonance: 25%, Motion: 20%, Tendency: 15%
   let prevRoot = -1;
-  for (let i = 0; i < chords.length; i++) {
-    const c = chords[i];
-    const nextChord = i + 1 < chords.length ? chords[i + 1] : null;
-
-    // Detect secondary dominants (V/x, viio/x)
-    const secDom = detectSecondaryDominant(
-      { root: c.root, quality: c.quality },
-      nextChord ? { root: nextChord.root, degree: nextChord.degree } : null,
-      key,
-      keyMode
-    );
-    c.isSecondary = secDom.isSecondary;
-    c.secondaryTarget = secDom.target;
-
+  for (const c of chords) {
     // Compute tension components
     const hier = hierarchicalTension(c.degree);
     const diss = qualityDissonance[c.quality] ?? 0;
@@ -1058,29 +460,14 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
     const tendency = tendencyTension[c.degree] ?? 0;
 
     // Base tension from Lerdahl model
-    let tension = hier * 0.40 + diss * 0.25 + motion * 0.20 + tendency * 0.15;
-
-    // Secondary dominants add chromatic tension
-    if (secDom.isSecondary) {
-      tension += 0.15;
-      // V/V is very common, slightly less surprising
-      if (secDom.target === 5) tension -= 0.05;
-    }
+    const tension = hier * 0.40 + diss * 0.25 + motion * 0.20 + tendency * 0.15;
 
     c.tension = Math.min(1, tension);
-    c.nextDegree = nextChord?.degree ?? 0;
-    c.numeral = buildChordNumeral(c);  // compute after isSecondary is set
+    c.numeral = buildChordNumeral(c.degree, c.quality);
     prevRoot = c.root;
   }
 
   // Detect local key regions (modulations)
-  // More conservative settings to avoid detecting brief tonicizations as modulations
-  // windowBars=4: analyze 4 bars of context
-  // hopBars=1.0: sample once per bar
-  // minStableWindows=3: require 3 consecutive windows to agree
-  // confidenceThreshold=0.15: require higher confidence difference
-  const keyRegions = detectKeyRegions(notes, totalDuration, barDuration, 4, 1.0, 3, 0.15);
-
   // Determine if key uses flats based on key signature conventions
   // Major keys using flats: F(5), Bb(10), Eb(3), Ab(8), Db(1), Gb(6), Cb(11)
   // Minor keys using flats: D(2), G(7), C(0), F(5), Bb(10), Eb(3), Ab(8)
@@ -1099,12 +486,9 @@ export function analyzeMidiBuffer(buffer: ArrayBuffer): MusicTimeline {
     key,
     keyMode,
     useFlats,
-    keyRegions,
     duration: totalDuration,
     chords,
     drums,
-    barDrumInfo,
     notes,
-    tracks,
   };
 }

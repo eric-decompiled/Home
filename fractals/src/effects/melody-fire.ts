@@ -85,8 +85,7 @@ export class MelodyFireEffect implements VisualEffect {
     this.keyRotation = music.keyRotation;
 
     // Energy from drums (lighter response than bass)
-    if (music.kick) this.energy += 0.3;
-    if (music.snare) this.energy += 0.15;
+    this.energy += music.drumEnergy * 0.3;
     this.energy *= Math.exp(-3.0 * dt);
 
     // Groove curves (beat-level for melody)

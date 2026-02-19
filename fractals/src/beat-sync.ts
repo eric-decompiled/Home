@@ -11,7 +11,7 @@
 // --- Types ---
 
 export interface TempoEvent {
-  time: number;   // seconds
+  time: number; // seconds
   bpm: number;
 }
 
@@ -23,45 +23,45 @@ export interface TimeSignatureEvent {
 
 export interface BeatState {
   // Core timing (0-1 normalized)
-  beatPhase: number;      // position within beat (0 = on beat, 0.5 = off-beat)
-  barPhase: number;       // position within bar
+  beatPhase: number; // position within beat (0 = on beat, 0.5 = off-beat)
+  barPhase: number; // position within bar
 
   // Tempo
-  bpm: number;            // current tempo
-  beatDuration: number;   // seconds per beat
-  beatsPerBar: number;    // time signature numerator
+  bpm: number; // current tempo
+  beatDuration: number; // seconds per beat
+  beatsPerBar: number; // time signature numerator
 
   // Beat events (for triggering effects)
-  beatIndex: number;      // which beat in bar (0-indexed)
-  onBeat: boolean;        // true on frame when beat boundary crossed
-  onBar: boolean;         // true on frame when bar boundary crossed
+  beatIndex: number; // which beat in bar (0-indexed)
+  onBeat: boolean; // true on frame when beat boundary crossed
+  onBar: boolean; // true on frame when bar boundary crossed
 
   // Confidence (for graceful degradation)
-  stability: number;      // 0-1, how stable/confident the beat grid is
+  stability: number; // 0-1, how stable/confident the beat grid is
 
   // Anticipation (for animation lead-in)
-  nextBeatIn: number;     // seconds until next beat
-  nextBarIn: number;      // seconds until next bar
+  nextBeatIn: number; // seconds until next beat
+  nextBarIn: number; // seconds until next bar
 
   // === GROOVE CURVES (from neuroscience research) ===
   // These model the two-phase dopamine response: anticipation (caudate) + arrival (nucleus accumbens)
 
   // Anticipation: builds 0→1 as beat approaches, accelerating curve (power of 2)
   // Use for: tension build, approaching motion, pre-beat glow
-  beatAnticipation: number;   // 0-1, peaks just before beat
-  barAnticipation: number;    // 0-1, peaks just before bar
+  beatAnticipation: number; // 0-1, peaks just before beat
+  barAnticipation: number; // 0-1, peaks just before bar
 
   // Arrival: peaks at 1 on beat boundary, fast exponential decay
   // Use for: impact flash, hit response, post-beat resonance
   // NOTE: This is stateful - must be updated each frame with dt
-  beatArrival: number;        // 0-1, peaks on beat, decays
-  barArrival: number;         // 0-1, peaks on bar, decays
+  beatArrival: number; // 0-1, peaks on beat, decays
+  barArrival: number; // 0-1, peaks on bar, decays
 
   // Combined groove curve: anticipation leading into arrival
   // Smooth sine-based curve that peaks AT the beat (not before/after)
   // Use for: continuous motion that "lands" on the beat
-  beatGroove: number;         // 0-1, smooth curve peaking at beat
-  barGroove: number;          // 0-1, smooth curve peaking at bar
+  beatGroove: number; // 0-1, smooth curve peaking at beat
+  barGroove: number; // 0-1, smooth curve peaking at bar
 }
 
 export interface BeatSync {
@@ -73,25 +73,29 @@ export interface BeatSync {
 
 interface TempoSegment {
   startTime: number;
+  endTime: number; // start of next segment, or Infinity
   bpm: number;
   beatsPerBar: number;
-  startBeat: number;      // cumulative beat count at segment start
-  startBar: number;       // cumulative bar count at segment start
+  startBeat: number; // cumulative beat count at segment start
+  startBar: number; // cumulative bar count at segment start
 }
 
 // --- MIDI-based BeatSync implementation ---
 
 // Arrival decay rate (how fast the "hit" fades) - tuned for groove feel
 // Research: ~0.5s decay feels natural for beat impact
-const ARRIVAL_DECAY_RATE = 6.0;  // exp(-6 * 0.5) ≈ 0.05, so ~0.5s to 5%
+const ARRIVAL_DECAY_RATE = 6.0; // exp(-6 * 0.5) ≈ 0.05, so ~0.5s to 5%
 
 export function createMidiBeatSync(
   tempoEvents: TempoEvent[],
-  timeSigEvents: TimeSignatureEvent[]
+  timeSigEvents: TimeSignatureEvent[],
 ): BeatSync {
   // Ensure we have at least one event
   const tempos = tempoEvents.length > 0 ? tempoEvents : [{ time: 0, bpm: 120 }];
-  const timeSigs = timeSigEvents.length > 0 ? timeSigEvents : [{ time: 0, numerator: 4, denominator: 4 }];
+  const timeSigs =
+    timeSigEvents.length > 0
+      ? timeSigEvents
+      : [{ time: 0, numerator: 4, denominator: 4 }];
 
   // Sort events by time
   tempos.sort((a, b) => a.time - b.time);
@@ -108,9 +112,27 @@ export function createMidiBeatSync(
   let beatArrival = 0;
   let barArrival = 0;
 
+  // Cached segment index for O(1) lookup during sequential playback
+  let cachedIndex = 0;
+
   return {
     update(currentTime: number, dt: number): BeatState {
-      const seg = findSegment(currentTime, segments);
+      // Fast path: check if still in cached segment (common case)
+      let seg = segments[cachedIndex];
+      if (currentTime < seg.startTime || currentTime >= seg.endTime) {
+        // Check next segment first (sequential playback)
+        const next = cachedIndex + 1;
+        if (next < segments.length &&
+            currentTime >= segments[next].startTime &&
+            currentTime < segments[next].endTime) {
+          cachedIndex = next;
+          seg = segments[next];
+        } else {
+          // Fall back to binary search (seek or backwards)
+          cachedIndex = findSegmentIndex(currentTime, segments);
+          seg = segments[cachedIndex];
+        }
+      }
       const elapsed = currentTime - seg.startTime;
       const beatsPerSecond = seg.bpm / 60;
       const beatsElapsed = elapsed * beatsPerSecond;
@@ -125,7 +147,10 @@ export function createMidiBeatSync(
 
       // Bar counting: total bars elapsed
       const barsFromBeats = Math.floor(totalBeats / seg.beatsPerBar);
-      const totalBars = seg.startBar + barsFromBeats - Math.floor(seg.startBeat / seg.beatsPerBar);
+      const totalBars =
+        seg.startBar +
+        barsFromBeats -
+        Math.floor(seg.startBeat / seg.beatsPerBar);
       const barPhase = (totalBeats % seg.beatsPerBar) / seg.beatsPerBar;
 
       // Beat boundary crossing detection
@@ -177,7 +202,7 @@ export function createMidiBeatSync(
         beatIndex: beatInBar,
         onBeat,
         onBar,
-        stability: 1.0,  // MIDI timing is exact
+        stability: 1.0, // MIDI timing is exact
         nextBeatIn,
         nextBarIn,
         // Groove curves
@@ -195,6 +220,7 @@ export function createMidiBeatSync(
       prevTotalBars = 0;
       beatArrival = 0;
       barArrival = 0;
+      cachedIndex = 0;
     },
   };
 }
@@ -203,7 +229,7 @@ export function createMidiBeatSync(
 
 function buildSegments(
   tempos: TempoEvent[],
-  timeSigs: TimeSignatureEvent[]
+  timeSigs: TimeSignatureEvent[],
 ): TempoSegment[] {
   // Merge tempo and time sig events into unified segments
   // Each segment has consistent tempo AND time signature
@@ -234,6 +260,7 @@ function buildSegments(
 
     segments.push({
       startTime: time,
+      endTime: Infinity, // will be filled in below
       bpm,
       beatsPerBar,
       startBeat: cumulativeBeats,
@@ -249,6 +276,7 @@ function buildSegments(
   if (segments.length === 0) {
     segments.push({
       startTime: 0,
+      endTime: Infinity,
       bpm: 120,
       beatsPerBar: 4,
       startBeat: 0,
@@ -256,10 +284,15 @@ function buildSegments(
     });
   }
 
+  // Fill in endTime for each segment (start of next segment)
+  for (let i = 0; i < segments.length - 1; i++) {
+    segments[i].endTime = segments[i + 1].startTime;
+  }
+
   return segments;
 }
 
-function findSegment(time: number, segments: TempoSegment[]): TempoSegment {
+function findSegmentIndex(time: number, segments: TempoSegment[]): number {
   // Binary search for the segment containing this time
   let lo = 0;
   let hi = segments.length - 1;
@@ -273,7 +306,7 @@ function findSegment(time: number, segments: TempoSegment[]): TempoSegment {
     }
   }
 
-  return segments[lo];
+  return lo;
 }
 
 function getTempoAt(time: number, tempos: TempoEvent[]): number {
@@ -295,6 +328,6 @@ function getTimeSigAt(time: number, timeSigs: TimeSignatureEvent[]): number {
 export function createIdleBeatSync(bpm = 120, beatsPerBar = 4): BeatSync {
   return createMidiBeatSync(
     [{ time: 0, bpm }],
-    [{ time: 0, numerator: beatsPerBar, denominator: 4 }]
+    [{ time: 0, numerator: beatsPerBar, denominator: 4 }],
   );
 }

@@ -1,7 +1,5 @@
 // --- Visual Effect System Types ---
 
-import type { TrackInfo } from '../midi-analyzer.ts';
-
 export type RGB = [number, number, number];
 
 export interface ActiveVoice {
@@ -40,6 +38,7 @@ export interface MusicParams {
   beatPosition: number;    // 0-1 within current beat
   barPosition: number;     // 0-1 within current bar
   beatIndex: number;       // which beat in bar (0-3)
+  beatStrength: number;    // 0-1, metrical strength (1.0 on beat 1, lower on weak beats)
 
   // Beat events (from BeatSync)
   onBeat: boolean;         // true on frame when beat boundary crossed
@@ -95,24 +94,9 @@ export interface MusicParams {
   bassMidiNote: number;      // actual MIDI note number, -1 if none
   bassVelocity: number;      // 0-1
 
-  // Drum onsets this frame
-  kick: boolean;
-  snare: boolean;
-  hihat: boolean;
-  tom: boolean;              // Toms - often signal fills/transitions
-  crash: boolean;            // Crash cymbals - mark section boundaries
-
-  // Section detection (from per-bar drum analysis)
-  drumDensity: number;       // 0-1, current bar density vs song max
-  fillIntensity: number;     // 0-1, high during fills (rapid snare/tom)
-  isBreakdown: boolean;      // true when drums are silent/sparse
-  isFill: boolean;           // true during detected fill bars
-  isTransition: boolean;     // true when any transition marker fires (fill, crash, energy spike, post-breakdown)
-  energyDelta: number;       // -1 to 1, change in energy from previous bar
-
-  // Transition anticipation (lookahead-based)
-  nextTransitionIn: number;  // seconds until next transition bar (0 if currently in transition)
-  transitionAnticipation: number; // 0→1 building toward transition (use for pre-stab glow/tension)
+  // Drum energy (0-1): weighted combination of all drum hits this frame
+  // Weights: kick=1.0, snare=0.35, tom=0.4, crash=0.25, hihat=0.15
+  drumEnergy: number;
 
   // Audio loudness (0-1) from analyser
   loudness: number;
@@ -122,7 +106,6 @@ export interface MusicParams {
 
   // Multi-voice instrument tracking
   activeVoices: ActiveVoice[];
-  tracks: TrackInfo[];
 
   // Lookahead for piano roll / falling notes visualization
   upcomingNotes: UpcomingNote[];  // notes within lookahead window (default 4 seconds)

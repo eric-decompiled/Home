@@ -96,8 +96,7 @@ export class BassFireEffect implements VisualEffect {
     this.keyRotation = music.keyRotation;
 
     // Energy from drums
-    if (music.kick) this.energy += 0.6;
-    if (music.snare) this.energy += 0.2;
+    this.energy += music.drumEnergy * 0.6;
     this.energy *= Math.exp(-2.5 * dt);
 
     // Groove curves

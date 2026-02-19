@@ -106,8 +106,7 @@ export class MelodyClockEffect implements VisualEffect {
     this.keyRotation = music.keyRotation;
     this.useFlats = music.useFlats;
 
-    if (music.kick) this.energy += 0.3;
-    if (music.snare) this.energy += 0.2;
+    this.energy += music.drumEnergy * 0.3;
     this.energy *= Math.exp(-2.5 * dt);
 
     // Groove curves

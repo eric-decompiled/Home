@@ -272,9 +272,9 @@ export class WaveInterferenceEffect implements VisualEffect {
     const beatGroove = music.beatGroove ?? 0.5;
 
     // Beat → amplitude pulse on existing sources
-    if (music.kick) {
+    if (music.drumEnergy > 0.5) {
       for (const s of this.sources) {
-        s.amplitude = Math.min(1.5, s.amplitude + 0.3);
+        s.amplitude = Math.min(1.5, s.amplitude + 0.3 * music.drumEnergy);
       }
     }
 

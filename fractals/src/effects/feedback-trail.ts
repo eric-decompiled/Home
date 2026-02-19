@@ -92,9 +92,9 @@ export class FeedbackTrailEffect implements VisualEffect {
     const anticipationBoost = barAnticipation * 0.4;
     this.currentRotation = this.rotation * (1 + anticipationBoost) + grooveRotation;
 
-    // Add impulse on kicks
-    if (music.kick) {
-      this.currentRotation += 0.008;
+    // Add impulse on strong drum hits
+    if (music.drumEnergy > 0.5) {
+      this.currentRotation += 0.008 * music.drumEnergy;
     }
   }
 

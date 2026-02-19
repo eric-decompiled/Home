@@ -2462,8 +2462,7 @@ async function loadSong(index: number) {
   setPlayBtnState(false);
   musicMapper.reset();
   compositor.resetAll();
-  lastKeyRegionIndex = -1;
-
+  
   keyDisplay.textContent = 'Key: ...';
   keyDisplay.style.color = '';
   bpmDisplay.textContent = 'BPM: ...';
@@ -2506,7 +2505,6 @@ async function loadSong(index: number) {
     timeline.timeSignatureEvents
   );
   musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
-  musicMapper.setTracks(timeline.tracks);
   musicMapper.setSongDuration(timeline.duration, timeline.chords);
   audioPlayer.loadMidi(midiBuffer);
   needsInitialRender = true; // Trigger first frame render
@@ -2607,8 +2605,7 @@ async function loadMidiFile(file: File) {
   setPlayBtnState(false);
   musicMapper.reset();
   compositor.resetAll();
-  lastKeyRegionIndex = -1;
-
+  
   keyDisplay.textContent = 'Key: ...';
   keyDisplay.style.color = '';
   bpmDisplay.textContent = 'BPM: ...';
@@ -2625,7 +2622,6 @@ async function loadMidiFile(file: File) {
       timeline.timeSignatureEvents
     );
     musicMapper.setKey(timeline.key, timeline.keyMode, timeline.useFlats);
-    musicMapper.setTracks(timeline.tracks);
     audioPlayer.loadMidi(midiBuffer);
     needsInitialRender = true; // Trigger first frame render
 
@@ -2892,22 +2888,13 @@ function updateChordDisplay(currentTime: number) {
       else if (currentChord.quality === 'min7') numeral += '7';
       else if (currentChord.quality === 'maj7') numeral += 'maj7';
 
-      // Secondary dominant: show as V/x
-      if (currentChord.isSecondary && currentChord.secondaryTarget > 0) {
-        const targetNumeral = romanNumerals[currentChord.secondaryTarget];
-        display = `${chordName}  V/${targetNumeral}`;
-      } else {
-        display = `${chordName}  ${numeral}`;
-      }
+      display = `${chordName}  ${numeral}`;
     }
 
     // Add tension bar (visual indicator)
     const tensionBar = getTensionBar(currentChord.tension);
 
-    // Chromatic indicator
-    const chromaticMark = currentChord.isChromatic ? ' *' : '';
-
-    chordDisplay.textContent = `${display}${chromaticMark} ${tensionBar}`;
+    chordDisplay.textContent = `${display} ${tensionBar}`;
   }
 }
 
@@ -2915,43 +2902,6 @@ function updateChordDisplay(currentTime: number) {
 function getTensionBar(tension: number): string {
   const filled = Math.round(tension * 5);
   return '▪'.repeat(filled) + '▫'.repeat(5 - filled);
-}
-
-// --- Key display update (shows modulations) ---
-
-let lastKeyRegionIndex = -1;
-
-function updateKeyDisplay(currentTime: number) {
-  if (!timeline || timeline.keyRegions.length === 0) return;
-
-  // Find current key region
-  let regionIndex = 0;
-  for (let i = timeline.keyRegions.length - 1; i >= 0; i--) {
-    if (timeline.keyRegions[i].startTime <= currentTime) {
-      regionIndex = i;
-      break;
-    }
-  }
-
-  // Only update if changed
-  if (regionIndex !== lastKeyRegionIndex) {
-    lastKeyRegionIndex = regionIndex;
-    const region = timeline.keyRegions[regionIndex];
-    const modeLabel = region.mode === 'minor' ? 'm' : '';
-    const keyName = noteNames[region.key];
-
-    // Ambiguity indicator: ? for high ambiguity
-    const ambiguityMark = region.ambiguity > 0.6 ? '?' : '';
-
-    // Show if this is a modulation (not the first region)
-    if (regionIndex > 0) {
-      keyDisplay.textContent = `Key: ${keyName}${modeLabel}${ambiguityMark} →`;
-      keyDisplay.style.color = '#ffcc00'; // highlight modulation
-    } else {
-      keyDisplay.textContent = `Key: ${keyName}${modeLabel}${ambiguityMark}`;
-      keyDisplay.style.color = region.ambiguity > 0.6 ? '#888' : '';
-    }
-  }
 }
 
 // --- Worker frame callback ---
@@ -3086,10 +3036,9 @@ function loop(time: number): void {
       }
       updateTimeDisplay(currentTime);
       updateChordDisplay(currentTime);
-      updateKeyDisplay(currentTime);
 
       // Get fractal params from music (always computed — fractal effect reads them)
-      const params = musicMapper.update(dt, currentTime, timeline.chords, timeline.drums, timeline.notes, timeline.barDrumInfo);
+      const params = musicMapper.update(dt, currentTime, timeline.chords, timeline.drums, timeline.notes);
 
       // Generic music params for all other effects
       const musicParams = musicMapper.getMusicParams(dt, currentTime);

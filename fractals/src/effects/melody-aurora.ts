@@ -103,9 +103,9 @@ export class MelodyAuroraEffect implements VisualEffect {
     const beatAnticipation = music.beatAnticipation ?? 0;
 
     // Beat pulses - use arrival for impact
-    if (music.kick) {
+    if (music.drumEnergy > 0.5) {
       for (const r of this.ribbons) {
-        r.amplitude = Math.min(0.08, r.amplitude + 0.015);
+        r.amplitude = Math.min(0.08, r.amplitude + 0.015 * music.drumEnergy);
       }
     }
 

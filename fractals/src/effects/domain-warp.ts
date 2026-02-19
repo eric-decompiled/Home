@@ -283,7 +283,7 @@ export class DomainWarpEffect implements VisualEffect {
         const pitchScale = 1.0 + Math.max(0, music.melodyMidiNote - 60) / 24;
         this.melodyEnergy += 0.08 * music.melodyVelocity * pitchScale * beat1Boost;
       }
-      if (music.hihat) this.melodyEnergy += 0.02;
+      this.melodyEnergy += music.drumEnergy * 0.02;
 
       // All voices: pitch-weighted energy contribution
       for (const voice of music.activeVoices) {

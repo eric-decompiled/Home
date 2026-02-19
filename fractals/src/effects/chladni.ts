@@ -281,8 +281,7 @@ export class ChladniEffect implements VisualEffect {
     const barGroove = music.barGroove ?? 0;
 
     // Beat → amplitude pulse - gentle breathing with the music
-    if (music.kick) this.amplitude = Math.max(this.amplitude, 1.25);
-    if (music.snare) this.amplitude = Math.max(this.amplitude, 1.15);
+    this.amplitude = Math.max(this.amplitude, 1.0 + music.drumEnergy * 0.25);
     // Arrival adds to amplitude
     this.amplitude = Math.max(this.amplitude, 1.0 + beatArrival * 0.2 + barArrival * 0.25);
     // Anticipation creates subtle buildup
@@ -294,9 +293,8 @@ export class ChladniEffect implements VisualEffect {
     this.smoothedTension += (music.tension - this.smoothedTension) * tensionSmoothing;
     this.amplitude += (1.0 - this.amplitude) * (1 - Math.exp(-2.0 * dt));  // Slower decay
 
-    // Rotation from beats - gentle, musical motion
-    if (music.kick) this.rotationVelocity += 0.04;
-    if (music.snare) this.rotationVelocity -= 0.03;
+    // Rotation from beats - strong beats push forward, weak beats pull back
+    this.rotationVelocity += (music.beatStrength * 2 - 1) * music.drumEnergy * 0.04;
     // Arrival adds rotation impulse
     this.rotationVelocity += beatArrival * 0.025 - barArrival * 0.015;
     this.rotationVelocity *= Math.exp(-2.5 * dt);  // Faster damping

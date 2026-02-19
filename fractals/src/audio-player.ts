@@ -1,21 +1,24 @@
 // --- SpessaSynth-based MIDI Player ---
 
-// Module loaded as separate chunk but starts loading immediately
-let SpessaSynthModule: typeof import('spessasynth_lib') | null = null;
-const spessaSynthPromise = import('spessasynth_lib').then(mod => {
-  SpessaSynthModule = mod;
-  return mod;
-});
+import { Sequencer, WorkletSynthesizer } from "spessasynth_lib";
 
 /** Unwrap RIFF-MIDI container if present, returning raw SMF data */
 function unwrapRiff(buffer: ArrayBuffer): ArrayBuffer {
   const view = new DataView(buffer);
-  if (view.byteLength > 20 &&
-      view.getUint8(0) === 0x52 && view.getUint8(1) === 0x49 &&
-      view.getUint8(2) === 0x46 && view.getUint8(3) === 0x46) {
+  if (
+    view.byteLength > 20 &&
+    view.getUint8(0) === 0x52 &&
+    view.getUint8(1) === 0x49 &&
+    view.getUint8(2) === 0x46 &&
+    view.getUint8(3) === 0x46
+  ) {
     for (let i = 8; i < view.byteLength - 4; i++) {
-      if (view.getUint8(i) === 0x4D && view.getUint8(i + 1) === 0x54 &&
-          view.getUint8(i + 2) === 0x68 && view.getUint8(i + 3) === 0x64) {
+      if (
+        view.getUint8(i) === 0x4d &&
+        view.getUint8(i + 1) === 0x54 &&
+        view.getUint8(i + 2) === 0x68 &&
+        view.getUint8(i + 3) === 0x64
+      ) {
         return buffer.slice(i);
       }
     }
@@ -24,40 +27,39 @@ function unwrapRiff(buffer: ArrayBuffer): ArrayBuffer {
 }
 
 let audioCtx: AudioContext | null = null;
-let synth: InstanceType<typeof import('spessasynth_lib').WorkletSynthesizer> | null = null;
-let sequencer: InstanceType<typeof import('spessasynth_lib').Sequencer> | null = null;
+let synth: WorkletSynthesizer | null = null;
+let sequencer: Sequencer | null = null;
 let analyser: AnalyserNode | null = null;
 let analyserData: Uint8Array<ArrayBuffer> | null = null;
 let initPromise: Promise<void> | null = null;
 let pendingMidiBuffer: ArrayBuffer | null = null;
-let pianoMode = false;
 
 // Mobile audio unlock: create and resume AudioContext on first user gesture
-let audioUnlocked = false;
 function unlockAudio(): void {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
-
   // Create AudioContext immediately during user gesture (required for iOS)
   if (!audioCtx) {
     audioCtx = new AudioContext();
   }
 
   // Resume if suspended (required for Chrome/Safari mobile)
-  if (audioCtx.state === 'suspended') {
+  if (audioCtx.state === "suspended") {
     audioCtx.resume();
   }
 }
 
 // Listen for first user interaction to unlock audio
-if (typeof window !== 'undefined') {
-  const unlockEvents = ['touchstart', 'touchend', 'mousedown', 'keydown'];
+if (typeof window !== "undefined") {
+  const unlockEvents = ["touchstart", "touchend", "mousedown", "keydown"];
   const unlockHandler = () => {
     unlockAudio();
     // Remove listeners after first unlock
-    unlockEvents.forEach(e => document.removeEventListener(e, unlockHandler, true));
+    unlockEvents.forEach((e) =>
+      document.removeEventListener(e, unlockHandler, true),
+    );
   };
-  unlockEvents.forEach(e => document.addEventListener(e, unlockHandler, true));
+  unlockEvents.forEach((e) =>
+    document.addEventListener(e, unlockHandler, true),
+  );
 }
 
 // Smooth time tracking (interpolate between sequencer updates)
@@ -74,22 +76,21 @@ function resetTimeTracking() {
 async function init(): Promise<void> {
   if (synth) return;
 
-  // Wait for module (already loading since page load)
-  const mod = SpessaSynthModule ?? await spessaSynthPromise;
-
   // Reuse existing AudioContext from unlock, or create new one
   if (!audioCtx) {
     audioCtx = new AudioContext();
   }
 
   // Ensure resumed (may have been created before user gesture)
-  if (audioCtx.state === 'suspended') {
+  if (audioCtx.state === "suspended") {
     await audioCtx.resume();
   }
 
-  await audioCtx.audioWorklet.addModule(new URL('/spessasynth_processor.min.js', import.meta.url).href);
+  await audioCtx.audioWorklet.addModule(
+    new URL("/spessasynth_processor.min.js", import.meta.url).href,
+  );
 
-  synth = new mod.WorkletSynthesizer(audioCtx);
+  synth = new WorkletSynthesizer(audioCtx);
 
   // Create analyser for loudness metering
   analyser = audioCtx.createAnalyser();
@@ -107,7 +108,7 @@ async function init(): Promise<void> {
   }
   const sfBuffer = await sfResponse.arrayBuffer();
 
-  await synth.soundBankManager.addSoundBank(sfBuffer, 'gm');
+  await synth.soundBankManager.addSoundBank(sfBuffer, "gm");
   await synth.isReady;
 }
 
@@ -116,17 +117,6 @@ function ensureInit(): Promise<void> {
     initPromise = init();
   }
   return initPromise;
-}
-
-function applyPianoMode(): void {
-  if (!synth || !pianoMode) return;
-  // Set all non-drum channels to piano (program 0)
-  // Channel 9 (0-indexed) is drums in General MIDI
-  for (let ch = 0; ch < 16; ch++) {
-    if (ch !== 9) {
-      synth.programChange(ch, 0); // 0 = Acoustic Grand Piano
-    }
-  }
 }
 
 export const audioPlayer = {
@@ -151,13 +141,11 @@ export const audioPlayer = {
       sequencer.currentTime = 0;
       sequencer.pause();
     } else {
-      sequencer = new SpessaSynthModule!.Sequencer(synth);
+      sequencer = new Sequencer(synth);
       sequencer.loadNewSongList([{ binary: midiBuffer }]);
       sequencer.currentTime = 0;
       sequencer.pause();
     }
-    // Apply piano mode if enabled
-    applyPianoMode();
   },
 
   async play() {
@@ -174,7 +162,7 @@ export const audioPlayer = {
     }
     if (!sequencer) return;
 
-    if (audioCtx && audioCtx.state === 'suspended') {
+    if (audioCtx && audioCtx.state === "suspended") {
       await audioCtx.resume();
     }
 
@@ -234,11 +222,6 @@ export const audioPlayer = {
     return smoothTime;
   },
 
-  getDuration(): number {
-    if (!sequencer) return 0;
-    return sequencer.duration;
-  },
-
   isPlaying(): boolean {
     if (!sequencer) return false;
     return !sequencer.paused;
@@ -247,27 +230,6 @@ export const audioPlayer = {
   isFinished(): boolean {
     if (!sequencer) return false;
     return sequencer.isFinished;
-  },
-
-  setPianoMode(enabled: boolean) {
-    pianoMode = enabled;
-    if (synth) {
-      // Stop all sounding notes so new sound takes effect immediately
-      synth.stopAll(false);
-      if (enabled) {
-        applyPianoMode();
-      } else if (sequencer) {
-        // Reload to restore original instruments
-        const currentTime = sequencer.currentTime;
-        const wasPlaying = !sequencer.paused;
-        sequencer.currentTime = currentTime; // triggers re-send of program changes
-        if (wasPlaying) sequencer.play();
-      }
-    }
-  },
-
-  isPianoMode(): boolean {
-    return pianoMode;
   },
 
   /** Get current audio loudness level (0-1) */

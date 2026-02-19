@@ -1,8 +1,30 @@
-import type { ChordEvent, DrumHit, NoteEvent, TrackInfo, BarDrumInfo } from './midi-analyzer.ts';
+import type { ChordEvent, DrumHit, NoteEvent } from './midi-analyzer.ts';
 import type { MusicParams, ActiveVoice, UpcomingNote, UpcomingChord, RGB } from './effects/effect-interface.ts';
 import { createMidiBeatSync, createIdleBeatSync, type BeatSync, type TempoEvent, type TimeSignatureEvent } from './beat-sync.ts';
 import { palettes } from './fractal-engine.ts';
 import { audioPlayer } from './audio-player.ts';
+
+// --- Beat strength by meter position ---
+// Returns 0-1 based on metrical hierarchy (1.0 = downbeat, lower = weaker beats)
+function computeBeatStrength(beatIndex: number, beatsPerBar: number): number {
+  if (beatIndex === 0) return 1.0; // Downbeat always strongest
+
+  if (beatsPerBar === 4) {
+    // 4/4: beat 1 = 1.0, beat 3 = 0.5, beats 2,4 = 0.25
+    return beatIndex === 2 ? 0.5 : 0.25;
+  } else if (beatsPerBar === 3) {
+    // 3/4 waltz: beat 1 = 1.0, beats 2,3 = 0.25
+    return 0.25;
+  } else if (beatsPerBar === 6) {
+    // 6/8: beats 1,4 = 1.0, others = 0.25
+    return beatIndex === 3 ? 1.0 : 0.25;
+  } else if (beatsPerBar === 2) {
+    // 2/4: beat 1 = 1.0, beat 2 = 0.35
+    return 0.35;
+  }
+  // Default: downbeat strong, others weak
+  return 0.25;
+}
 
 // --- Julia set anchors by harmonic degree ---
 
@@ -187,20 +209,7 @@ let currentBeatIndex = 0;
 let currentChordRoot = 0;
 let currentChordDegree = 1;
 let currentChordQuality = 'major';
-let frameKick = false;
-let frameSnare = false;
-let frameHihat = false;
-let frameTom = false;
-let frameCrash = false;
-// Section detection state
-let currentDrumDensity = 0;
-let currentFillIntensity = 0;
-let currentIsBreakdown = false;
-let currentIsFill = false;
-let currentIsTransition = false;
-let currentEnergyDelta = 0;
-let currentNextTransitionIn = 0;
-let currentTransitionAnticipation = 0;
+let frameDrumEnergy = 0;
 let frameOnBeat = false;
 let frameOnBar = false;
 let currentBeatStability = 1.0;
@@ -244,7 +253,6 @@ const keyRotationState = { value: 0 }; // animated by GSAP
 // Multi-voice tracking
 let currentActiveVoices: ActiveVoice[] = [];
 let lastActiveKeys = new Set<string>(); // "channel:midi" for onset detection
-let currentTracks: TrackInfo[] = [];
 
 // All notes for lookahead (piano roll)
 let allNotes: NoteEvent[] = [];
@@ -520,8 +528,7 @@ export const musicMapper = {
     currentTime: number,
     chords: ChordEvent[],
     drums: DrumHit[],
-    notes: NoteEvent[],
-    barDrumInfo: BarDrumInfo[] = []
+    notes: NoteEvent[]
   ): FractalParams {
     // Store notes and chords for lookahead
     allNotes = notes;
@@ -632,12 +639,8 @@ export const musicMapper = {
     // Decay release
     rhythmicRelease *= Math.exp(-5 * dt);
 
-    // --- Process drum hits → rotation ---
-    frameKick = false;
-    frameSnare = false;
-    frameHihat = false;
-    frameTom = false;
-    frameCrash = false;
+    // --- Process drum hits → rotation and energy ---
+    frameDrumEnergy = 0;
     const noteLookback = 0.05;
     for (let i = lastDrumIndex + 1; i < drums.length; i++) {
       const d = drums[i];
@@ -645,94 +648,14 @@ export const musicMapper = {
       if (d.time < currentTime - noteLookback) { lastDrumIndex = i; continue; }
 
       lastDrumIndex = i;
+      frameDrumEnergy = Math.min(1, frameDrumEnergy + d.energy);
 
-      // Compute beat position within bar for hi-hat alternation
+      // Compute beat strength at drum hit time for rotation direction
       const beatInBar = Math.floor((d.time % (beatDuration * beatsPerBar)) / beatDuration);
+      const hitBeatStrength = computeBeatStrength(beatInBar, beatsPerBar);
 
-      if (d.type === 'kick') {
-        rotationVelocity += 0.5;
-        frameKick = true;
-      } else if (d.type === 'snare') {
-        rotationVelocity -= 0.6;
-        frameSnare = true;
-      } else if (d.type === 'hihat') {
-        rotationVelocity += (beatInBar % 2 === 0 ? 1 : -1) * 0.12;
-        frameHihat = true;
-      } else if (d.type === 'tom') {
-        rotationVelocity += 0.3;  // Toms add forward momentum
-        frameTom = true;
-      } else if (d.type === 'crash') {
-        rotationVelocity += 0.8;  // Crash adds strong impulse
-        frameCrash = true;
-      }
-    }
-
-    // --- Section detection from bar drum info ---
-    if (barDrumInfo.length > 0) {
-      // Find current bar
-      const barDuration = beatDuration * beatsPerBar;
-      const currentBarIndex = Math.floor(currentTime / barDuration);
-      const barInfo = barDrumInfo[Math.min(currentBarIndex, barDrumInfo.length - 1)];
-
-      if (barInfo) {
-        currentDrumDensity = barInfo.density;
-        currentIsBreakdown = barInfo.isBreakdown;
-        currentIsFill = barInfo.isFill;
-        currentIsTransition = barInfo.isTransition;
-        currentEnergyDelta = barInfo.energyDelta;
-
-        // Fill intensity: ramps up during fill bars, decays otherwise
-        if (barInfo.isFill) {
-          currentFillIntensity = Math.min(1, currentFillIntensity + dt * 4);
-        } else {
-          currentFillIntensity *= Math.exp(-3 * dt);
-        }
-
-        // Transition anticipation: look ahead to find next transition bar
-        if (barInfo.isTransition) {
-          // Currently in transition
-          currentNextTransitionIn = 0;
-          currentTransitionAnticipation = 1;
-        } else {
-          // Look ahead for next transition (max 8 bars = ~16 seconds)
-          let nextTransitionBar = -1;
-          for (let i = currentBarIndex + 1; i < Math.min(currentBarIndex + 8, barDrumInfo.length); i++) {
-            if (barDrumInfo[i].isTransition) {
-              nextTransitionBar = i;
-              break;
-            }
-          }
-
-          if (nextTransitionBar >= 0) {
-            // Time until next transition bar starts
-            const timeUntil = barDrumInfo[nextTransitionBar].startTime - currentTime;
-            currentNextTransitionIn = Math.max(0, timeUntil);
-
-            // Anticipation: build from 0 to 1 over ~2 bars before transition
-            // Accelerating curve (power of 2) for dramatic tension build
-            const anticipationWindow = barDuration * 2; // 2 bars
-            if (timeUntil <= anticipationWindow && timeUntil > 0) {
-              const progress = 1 - (timeUntil / anticipationWindow); // 0→1
-              currentTransitionAnticipation = progress * progress; // accelerate
-            } else {
-              currentTransitionAnticipation = 0;
-            }
-          } else {
-            currentNextTransitionIn = 999;
-            currentTransitionAnticipation = 0;
-          }
-        }
-      }
-    } else {
-      // No bar info - estimate from recent drum activity
-      currentDrumDensity = (frameKick || frameSnare ? 0.5 : 0) + (frameHihat ? 0.3 : 0) + (frameTom ? 0.2 : 0);
-      currentFillIntensity *= Math.exp(-3 * dt);
-      currentIsBreakdown = !frameKick && !frameSnare && !frameHihat && !frameTom;
-      currentIsFill = false;
-      currentIsTransition = frameCrash;  // Crash always signals transition
-      currentEnergyDelta = 0;
-      currentNextTransitionIn = 999;
-      currentTransitionAnticipation = 0;
+      // Rotation: strong beats push forward, weak beats pull back
+      rotationVelocity += (hitBeatStrength * 2 - 1) * d.energy * 0.6;
     }
 
     // --- Get beat state from BeatSync ---
@@ -920,6 +843,7 @@ export const musicMapper = {
       beatPosition: currentBeatPosition,
       barPosition: currentBarPosition,
       beatIndex: currentBeatIndex,
+      beatStrength: computeBeatStrength(currentBeatIndex, beatsPerBar),
       onBeat: frameOnBeat,
       onBar: frameOnBar,
       beatStability: currentBeatStability,
@@ -954,32 +878,15 @@ export const musicMapper = {
       bassPitchClass: currentBassPC,
       bassMidiNote: currentBassMidi,
       bassVelocity: currentBassVel,
-      kick: frameKick,
-      snare: frameSnare,
-      hihat: frameHihat,
-      tom: frameTom,
-      crash: frameCrash,
-      drumDensity: currentDrumDensity,
-      fillIntensity: currentFillIntensity,
-      isBreakdown: currentIsBreakdown,
-      isFill: currentIsFill,
-      isTransition: currentIsTransition,
-      energyDelta: currentEnergyDelta,
-      nextTransitionIn: currentNextTransitionIn,
-      transitionAnticipation: currentTransitionAnticipation,
+      drumEnergy: frameDrumEnergy,
       loudness: audioPlayer.getLoudness(),
       paletteIndex: currentChordRoot,
       activeVoices: currentActiveVoices,
-      tracks: currentTracks,
       upcomingNotes: computeUpcomingNotes(currentTime),
       upcomingChords: computeUpcomingChords(currentTime),
       barChords: computeBarChords(currentTime),
       tensionColor: computeTensionColor(currentTension),
     };
-  },
-
-  setTracks(tracks: TrackInfo[]) {
-    currentTracks = tracks;
   },
 
   getIdleMusicParams(dt: number): MusicParams {
@@ -992,6 +899,7 @@ export const musicMapper = {
       beatPosition: 0,
       barPosition: 0,
       beatIndex: 0,
+      beatStrength: 1.0,
       onBeat: false,
       onBar: false,
       beatStability: 1.0,
@@ -1026,23 +934,10 @@ export const musicMapper = {
       bassPitchClass: -1,
       bassMidiNote: -1,
       bassVelocity: 0,
-      kick: false,
-      snare: false,
-      hihat: false,
-      tom: false,
-      crash: false,
-      drumDensity: 0,
-      fillIntensity: 0,
-      isBreakdown: true,  // No drums = breakdown
-      isFill: false,
-      isTransition: false,
-      energyDelta: 0,
-      nextTransitionIn: 999,
-      transitionAnticipation: 0,
+      drumEnergy: 0,
       loudness: 0,
       paletteIndex: currentKey,
       activeVoices: [],
-      tracks: currentTracks,
       upcomingNotes: [],
       upcomingChords: [],
       barChords: [],

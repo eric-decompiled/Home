@@ -183,7 +183,6 @@ export const CONFIG_SHORTS: Record<string, Record<string, string>> = {
     'darkBackdrop': 'd',
     'glowOutlines': 'g',
   },
-  'piano-roll': { 'pianoSound': 'p' },
   'graph-chain': {
     'tonnetzWindowBars': 'w',
     'nodeSize': 'n',
@@ -288,7 +287,6 @@ export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
   'piano-roll': {
     fallDuration: 3.0,
     keyboardHeight: 0.12,
-    pianoSound: false,
   },
   'bass-clock': { showNumerals: true },
   'bass-web': { showNumerals: true },

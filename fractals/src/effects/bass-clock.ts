@@ -90,8 +90,7 @@ export class BassClockEffect implements VisualEffect {
     this.keyMode = music.keyMode;
     this.keyRotation = music.keyRotation;
 
-    if (music.kick) this.energy += 0.5; // Bass responds more to kick
-    if (music.snare) this.energy += 0.15;
+    this.energy += music.drumEnergy * 0.5;
     this.energy *= Math.exp(-2.0 * dt);
 
     // === GROOVE CURVES ===
