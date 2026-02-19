@@ -946,40 +946,6 @@ function toggleTheoryBar(fromGesture = false): void {
   buildLayerPanel();
 }
 
-// Triple-tap on canvas to toggle theory bar with slide animation
-let tapCount = 0;
-let tapTimeout: number | null = null;
-canvas.addEventListener('touchend', (e) => {
-  // Ignore multi-touch (pinch zoom)
-  if (e.changedTouches.length > 1) return;
-
-  tapCount++;
-  if (tapTimeout) clearTimeout(tapTimeout);
-  tapTimeout = window.setTimeout(() => {
-    if (tapCount >= 3) {
-      toggleTheoryBar(true);
-    }
-    tapCount = 0;
-  }, 800);
-}, { passive: true });
-
-// Triple-click on canvas to toggle theory bar (mirrors triple-tap on mobile)
-let clickCount = 0;
-let clickTimeout: number | null = null;
-canvas.addEventListener('click', () => {
-  // Only count clicks outside fullscreen (fullscreen click handles play/pause)
-  if (getFullscreenEl()) return;
-
-  clickCount++;
-  if (clickTimeout) clearTimeout(clickTimeout);
-  clickTimeout = window.setTimeout(() => {
-    if (clickCount >= 3) {
-      toggleTheoryBar(true);
-    }
-    clickCount = 0;
-  }, 800);
-});
-
 // --- Hamburger opens layer panel (like Custom button) ---
 hamburgerBtn.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
@@ -2916,14 +2882,12 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Click/tap canvas to play/pause in fullscreen
+// Click/tap canvas to play/pause
 canvas.addEventListener('click', (e) => {
-  if (getFullscreenEl() && timeline) {
-    // Don't toggle if tapping near top (that's for controls)
-    if (e.clientY > 100) {
-      playBtn.click();
-    }
-  }
+  if (!timeline) return;
+  // In fullscreen, don't toggle if tapping near top (that's for controls)
+  if (getFullscreenEl() && e.clientY <= 100) return;
+  playBtn.click();
 });
 
 let seeking = false;

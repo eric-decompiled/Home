@@ -178,7 +178,9 @@ export const audioPlayer = {
       await audioCtx.resume();
     }
 
-    resetTimeTracking();
+    // Preserve current position when resuming (don't reset to 0)
+    const currentPos = sequencer.currentHighResolutionTime;
+    resetTimeTracking(currentPos);
     sequencer.play();
     return true;
   },
