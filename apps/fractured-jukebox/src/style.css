@@ -2357,6 +2357,56 @@ body.ios-landscape-fullscreen canvas {
   border-radius: 0;
 }
 
+/* Android landscape pseudo-fullscreen mode */
+body.android-landscape-fullscreen .top-bar {
+  /* Position fixed so it overlays instead of pushing content */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  background: rgba(10, 10, 20, 0.95);
+}
+
+body.android-landscape-fullscreen .top-bar.android-landscape-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+body.android-landscape-fullscreen .main-area {
+  /* Fill entire viewport */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Center canvas within viewport */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+body.android-landscape-fullscreen .canvas-wrap {
+  /* Maximize canvas area - override mobile flex: 0 0 auto */
+  padding: 0 !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 1 1 auto !important;
+  /* Ensure full dimensions for centering */
+  width: 100%;
+  height: 100%;
+}
+
+body.android-landscape-fullscreen canvas {
+  border: none;
+  border-radius: 0;
+  /* Use computed dimensions, don't stretch */
+  max-width: none;
+  max-height: none;
+}
+
 /* --- Modal / Dialog --- */
 
 .modal-overlay {

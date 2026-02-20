@@ -1501,6 +1501,72 @@ if (isMobileIOS) {
   setTimeout(checkIOSOrientation, 100);
 }
 
+// --- Android landscape pseudo-fullscreen ---
+// Hide control bar in landscape on Android (like iOS)
+let androidLandscapeMode = false;
+let androidLandscapeControlsTimeout: number | null = null;
+const ANDROID_LANDSCAPE_CONTROLS_HIDE_DELAY = 2500;
+
+function hideAndroidLandscapeControls(): void {
+  if (!androidLandscapeMode) return;
+  topBar.classList.add('android-landscape-hidden');
+  // Trigger resize after transition to expand canvas
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 350);
+}
+
+function showAndroidLandscapeControls(): void {
+  if (!androidLandscapeMode) return;
+  topBar.classList.remove('android-landscape-hidden');
+  // Reset hide timer
+  if (androidLandscapeControlsTimeout) clearTimeout(androidLandscapeControlsTimeout);
+  androidLandscapeControlsTimeout = window.setTimeout(hideAndroidLandscapeControls, ANDROID_LANDSCAPE_CONTROLS_HIDE_DELAY);
+}
+
+function enterAndroidLandscapeMode(): void {
+  if (androidLandscapeMode) return;
+  androidLandscapeMode = true;
+  document.body.classList.add('android-landscape-fullscreen');
+  // Trigger resize to use full viewport
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+  // Start hide timer
+  androidLandscapeControlsTimeout = window.setTimeout(hideAndroidLandscapeControls, ANDROID_LANDSCAPE_CONTROLS_HIDE_DELAY);
+}
+
+function exitAndroidLandscapeMode(): void {
+  if (!androidLandscapeMode) return;
+  androidLandscapeMode = false;
+  document.body.classList.remove('android-landscape-fullscreen');
+  topBar.classList.remove('android-landscape-hidden');
+  if (androidLandscapeControlsTimeout) {
+    clearTimeout(androidLandscapeControlsTimeout);
+    androidLandscapeControlsTimeout = null;
+  }
+  // Trigger resize to restore normal layout
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 50);
+}
+
+// Enable on Android mobile devices
+const isMobileAndroid = isAndroid && !isStandalone;
+if (isMobileAndroid) {
+  function checkAndroidOrientation(): void {
+    if (isLandscape()) {
+      enterAndroidLandscapeMode();
+    } else {
+      exitAndroidLandscapeMode();
+    }
+  }
+
+  // Listen for orientation changes
+  window.addEventListener('resize', checkAndroidOrientation);
+  window.addEventListener('orientationchange', checkAndroidOrientation);
+
+  // Show controls on any touch anywhere on screen
+  document.addEventListener('touchstart', showAndroidLandscapeControls, { passive: true });
+
+  // Initial check
+  setTimeout(checkAndroidOrientation, 100);
+}
+
 // --- Mouse tracking for interactive effects ---
 
 canvas.addEventListener('mousemove', (e) => {
