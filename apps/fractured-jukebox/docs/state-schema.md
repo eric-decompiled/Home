@@ -92,17 +92,17 @@ Layer values and config params use short names:
 | bass-clock | `clock` | `bc` | |
 | melody-clock | `clock` | `mc` | |
 | tonnetz | `tonnetz` | `tn` | |
-| wave-interference | `waves` | `wi` | |
+| waves | `waves` | `wi` | |
 
 Booleans: `1`/`0`. Example: `?bg=flow&fg=spiral&ff.w=1`
 
 ### URL Behavior
 
-- Initial page load: Clean URL (default Cosmic Spiral applied)
-- Click any preset: `?preset=spiral`, `?preset=warp`, etc.
+- Initial page load: Clean URL (default Warp applied)
+- Click any preset: `?preset=stars`, `?preset=clock`, etc.
 - Custom configs: `?bg=chladni&fg=note-spiral&ns.s=ring`
 
-**Fallback:** Unrecognized params are ignored; defaults to Cosmic Spiral preset.
+**Fallback:** Unrecognized params are ignored; defaults to Warp preset.
 
 ## Custom Presets
 

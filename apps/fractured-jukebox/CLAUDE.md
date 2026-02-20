@@ -39,7 +39,8 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 - `clock`: Starfield + Note Spiral + Melody/Bass Clocks + Theory Bar
 - `fractal`: Fractal + Kaleidoscope + Melody Web + Theory Bar
 - `piano`: Flow Field + Piano Roll
-- `chain`: Graph Chain + Kaleidoscope
+- `StarAurora`: Note Star + Kaleidoscope + Melody Aurora + Bass Fire
+- `KaliGraph`: Graph Chain + Kaleidoscope
 
 **MIDIs**: Place in `public/midi/`, must start with `MThd` bytes (not RIFF-wrapped)
 
@@ -58,7 +59,7 @@ When cleaning up or resetting to sensible defaults, use these settings:
 **UI State**:
 - Custom/layer panel: closed by default (`layerPanelOpen = false`)
 - Fractal config panel: open by default
-- Preset button order: Warp, Clock, Stars, Fractal, Chain, Piano
+- Preset button order: Stars, Clock, Warp, Piano (main) + Fractal, StarAurora, KaliGraph (experimental)
 - Default preset on fresh load: `warp`
 - Default playlist: `pop` (Classics)
 

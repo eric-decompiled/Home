@@ -431,6 +431,18 @@ function applyURLSettings(): { presetApplied?: string } {
   // Apply state from URL
   const { overlays } = applyState(urlState as VisualizerState, layerSlots, getAllEffects());
   applyOverlaysFromState(overlays);
+
+  // Sync toggle variables from URL state configs (same logic as applyPreset)
+  const stateConfigs = urlState.configs ?? {};
+  const bassClockConfig = stateConfigs['bass-clock'] as Record<string, unknown> | undefined;
+  const bassFireConfig = stateConfigs['bass-fire'] as Record<string, unknown> | undefined;
+  const melodyConfig = stateConfigs['melody-clock'] as Record<string, unknown> | undefined;
+  // Use explicit false from any bass config, otherwise default to true
+  const bassNumeralsVal = (bassClockConfig?.showNumerals ?? bassFireConfig?.showNumerals) ?? true;
+  showBassNumerals = bassNumeralsVal as boolean;
+  const melodyNotesVal = melodyConfig?.showNotes ?? true;
+  showMelodyNotes = melodyNotesVal as boolean;
+
   applySlotSelections();
   return result;
 }

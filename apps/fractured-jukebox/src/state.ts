@@ -135,7 +135,7 @@ export const EFFECT_SHORT_NAMES: Record<string, string> = {
   'melody-aurora': 'aurora',
   'melody-fire': 'fire',
   'tonnetz': 'tonnetz',
-  'wave-interference': 'waves',
+  'waves': 'waves',
   'theory-bar': 'theory',
 };
 
@@ -164,7 +164,7 @@ export const EFFECT_PREFIXES: Record<string, string> = {
   'melody-aurora': 'ma',
   'melody-fire': 'mf',
   'tonnetz': 'tn',
-  'wave-interference': 'wi',
+  'waves': 'wi',
   'theory-bar': 'tb',
 };
 
@@ -305,7 +305,7 @@ export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
   },
   'theory-bar': { barHeight: 72 },
   'bass-fire': { showNumerals: false },
-  'wave-interference': { decayRate: 8 },
+  'waves': { decayRate: 8 },
   'note-star': { intensity: 1.0 },
   'melody-clock': { showNotes: true },
   'graph-chain': {
