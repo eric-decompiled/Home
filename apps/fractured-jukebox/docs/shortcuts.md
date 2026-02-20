@@ -9,10 +9,11 @@
 | `>` | Next track |
 | `{` | Previous playlist |
 | `}` | Next playlist |
+| `/` | Search all songs (vim-like) |
 | `?` | Show shortcuts help toast |
 | `↑/↓` | Navigate song picker (when focused) |
 | `Enter` | Select song (when picker open) |
-| `Esc` | Close picker |
+| `Esc` | Close picker/search |
 | `⌘/Ctrl + click` | Toggle theory bar |
 
 ## Mobile

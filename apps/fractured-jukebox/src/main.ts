@@ -699,6 +699,36 @@ app.innerHTML = `
       </div>
     </div>
   </div>
+
+  <div class="song-search-overlay" id="song-search-overlay">
+    <div class="song-search-modal">
+      <div class="song-search-input-wrap">
+        <span class="song-search-prefix">/</span>
+        <input type="text" class="song-search-input" id="song-search-input" placeholder="Search songs..." autocomplete="off" />
+      </div>
+      <div class="song-search-results" id="song-search-results"></div>
+    </div>
+  </div>
+
+  <div class="shortcuts-overlay" id="shortcuts-overlay">
+    <div class="shortcuts-modal">
+      <div class="shortcuts-header">
+        <span>Keyboard Shortcuts</span>
+        <button class="shortcuts-close" id="shortcuts-close">&times;</button>
+      </div>
+      <div class="shortcuts-body">
+        <div class="shortcuts-row"><kbd>Space</kbd><span>Play / Pause</span></div>
+        <div class="shortcuts-row"><kbd>&lt;</kbd><span>Previous / Rewind</span></div>
+        <div class="shortcuts-row"><kbd>&gt;</kbd><span>Next track</span></div>
+        <div class="shortcuts-row"><kbd>{</kbd><span>Previous playlist</span></div>
+        <div class="shortcuts-row"><kbd>}</kbd><span>Next playlist</span></div>
+        <div class="shortcuts-row"><kbd>/</kbd><span>Search all songs</span></div>
+        <div class="shortcuts-row"><kbd>Esc</kbd><span>Close modal</span></div>
+        <div class="shortcuts-row"><kbd id="shortcuts-mod">⌘</kbd>+click<span>Toggle theory bar</span></div>
+        <div class="shortcuts-row"><kbd>?</kbd><span>This menu</span></div>
+      </div>
+    </div>
+  </div>
 `;
 
 // --- Toast notification ---
@@ -1097,6 +1127,11 @@ function switchPlaylist(category: PlaylistCategory): void {
     focusedItemIndex = 0;
     updateFocusedItem(focusedItemIndex);
   });
+
+  // Trigger glow animation on song picker
+  songPickerBtn.classList.remove('glow');
+  void songPickerBtn.offsetWidth; // Force reflow to restart animation
+  songPickerBtn.classList.add('glow');
 }
 
 function getCurrentSongs(): SongEntry[] {
@@ -2464,6 +2499,174 @@ saveModalInput.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeSaveModal();
 });
 
+// --- Song Search (vim-like "/" command) ---
+const songSearchOverlay = document.getElementById('song-search-overlay')!;
+const songSearchInput = document.getElementById('song-search-input') as HTMLInputElement;
+const songSearchResults = document.getElementById('song-search-results')!;
+
+interface SearchResult {
+  name: string;
+  category: PlaylistCategory;
+  index: number;
+}
+
+let searchResults: SearchResult[] = [];
+let searchFocusedIndex = 0;
+
+function getAllSongsFlat(): SearchResult[] {
+  const results: SearchResult[] = [];
+  const categories: PlaylistCategory[] = ['pop', 'classical', 'video', 'uploads'];
+  for (const cat of categories) {
+    const songs = playlists[cat];
+    for (let i = 0; i < songs.length; i++) {
+      results.push({ name: songs[i].name, category: cat, index: i });
+    }
+  }
+  return results;
+}
+
+function filterSongs(query: string): SearchResult[] {
+  if (!query.trim()) return getAllSongsFlat().slice(0, 20); // Show first 20 when empty
+  const q = query.toLowerCase();
+  return getAllSongsFlat().filter(s => s.name.toLowerCase().includes(q)).slice(0, 50);
+}
+
+function renderSearchResults(): void {
+  if (searchResults.length === 0) {
+    songSearchResults.innerHTML = '<div class="song-search-empty">No songs found</div>';
+    return;
+  }
+  const categoryLabels: Record<PlaylistCategory, string> = {
+    pop: 'Classics',
+    classical: 'Classical',
+    video: 'Games',
+    uploads: 'Uploads'
+  };
+  songSearchResults.innerHTML = searchResults.map((r, i) =>
+    `<div class="song-search-item${i === searchFocusedIndex ? ' focused' : ''}" data-idx="${i}">
+      <span class="song-search-name">${r.name}</span>
+      <span class="song-search-category">${categoryLabels[r.category]}</span>
+    </div>`
+  ).join('');
+
+  // Scroll focused item into view
+  const focused = songSearchResults.querySelector('.song-search-item.focused');
+  if (focused) focused.scrollIntoView({ block: 'nearest' });
+}
+
+function openSongSearch(): void {
+  songSearchInput.value = '';
+  searchResults = filterSongs('');
+  searchFocusedIndex = 0;
+  renderSearchResults();
+  songSearchOverlay.classList.add('visible');
+  songSearchInput.focus();
+}
+
+function closeSongSearch(): void {
+  songSearchOverlay.classList.remove('visible');
+  songSearchInput.blur();
+}
+
+async function selectSearchResult(result: SearchResult): Promise<void> {
+  closeSongSearch();
+  // Switch playlist if needed
+  if (currentPlaylist !== result.category) {
+    currentPlaylist = result.category;
+    playlistClassicalBtn.classList.toggle('active', result.category === 'classical');
+    playlistPopBtn.classList.toggle('active', result.category === 'pop');
+    playlistVideoBtn.classList.toggle('active', result.category === 'video');
+    playlistUploadsBtn.classList.toggle('active', result.category === 'uploads');
+    updatePlaylistPickerState();
+    // Rebuild picker
+    const currentSongs = playlists[result.category];
+    if (result.category === 'uploads') {
+      rebuildUploadsPicker(result.index);
+    } else {
+      songPicker.innerHTML = currentSongs.map((s, i) => `<option value="${i}">${s.name}</option>`).join('');
+      updateDeleteButton();
+    }
+  }
+  songPicker.value = String(result.index);
+  await loadSong(result.index, true);
+}
+
+songSearchInput.addEventListener('input', () => {
+  searchResults = filterSongs(songSearchInput.value);
+  searchFocusedIndex = 0;
+  renderSearchResults();
+});
+
+songSearchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeSongSearch();
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (searchFocusedIndex < searchResults.length - 1) {
+      searchFocusedIndex++;
+      renderSearchResults();
+    }
+    return;
+  }
+  if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (searchFocusedIndex > 0) {
+      searchFocusedIndex--;
+      renderSearchResults();
+    }
+    return;
+  }
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (searchResults[searchFocusedIndex]) {
+      selectSearchResult(searchResults[searchFocusedIndex]);
+    }
+    return;
+  }
+});
+
+songSearchResults.addEventListener('click', (e) => {
+  const item = (e.target as HTMLElement).closest('.song-search-item') as HTMLElement;
+  if (!item) return;
+  const idx = parseInt(item.dataset.idx || '0');
+  if (searchResults[idx]) {
+    selectSearchResult(searchResults[idx]);
+  }
+});
+
+songSearchOverlay.addEventListener('click', (e) => {
+  if (e.target === songSearchOverlay) closeSongSearch();
+});
+
+// --- Shortcuts Modal ---
+const shortcutsOverlay = document.getElementById('shortcuts-overlay')!;
+const shortcutsClose = document.getElementById('shortcuts-close')!;
+const shortcutsMod = document.getElementById('shortcuts-mod')!;
+
+// Set correct modifier key for platform
+const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+shortcutsMod.textContent = isMac ? '⌘' : 'Ctrl';
+
+function openShortcutsModal(): void {
+  shortcutsOverlay.classList.add('visible');
+}
+
+function closeShortcutsModal(): void {
+  shortcutsOverlay.classList.remove('visible');
+}
+
+shortcutsClose.addEventListener('click', closeShortcutsModal);
+shortcutsOverlay.addEventListener('click', (e) => {
+  if (e.target === shortcutsOverlay) closeShortcutsModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && shortcutsOverlay.classList.contains('visible')) {
+    closeShortcutsModal();
+  }
+});
+
 // Render saved presets in the layer panel
 function renderSavedPresets(): void {
   const container = document.getElementById('saved-buttons');
@@ -3058,11 +3261,15 @@ document.addEventListener('keydown', (e) => {
     playlistButtons[newCategory].focus();
   }
 
-  // '?' to show keyboard shortcuts
+  // '?' to show keyboard shortcuts modal
   if (e.key === '?') {
-    const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
-    const mod = isMac ? '⌘' : 'Ctrl';
-    showToast(`Space: play · </>: prev/next · {/}: playlist · ${mod}+click: theory`, 5000, 'info');
+    openShortcutsModal();
+  }
+
+  // '/' to open song search
+  if (e.key === '/') {
+    e.preventDefault();
+    openSongSearch();
   }
 });
 

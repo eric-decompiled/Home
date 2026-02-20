@@ -148,6 +148,23 @@ body {
   border-color: var(--ui-accent);
 }
 
+/* Glow animation when playlist changes */
+@keyframes song-picker-glow {
+  0% {
+    box-shadow: 0 0 0 0 var(--ui-accent-glow);
+  }
+  50% {
+    box-shadow: 0 0 12px 4px var(--ui-accent-glow);
+  }
+  100% {
+    box-shadow: 0 0 0 0 var(--ui-accent-glow);
+  }
+}
+
+.song-picker-btn.glow {
+  animation: song-picker-glow 0.6s ease-out;
+}
+
 .song-picker-text {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -4425,6 +4442,273 @@ body.ios-landscape-fullscreen canvas {
 .save-modal-confirm:hover {
   background: rgba(22, 199, 154, 0.35);
   box-shadow: 0 0 12px rgba(22, 199, 154, 0.3);
+}
+
+/* --- Song Search Modal (vim-like) --- */
+.song-search-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 15vh;
+  z-index: 10001;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.song-search-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.song-search-modal {
+  background: linear-gradient(145deg, rgba(20, 25, 40, 0.98), rgba(10, 15, 25, 0.98));
+  border: 1px solid rgba(22, 199, 154, 0.3);
+  border-radius: 12px;
+  width: 400px;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 60px rgba(22, 199, 154, 0.1);
+  transform: translateY(-10px);
+  transition: transform 0.15s;
+  overflow: hidden;
+}
+
+.song-search-overlay.visible .song-search-modal {
+  transform: translateY(0);
+}
+
+.song-search-input-wrap {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(22, 199, 154, 0.2);
+}
+
+.song-search-prefix {
+  color: #16c79a;
+  font-size: 16px;
+  font-weight: 600;
+  margin-right: 8px;
+  font-family: monospace;
+}
+
+.song-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 15px;
+  outline: none;
+}
+
+.song-search-input::placeholder {
+  color: rgba(136, 153, 170, 0.5);
+}
+
+.song-search-results {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.song-search-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.song-search-item:hover,
+.song-search-item.focused {
+  background: rgba(22, 199, 154, 0.15);
+}
+
+.song-search-item.focused {
+  background: rgba(22, 199, 154, 0.25);
+}
+
+.song-search-name {
+  flex: 1;
+  color: #fff;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-search-category {
+  font-size: 11px;
+  color: rgba(136, 153, 170, 0.7);
+  background: rgba(136, 153, 170, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: capitalize;
+}
+
+.song-search-empty {
+  padding: 20px 16px;
+  text-align: center;
+  color: rgba(136, 153, 170, 0.6);
+  font-size: 13px;
+}
+
+.light-mode .song-search-modal {
+  background: linear-gradient(145deg, rgba(255, 250, 245, 0.98), rgba(255, 245, 235, 0.98));
+  border-color: rgba(212, 118, 58, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 60px rgba(212, 118, 58, 0.1);
+}
+
+.light-mode .song-search-prefix {
+  color: #d4763a;
+}
+
+.light-mode .song-search-input {
+  color: #3d2814;
+}
+
+.light-mode .song-search-input-wrap {
+  border-bottom-color: rgba(212, 118, 58, 0.2);
+}
+
+.light-mode .song-search-item:hover,
+.light-mode .song-search-item.focused {
+  background: rgba(212, 118, 58, 0.1);
+}
+
+.light-mode .song-search-item.focused {
+  background: rgba(212, 118, 58, 0.2);
+}
+
+.light-mode .song-search-name {
+  color: #3d2814;
+}
+
+/* --- Shortcuts Modal --- */
+.shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.shortcuts-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.shortcuts-modal {
+  background: linear-gradient(145deg, rgba(20, 25, 40, 0.98), rgba(10, 15, 25, 0.98));
+  border: 1px solid rgba(22, 199, 154, 0.3);
+  border-radius: 12px;
+  width: 320px;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 60px rgba(22, 199, 154, 0.1);
+  transform: scale(0.95);
+  transition: transform 0.15s;
+  overflow: hidden;
+}
+
+.shortcuts-overlay.visible .shortcuts-modal {
+  transform: scale(1);
+}
+
+.shortcuts-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(22, 199, 154, 0.2);
+  color: #16c79a;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.shortcuts-close {
+  background: none;
+  border: none;
+  color: rgba(136, 153, 170, 0.7);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+
+.shortcuts-close:hover {
+  color: #fff;
+}
+
+.shortcuts-body {
+  padding: 12px 16px;
+}
+
+.shortcuts-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.shortcuts-row kbd {
+  display: inline-block;
+  min-width: 28px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: center;
+  color: #fff;
+}
+
+.shortcuts-row span {
+  flex: 1;
+  text-align: right;
+  color: rgba(136, 153, 170, 0.8);
+}
+
+.light-mode .shortcuts-modal {
+  background: linear-gradient(145deg, rgba(255, 250, 245, 0.98), rgba(255, 245, 235, 0.98));
+  border-color: rgba(212, 118, 58, 0.3);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 60px rgba(212, 118, 58, 0.1);
+}
+
+.light-mode .shortcuts-header {
+  color: #d4763a;
+  border-bottom-color: rgba(212, 118, 58, 0.2);
+}
+
+.light-mode .shortcuts-close:hover {
+  color: #3d2814;
+}
+
+.light-mode .shortcuts-row {
+  color: #3d2814;
+}
+
+.light-mode .shortcuts-row kbd {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #3d2814;
+}
+
+.light-mode .shortcuts-row span {
+  color: rgba(60, 40, 20, 0.7);
 }
 
 /* --- Theme Toggle --- */
