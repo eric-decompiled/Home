@@ -563,10 +563,7 @@ export class StarFieldEffect implements VisualEffect {
   }
 
   dispose(): void {
-    this.ready = false;
-    this.stars = [];
-    this.nebulae = [];
-    this.clusters = [];
+    // Intentionally empty - starfield persists across song changes
   }
 
   getConfig(): EffectConfig[] {

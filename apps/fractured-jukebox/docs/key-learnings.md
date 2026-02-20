@@ -143,7 +143,19 @@
 - **Simplify for clarity**: Remove ancillary systems (state management, fractal anchors) to focus on core data flow. Can always create separate detail diagrams
 - **System font stack for SVG text**: `-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif` renders cleanly across platforms
 
+### Z-Index & Stacking Contexts
+- **Parent z-index controls entire context**: When parent has `position: relative` + `z-index`, all children's z-index values only compete within that context. To get dropdowns above overlays, give the parent container (top-bar) a z-index higher than the overlay's parent container (canvas-wrap), not just the dropdown itself
+- **Stacking context hierarchy**: `canvas-wrap: z-index: 1` contains play-overlay. `top-bar: z-index: 10` contains dropdowns. The entire top-bar context stacks above entire canvas-wrap context, so any dropdown appears above any overlay
+- **Keep z-index values low**: Avoid z-index inflation (1000, 9999, 10000). Use simple hierarchy: base content (1), fixed elements (10), dropdowns (100). Stacking contexts make global competition unnecessary
+
+### Custom Scrollbars
+- **macOS auto-hides despite CSS**: Native scrollbar styling (`scrollbar-width: thin`, `::-webkit-scrollbar`) still auto-hides on macOS due to system preference. `overflow-y: scroll` doesn't prevent this
+- **Custom scroll indicator for always-visible**: Create separate DOM elements (track + thumb divs), position via CSS, update thumb position via JS on scroll events. Use MutationObserver to detect menu open/close
+- **Double-rAF for accurate scroll metrics**: `scrollHeight`/`clientHeight` may not be accurate immediately after DOM changes. Use nested `requestAnimationFrame` to ensure layout is complete before reading
+
 ### Mobile UI
+- **Landscape shows desktop subset**: Instead of full mobile or full desktop UI in landscape, show specific buttons (Stars, Warp, Piano) by hiding others (`#mobile-bar-clock { display: none }`)
+- **Touch anywhere shows controls**: On iOS landscape, attach touch listener to `document` not just canvas, so tapping anywhere recalls the auto-hidden top bar
 - **Collapsible sections with toggle headers**: Use `display: contents` on desktop (transparent wrapper), `display: flex; flex-direction: column` on mobile. Arrow icon (▼/▶) rotates on collapse
 - **Long press for touch placement**: 400ms hold to place anchor. Cancel if finger moves >10px (allows scrolling). Use `navigator.vibrate(50)` for haptic feedback
 - **Modifier toggle button for mobile**: Replaces Ctrl/Cmd modifier. Tap to place instantly when ON, drag orbit for skew/spread. Styled as caps-lock style toggle

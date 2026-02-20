@@ -25,7 +25,7 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 
 ## Docs
 
-`docs/`: effects.md, music-analysis.md, state-schema.md, fractal-engine.md, key-learnings.md, future-ideas.md, playlist.md, performance.md
+`docs/`: effects.md, music-analysis.md, state-schema.md, fractal-engine.md, key-learnings.md, future-ideas.md, playlist.md, performance.md, shortcuts.md
 
 `research/`: fractal-theory.md (primary fractal ref), harmonic-analysis-theory.md, groove-and-visualizers.md, fractal-families.md, playlist-theory.md, graph-evolution.md (Graph Chain design)
 
@@ -73,6 +73,10 @@ When cleaning up or resetting to sensible defaults, use these settings:
 - Spiral lines (spine): off by default (`showSpine = false`)
 - Config shows only: Shapes, Spiral Lines toggle, Dark Backdrop toggle
 - Wave colors: use tension colors (not white/gray)
+
+## Keyboard Shortcuts
+
+See [`docs/shortcuts.md`](docs/shortcuts.md) for keyboard and gesture shortcuts.
 
 ## Toast Notifications
 

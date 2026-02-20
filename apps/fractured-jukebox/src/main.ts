@@ -722,6 +722,51 @@ const songPickerBtn = document.getElementById('song-picker-btn') as HTMLButtonEl
 const songPickerText = document.getElementById('song-picker-text') as HTMLElement;
 const songPickerMenu = document.getElementById('song-picker-menu') as HTMLElement;
 
+// Custom scroll indicator (always visible) - wrapper needed for positioning
+const scrollWrap = document.createElement('div');
+scrollWrap.className = 'song-picker-scroll-wrap';
+const scrollTrack = document.createElement('div');
+scrollTrack.className = 'song-picker-scroll-track';
+const scrollThumb = document.createElement('div');
+scrollThumb.className = 'song-picker-scroll-thumb';
+scrollTrack.appendChild(scrollThumb);
+scrollWrap.appendChild(scrollTrack);
+// Insert after menu, position via CSS
+songPickerMenu.insertAdjacentElement('afterend', scrollWrap);
+
+function updateScrollIndicator(): void {
+  const isOpen = songPickerWrap.classList.contains('open');
+  const { scrollTop, scrollHeight, clientHeight } = songPickerMenu;
+  // Check if scrollable (with small tolerance for rounding)
+  const scrollable = scrollHeight > clientHeight + 1;
+
+  if (!isOpen) {
+    scrollWrap.style.display = 'none';
+    return;
+  }
+
+  scrollWrap.style.display = scrollable ? 'block' : 'none';
+  if (scrollable) {
+    // Match wrap height to menu height
+    scrollWrap.style.height = `${clientHeight}px`;
+    const trackHeight = clientHeight - 16; // Account for padding
+    const thumbHeight = Math.max(30, (clientHeight / scrollHeight) * trackHeight);
+    const maxScroll = scrollHeight - clientHeight;
+    const thumbTop = maxScroll > 0 ? (scrollTop / maxScroll) * (trackHeight - thumbHeight) : 0;
+    scrollThumb.style.height = `${thumbHeight}px`;
+    scrollThumb.style.top = `${thumbTop}px`;
+  }
+}
+
+songPickerMenu.addEventListener('scroll', updateScrollIndicator);
+// Update when menu opens/closes (double rAF ensures layout is complete)
+const menuObserver = new MutationObserver(() => {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(updateScrollIndicator);
+  });
+});
+menuObserver.observe(songPickerWrap, { attributes: true, attributeFilter: ['class'] });
+
 // Create a songPicker interface that mimics select behavior
 const songPicker = {
   _value: '0',
@@ -806,6 +851,62 @@ songPickerMenu.querySelectorAll('.song-picker-item').forEach(item => {
     songPickerWrap.classList.remove('open');
     songPicker._changeListeners.forEach(fn => fn());
   });
+});
+
+// Keyboard navigation for song picker
+let focusedItemIndex = -1;
+
+function updateFocusedItem(newIndex: number): void {
+  const items = songPickerMenu.querySelectorAll('.song-picker-item');
+  if (items.length === 0) return;
+
+  // Clamp index
+  focusedItemIndex = Math.max(0, Math.min(newIndex, items.length - 1));
+
+  // Update visual focus
+  items.forEach((item, i) => {
+    item.classList.toggle('focused', i === focusedItemIndex);
+  });
+
+  // Scroll into view
+  items[focusedItemIndex]?.scrollIntoView({ block: 'nearest' });
+}
+
+songPickerBtn.addEventListener('keydown', (e) => {
+  const isOpen = songPickerWrap.classList.contains('open');
+  const items = songPickerMenu.querySelectorAll('.song-picker-item');
+
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (!isOpen) {
+      songPickerWrap.classList.add('open');
+      focusedItemIndex = parseInt(songPicker.value) || 0;
+      updateFocusedItem(focusedItemIndex);
+    } else {
+      updateFocusedItem(focusedItemIndex + 1);
+    }
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!isOpen) {
+      songPickerWrap.classList.add('open');
+      focusedItemIndex = parseInt(songPicker.value) || 0;
+      updateFocusedItem(focusedItemIndex);
+    } else {
+      updateFocusedItem(focusedItemIndex - 1);
+    }
+  } else if (e.key === 'Enter' && isOpen) {
+    e.preventDefault();
+    if (focusedItemIndex >= 0 && focusedItemIndex < items.length) {
+      const item = items[focusedItemIndex];
+      const idx = item.getAttribute('data-index') || '0';
+      songPicker.value = idx;
+      songPickerWrap.classList.remove('open');
+      songPicker._changeListeners.forEach(fn => fn());
+    }
+  } else if (e.key === 'Escape' && isOpen) {
+    e.preventDefault();
+    songPickerWrap.classList.remove('open');
+  }
 });
 
 // Toggle playlist dropdown
@@ -938,8 +1039,14 @@ function toggleTheoryBar(fromGesture = false): void {
   // Show info toast once per session on first gesture toggle
   if (fromGesture && !theoryBarHintShown) {
     theoryBarHintShown = true;
-    const gesture = 'ontouchstart' in window ? 'Triple-tap' : 'Triple-click';
-    showToast(`${gesture} to toggle theory bar`, 3000, 'info');
+    const isTouch = 'ontouchstart' in window;
+    if (isTouch) {
+      showToast('Long-press to toggle theory bar', 3000, 'info');
+    } else {
+      const isMac = /Mac/.test(navigator.platform);
+      const modifier = isMac ? '⌘' : 'Ctrl';
+      showToast(`${modifier}+click to toggle theory bar`, 3000, 'info');
+    }
   }
 
   dirty = true;
@@ -955,11 +1062,8 @@ hamburgerBtn.addEventListener('click', () => {
 
 // --- Playlist category switching ---
 
-async function switchPlaylist(category: PlaylistCategory): Promise<void> {
+function switchPlaylist(category: PlaylistCategory): void {
   if (currentPlaylist === category) return;
-
-  // Remember if we were playing before switching
-  const wasPlaying = audioPlayer.isPlaying();
 
   currentPlaylist = category;
 
@@ -970,7 +1074,7 @@ async function switchPlaylist(category: PlaylistCategory): Promise<void> {
   playlistUploadsBtn.classList.toggle('active', category === 'uploads');
   updatePlaylistPickerState();
 
-  // Rebuild song picker options
+  // Rebuild song picker options (don't auto-load, let user choose)
   const currentSongs = playlists[category];
   if (category === 'uploads') {
     rebuildUploadsPicker(0);
@@ -979,11 +1083,20 @@ async function switchPlaylist(category: PlaylistCategory): Promise<void> {
     updateDeleteButton();  // Hide delete button for non-uploads
   }
 
-  // Load first song if available
+  // Select first song in picker but don't load it
   if (currentSongs.length > 0) {
     songPicker.value = '0';
-    await loadSong(0, wasPlaying);
   }
+
+  // Open song picker for browsing
+  playlistPickerWrap.classList.remove('open');
+  songPickerWrap.classList.add('open');
+  // Defer focus to ensure DOM is updated
+  requestAnimationFrame(() => {
+    songPickerBtn.focus();
+    focusedItemIndex = 0;
+    updateFocusedItem(focusedItemIndex);
+  });
 }
 
 function getCurrentSongs(): SongEntry[] {
@@ -1155,6 +1268,8 @@ document.addEventListener('mousemove', handleFullscreenMouse);
 
 // Touch support: tap near top or swipe down to reveal controls
 let touchStartY = 0;
+let longPressTimeout: number | null = null;
+const LONG_PRESS_DURATION = 500;
 
 canvas.addEventListener('touchstart', (e) => {
   touchStartY = e.touches[0].clientY;
@@ -1166,9 +1281,19 @@ canvas.addEventListener('touchstart', (e) => {
   else if (getFullscreenEl() && touchStartY < TOP_REVEAL_ZONE) {
     topBar.classList.add('visible');
   }
+  // Start long-press timer for theory bar toggle
+  longPressTimeout = window.setTimeout(() => {
+    toggleTheoryBar(true);
+    longPressTimeout = null;
+  }, LONG_PRESS_DURATION);
 }, { passive: true });
 
 canvas.addEventListener('touchend', () => {
+  // Cancel long-press
+  if (longPressTimeout) {
+    clearTimeout(longPressTimeout);
+    longPressTimeout = null;
+  }
   // Hide controls after delay if shown by touch (non-Android)
   if (!isAndroid && getFullscreenEl() && topBar.classList.contains('visible')) {
     if (controlsTimeout) clearTimeout(controlsTimeout);
@@ -1179,6 +1304,11 @@ canvas.addEventListener('touchend', () => {
 }, { passive: true });
 
 canvas.addEventListener('touchmove', (e) => {
+  // Cancel long-press on any movement
+  if (longPressTimeout) {
+    clearTimeout(longPressTimeout);
+    longPressTimeout = null;
+  }
   if (!getFullscreenEl()) return;
   // Android: any touch shows controls
   if (isAndroid) {
@@ -2210,8 +2340,8 @@ themeToggle.addEventListener('click', () => {
 // Track DPR for coordinate transforms (declared here so setQuality can call resizeCanvas)
 let canvasDPR = 1;
 
-// Start on Balanced if we've previously auto-downgraded
-if (localStorage.getItem('autoDowngraded') === 'true') {
+// Start on Balanced if we've previously auto-downgraded (but respect user's manual choice)
+if (localStorage.getItem('autoDowngraded') === 'true' && !userSetQuality) {
   setQuality('medium');
 }
 
@@ -2764,6 +2894,20 @@ playlistPopBtn.addEventListener('click', () => switchPlaylist('pop'));
 playlistVideoBtn.addEventListener('click', () => switchPlaylist('video'));
 playlistUploadsBtn.addEventListener('click', () => switchPlaylist('uploads'));
 
+// Enter on playlist button opens song picker
+[playlistClassicalBtn, playlistPopBtn, playlistVideoBtn, playlistUploadsBtn].forEach(btn => {
+  btn.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      songPickerWrap.classList.add('open');
+      songPickerBtn.focus();
+      // Initialize focus on current song
+      focusedItemIndex = parseInt(songPicker.value) || 0;
+      updateFocusedItem(focusedItemIndex);
+    }
+  });
+});
+
 songPicker.addEventListener('change', async () => {
   // Unlock audio immediately during user gesture (before any await)
   unlockAudio();
@@ -2880,15 +3024,55 @@ document.addEventListener('keydown', (e) => {
     playBtn.click();
   }
 
-  // 'D' to toggle debug overlay
-  if (e.code === 'KeyD') {
-    debugOverlayVisible = !debugOverlayVisible;
-    debugOverlay.classList.toggle('visible', debugOverlayVisible);
+  // '<' for previous/rewind
+  if (e.key === '<') {
+    prevBtn.click();
+  }
+
+  // '>' for next
+  if (e.key === '>') {
+    nextBtn.click();
+  }
+
+  // '{' and '}' to cycle playlists
+  const playlistOrder: PlaylistCategory[] = ['pop', 'classical', 'video', 'uploads'];
+  const playlistButtons: Record<PlaylistCategory, HTMLButtonElement> = {
+    pop: playlistPopBtn,
+    classical: playlistClassicalBtn,
+    video: playlistVideoBtn,
+    uploads: playlistUploadsBtn,
+  };
+
+  if (e.key === '{') {
+    const idx = playlistOrder.indexOf(currentPlaylist);
+    const prevIdx = (idx - 1 + playlistOrder.length) % playlistOrder.length;
+    const newCategory = playlistOrder[prevIdx];
+    switchPlaylist(newCategory);
+    playlistButtons[newCategory].focus();
+  }
+  if (e.key === '}') {
+    const idx = playlistOrder.indexOf(currentPlaylist);
+    const nextIdx = (idx + 1) % playlistOrder.length;
+    const newCategory = playlistOrder[nextIdx];
+    switchPlaylist(newCategory);
+    playlistButtons[newCategory].focus();
+  }
+
+  // '?' to show keyboard shortcuts
+  if (e.key === '?') {
+    const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform);
+    const mod = isMac ? '⌘' : 'Ctrl';
+    showToast(`Space: play · </>: prev/next · {/}: playlist · ${mod}+click: theory`, 5000, 'info');
   }
 });
 
-// Click/tap canvas to play/pause
+// Click/tap canvas to play/pause (Cmd+click toggles theory bar)
 canvas.addEventListener('click', (e) => {
+  // Cmd+click (Mac) or Ctrl+click (Windows) toggles theory bar
+  if (e.metaKey || e.ctrlKey) {
+    toggleTheoryBar(true);
+    return;
+  }
   if (!timeline) return;
   // In fullscreen, don't toggle if tapping near top (that's for controls)
   if (getFullscreenEl() && e.clientY <= 100) return;
