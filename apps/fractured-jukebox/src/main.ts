@@ -2145,14 +2145,14 @@ const QUALITY_KEY = 'fractals-quality';
 let currentQualityLevel: keyof typeof qualityMap = 'high';
 let userSetQuality = false;
 
-// Load stored quality preference, default to balanced
+// Load stored quality preference, default to sharp (auto-downgrade handles slow devices)
 function detectDefaultQuality(): keyof typeof qualityMap {
   const stored = localStorage.getItem(QUALITY_KEY);
   if (stored && (stored === 'low' || stored === 'medium' || stored === 'high')) {
     userSetQuality = true;
     return stored;
   }
-  return 'medium';
+  return 'high';
 }
 
 function setQuality(level: keyof typeof qualityMap, isUserAction = false): void {

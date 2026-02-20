@@ -52,8 +52,8 @@ export class StarFieldEffect implements VisualEffect {
 
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private width = 800;
-  private height = 600;
+  private width = 0;
+  private height = 0;
   private ready = false;
 
   // Track dimensions when stars were last generated
