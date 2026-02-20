@@ -1,8 +1,13 @@
 {
-  "name": "dsp-portfolio",
+  "name": "decompiled-labs",
   "type": "module",
   "version": "1.0.0",
-  "description": "A portfolio of interactive DSP web applications.",
+  "description": "Decompiled Labs - Audio-Visual Explorations",
+  "homepage": "https://decompiled.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eric-decompiled/Home"
+  },
   "private": true,
   "scripts": {
     "dev": "astro dev",

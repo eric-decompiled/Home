@@ -31,7 +31,7 @@ async function buildProjects() {
     const sourceDir = typeof entry === 'string' ? entry : entry.sourceDir;
     const outputSlug = typeof entry === 'string' ? entry : entry.outputSlug;
 
-    const projectDir = path.join(rootDir, sourceDir);
+    const projectDir = path.join(rootDir, 'apps', sourceDir);
 
     // Skip if project directory doesn't exist
     if (!await fs.pathExists(projectDir)) {

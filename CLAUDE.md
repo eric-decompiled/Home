@@ -1,10 +1,11 @@
 ## Claude Instructions
 
 - Never perform git write operations (commit, push, merge, rebase, etc.)
+- Use imperative voice for instructions, third person or passive for descriptions. Avoid second person ("you").
 
 # Decompiled Labs
 
-A portfolio site for communication and organizational technology apps, built with Astro. Each sub-directory contains a standalone Vite project.
+Audio-visual explorations, built with Astro. Each sub-directory contains a standalone Vite project.
 
 ## Architecture
 
@@ -12,7 +13,14 @@ A portfolio site for communication and organizational technology apps, built wit
 /Users/eric/dsp/
 ├── astro.config.mjs          # Astro config with sub-project serving integration
 ├── package.json              # Scripts: dev, build, build:projects, preview
-├── build-projects.js         # Builds sub-projects, copies to public/apps/
+├── build-projects.js         # Builds sub-projects from apps/, copies to public/apps/
+├── apps/                     # Source code for all sub-projects
+│   ├── fractured-jukebox/    # MIDI-driven music visualizer with fractals
+│   ├── lissajous/            # Lissajous curves and musical intervals
+│   ├── resonator/            # RLC resonator for audio synthesis
+│   ├── sound-synth/          # Interactive harmonics explorer
+│   ├── karplus-strong/       # Karplus-Strong plucked string synth
+│   └── intervals/            # Ear training with adaptive difficulty
 ├── src/
 │   ├── layouts/
 │   │   └── BaseLayout.astro  # Shared head, nav
@@ -46,12 +54,12 @@ A portfolio site for communication and organizational technology apps, built wit
 
 | Directory | Slug | Description | Featured |
 |-----------|------|-------------|----------|
-| `fractured-jukebox` | fractured-jukebox | MIDI-driven music visualizer with fractals | Yes |
-| `lissajous` | lissajous | Lissajous curves and musical intervals | Yes |
-| `resonator` | resonator | RLC resonator for audio synthesis | Yes |
-| `sound-synth` | sound-synth | Interactive harmonics explorer | - |
-| `karplus-strong` | karplus-strong | Karplus-Strong plucked string synth | - |
-| `intervals` | intervals | Ear training with adaptive difficulty | - |
+| `apps/fractured-jukebox` | fractured-jukebox | MIDI-driven music visualizer with fractals | Yes |
+| `apps/lissajous` | lissajous | Lissajous curves and musical intervals | Yes |
+| `apps/resonator` | resonator | RLC resonator for audio synthesis | Yes |
+| `apps/sound-synth` | sound-synth | Interactive harmonics explorer | - |
+| `apps/karplus-strong` | karplus-strong | Karplus-Strong plucked string synth | - |
+| `apps/intervals` | intervals | Ear training with adaptive difficulty | - |
 
 ## Key Files
 
@@ -59,7 +67,7 @@ A portfolio site for communication and organizational technology apps, built wit
 
 **src/data/projects.ts**: Project metadata array. The `tier` field marks featured apps shown on homepage.
 
-**build-projects.js**: Iterates sub-projects, runs `npm install` and `vite build`, copies output to `public/apps/{slug}/`.
+**build-projects.js**: Iterates sub-projects in `apps/`, runs `npm install` and `vite build`, copies output to `public/apps/{slug}/`.
 
 **src/styles/global.css**: Theme variables for dark/light modes. Sub-projects should use the same CSS variables for consistency.
 
@@ -88,7 +96,7 @@ if (isLight) {
 
 ## Adding an App
 
-1. Create the project in its own directory with Vite
+1. Create the project in `apps/{slug}/` with Vite
 2. Add entry to `build-projects.js` projects array
 3. Add entry to `src/data/projects.ts` with metadata
 4. Add preview image to `public/images/projects/{slug}.png`
