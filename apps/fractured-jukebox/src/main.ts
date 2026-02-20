@@ -582,7 +582,7 @@ app.innerHTML = `
             <svg viewBox="0 0 24 24" width="64" height="64">
               <path fill="currentColor" d="M8 5v14l11-7z"/>
             </svg>
-            <span>Click to Play</span>
+            <span>${'ontouchstart' in window ? 'Tap to Play' : 'Click to Play'}</span>
           </button>
           <div class="play-overlay-info play-overlay-right">
             <div class="play-overlay-title">Music</div>
@@ -1255,8 +1255,8 @@ if (isMobileIOS) {
   window.addEventListener('resize', checkIOSOrientation);
   window.addEventListener('orientationchange', checkIOSOrientation);
 
-  // Show controls on any touch
-  canvas.addEventListener('touchstart', showIOSControls, { passive: true });
+  // Show controls on any touch anywhere on screen
+  document.addEventListener('touchstart', showIOSControls, { passive: true });
 
   // Initial check
   setTimeout(checkIOSOrientation, 100);
@@ -2388,31 +2388,36 @@ function clearUnsavedChanges(): void {}
 function resizeCanvas(): void {
   const wrap = document.querySelector('.canvas-wrap')!;
   const rect = wrap.getBoundingClientRect();
-  const isMobile = window.innerWidth <= 768;
-  const isPortrait = window.innerHeight > window.innerWidth;
-  const padding = window.innerWidth <= 480 ? 0 : 16;
+  // Use wrapper dimensions for portrait detection (more reliable than window in DevTools)
+  const isPortrait = rect.height > rect.width;
+  const isMobile = rect.width <= 768;
+  const padding = rect.width <= 480 ? 0 : 16;
   const availW = rect.width - padding;
   const availH = rect.height - padding;
 
   // Device pixel ratio for sharp rendering (cap at 2 for mobile performance)
   canvasDPR = Math.min(window.devicePixelRatio || 1, 2);
 
-  // On mobile portrait, fill available space (relax 16:9 constraint)
+  // On mobile portrait, rotate the canvas 90deg to display 16:9 content
   if (isMobile && isPortrait) {
-    // Use a more portrait-friendly aspect ratio but don't go extreme
-    const maxAspect = 4 / 3; // Don't go narrower than 4:3
-    const naturalAspect = availW / availH;
-    if (naturalAspect < maxAspect) {
-      // Very tall/narrow - constrain to 4:3
-      displayWidth = Math.floor(availW);
-      displayHeight = Math.floor(displayWidth / maxAspect);
+    // Create a landscape 16:9 canvas that will be rotated to fill portrait space
+    const aspect = 16 / 9;
+    // After 90deg rotation: canvas width becomes visual height, canvas height becomes visual width
+    // We want the rotated canvas to fit: visual width ≤ availW, visual height ≤ availH
+    // So: canvas.height ≤ availW, canvas.width ≤ availH
+    if (availH / availW > aspect) {
+      // Width-constrained: rotated height (canvas.height) limited by availW
+      displayHeight = Math.floor(availW);
+      displayWidth = Math.floor(availW * aspect);
     } else {
-      // Fill available space
-      displayWidth = Math.floor(availW);
-      displayHeight = Math.floor(availH);
+      // Height-constrained: rotated width (canvas.width) limited by availH
+      displayWidth = Math.floor(availH);
+      displayHeight = Math.floor(availH / aspect);
     }
+    canvas.style.transform = 'rotate(90deg)';
   } else {
-    // Desktop/landscape: maintain 16:9, fit within available space
+    // Desktop/landscape: maintain 16:9, fit within available space, no rotation
+    canvas.style.transform = '';
     const aspect = 16 / 9;
     if (availW / availH > aspect) {
       // Height-constrained
@@ -2429,7 +2434,7 @@ function resizeCanvas(): void {
   canvas.width = Math.floor(displayWidth * canvasDPR);
   canvas.height = Math.floor(displayHeight * canvasDPR);
 
-  // Set CSS size (logical pixels)
+  // Set CSS size (must match buffer aspect ratio to avoid distortion)
   canvas.style.width = displayWidth + 'px';
   canvas.style.height = displayHeight + 'px';
 

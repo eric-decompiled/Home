@@ -1946,12 +1946,21 @@ input[type="range"]::-moz-range-thumb {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  /* Keep canvas-wrap expanding, align canvas to top (gap goes to bottom) */
+  /* Fill space for rotated canvas in portrait */
   .canvas-wrap {
     flex: 1;
     min-height: 0;
-    align-items: flex-start;
+    width: 100%;
+    height: 100%;
+    align-items: center;
     justify-content: center;
+    padding: 0;
+  }
+
+  canvas {
+    border: none;
+    border-radius: 0;
+    margin: 0;
   }
 }
 
@@ -1993,7 +2002,12 @@ input[type="range"]::-moz-range-thumb {
     justify-content: flex-start;
   }
 
+  /* Show Stars, Warp, and Piano presets in landscape */
   .mobile-presets {
+    display: flex !important;
+  }
+
+  #mobile-bar-clock {
     display: none !important;
   }
 
