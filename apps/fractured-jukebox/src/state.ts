@@ -531,8 +531,8 @@ export function stateToURL(state: VisualizerState): string {
     }
   }
 
-  // Only include preset param if not the default (stars)
-  if (matchedPreset && matchedPreset !== 'stars') {
+  // Only include preset param if not the default (warp)
+  if (matchedPreset && matchedPreset !== 'warp') {
     params.set('preset', matchedPreset);
   } else if (!matchedPreset) {
     // Encode layers using short names (only non-null)

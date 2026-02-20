@@ -406,11 +406,11 @@ function applyURLSettings(): { presetApplied?: string } {
 
   // If no URL params, apply default preset (including configs)
   if (!urlState) {
-    const defaultPreset = getPresetState('stars');
+    const defaultPreset = getPresetState('warp');
     if (defaultPreset) {
       const { overlays } = applyState(defaultPreset, layerSlots, getAllEffects());
       applyOverlaysFromState(overlays);
-      // Sync toggle variables from preset configs (stars disables numerals/notes)
+      // Sync toggle variables from preset configs
       const presetConfigs = defaultPreset.configs ?? {};
       const bassFireConfig = presetConfigs['bass-fire'] as Record<string, unknown> | undefined;
       const melodyConfig = presetConfigs['melody-clock'] as Record<string, unknown> | undefined;
@@ -418,7 +418,7 @@ function applyURLSettings(): { presetApplied?: string } {
       showMelodyNotes = (melodyConfig?.showNotes ?? true) as boolean;
     }
     applySlotSelections();
-    result.presetApplied = 'stars';
+    result.presetApplied = 'warp';
     return result;
   }
 
@@ -1820,7 +1820,7 @@ function syncMelodyNotes(value: boolean): void {
 
 // --- Overlay/toggle persistence ---
 // Only load localStorage values if we have URL params (not default preset)
-// When loading the default 'stars' preset, the preset should be authoritative
+// When loading the default 'warp' preset, the preset should be authoritative
 const hasUrlParams = window.location.search.length > 1;
 
 // Load saved overlay preferences only if URL has params (otherwise preset is authoritative)
@@ -2365,7 +2365,7 @@ for (const [name, btn] of Object.entries(mobileBarPresets)) {
 }
 
 // Sync all preset buttons on initial load (after all button refs are defined)
-syncPresetButtons(urlSettingsResult.presetApplied as PresetName ?? (urlToState(window.location.search) ? null : 'stars'));
+syncPresetButtons(urlSettingsResult.presetApplied as PresetName ?? (urlToState(window.location.search) ? null : 'warp'));
 
 // Quality buttons for fixed render resolution
 // Maps UI names to compositor preset names (fast/balanced/sharp)
@@ -2896,13 +2896,21 @@ function resizeCanvas(): void {
   // Device pixel ratio for sharp rendering (cap at 2 for mobile performance)
   canvasDPR = Math.min(window.devicePixelRatio || 1, 2);
 
-  // On mobile portrait, rotate the canvas 90deg to display 16:9 content
+  // On mobile portrait, rotate the canvas 90deg to fill available space
   if (isMobile && isPortrait) {
-    // Create a landscape 16:9 canvas that will be rotated to fill portrait space
-    const aspect = 16 / 9;
+    // Create a landscape canvas that will be rotated to fill portrait space
     // After 90deg rotation: canvas width becomes visual height, canvas height becomes visual width
-    // We want the rotated canvas to fit: visual width ≤ availW, visual height ≤ availH
-    // So: canvas.height ≤ availW, canvas.width ≤ availH
+    // Relax aspect ratio to fill space (min 4:3, max 16:9)
+    const maxAspect = 16 / 9;
+    const minAspect = 4 / 3;
+
+    // Calculate natural aspect to fill available space
+    // Visual width = canvas.height, visual height = canvas.width
+    // naturalAspect = canvas.width / canvas.height = visual_height / visual_width = availH / availW
+    const naturalAspect = availH / availW;
+    const aspect = Math.max(minAspect, Math.min(maxAspect, naturalAspect));
+
+    // Fill the available space with the clamped aspect ratio
     if (availH / availW > aspect) {
       // Width-constrained: rotated height (canvas.height) limited by availW
       displayHeight = Math.floor(availW);

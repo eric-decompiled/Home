@@ -2,7 +2,7 @@
 
 A customizable MIDI file music visualizer. See the structure of music through various views. Uses MIDI analysis to extract rhythmic and harmonic information to drive many visual effects.
 
-**Default preset**: Stars (Starfield + Note Star + Bass Fire)
+**Default preset**: Warp (Chladni + Note Spiral + Kaleidoscope)
 **Default playlist**: Classics (pop & rock)
 
 ## Architecture
@@ -34,9 +34,9 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 **Layers**: Background (Chladni, Domain Warp, Waves, Flow Field, Starfield) | Foreground (Graph Chain, Note Spiral, Fractal, Piano Roll, Tonnetz) | Overlay (Kaleidoscope) | HUD (Theory Bar) | Melody/Bass clocks and webs
 
 **Presets**:
-- `stars` (default): Starfield + Note Star + Bass Fire
+- `warp` (default): Chladni + Note Spiral + Kaleidoscope + Melody/Bass Clocks
+- `stars`: Starfield + Note Star + Bass Fire
 - `clock`: Starfield + Note Spiral + Melody/Bass Clocks + Theory Bar
-- `warp`: Chladni + Note Spiral + Kaleidoscope + Melody/Bass Clocks
 - `fractal`: Fractal + Kaleidoscope + Melody Web + Theory Bar
 - `piano`: Flow Field + Piano Roll
 - `chain`: Graph Chain + Kaleidoscope
@@ -59,7 +59,7 @@ When cleaning up or resetting to sensible defaults, use these settings:
 - Custom/layer panel: closed by default (`layerPanelOpen = false`)
 - Fractal config panel: open by default
 - Preset button order: Warp, Clock, Stars, Fractal, Chain, Piano
-- Default preset on fresh load: `stars`
+- Default preset on fresh load: `warp`
 - Default playlist: `pop` (Classics)
 
 **Mobile/Canvas**:
