@@ -1,10 +1,9 @@
 import './style.css';
 
-// Sync theme from main site's localStorage or system preference (disable transitions during init)
+// Default to dark mode, only use light if explicitly set (disable transitions during init)
 document.documentElement.classList.add('theme-loading');
 const storedTheme = localStorage.getItem('decompiled-theme');
-const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-const isLight = storedTheme ? storedTheme === 'light' : !prefersDark;
+const isLight = storedTheme === 'light';
 if (isLight) {
   document.documentElement.classList.add('light-mode');
 }
