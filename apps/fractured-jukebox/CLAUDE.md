@@ -86,6 +86,10 @@ Use `showToast(message, duration?)` for user feedback:
 - Used for MIDI load errors, import failures, etc.
 - CSS class `.toast` with `.toast.show` for visibility
 
+## UI Patterns
+
+See [`docs/ui-patterns.md`](docs/ui-patterns.md) for play overlay, modals, share URL, and layer panel footer patterns.
+
 ## Performance Testing
 
 Run automated performance analysis with headless Chrome:

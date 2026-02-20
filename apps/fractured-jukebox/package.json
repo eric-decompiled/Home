@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@tonejs/midi": "^2.0.28",
+    "qr-creator": "^1.0.0",
     "spessasynth_lib": "^4.1.1"
   }
 }

@@ -93,6 +93,7 @@ function loadUserPresets(): Array<{ id: string; name: string }> {
 }
 import { setCustomColor, clearCustomColors, getCustomColors, samplePaletteColor } from './effects/effect-utils.ts';
 import { updateTweens } from './animation.ts';
+import { createCRTText } from './crt-text.ts';
 
 // --- Song list ---
 
@@ -121,8 +122,6 @@ const popSongs: SongEntry[] = [
   { name: 'Livin\' on a Prayer (Bon Jovi)', file: 'bon-jovi-livin-prayer.mid', duration: 250 },
   // Bonnie Tyler
   { name: 'Total Eclipse of the Heart (Bonnie Tyler)', file: 'bonnie-tyler-total-eclipse.mid', duration: 334 },
-  // Guns N' Roses
-  { name: 'Sweet Child O\' Mine (Guns N\' Roses)', file: 'gnr-sweet-child.mid', duration: 356 },
   // Gary Numan
   { name: 'Cars (Gary Numan)', file: 'gary-numan-cars.mid', duration: 225 },
   // Michael Jackson
@@ -451,7 +450,7 @@ app.innerHTML = `
           <span></span><span></span><span></span>
         </button>
         <div class="preset-buttons desktop-only">
-          <button class="toggle-btn" id="layers-toggle">Custom</button>
+          <button class="toggle-btn" id="layers-toggle">Menu</button>
           <button class="toggle-btn preset-btn" id="preset-stars" title="Starfield + Note Star + Bass Fire">Stars</button>
           <button class="toggle-btn preset-btn" id="preset-clock" title="Starfield + Note Spiral + Bass Clock">Clock</button>
           <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope">Warp</button>
@@ -562,35 +561,36 @@ app.innerHTML = `
           </div>
         </div>
         <div class="layer-panel-footer">
-          <div class="layer-panel-footer-buttons">
-            <button class="copy-link-btn" id="copy-link-btn" title="Copy a link with your current preset, layers, and effect settings">Copy Link</button>
-            <button class="save-preset-btn" id="save-preset-btn" title="Save current settings as a preset">Save</button>
+          <div class="footer-buttons">
+            <button class="save-preset-btn" id="save-preset-btn" title="Save current settings as a preset">Save Preset</button>
+            <div class="share-btn-group">
+              <button class="share-btn" id="copy-link-btn" title="Copy a link with your current preset, layers, and effect settings">Share</button>
+              <button class="share-qr-btn" id="qr-code-btn" title="Show QR code for sharing">
+                <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M3 11h2v2H3v-2zm8-6h2v4h-2V5zm-2 6h4v4h-2v-2H9v-2zm6 0h2v2h2v-2h2v2h-2v2h2v4h-2v2h-2v-2h-2v2h-2v-2h2v-2h-2v-2h2v-2zm4 4h2v4h-2v-4zM3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5z"/></svg>
+              </button>
+            </div>
           </div>
         </div>
       </div>
       <div class="canvas-wrap">
         <canvas id="canvas"></canvas>
         <div class="play-overlay visible" id="play-overlay">
-          <div class="play-overlay-info play-overlay-left">
-            <div class="play-overlay-title">Views</div>
-            <div class="play-overlay-item"><span class="play-overlay-label">Stars</span> — Travelling Stars</div>
-            <div class="play-overlay-item"><span class="play-overlay-label">Clock</span> — Musical Mechanics</div>
-            <div class="play-overlay-item"><span class="play-overlay-label">Warp</span> — Mandala Kaleidoscope</div>
-            <div class="play-overlay-item"><span class="play-overlay-label">Piano</span> — Classic Visualizer</div>
+          <div class="play-overlay-logo" id="crt-logo"></div>
+          <div class="play-overlay-center">
+            <button class="play-overlay-btn" id="play-overlay-btn">
+              <div class="play-icon-wrap">
+                <svg viewBox="0 0 24 24" width="52" height="52">
+                  <path fill="currentColor" d="M8 5v14l11-7z"/>
+                </svg>
+              </div>
+              <span class="play-label">
+                <span class="play-bracket">[</span>
+                ${('ontouchstart' in window ? 'Tap to Play' : 'Click to Play')}
+                <span class="play-bracket">]</span>
+              </span>
+            </button>
           </div>
-          <button class="play-overlay-btn" id="play-overlay-btn">
-            <svg viewBox="0 0 24 24" width="64" height="64">
-              <path fill="currentColor" d="M8 5v14l11-7z"/>
-            </svg>
-            <span>${'ontouchstart' in window ? 'Tap to Play' : 'Click to Play'}</span>
-          </button>
-          <div class="play-overlay-info play-overlay-right">
-            <div class="play-overlay-title">Music</div>
-            <div class="play-overlay-item"><span class="play-overlay-label">Classics</span> — Pop & Rock Hits</div>
-            <div class="play-overlay-item"><span class="play-overlay-label">Classical</span> — Bach to Debussy</div>
-            <div class="play-overlay-item"><span class="play-overlay-label">Games</span> — Game Soundtracks</div>
-            <div class="play-overlay-item"><span class="play-overlay-label">Upload</span> — Your Own MIDI Files</div>
-          </div>
+          <button class="play-overlay-about" id="play-overlay-about">Manual</button>
         </div>
       </div>
     </div>
@@ -700,6 +700,61 @@ app.innerHTML = `
     </div>
   </div>
 
+  <div class="qr-modal-overlay" id="qr-modal-overlay">
+    <div class="qr-modal">
+      <div class="qr-modal-header">
+        <span>Share via QR Code</span>
+        <button class="qr-modal-close" id="qr-modal-close">&times;</button>
+      </div>
+      <div class="qr-modal-body">
+        <canvas id="qr-canvas" width="200" height="200"></canvas>
+        <p class="qr-modal-hint">Scan with your phone camera</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="about-modal-overlay" id="about-modal-overlay">
+    <div class="about-modal">
+      <div class="about-modal-header">
+        <span>The Fractured Jukebox Manual</span>
+        <button class="about-modal-close" id="about-modal-close">&times;</button>
+      </div>
+      <div class="about-modal-body">
+        <p class="about-battery-warning">⚡ This app is graphics-intensive and drains battery quickly on mobile devices.</p>
+        <p>The Fractured Jukebox analyzes MIDI to understand chords, melody, bass lines, and rhythm—then maps them to layered procedural graphics in real-time.</p>
+        <p>Watch notes spiral through harmonic space, see chord tensions resolve visually, and feel the groove through synchronized motion. Each view reveals a different dimension of the music's inner structure.</p>
+
+        <div class="about-section">
+          <h3>Views</h3>
+          <div class="about-item"><span class="about-label">Stars</span> — Starfield journey</div>
+          <div class="about-item"><span class="about-label">Clock</span> — Rotating gears</div>
+          <div class="about-item"><span class="about-label">Warp</span> — Kaleidoscope</div>
+          <div class="about-item"><span class="about-label">Piano</span> — Piano roll</div>
+          <p class="about-note">Views are built from layers: a background effect, a foreground visualization, and optional overlays for melody, bass, and post-processing. Mix and match using the Custom panel.</p>
+        </div>
+
+        <div class="about-section">
+          <h3>Playlists</h3>
+          <div class="about-item"><span class="about-label">Classics</span> — Pop & rock</div>
+          <div class="about-item"><span class="about-label">Classical</span> — Bach to Debussy</div>
+          <div class="about-item"><span class="about-label">Games</span> — Game music</div>
+          <div class="about-item"><span class="about-label">Upload</span> — Your MIDI files</div>
+        </div>
+
+        ${'ontouchstart' in window ? '' : `<div class="about-shortcuts">
+          <div class="about-shortcut"><kbd>?</kbd> <a href="#" id="about-shortcuts-link">all shortcuts</a></div>
+        </div>`}
+
+        <p class="about-contact">Feedback? <a href="mailto:eric@decompiled.dev">eric@decompiled.dev</a></p>
+        <a href="https://github.com/eric-decompiled/Home/tree/main/apps/fractured-jukebox" class="about-source-link" target="_blank">
+          <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          See the source
+        </a>
+        <a href="https://decompiled.dev/apps" class="about-apps-link" target="_blank">More experiments →</a>
+      </div>
+    </div>
+  </div>
+
   <div class="song-search-overlay" id="song-search-overlay">
     <div class="song-search-modal">
       <div class="song-search-input-wrap">
@@ -720,12 +775,12 @@ app.innerHTML = `
         <div class="shortcuts-row"><kbd>Space</kbd><span>Play / Pause</span></div>
         <div class="shortcuts-row"><kbd>&lt;</kbd><span>Previous / Rewind</span></div>
         <div class="shortcuts-row"><kbd>&gt;</kbd><span>Next track</span></div>
-        <div class="shortcuts-row"><kbd>{</kbd><span>Previous playlist</span></div>
-        <div class="shortcuts-row"><kbd>}</kbd><span>Next playlist</span></div>
         <div class="shortcuts-row"><kbd>/</kbd><span>Search all songs</span></div>
         <div class="shortcuts-row"><kbd>Esc</kbd><span>Close modal</span></div>
         <div class="shortcuts-row"><kbd id="shortcuts-mod">⌘</kbd>+click<span>Toggle theory bar</span></div>
         <div class="shortcuts-row"><kbd>?</kbd><span>This menu</span></div>
+        <div class="shortcuts-row"><kbd>{</kbd><span>Previous playlist</span></div>
+        <div class="shortcuts-row"><kbd>}</kbd><span>Next playlist</span></div>
       </div>
     </div>
   </div>
@@ -1013,6 +1068,23 @@ const playlistPopBtn = document.getElementById('playlist-pop') as HTMLButtonElem
 const playlistVideoBtn = document.getElementById('playlist-video') as HTMLButtonElement;
 const playlistUploadsBtn = document.getElementById('playlist-uploads') as HTMLButtonElement;
 const playOverlay = document.getElementById('play-overlay')!;
+
+// Initialize CRT-style logo
+const crtLogoContainer = document.getElementById('crt-logo')!;
+const crtCanvas = createCRTText({
+  text: 'THE\nFRACTURED\nJUKEBOX',
+  pixelSize: 5,
+  color: '#16c79a',
+  glowColor: 'rgba(22, 199, 154, 0.4)',
+  glowIntensity: 8,
+  scanlines: true,
+  scanlineOpacity: 0.08,
+  letterSpacing: 2,
+  lineSpacing: 3,
+});
+crtCanvas.style.maxWidth = '100%';
+crtCanvas.style.height = 'auto';
+crtLogoContainer.appendChild(crtCanvas);
 
 // Show uploads button if there are stored uploads
 if (uploadedSongs.length > 0) {
@@ -2388,9 +2460,10 @@ function getEnabledOverlays(): string[] {
   return overlays;
 }
 
-// Copy Link button - generates shareable URL and copies to clipboard
-const copyLinkBtn = document.getElementById('copy-link-btn') as HTMLButtonElement;
-copyLinkBtn.addEventListener('click', async () => {
+// Generate shareable URL from current state
+const SHARE_BASE_URL = 'https://decompiled.dev/apps/fractured-jukebox/';
+
+function generateShareURL(): string {
   const state = getCurrentState(layerSlots, getEnabledOverlays());
   const baseQuery = stateToURL(state);
   const params = new URLSearchParams(baseQuery);
@@ -2404,9 +2477,15 @@ copyLinkBtn.addEventListener('click', async () => {
   }
 
   const queryString = params.toString();
-  const url = queryString
-    ? `${window.location.origin}${window.location.pathname}?${queryString}`
-    : `${window.location.origin}${window.location.pathname}`;
+  return queryString
+    ? `${SHARE_BASE_URL}?${queryString}`
+    : SHARE_BASE_URL;
+}
+
+// Copy Link button - generates shareable URL and copies to clipboard
+const copyLinkBtn = document.getElementById('copy-link-btn') as HTMLButtonElement;
+copyLinkBtn.addEventListener('click', async () => {
+  const url = generateShareURL();
 
   try {
     await navigator.clipboard.writeText(url);
@@ -2414,6 +2493,78 @@ copyLinkBtn.addEventListener('click', async () => {
   } catch {
     // Fallback for older browsers
     showToast('Could not copy link', 2000);
+  }
+});
+
+// QR Code modal
+const qrModalOverlay = document.getElementById('qr-modal-overlay')!;
+const qrCanvas = document.getElementById('qr-canvas') as HTMLCanvasElement;
+const qrModalClose = document.getElementById('qr-modal-close')!;
+const qrCodeBtn = document.getElementById('qr-code-btn') as HTMLButtonElement;
+
+async function openQrModal(): Promise<void> {
+  const url = generateShareURL();
+
+  // Warn if URL is very long (QR codes become harder to scan)
+  if (url.length > 2000) {
+    showToast('URL is long - QR may be hard to scan', 3000, 'info');
+  }
+
+  // Dynamically import qr-creator to avoid HMR issues
+  const QrCreator = (await import('qr-creator')).default;
+
+  // Generate QR code with fixed colors for scannability
+  QrCreator.render({
+    text: url,
+    radius: 0.3,
+    ecLevel: 'M',
+    fill: '#000000',
+    background: '#ffffff',
+    size: 200,
+  }, qrCanvas);
+
+  qrModalOverlay.classList.add('visible');
+}
+
+function closeQrModal(): void {
+  qrModalOverlay.classList.remove('visible');
+}
+
+qrCodeBtn.addEventListener('click', openQrModal);
+qrModalClose.addEventListener('click', closeQrModal);
+qrModalOverlay.addEventListener('click', (e) => {
+  if (e.target === qrModalOverlay) closeQrModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && qrModalOverlay.classList.contains('visible')) {
+    closeQrModal();
+  }
+});
+
+// About modal
+const aboutModalOverlay = document.getElementById('about-modal-overlay')!;
+const aboutModalClose = document.getElementById('about-modal-close')!;
+const playOverlayAbout = document.getElementById('play-overlay-about') as HTMLButtonElement;
+
+function openAboutModal(): void {
+  aboutModalOverlay.classList.add('visible');
+}
+
+function closeAboutModal(): void {
+  aboutModalOverlay.classList.remove('visible');
+}
+
+playOverlayAbout.addEventListener('click', (e) => {
+  e.stopPropagation(); // Don't trigger play overlay click
+  openAboutModal();
+});
+aboutModalClose.addEventListener('click', closeAboutModal);
+aboutModalOverlay.addEventListener('click', (e) => {
+  if (e.target === aboutModalOverlay) closeAboutModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && aboutModalOverlay.classList.contains('visible')) {
+    closeAboutModal();
   }
 });
 
@@ -2666,6 +2817,17 @@ document.addEventListener('keydown', (e) => {
     closeShortcutsModal();
   }
 });
+
+// Link from about modal to shortcuts
+const aboutShortcutsLink = document.getElementById('about-shortcuts-link');
+if (aboutShortcutsLink) {
+  aboutShortcutsLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    closeAboutModal();
+    openShortcutsModal();
+  });
+}
 
 // Render saved presets in the layer panel
 function renderSavedPresets(): void {
