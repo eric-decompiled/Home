@@ -162,6 +162,11 @@ export function clearCustomColors(): void {
   customColors.clear();
 }
 
+/** Check if any custom colors are set */
+export function hasCustomColors(): boolean {
+  return customColors.size > 0;
+}
+
 /** Convert hex color to RGB tuple */
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '');

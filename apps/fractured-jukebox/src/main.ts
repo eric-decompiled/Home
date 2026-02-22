@@ -90,7 +90,7 @@ function loadUserPresets(): Array<{ id: string; name: string }> {
   if (!fractalConfigModule) return [];
   return fractalConfigModule.loadUserPresets();
 }
-import { setCustomColor, clearCustomColors, getCustomColors, samplePaletteColor } from './effects/effect-utils.ts';
+import { setCustomColor, clearCustomColors, getCustomColors, hasCustomColors, samplePaletteColor } from './effects/effect-utils.ts';
 import { updateTweens } from './animation.ts';
 import { createCRTText } from './crt-text.ts';
 
@@ -344,6 +344,9 @@ compositor.addLayer(melodyNotesEffect, false);
 // Display toggle states (declared early so applySlotSelections can use them)
 let showBassNumerals = true;
 let showMelodyNotes = true;
+// Checkbox references for overlays panel (set in buildLayerPanel)
+let bassNumeralsCheckbox: HTMLInputElement | null = null;
+let melodyNotesCheckbox: HTMLInputElement | null = null;
 
 // Overlay toggle states (both can be enabled independently)
 let kaleidoscopeEnabled = false;
@@ -412,9 +415,10 @@ function applyURLSettings(): { presetApplied?: string } {
       applyOverlaysFromState(overlays);
       // Sync toggle variables from preset configs
       const presetConfigs = defaultPreset.configs ?? {};
+      const bassClockConfig = presetConfigs['bass-clock'] as Record<string, unknown> | undefined;
       const bassFireConfig = presetConfigs['bass-fire'] as Record<string, unknown> | undefined;
       const melodyConfig = presetConfigs['melody-clock'] as Record<string, unknown> | undefined;
-      showBassNumerals = (bassFireConfig?.showNumerals ?? true) as boolean;
+      showBassNumerals = (bassClockConfig?.showNumerals ?? bassFireConfig?.showNumerals ?? true) as boolean;
       showMelodyNotes = (melodyConfig?.showNotes ?? true) as boolean;
     }
     applySlotSelections();
@@ -540,12 +544,12 @@ app.innerHTML = `
         <div id="layer-list">
           <div class="colors-section" id="colors-section">
             <div class="colors-header">
-              <span>Note Colors</span>
+              <span>Note Colours</span>
               <button class="colors-reset-btn" id="colors-reset-btn" title="Reset to defaults">Reset</button>
             </div>
             <div class="colors-grid" id="colors-grid"></div>
           </div>
-          <div class="saved-presets" id="saved-presets" style="display: none;">
+          <div class="saved-presets" id="saved-presets">
             <div class="saved-label">Saved Presets</div>
             <div class="saved-buttons" id="saved-buttons"></div>
           </div>
@@ -569,17 +573,6 @@ app.innerHTML = `
             <div class="theme-toggle-row">
               <span class="theme-label"><span class="theme-icon">🌙</span> Theme</span>
               <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode"></button>
-            </div>
-          </div>
-        </div>
-        <div class="layer-panel-footer">
-          <div class="footer-buttons">
-            <button class="save-preset-btn" id="save-preset-btn" title="Save current settings as a preset">Save Preset</button>
-            <div class="share-btn-group">
-              <button class="share-btn" id="copy-link-btn" title="Copy a link with your current preset, layers, and effect settings">Share</button>
-              <button class="share-qr-btn" id="qr-code-btn" title="Show QR code for sharing">
-                <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M3 11h2v2H3v-2zm8-6h2v4h-2V5zm-2 6h4v4h-2v-2H9v-2zm6 0h2v2h2v-2h2v2h-2v2h2v4h-2v2h-2v-2h-2v2h-2v-2h2v-2h-2v-2h2v-2zm4 4h2v4h-2v-4zM3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5z"/></svg>
-              </button>
             </div>
           </div>
         </div>
@@ -765,7 +758,7 @@ app.innerHTML = `
           <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
           See the source
         </a>
-        <a href="https://decompiled.dev/apps" class="about-apps-link" target="_blank">More experiments →</a>
+        <a href="https://decompiled.dev/apps" class="about-apps-link" target="_blank">More Apps →</a>
       </div>
     </div>
   </div>
@@ -790,12 +783,11 @@ app.innerHTML = `
         <div class="shortcuts-row"><kbd>Space</kbd><span>Play / Pause</span></div>
         <div class="shortcuts-row"><kbd>&lt;</kbd><span>Previous / Rewind</span></div>
         <div class="shortcuts-row"><kbd>&gt;</kbd><span>Next track</span></div>
-        <div class="shortcuts-row"><kbd>/</kbd><span>Search all songs</span></div>
-        <div class="shortcuts-row"><kbd>Esc</kbd><span>Close modal</span></div>
         <div class="shortcuts-row"><kbd id="shortcuts-mod">⌘</kbd>+click<span>Toggle theory bar</span></div>
-        <div class="shortcuts-row"><kbd>?</kbd><span>This menu</span></div>
         <div class="shortcuts-row"><kbd>{</kbd><span>Previous playlist</span></div>
         <div class="shortcuts-row"><kbd>}</kbd><span>Next playlist</span></div>
+        <div class="shortcuts-row"><kbd>?</kbd><span>This menu</span></div>
+        <div class="shortcuts-row"><kbd>/</kbd><span>Search all songs</span></div>
       </div>
     </div>
   </div>
@@ -1077,7 +1069,6 @@ const themeSection = document.getElementById('theme-section')!;
 const themeToggle = document.getElementById('theme-toggle') as HTMLButtonElement;
 const colorsResetBtn = document.getElementById('colors-reset-btn') as HTMLButtonElement;
 const fullscreenBtn = document.getElementById('fullscreen-btn') as HTMLButtonElement;
-const debugOverlay = document.getElementById('debug-overlay') as HTMLElement;
 const playlistClassicalBtn = document.getElementById('playlist-classical') as HTMLButtonElement;
 const playlistPopBtn = document.getElementById('playlist-pop') as HTMLButtonElement;
 const playlistVideoBtn = document.getElementById('playlist-video') as HTMLButtonElement;
@@ -1115,9 +1106,6 @@ if (layerPanelOpen) {
 
 // Hamburger button (opens layer panel on mobile)
 const hamburgerBtn = document.getElementById('hamburger-btn')!;
-
-// Debug overlay visibility state
-let debugOverlayVisible = false;
 
 // --- Play overlay ---
 // Show on all platforms to ensure clean user gesture for audio unlock
@@ -1596,6 +1584,11 @@ layersToggle.addEventListener('click', () => {
   layerPanel.classList.toggle('open', layerPanelOpen);
 });
 
+// Reset layer panel scroll on orientation change to prevent wonky positioning
+window.addEventListener('orientationchange', () => {
+  layerPanel.scrollTop = 0;
+});
+
 // Close button for mobile
 const panelCloseBtn = document.getElementById('panel-close-btn')!;
 panelCloseBtn.addEventListener('click', closeLayerPanel);
@@ -1633,6 +1626,9 @@ let touchDragPc: number | null = null;
 let touchDragTimer: ReturnType<typeof setTimeout> | null = null;
 let touchTargetPc: number | null = null;
 let touchDragCompleted = false; // Prevents click after drag
+let colorTouchStartX = 0;
+let colorTouchStartY = 0;
+const TOUCH_MOVE_THRESHOLD = 15; // pixels - allow some natural finger movement
 
 function getColorValue(pc: number, customColors: Record<number, string>): string {
   if (customColors[pc]) return customColors[pc];
@@ -1709,6 +1705,7 @@ function buildColorsGrid(): void {
         setCustomColor(pitchClass, input.value);
       }
       markUnsavedChanges();
+      updateColorsResetBtn();
     });
 
     // Drag and drop handlers
@@ -1759,10 +1756,15 @@ function buildColorsGrid(): void {
       updateSwatchColor(dragSourcePc, targetColor);
       updateSwatchColor(pc, sourceColor);
       markUnsavedChanges();
+      updateColorsResetBtn();
     });
 
     // Touch handlers for mobile drag-to-swap
-    swatch.addEventListener('touchstart', () => {
+    swatch.addEventListener('touchstart', (e) => {
+      // Record starting position for movement threshold
+      const t = e.touches[0];
+      colorTouchStartX = t.clientX;
+      colorTouchStartY = t.clientY;
       // Start long-press timer to enter drag mode
       touchDragTimer = setTimeout(() => {
         touchDragPc = pc;
@@ -1773,8 +1775,13 @@ function buildColorsGrid(): void {
     }, { passive: true });
 
     swatch.addEventListener('touchmove', (e) => {
-      // Cancel long-press if finger moves before timer fires
-      if (touchDragPc === null && touchDragTimer) {
+      const t = e.touches[0];
+      const dx = t.clientX - colorTouchStartX;
+      const dy = t.clientY - colorTouchStartY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      // Cancel long-press only if finger moves beyond threshold before timer fires
+      if (touchDragPc === null && touchDragTimer && distance > TOUCH_MOVE_THRESHOLD) {
         clearTimeout(touchDragTimer);
         touchDragTimer = null;
         return;
@@ -1786,8 +1793,7 @@ function buildColorsGrid(): void {
       e.preventDefault();
 
       // Find which swatch the finger is over
-      const touch = e.touches[0];
-      const elementUnderTouch = document.elementFromPoint(touch.clientX, touch.clientY);
+      const elementUnderTouch = document.elementFromPoint(t.clientX, t.clientY);
       const swatchUnderTouch = elementUnderTouch?.closest('.color-swatch') as HTMLElement | null;
 
       // Clear previous highlight
@@ -1828,6 +1834,7 @@ function buildColorsGrid(): void {
         updateSwatchColor(touchDragPc, targetColor);
         updateSwatchColor(touchTargetPc, sourceColor);
         markUnsavedChanges();
+        updateColorsResetBtn();
       }
 
       // Clean up
@@ -1860,6 +1867,12 @@ function buildColorsGrid(): void {
     row.appendChild(input);
     colorsGrid.appendChild(row);
   }
+  updateColorsResetBtn();
+}
+
+// Update reset button styling based on whether colors are modified
+function updateColorsResetBtn(): void {
+  colorsResetBtn.classList.toggle('colors-modified', hasCustomColors());
 }
 
 // Reset colors to defaults
@@ -2004,24 +2017,6 @@ function buildLayerPanel(): void {
       });
     }
 
-    // Create display toggle checkbox for Bass/Melody slots (before radio handler so it can reference it)
-    let slotCheckbox: HTMLInputElement | null = null;
-    if (slot.name === 'Bass') {
-      slotCheckbox = document.createElement('input');
-      slotCheckbox.type = 'checkbox';
-      slotCheckbox.checked = showBassNumerals;
-      slotCheckbox.addEventListener('change', () => {
-        syncBassNumerals(slotCheckbox!.checked);
-      });
-    } else if (slot.name === 'Melody') {
-      slotCheckbox = document.createElement('input');
-      slotCheckbox.type = 'checkbox';
-      slotCheckbox.checked = showMelodyNotes;
-      slotCheckbox.addEventListener('change', () => {
-        syncMelodyNotes(slotCheckbox!.checked);
-      });
-    }
-
     // Radio change handler
     radioGroup.addEventListener('change', (e) => {
       const target = e.target as HTMLInputElement;
@@ -2038,20 +2033,15 @@ function buildLayerPanel(): void {
       if (configBtn) {
         configBtn.style.display = slot.activeId === 'fractal' ? 'block' : 'none';
       }
-      // Auto-toggle display checkbox based on effect selection
-      if (slotCheckbox) {
-        let shouldShow = false;
-        if (slot.name === 'Bass') {
-          // All bass effects draw numerals, so turn on when any is selected
-          shouldShow = slot.activeId !== null;
-          slotCheckbox.checked = shouldShow;
-          syncBassNumerals(shouldShow);
-        } else if (slot.name === 'Melody') {
-          // Only melody-clock draws its own notes; others use overlay
-          shouldShow = slot.activeId === 'melody-clock';
-          slotCheckbox.checked = shouldShow;
-          syncMelodyNotes(shouldShow);
-        }
+      // Auto-toggle display checkbox based on effect selection (checkboxes are in overlays section)
+      if (slot.name === 'Bass' && bassNumeralsCheckbox) {
+        const shouldShow = slot.activeId !== null;
+        bassNumeralsCheckbox.checked = shouldShow;
+        syncBassNumerals(shouldShow);
+      } else if (slot.name === 'Melody' && melodyNotesCheckbox) {
+        const shouldShow = slot.activeId === 'melody-clock';
+        melodyNotesCheckbox.checked = shouldShow;
+        syncMelodyNotes(shouldShow);
       }
     });
 
@@ -2062,21 +2052,6 @@ function buildLayerPanel(): void {
     // Config button on its own line (for effects with config panels)
     if (configBtn) {
       slotDiv.appendChild(configBtn);
-    }
-
-    // Add display toggle for Bass/Melody slots
-    if (slotCheckbox) {
-      const toggleDiv = document.createElement('div');
-      toggleDiv.className = 'slot-display-toggle';
-      const toggleLabel = document.createElement('label');
-      toggleLabel.className = 'display-toggle';
-      toggleLabel.appendChild(slotCheckbox);
-      const toggleSwitch = document.createElement('span');
-      toggleSwitch.className = 'toggle-switch';
-      toggleLabel.appendChild(toggleSwitch);
-      toggleLabel.appendChild(document.createTextNode(slot.name === 'Bass' ? 'Show Numerals' : 'Show Notes'));
-      toggleDiv.appendChild(toggleLabel);
-      slotDiv.appendChild(toggleDiv);
     }
 
     // Config section for active effect
@@ -2124,29 +2099,24 @@ function buildLayerPanel(): void {
   kaliToggleDiv.appendChild(kaliLabel);
   overlaysToggles.appendChild(kaliToggleDiv);
 
-  // Feedback Trail toggle
-  const feedbackToggleDiv = document.createElement('div');
-  feedbackToggleDiv.className = 'slot-display-toggle';
-  const feedbackLabel = document.createElement('label');
-  feedbackLabel.className = 'display-toggle';
-  const feedbackCheckbox = document.createElement('input');
-  feedbackCheckbox.type = 'checkbox';
-  feedbackCheckbox.checked = feedbackTrailEnabled;
-  feedbackCheckbox.addEventListener('change', () => {
-    feedbackTrailEnabled = feedbackCheckbox.checked;
-    localStorage.setItem('feedbackTrailEnabled', String(feedbackTrailEnabled));
-    applySlotSelections();
-    clearPresetHighlights();
-    dirty = true;
-    markUnsavedChanges();
+  // Show Notes toggle (for Melody effects)
+  const notesToggleDiv = document.createElement('div');
+  notesToggleDiv.className = 'slot-display-toggle';
+  const notesLabel = document.createElement('label');
+  notesLabel.className = 'display-toggle';
+  melodyNotesCheckbox = document.createElement('input');
+  melodyNotesCheckbox.type = 'checkbox';
+  melodyNotesCheckbox.checked = showMelodyNotes;
+  melodyNotesCheckbox.addEventListener('change', () => {
+    syncMelodyNotes(melodyNotesCheckbox!.checked);
   });
-  feedbackLabel.appendChild(feedbackCheckbox);
-  const feedbackSwitch = document.createElement('span');
-  feedbackSwitch.className = 'toggle-switch';
-  feedbackLabel.appendChild(feedbackSwitch);
-  feedbackLabel.appendChild(document.createTextNode('Feedback Trail'));
-  feedbackToggleDiv.appendChild(feedbackLabel);
-  overlaysToggles.appendChild(feedbackToggleDiv);
+  notesLabel.appendChild(melodyNotesCheckbox);
+  const notesSwitch = document.createElement('span');
+  notesSwitch.className = 'toggle-switch';
+  notesLabel.appendChild(notesSwitch);
+  notesLabel.appendChild(document.createTextNode('Notes'));
+  notesToggleDiv.appendChild(notesLabel);
+  overlaysToggles.appendChild(notesToggleDiv);
 
   // Theory Bar toggle
   const hudSlot = layerSlots.find(s => s.name === 'HUD');
@@ -2173,14 +2143,74 @@ function buildLayerPanel(): void {
     overlaysToggles.appendChild(theoryToggleDiv);
   }
 
+  // Show Numerals toggle (for Bass effects)
+  const numeralsToggleDiv = document.createElement('div');
+  numeralsToggleDiv.className = 'slot-display-toggle';
+  const numeralsLabel = document.createElement('label');
+  numeralsLabel.className = 'display-toggle';
+  bassNumeralsCheckbox = document.createElement('input');
+  bassNumeralsCheckbox.type = 'checkbox';
+  bassNumeralsCheckbox.checked = showBassNumerals;
+  bassNumeralsCheckbox.addEventListener('change', () => {
+    syncBassNumerals(bassNumeralsCheckbox!.checked);
+  });
+  numeralsLabel.appendChild(bassNumeralsCheckbox);
+  const numeralsSwitch = document.createElement('span');
+  numeralsSwitch.className = 'toggle-switch';
+  numeralsLabel.appendChild(numeralsSwitch);
+  numeralsLabel.appendChild(document.createTextNode('Numerals'));
+  numeralsToggleDiv.appendChild(numeralsLabel);
+  overlaysToggles.appendChild(numeralsToggleDiv);
+
+  // Feedback Trail toggle
+  const feedbackToggleDiv = document.createElement('div');
+  feedbackToggleDiv.className = 'slot-display-toggle';
+  const feedbackLabel = document.createElement('label');
+  feedbackLabel.className = 'display-toggle';
+  const feedbackCheckbox = document.createElement('input');
+  feedbackCheckbox.type = 'checkbox';
+  feedbackCheckbox.checked = feedbackTrailEnabled;
+  feedbackCheckbox.addEventListener('change', () => {
+    feedbackTrailEnabled = feedbackCheckbox.checked;
+    localStorage.setItem('feedbackTrailEnabled', String(feedbackTrailEnabled));
+    applySlotSelections();
+    clearPresetHighlights();
+    dirty = true;
+    markUnsavedChanges();
+  });
+  feedbackLabel.appendChild(feedbackCheckbox);
+  const feedbackSwitch = document.createElement('span');
+  feedbackSwitch.className = 'toggle-switch';
+  feedbackLabel.appendChild(feedbackSwitch);
+  feedbackLabel.appendChild(document.createTextNode('Feedback Trail'));
+  feedbackToggleDiv.appendChild(feedbackLabel);
+  overlaysToggles.appendChild(feedbackToggleDiv);
+
   overlaysSection.appendChild(overlaysToggles);
   layerList.appendChild(overlaysSection);
 
-  // Append experimental, quality, colors, and theme sections at the end (moves them into scrollable area)
-  layerList.appendChild(experimentalPresetsSection);
-  layerList.appendChild(qualitySection);
+  // Append colors, quality, experimental, theme, and save/share sections at the end (moves them into scrollable area)
   layerList.appendChild(colorsSection);
+  layerList.appendChild(qualitySection);
+  layerList.appendChild(experimentalPresetsSection);
   layerList.appendChild(themeSection);
+
+  // Create save/share section at the bottom
+  const saveShareSection = document.createElement('div');
+  saveShareSection.className = 'save-share-section';
+  saveShareSection.id = 'save-share-section';
+  saveShareSection.innerHTML = `
+    <div class="save-share-row">
+      <button class="save-preset-btn" id="save-preset-btn" title="Save current settings as a preset">Save Preset</button>
+      <div class="share-btn-group">
+        <button class="share-btn" id="copy-link-btn" title="Copy a link with your current preset, layers, and effect settings">Share</button>
+        <button class="share-qr-btn" id="qr-code-btn" title="Show QR code for sharing">
+          <svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M3 11h2v2H3v-2zm8-6h2v4h-2V5zm-2 6h4v4h-2v-2H9v-2zm6 0h2v2h2v-2h2v2h-2v2h2v4h-2v2h-2v-2h-2v2h-2v-2h2v-2h-2v-2h2v-2zm4 4h2v4h-2v-4zM3 3h8v8H3V3zm2 2v4h4V5H5zm8-2h8v8h-8V3zm2 2v4h4V5h-4zM3 13h8v8H3v-8zm2 2v4h4v-4H5z"/></svg>
+        </button>
+      </div>
+    </div>
+  `;
+  layerList.appendChild(saveShareSection);
 }
 
 function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
@@ -2355,6 +2385,35 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
 
 buildLayerPanel();
 buildColorsGrid();
+
+// Event delegation for dynamically created save/share buttons
+layerList.addEventListener('click', async (e) => {
+  const target = e.target as HTMLElement;
+
+  // Save Preset button
+  if (target.id === 'save-preset-btn' || target.closest('#save-preset-btn')) {
+    openSaveModal();
+    return;
+  }
+
+  // Copy Link button
+  if (target.id === 'copy-link-btn' || target.closest('#copy-link-btn')) {
+    const url = generateShareURL();
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('Link copied to clipboard!', 2000, 'info');
+    } catch {
+      showToast('Could not copy link', 2000);
+    }
+    return;
+  }
+
+  // QR Code button
+  if (target.id === 'qr-code-btn' || target.closest('#qr-code-btn')) {
+    openQrModal();
+    return;
+  }
+});
 
 // Note: fractalConfigPanel.onPresetsChange is set inside getFractalConfigPanel()
 
@@ -2553,25 +2612,10 @@ function generateShareURL(): string {
     : SHARE_BASE_URL;
 }
 
-// Copy Link button - generates shareable URL and copies to clipboard
-const copyLinkBtn = document.getElementById('copy-link-btn') as HTMLButtonElement;
-copyLinkBtn.addEventListener('click', async () => {
-  const url = generateShareURL();
-
-  try {
-    await navigator.clipboard.writeText(url);
-    showToast('Link copied to clipboard!', 2000, 'info');
-  } catch {
-    // Fallback for older browsers
-    showToast('Could not copy link', 2000);
-  }
-});
-
 // QR Code modal
 const qrModalOverlay = document.getElementById('qr-modal-overlay')!;
 const qrCanvas = document.getElementById('qr-canvas') as HTMLCanvasElement;
 const qrModalClose = document.getElementById('qr-modal-close')!;
-const qrCodeBtn = document.getElementById('qr-code-btn') as HTMLButtonElement;
 
 async function openQrModal(): Promise<void> {
   const url = generateShareURL();
@@ -2601,7 +2645,6 @@ function closeQrModal(): void {
   qrModalOverlay.classList.remove('visible');
 }
 
-qrCodeBtn.addEventListener('click', openQrModal);
 qrModalClose.addEventListener('click', closeQrModal);
 qrModalOverlay.addEventListener('click', (e) => {
   if (e.target === qrModalOverlay) closeQrModal();
@@ -2706,10 +2749,6 @@ function confirmSavePreset(): void {
   closeSaveModal();
   showToast(`Saved "${name}"`, 2000, 'info');
 }
-
-// Save Preset button - opens save modal
-const savePresetBtn = document.getElementById('save-preset-btn') as HTMLButtonElement;
-savePresetBtn.addEventListener('click', openSaveModal);
 
 saveModalCancel.addEventListener('click', closeSaveModal);
 saveModalConfirm.addEventListener('click', confirmSavePreset);

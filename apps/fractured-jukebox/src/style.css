@@ -13,7 +13,7 @@
   --ui-bg-button-hover: rgba(22, 199, 154, 0.15);
   --ui-bg-button-active: rgba(22, 199, 154, 0.25);
   --ui-border: #0f3460;
-  --ui-border-light: rgba(136, 153, 170, 0.2);
+  --ui-border-light: rgba(22, 199, 154, 0.6);
   --ui-text: #fff;
   --ui-text-muted: #8899aa;
   --ui-text-dim: rgba(136, 153, 170, 0.6);
@@ -32,7 +32,7 @@
   --ui-bg-button-hover: rgba(220, 120, 60, 0.15);
   --ui-bg-button-active: rgba(220, 120, 60, 0.25);
   --ui-border: #e8c4a0;
-  --ui-border-light: rgba(180, 140, 100, 0.3);
+  --ui-border-light: rgba(212, 118, 58, 0.6);
   --ui-text: #3d2814;
   --ui-text-muted: #7a5a3a;
   --ui-text-dim: rgba(120, 80, 50, 0.7);
@@ -381,7 +381,7 @@ body {
   height: 32px;
   padding: 6px;
   background: transparent;
-  border: 1px solid var(--ui-border-light);
+  border: 1px solid var(--ui-border);
   border-radius: 4px;
   cursor: pointer;
   transition: border-color var(--ui-transition);
@@ -604,12 +604,14 @@ a.toggle-btn {
 .layer-panel.open {
   width: 280px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 #layer-list {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
+  overscroll-behavior: contain;
 }
 
 .layer-panel-header {
@@ -617,12 +619,18 @@ a.toggle-btn {
   font-size: 13px;
   font-weight: 700;
   color: var(--ui-accent);
-  border-bottom: 1px solid var(--ui-border);
+  border-bottom: 2px solid rgba(22, 199, 154, 0.5);
+  background: rgba(15, 52, 96, 0.5);
   white-space: nowrap;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: color var(--ui-transition), border-color var(--ui-transition);
+  transition: color var(--ui-transition), border-color var(--ui-transition), background var(--ui-transition);
+}
+
+.light-mode .layer-panel-header {
+  border-bottom: 2px solid rgba(212, 118, 58, 0.5);
+  background: rgba(255, 220, 180, 0.7);
 }
 
 .layer-panel-title {
@@ -664,17 +672,11 @@ a.toggle-btn {
   color: var(--ui-text);
 }
 
-.layer-panel-footer {
-  padding: 12px 14px;
-  border-top: 1px solid var(--ui-border);
-  margin-top: auto;
-  transition: border-color var(--ui-transition);
-}
 
 /* Note Colors section */
 .colors-section {
   padding: 12px 14px;
-  border-top: 1px solid var(--ui-border);
+  border-top: 1px solid var(--ui-border-light);
   margin-top: 8px;
   transition: border-color var(--ui-transition);
 }
@@ -685,6 +687,7 @@ a.toggle-btn {
   align-items: center;
   margin-bottom: 8px;
   font-size: 11px;
+  font-weight: 700;
   color: var(--ui-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -693,13 +696,17 @@ a.toggle-btn {
 
 .colors-reset-btn {
   background: transparent;
-  border: 1px solid var(--ui-border-light);
+  border: 1px solid var(--ui-border);
   color: var(--ui-text-muted);
   font-size: 9px;
   padding: 2px 6px;
   border-radius: 3px;
   cursor: pointer;
   transition: all 0.2s, border-color var(--ui-transition), color var(--ui-transition);
+}
+
+.colors-reset-btn.colors-modified {
+  border-color: var(--ui-border-light);
 }
 
 .colors-reset-btn:hover {
@@ -763,6 +770,36 @@ a.toggle-btn {
 }
 
 
+/* Overlay toggles grid */
+.overlay-toggles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+
+.overlay-toggles .slot-display-toggle {
+  padding: 4px 0;
+}
+
+.overlay-toggles .display-toggle {
+  font-size: 12px;
+}
+
+.overlay-toggles .toggle-switch {
+  width: 32px;
+  height: 16px;
+  border-radius: 8px;
+}
+
+.overlay-toggles .toggle-switch::after {
+  width: 12px;
+  height: 12px;
+}
+
+.overlay-toggles .display-toggle input:checked + .toggle-switch::after {
+  transform: translateX(16px);
+}
+
 /* Slot display toggles (bass numerals, melody notes) */
 .slot-display-toggle {
   padding: 6px 0 2px 0;
@@ -791,7 +828,7 @@ a.toggle-btn {
   position: relative;
   width: 28px;
   height: 14px;
-  background: var(--ui-border-light);
+  background: var(--ui-border);
   border-radius: 7px;
   transition: background 0.25s ease;
   flex-shrink: 0;
@@ -810,7 +847,11 @@ a.toggle-btn {
 }
 
 .display-toggle input:checked + .toggle-switch {
-  background: var(--ui-accent-glow);
+  background: rgba(22, 199, 154, 0.5);
+}
+
+.light-mode .display-toggle input:checked + .toggle-switch {
+  background: rgba(212, 118, 58, 0.5);
 }
 
 .display-toggle input:checked + .toggle-switch::after {
@@ -903,15 +944,15 @@ a.toggle-btn {
 /* Saved presets section */
 .saved-presets {
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(136, 153, 170, 0.2);
+  border-bottom: 1px solid var(--ui-border-light);
 }
 
 .saved-label {
-  font-size: 10px;
-  color: rgba(136, 153, 170, 0.6);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ui-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  margin-bottom: 8px;
   margin-bottom: 8px;
 }
 
@@ -928,14 +969,39 @@ a.toggle-btn {
   padding-right: 28px;
 }
 
+.save-share-section {
+  padding: 12px 14px;
+  border-top: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--ui-border);
+  background: rgba(15, 52, 96, 0.35);
+}
+
+.light-mode .save-share-section {
+  background: rgba(255, 220, 180, 0.7);
+}
+
+.save-share-row {
+  display: flex;
+  gap: 8px;
+}
+
+.save-share-row .save-preset-btn {
+  flex: 1;
+}
+
+.save-share-row .share-btn-group {
+  flex: 1;
+}
+
 .official-presets {
   padding: 12px 14px;
-  border-bottom: 1px solid rgba(136, 153, 170, 0.2);
+  border-bottom: 1px solid var(--ui-border-light);
 }
 
 .official-label {
-  font-size: 10px;
-  color: rgba(136, 153, 170, 0.6);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ui-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
@@ -966,12 +1032,13 @@ a.toggle-btn {
 .experimental-presets {
   margin-top: 16px;
   padding: 12px 14px 0;
-  border-top: 1px solid rgba(136, 153, 170, 0.2);
+  border-top: 1px solid var(--ui-border-light);
 }
 
 .experimental-label {
-  font-size: 10px;
-  color: rgba(136, 153, 170, 0.6);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ui-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
@@ -991,20 +1058,21 @@ a.toggle-btn {
 .quality-presets {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid rgba(136, 153, 170, 0.2);
+  border-top: 1px solid var(--ui-border-light);
 }
 
 .quality-section {
   margin-top: 16px;
   padding: 12px 14px 0;
-  border-top: 1px solid rgba(136, 153, 170, 0.2);
+  border-top: 1px solid var(--ui-border-light);
   max-width: 100%;
   box-sizing: border-box;
 }
 
 .quality-label {
-  font-size: 10px;
-  color: rgba(136, 153, 170, 0.6);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ui-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
@@ -1135,6 +1203,10 @@ a.toggle-btn {
   border-bottom: 1px solid var(--ui-border-light);
   padding: 8px 12px;
   transition: border-color var(--ui-transition);
+}
+
+.layer-slot.overlays-section {
+  border-bottom: none;
 }
 
 .slot-header {
@@ -2033,7 +2105,7 @@ input[type="range"]::-moz-range-thumb {
     order: 10;
     flex: 1 0 100%;
     padding-top: 6px;
-    border-top: 1px solid var(--ui-border-light);
+    border-top: 1px solid var(--ui-border);
   }
 
   /* Float song select group right on mobile */
@@ -2105,15 +2177,6 @@ input[type="range"]::-moz-range-thumb {
     font-size: 11px;
   }
 
-  .layer-panel.open {
-    width: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 100;
-  }
 }
 
 /* Hide playlist buttons at 768px - show dropdown instead */
@@ -2187,6 +2250,16 @@ input[type="range"]::-moz-range-thumb {
     min-height: 0;
     overflow: hidden;
     touch-action: pan-y pinch-zoom;
+  }
+
+  .layer-panel.open {
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100;
   }
 
   .canvas-wrap {
@@ -2344,6 +2417,29 @@ input[type="range"]::-moz-range-thumb {
   .debug-overlay {
     bottom: 4px;
     right: max(4px, env(safe-area-inset-right, 0px));
+  }
+
+  /* Constrain layer panel in landscape to avoid stretched buttons */
+  .layer-panel.open {
+    width: 280px;
+    max-width: 280px;
+  }
+
+  .layer-panel-header {
+    padding: 8px 12px;
+  }
+
+  .slot-header {
+    padding: 8px 12px;
+  }
+
+  .colors-section {
+    padding: 10px 12px;
+  }
+
+  .color-swatch {
+    width: 22px;
+    height: 22px;
   }
 }
 
@@ -2630,7 +2726,7 @@ body.android-landscape-fullscreen canvas {
 .save-preset-btn {
   padding: 8px 12px;
   background: transparent;
-  border: 1px solid var(--ui-border-light);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
   color: var(--ui-text-muted);
   font-size: 12px;
@@ -2640,12 +2736,10 @@ body.android-landscape-fullscreen canvas {
 }
 
 .save-preset-btn:hover {
-  border-color: var(--ui-accent);
   color: var(--ui-accent);
 }
 
 .save-preset-btn.has-changes {
-  border-color: var(--ui-accent);
   color: var(--ui-accent);
 }
 
@@ -2709,9 +2803,13 @@ body.android-landscape-fullscreen canvas {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  background: var(--ui-bg-input);
+  background: rgba(15, 52, 96, 0.5);
   border-bottom: 1px solid var(--ui-border);
   transition: background var(--ui-transition), border-color var(--ui-transition);
+}
+
+.light-mode .fc-header {
+  background: rgba(255, 220, 180, 0.7);
 }
 
 .fc-header h2 {
@@ -4560,7 +4658,12 @@ body.android-landscape-fullscreen canvas {
   justify-content: space-between;
   align-items: center;
   padding: 16px 20px;
+  background: rgba(15, 52, 96, 0.5);
   border-bottom: 1px solid var(--ui-border);
+}
+
+.light-mode .layer-info-header {
+  background: rgba(255, 220, 180, 0.7);
 }
 
 .layer-info-header h3 {
@@ -4635,9 +4738,14 @@ body.android-landscape-fullscreen canvas {
 .layer-info-tip {
   color: var(--ui-text-muted);
   font-style: italic;
-  margin-bottom: 0 !important;
-  padding-top: 8px;
-  border-top: 1px solid var(--ui-border-light);
+  margin: 0 -20px -20px -20px !important;
+  padding: 12px 20px;
+  border-top: 1px solid var(--ui-border);
+  background: rgba(15, 52, 96, 0.35);
+}
+
+.light-mode .layer-info-tip {
+  background: rgba(255, 220, 180, 0.5);
 }
 
 /* --- Save Preset Modal --- */
@@ -4680,8 +4788,16 @@ body.android-landscape-fullscreen canvas {
   font-size: 16px;
   font-weight: 600;
   color: #16c79a;
-  margin-bottom: 16px;
+  margin: -20px -20px 16px -20px;
+  padding: 16px 20px;
   text-align: center;
+  background: rgba(15, 52, 96, 0.5);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.light-mode .save-modal-header {
+  color: #d4763a;
+  background: rgba(255, 220, 180, 0.7);
 }
 
 .save-modal-summary {
@@ -4758,18 +4874,6 @@ body.android-landscape-fullscreen canvas {
 }
 
 /* --- Share Button Group (Copy Link + QR) --- */
-.footer-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.footer-buttons .save-preset-btn {
-  flex: 1;
-}
-
-.footer-buttons .share-btn-group {
-  flex: 1;
-}
 
 .about-btn {
   display: flex;
@@ -4804,7 +4908,7 @@ body.android-landscape-fullscreen canvas {
   flex: 1;
   padding: 8px 12px;
   background: transparent;
-  border: 1px solid var(--ui-border-light);
+  border: 1px solid var(--ui-border);
   border-right: none;
   border-radius: 6px 0 0 6px;
   color: var(--ui-text-muted);
@@ -4814,7 +4918,6 @@ body.android-landscape-fullscreen canvas {
 }
 
 .share-btn:hover {
-  border-color: var(--ui-accent);
   color: var(--ui-accent);
 }
 
@@ -4825,7 +4928,7 @@ body.android-landscape-fullscreen canvas {
   width: 36px;
   padding: 8px;
   background: var(--ui-bg-button);
-  border: 1px solid var(--ui-border-light);
+  border: 1px solid var(--ui-border);
   border-radius: 0 6px 6px 0;
   color: var(--ui-text-muted);
   cursor: pointer;
@@ -4833,7 +4936,6 @@ body.android-landscape-fullscreen canvas {
 }
 
 .share-qr-btn:hover {
-  border-color: var(--ui-accent);
   color: var(--ui-accent);
   background: var(--ui-bg-button-hover);
 }
@@ -4842,16 +4944,6 @@ body.android-landscape-fullscreen canvas {
   flex-shrink: 0;
 }
 
-/* Connected border effect on hover */
-.share-btn-group:hover .share-btn,
-.share-btn-group:hover .share-qr-btn {
-  border-color: var(--ui-border);
-}
-
-.share-btn:hover,
-.share-btn-group .share-qr-btn:hover {
-  border-color: var(--ui-accent);
-}
 
 /* --- QR Code Modal --- */
 .qr-modal-overlay {
@@ -4893,10 +4985,13 @@ body.android-landscape-fullscreen canvas {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin: -20px -20px 16px -20px;
+  padding: 12px 20px;
   font-size: 14px;
   font-weight: 600;
   color: #16c79a;
+  background: rgba(15, 52, 96, 0.5);
+  border-bottom: 1px solid var(--ui-border);
 }
 
 .qr-modal-close {
@@ -4943,6 +5038,7 @@ body.android-landscape-fullscreen canvas {
 
 .light-mode .qr-modal-header {
   color: #d4763a;
+  background: rgba(255, 220, 180, 0.7);
 }
 
 .light-mode .qr-modal-close {
@@ -4979,7 +5075,7 @@ body.android-landscape-fullscreen canvas {
 
 .about-modal {
   background: linear-gradient(145deg, rgba(20, 25, 40, 0.98), rgba(10, 15, 25, 0.98));
-  border: 1px solid rgba(22, 199, 154, 0.3);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 20px;
   width: 480px;
@@ -4987,7 +5083,7 @@ body.android-landscape-fullscreen canvas {
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 60px rgba(22, 199, 154, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   transform: scale(0.95);
   transition: transform 0.2s;
 }
@@ -5000,10 +5096,13 @@ body.android-landscape-fullscreen canvas {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin: -20px -20px 16px -20px;
+  padding: 16px 20px;
   font-size: 16px;
   font-weight: 600;
   color: #16c79a;
+  background: rgba(15, 52, 96, 0.5);
+  border-bottom: 1px solid var(--ui-border);
 }
 
 .about-modal-close {
@@ -5067,7 +5166,7 @@ body.android-landscape-fullscreen canvas {
 
 .about-contact {
   padding-top: 8px;
-  border-top: 1px solid rgba(136, 153, 170, 0.2);
+  border-top: 1px solid var(--ui-border-light);
   color: rgba(136, 153, 170, 0.8);
 }
 
@@ -5083,7 +5182,7 @@ body.android-landscape-fullscreen canvas {
 .about-section {
   margin: 16px 0;
   padding: 12px 0;
-  border-top: 1px solid rgba(136, 153, 170, 0.15);
+  border-top: 1px solid var(--ui-border-light);
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 6px 16px;
@@ -5106,11 +5205,11 @@ body.android-landscape-fullscreen canvas {
 
 .about-label {
   color: #16c79a;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .light-mode .about-section {
-  border-top-color: rgba(180, 140, 100, 0.2);
+  border-top-color: var(--ui-border-light);
 }
 
 .light-mode .about-section h3 {
@@ -5222,8 +5321,8 @@ body.android-landscape-fullscreen canvas {
   display: block;
   margin-top: 10px;
   padding: 10px 16px;
-  background: rgba(22, 199, 154, 0.1);
-  border: 1px solid rgba(22, 199, 154, 0.3);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--ui-border);
   border-radius: 6px;
   color: #16c79a;
   font-size: 13px;
@@ -5234,19 +5333,20 @@ body.android-landscape-fullscreen canvas {
 }
 
 .about-apps-link:hover {
-  background: rgba(22, 199, 154, 0.2);
-  border-color: rgba(22, 199, 154, 0.5);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--ui-border);
 }
 
 /* Light mode adjustments for About modal */
 .light-mode .about-modal {
   background: linear-gradient(145deg, rgba(255, 252, 248, 0.98), rgba(250, 245, 235, 0.98));
-  border-color: rgba(212, 118, 58, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 60px rgba(212, 118, 58, 0.1);
+  border-color: var(--ui-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
 .light-mode .about-modal-header {
   color: #d4763a;
+  background: rgba(255, 220, 180, 0.7);
 }
 
 .light-mode .about-modal-close {
@@ -5262,7 +5362,6 @@ body.android-landscape-fullscreen canvas {
 }
 
 .light-mode .about-contact {
-  border-color: rgba(180, 140, 100, 0.3);
   color: rgba(120, 80, 50, 0.7);
 }
 
@@ -5283,8 +5382,8 @@ body.android-landscape-fullscreen canvas {
 }
 
 .light-mode .about-apps-link {
-  background: rgba(212, 118, 58, 0.1);
-  border-color: rgba(212, 118, 58, 0.3);
+  background: rgba(0, 0, 0, 0.05);
+  border-color: var(--ui-border);
   color: #d4763a;
 }
 
@@ -5478,6 +5577,7 @@ body.android-landscape-fullscreen canvas {
   align-items: center;
   justify-content: space-between;
   padding: 14px 16px;
+  background: rgba(15, 52, 96, 0.5);
   border-bottom: 1px solid rgba(22, 199, 154, 0.2);
   color: #16c79a;
   font-weight: 600;
@@ -5539,6 +5639,7 @@ body.android-landscape-fullscreen canvas {
 
 .light-mode .shortcuts-header {
   color: #d4763a;
+  background: rgba(255, 220, 180, 0.7);
   border-bottom-color: rgba(212, 118, 58, 0.2);
 }
 
@@ -5564,7 +5665,7 @@ body.android-landscape-fullscreen canvas {
 .theme-section {
   margin-top: 16px;
   padding: 12px 14px;
-  border-top: 1px solid var(--ui-border-light);
+  border-top: 1px solid var(--ui-border);
   transition: border-color var(--ui-transition);
 }
 
