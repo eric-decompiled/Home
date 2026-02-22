@@ -8,7 +8,7 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 |------|---------|---------|
 | **Background** | Full-canvas animated backdrop | Chladni, Domain Warp, Waves, Flow Field, Starfield |
 | **Foreground** | Main visual element | Graph Chain, Note Spiral, Fractal, Piano Roll, Tonnetz |
-| **Overlay** | Post-process effects | Kaleidoscope |
+| **Overlay** | Post-process effects | Kaleidoscope, Feedback Trail, CRT |
 | **Melody** | Melodic visualization | Melody Aurora, Melody Web, Melody Clock |
 | **Bass** | Bass note tracking | Bass Clock, Bass Web |
 | **HUD** | Informational overlay | Theory Bar |
@@ -20,7 +20,7 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 | **Warp** | Chladni | Note Spiral (ring,trails) | Kaleidoscope | Melody Aurora | Bass Clock | — |
 | **Clock** | Starfield | Note Spiral | — | Melody Clock | Bass Clock | — |
 | **Stars** (default) | Starfield | Note Star | — | — | Bass Fire | — |
-| **Fractal** | Flow Field | Fractal | — | — | — | Theory Bar |
+| **Fractal** | Flow Field | Fractal | Kaleidoscope + CRT | Melody Web | Bass Web | — |
 | **Chain** | — | Graph Chain | — | — | — | Theory Bar |
 | **Piano** | Flow Field | Piano Roll | — | — | — | — |
 
@@ -122,6 +122,22 @@ Both Note Spiral and Note Star support a **shared shape system** via multi-toggl
 - **Particle system**: Sparks emit on note impact, during sustain, and on release (capped at 50 particles)
 - **Piano sound mode**: Toggle to force all instruments to piano (via program change)
 - **Performance optimized**: No shadow blur (uses layered fills), particles are simple circles
+
+### CRT Overlay
+`src/effects/crt-overlay.ts` — Retro CRT monitor effect applied as post-process. Creates a pixelated, scanlined look reminiscent of old arcade monitors. Features:
+- **Pixelation**: Downscales image then upscales with nearest-neighbor for chunky pixels (6px blocks)
+- **Scanlines**: Pre-rendered horizontal dark lines between pixel rows (30% opacity)
+- **No smoothing on downscale**: Preserves thin bright lines (like Chladni patterns) instead of averaging them away
+- **Optimized rendering**: Pre-allocated canvases, pre-rendered scanline overlay, just 2 drawImage calls per frame
+- **Works well with Feedback Trail**: CRT runs after Feedback, so trails get pixelated creating a retro-glitch aesthetic
+
+### Feedback Trail
+`src/effects/feedback-trail.ts` — Echo/ghosting effect that accumulates previous frames with decay, rotation, and zoom. Creates trailing afterimages that spiral outward. Features:
+- **Decay**: Controls how quickly trails fade (0.92 default, groove-responsive)
+- **Zoom pulse**: Slight outward expansion on beats (groove-responsive)
+- **Rotation**: Continuous rotation with anticipation boost before beats
+- **Drum impulse**: Strong drum hits add rotation impulse
+- **Screen blend**: New frames blend via screen mode to avoid harsh saturation
 
 ## MusicParams Interface
 

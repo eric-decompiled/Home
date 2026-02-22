@@ -31,13 +31,13 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 
 ## Quick Reference
 
-**Layers**: Background (Chladni, Domain Warp, Waves, Flow Field, Starfield) | Foreground (Graph Chain, Note Spiral, Fractal, Piano Roll, Tonnetz) | Overlay (Kaleidoscope) | HUD (Theory Bar) | Melody/Bass clocks and webs
+**Layers**: Background (Chladni, Domain Warp, Waves, Flow Field, Starfield) | Foreground (Graph Chain, Note Spiral, Fractal, Piano Roll, Tonnetz) | Overlay (Kaleidoscope, Feedback Trail, CRT) | HUD (Theory Bar) | Melody/Bass clocks and webs
 
 **Presets**:
 - `warp` (default): Chladni + Note Spiral + Kaleidoscope + Melody/Bass Clocks
 - `stars`: Starfield + Note Star + Bass Fire
 - `clock`: Starfield + Note Spiral + Melody/Bass Clocks + Theory Bar
-- `fractal`: Fractal + Kaleidoscope + Melody Web + Theory Bar
+- `fractal`: Flow Field + Fractal + Kaleidoscope + CRT + Melody Web + Bass Web
 - `piano`: Flow Field + Piano Roll
 - `StarAurora`: Note Star + Kaleidoscope + Melody Aurora + Bass Fire
 - `KaliGraph`: Graph Chain + Kaleidoscope

@@ -126,6 +126,7 @@ export const EFFECT_SHORT_NAMES: Record<string, string> = {
   'chladni': 'chladni',
   'kaleidoscope': 'kaleido',
   'feedback-trail': 'trail',
+  'crt-overlay': 'crt',
   'fractal': 'fractal',
   'bass-clock': 'clock',
   'bass-fire': 'fire',
@@ -206,7 +207,7 @@ export const PRESET_LAYERS: Record<string, (string | null)[]> = {
   stars: ['starfield', 'note-star', null, null, 'bass-fire', null],
   clock: ['starfield', 'note-spiral', null, 'melody-clock', 'bass-clock', 'theory-bar'],
   warp: ['chladni', 'note-spiral', 'kaleidoscope', 'melody-clock', 'bass-clock', null],
-  fractal: [null, 'fractal', 'kaleidoscope', 'melody-web', null, 'theory-bar'],
+  fractal: ['flowfield', 'fractal', 'kaleidoscope,crt-overlay', 'melody-web', 'bass-web', null],
   piano: ['flowfield', 'piano-roll', null, null, null, null],
   StarAurora: [null, 'note-star', 'kaleidoscope', 'melody-aurora', 'bass-fire', null],
   KaliGraph: [null, 'graph-chain', 'kaleidoscope', null, null, null],
@@ -231,6 +232,9 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
   fractal: {
     'fractal': { preset: 'phoenix-journey' },
     'kaleidoscope': { foldCount: 6 },
+    'flowfield': { trailsUI: 6, lineWidth: 4 },
+    'bass-clock': { showNumerals: false },
+    'melody-clock': { showNotes: false },
   },
   piano: {
     'bass-clock': { showNumerals: false },
@@ -462,8 +466,8 @@ export function getPresetState(presetName: string): VisualizerState | null {
   const layers = PRESET_LAYERS[presetName];
   if (!layers) return null;
 
-  // Convert single overlay to overlays array
-  const overlays: string[] = layers[2] ? [layers[2]] : [];
+  // Convert overlay string to array (supports comma-separated)
+  const overlays: string[] = layers[2] ? layers[2].split(',').map(s => s.trim()) : [];
 
   return {
     version: 1,

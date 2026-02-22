@@ -538,7 +538,14 @@ a.toggle-btn {
 }
 
 #layers-toggle {
-  border-color: var(--ui-accent);
+  background: var(--ui-bg-button);
+  border: 1px solid var(--ui-accent);
+  color: var(--ui-text);
+}
+
+#layers-toggle.active {
+  background: var(--ui-accent);
+  color: #000;
 }
 
 .config-link {

@@ -37,6 +37,7 @@ import { TheoryBarEffect } from './effects/theory-bar.ts';
 import { StarFieldEffect } from './effects/star-field.ts';
 import { GraphChainEffect } from './effects/graph-chain.ts';
 import { FeedbackTrailEffect } from './effects/feedback-trail.ts';
+import { CrtOverlayEffect } from './effects/crt-overlay.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
 import {
   type VisualizerState,
@@ -286,6 +287,7 @@ const theoryBarEffect = new TheoryBarEffect();
 const starFieldEffect = new StarFieldEffect();
 const graphChainEffect = new GraphChainEffect();
 const feedbackTrailEffect = new FeedbackTrailEffect();
+const crtOverlayEffect = new CrtOverlayEffect();
 
 // --- Layer slot definitions (mutually exclusive within each slot) ---
 
@@ -308,7 +310,7 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Overlay',
-    effects: [kaleidoscopeEffect, feedbackTrailEffect],
+    effects: [kaleidoscopeEffect, feedbackTrailEffect, crtOverlayEffect],
     activeId: null,
   },
   {
@@ -348,9 +350,10 @@ let showMelodyNotes = true;
 let bassNumeralsCheckbox: HTMLInputElement | null = null;
 let melodyNotesCheckbox: HTMLInputElement | null = null;
 
-// Overlay toggle states (both can be enabled independently)
+// Overlay toggle states (all can be enabled independently)
 let kaleidoscopeEnabled = false;
 let feedbackTrailEnabled = false;
+let crtOverlayEnabled = false;
 
 // Apply initial active selections
 function applySlotSelections(): void {
@@ -359,6 +362,7 @@ function applySlotSelections(): void {
       // Overlay slot uses independent toggles, not mutually exclusive
       compositor.setEnabled('kaleidoscope', kaleidoscopeEnabled);
       compositor.setEnabled('feedback-trail', feedbackTrailEnabled);
+      compositor.setEnabled('crt-overlay', crtOverlayEnabled);
     } else {
       for (const effect of slot.effects) {
         compositor.setEnabled(effect.id, effect.id === slot.activeId);
@@ -400,6 +404,7 @@ function getAllEffects(): Map<string, VisualEffect> {
 function applyOverlaysFromState(overlays: string[]): void {
   kaleidoscopeEnabled = overlays.includes('kaleidoscope');
   feedbackTrailEnabled = overlays.includes('feedback-trail');
+  crtOverlayEnabled = overlays.includes('crt-overlay');
 }
 
 // Apply URL settings using state module
@@ -1915,6 +1920,10 @@ if (hasUrlParams) {
   if (savedFeedbackTrail !== null) {
     feedbackTrailEnabled = savedFeedbackTrail === 'true';
   }
+  const savedCrtOverlay = localStorage.getItem('crtOverlayEnabled');
+  if (savedCrtOverlay !== null) {
+    crtOverlayEnabled = savedCrtOverlay === 'true';
+  }
 }
 // Apply loaded overlay states
 applySlotSelections();
@@ -2185,6 +2194,30 @@ function buildLayerPanel(): void {
   feedbackLabel.appendChild(document.createTextNode('Feedback Trail'));
   feedbackToggleDiv.appendChild(feedbackLabel);
   overlaysToggles.appendChild(feedbackToggleDiv);
+
+  // Noise Overlay toggle
+  const noiseToggleDiv = document.createElement('div');
+  noiseToggleDiv.className = 'slot-display-toggle';
+  const noiseLabel = document.createElement('label');
+  noiseLabel.className = 'display-toggle';
+  const noiseCheckbox = document.createElement('input');
+  noiseCheckbox.type = 'checkbox';
+  noiseCheckbox.checked = crtOverlayEnabled;
+  noiseCheckbox.addEventListener('change', () => {
+    crtOverlayEnabled = noiseCheckbox.checked;
+    localStorage.setItem('crtOverlayEnabled', String(crtOverlayEnabled));
+    applySlotSelections();
+    clearPresetHighlights();
+    dirty = true;
+    markUnsavedChanges();
+  });
+  noiseLabel.appendChild(noiseCheckbox);
+  const noiseSwitch = document.createElement('span');
+  noiseSwitch.className = 'toggle-switch';
+  noiseLabel.appendChild(noiseSwitch);
+  noiseLabel.appendChild(document.createTextNode('CRT'));
+  noiseToggleDiv.appendChild(noiseLabel);
+  overlaysToggles.appendChild(noiseToggleDiv);
 
   overlaysSection.appendChild(overlaysToggles);
   layerList.appendChild(overlaysSection);
@@ -2587,6 +2620,7 @@ function getEnabledOverlays(): string[] {
   const overlays: string[] = [];
   if (kaleidoscopeEnabled) overlays.push('kaleidoscope');
   if (feedbackTrailEnabled) overlays.push('feedback-trail');
+  if (crtOverlayEnabled) overlays.push('crt-overlay');
   return overlays;
 }
 
