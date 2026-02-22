@@ -604,8 +604,8 @@ app.innerHTML = `
                 <span class="play-bracket">]</span>
               </span>
             </button>
+            <button class="play-overlay-about" id="play-overlay-about">Manual</button>
           </div>
-          <button class="play-overlay-about" id="play-overlay-about">Manual</button>
         </div>
       </div>
     </div>
