@@ -237,6 +237,7 @@ let lastTime = 0;
 let displayWidth = 800;
 let displayHeight = 600;
 let loadToken = 0; // Increments on each load to detect stale callbacks
+let loadingSong = false; // Suppress overlay during song transitions
 let idlePhase = 0;
 let needsInitialRender = true; // Render first frame when paused
 
@@ -1050,8 +1051,8 @@ const setPlayBtnState = (playing: boolean) => {
   if (playing) {
     // Dismiss play overlay whenever playback starts
     overlay?.classList.remove('visible');
-  } else if (timeline) {
-    // Show play overlay when paused (only if a song is loaded)
+  } else if (timeline && !loadingSong) {
+    // Show play overlay when paused (only if a song is loaded and not transitioning)
     overlay?.classList.add('visible');
   }
 };
@@ -1178,7 +1179,7 @@ hamburgerBtn.addEventListener('click', () => {
 
 // --- Playlist category switching ---
 
-function switchPlaylist(category: PlaylistCategory): void {
+async function switchPlaylist(category: PlaylistCategory): Promise<void> {
   if (currentPlaylist === category) return;
 
   currentPlaylist = category;
@@ -1190,7 +1191,7 @@ function switchPlaylist(category: PlaylistCategory): void {
   playlistUploadsBtn.classList.toggle('active', category === 'uploads');
   updatePlaylistPickerState();
 
-  // Rebuild song picker options (don't auto-load, let user choose)
+  // Rebuild song picker options
   const currentSongs = playlists[category];
   if (category === 'uploads') {
     rebuildUploadsPicker(0);
@@ -1199,25 +1200,15 @@ function switchPlaylist(category: PlaylistCategory): void {
     updateDeleteButton();  // Hide delete button for non-uploads
   }
 
-  // Select first song in picker but don't load it
+  // Close any open picker menus
+  playlistPickerWrap.classList.remove('open');
+  songPickerWrap.classList.remove('open');
+
+  // Auto-play first song in the new playlist
   if (currentSongs.length > 0) {
     songPicker.value = '0';
+    await loadSong(0, true);
   }
-
-  // Open song picker for browsing
-  playlistPickerWrap.classList.remove('open');
-  songPickerWrap.classList.add('open');
-  // Defer focus to ensure DOM is updated
-  requestAnimationFrame(() => {
-    songPickerBtn.focus();
-    focusedItemIndex = 0;
-    updateFocusedItem(focusedItemIndex);
-  });
-
-  // Trigger glow animation on song picker
-  songPickerBtn.classList.remove('glow');
-  void songPickerBtn.offsetWidth; // Force reflow to restart animation
-  songPickerBtn.classList.add('glow');
 }
 
 function getCurrentSongs(): SongEntry[] {
@@ -3082,6 +3073,7 @@ function resetForSeek(seekTime: number) {
  */
 async function loadSong(index: number, autoPlay = false): Promise<boolean> {
   const myToken = ++loadToken;
+  loadingSong = true;
 
   // 1. STOP - destroy everything
   audioPlayer.destroy();
@@ -3119,11 +3111,15 @@ async function loadSong(index: number, autoPlay = false): Promise<boolean> {
       console.error('Failed to fetch MIDI:', e);
       showToast(`Failed to load: ${song.file}`);
       chordDisplay.textContent = 'Load failed';
+      loadingSong = false;
       return false;
     }
   }
 
-  if (myToken !== loadToken) return false;  // Superseded
+  if (myToken !== loadToken) {
+    loadingSong = false;
+    return false;  // Superseded
+  }
 
   // 4. ANALYZE
   try {
@@ -3133,10 +3129,14 @@ async function loadSong(index: number, autoPlay = false): Promise<boolean> {
     showToast(`Failed to analyze: ${song.file}`);
     chordDisplay.textContent = 'Analysis failed';
     timeline = null;
+    loadingSong = false;
     return false;
   }
 
-  if (myToken !== loadToken) return false;  // Superseded
+  if (myToken !== loadToken) {
+    loadingSong = false;
+    return false;  // Superseded
+  }
 
   // 5. INITIALIZE (fresh resources)
   musicMapper.setTempo(
@@ -3168,6 +3168,7 @@ async function loadSong(index: number, autoPlay = false): Promise<boolean> {
     await audioPlayer.play();
   }
 
+  loadingSong = false;
   return true;
 }
 
