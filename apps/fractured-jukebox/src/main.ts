@@ -1490,8 +1490,8 @@ if (isMobileIOS) {
   window.addEventListener('resize', checkIOSOrientation);
   window.addEventListener('orientationchange', checkIOSOrientation);
 
-  // Show controls on any touch anywhere on screen
-  document.addEventListener('touchstart', showIOSControls, { passive: true });
+  // Show controls on movement (not just touch)
+  document.addEventListener('touchmove', showIOSControls, { passive: true });
 
   // Initial check
   setTimeout(checkIOSOrientation, 100);
@@ -1597,6 +1597,38 @@ window.addEventListener('orientationchange', () => {
 // Close button for mobile
 const panelCloseBtn = document.getElementById('panel-close-btn')!;
 panelCloseBtn.addEventListener('click', closeLayerPanel);
+
+// Swipe-left-to-close for layer panel on mobile
+let panelTouchStartX = 0;
+let panelTouchStartY = 0;
+let panelSwipeActive = false;
+const SWIPE_THRESHOLD = 80; // pixels to trigger close
+
+layerPanel.addEventListener('touchstart', (e) => {
+  const touch = e.touches[0];
+  panelTouchStartX = touch.clientX;
+  panelTouchStartY = touch.clientY;
+  panelSwipeActive = true;
+}, { passive: true });
+
+layerPanel.addEventListener('touchmove', (e) => {
+  if (!panelSwipeActive || !layerPanelOpen) return;
+
+  const touch = e.touches[0];
+  const deltaX = touch.clientX - panelTouchStartX;
+  const deltaY = touch.clientY - panelTouchStartY;
+
+  // Only track horizontal swipes (deltaX larger than deltaY)
+  if (Math.abs(deltaX) > Math.abs(deltaY) && deltaX < -SWIPE_THRESHOLD) {
+    // Swiped left past threshold - close the panel
+    closeLayerPanel();
+    panelSwipeActive = false;
+  }
+}, { passive: true });
+
+layerPanel.addEventListener('touchend', () => {
+  panelSwipeActive = false;
+}, { passive: true });
 
 // Layer info modal
 const layerInfoBtn = document.getElementById('layer-info-btn')!;

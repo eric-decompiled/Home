@@ -147,6 +147,9 @@
 - **Parent z-index controls entire context**: When parent has `position: relative` + `z-index`, all children's z-index values only compete within that context. To get dropdowns above overlays, give the parent container (top-bar) a z-index higher than the overlay's parent container (canvas-wrap), not just the dropdown itself
 - **Stacking context hierarchy**: `canvas-wrap: z-index: 1` contains play-overlay. `top-bar: z-index: 10` contains dropdowns. The entire top-bar context stacks above entire canvas-wrap context, so any dropdown appears above any overlay
 - **Keep z-index values low**: Avoid z-index inflation (1000, 9999, 10000). Use simple hierarchy: base content (1), fixed elements (10), dropdowns (100). Stacking contexts make global competition unnecessary
+- **`position: fixed` creates stacking context**: Elements with `position: fixed` automatically create a new stacking context, trapping all descendants. Children cannot escape via their own z-index—they only compete within the parent's context
+- **Siblings in different fixed contexts can't interleave**: If element A is inside `parent-1 { position: fixed }` and element B is inside `parent-2 { position: fixed }`, you cannot layer them A < B < C where C is also in parent-1. The entire parent stacks as a unit
+- **Hide conflicting elements with `:has()`**: When z-index battles are unwinnable due to stacking contexts, hide the conflicting element instead. `body.ios-landscape-fullscreen:has(.layer-panel.open) .top-bar { display: none }` cleanly sidesteps the problem
 
 ### Custom Scrollbars
 - **macOS auto-hides despite CSS**: Native scrollbar styling (`scrollbar-width: thin`, `::-webkit-scrollbar`) still auto-hides on macOS due to system preference. `overflow-y: scroll` doesn't prevent this
@@ -216,6 +219,11 @@
 ### Mobile UI
 - **touch-action on scroll containers**: Setting `touch-action: pan-y` on overlay or scroll container can interfere with native scrolling. Let the browser handle it naturally with `overflow-y: scroll`
 - **overflow: auto for touch scroll**: `auto` is less reliable than `scroll` for touch devices. Use `overflow-y: scroll` explicitly
+
+### Z-Index & Stacking Contexts
+- **Raising child z-index when parent is `position: fixed`**: Fixed parents create stacking contexts. No matter how high the child's z-index, it only competes within the parent's context. Even `z-index: 2147483647` (max int) won't escape
+- **Raising parent z-index to lift child above sibling**: If parent contains both canvas and layer-panel, raising parent's z-index lifts both—can't interleave an external element (top-bar) between siblings inside the same parent
+- **`position: fixed` on child to escape parent stacking context**: Fixed positioning doesn't escape stacking contexts. The element is still confined to its parent's layer in the stacking order
 
 ### State Management
 - **Cached `isPlaying` variable**: Separate variable desyncs from `audioPlayer.isPlaying()` truth. Rapid song switching causes button to get "stuck" in wrong state
