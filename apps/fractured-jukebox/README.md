@@ -37,13 +37,22 @@ This project is set up for development with [Claude Code](https://docs.anthropic
 | Piano Roll | Falling notes with lookahead and impact particles |
 | Graph Chain | Force-directed graph of melody notes with harmonic connections |
 | Fractal | Multi-type fractal renderer (Mandelbrot, Burning Ship, etc.) |
-| **Overlays** | |
-| Kaleidoscope | Mirror/fold effect with configurable segments |
-| **Melody/Bass Layers** | |
+| **Melody Layers** | |
+| Melody Aurora | Northern lights effect driven by melody (try with Kaleidoscope) |
+| Melody Web | Network graph of pitch class relationships |
 | Melody Clock | Clock hand tracking melody pitch with compass physics |
+| Melody Fire | Flame particles responding to melody activity |
+| **Bass Layers** | |
+| Bass Web | Network graph of bass note relationships |
 | Bass Clock | Clock hand tracking chord root/harmonic center |
 | Bass Fire | Flame particles responding to bass activity |
+| **Overlays** | |
+| Kaleidoscope | Mirror/fold effect with configurable segments |
+| Feedback Trail | Echo/ghosting with decay, rotation, and zoom |
+| CRT | Retro pixelation and scanline effect |
 | Theory Bar | HUD showing current key, chord, and tension level |
+| Notes | Melody note letter display |
+| Numerals | Bass roman numeral display |
 | **Music Analysis** | |
 | Tension | 0-1 value measuring harmonic dissonance and movement |
 | Key Detection | Automatic identification of musical key from MIDI data |
@@ -54,36 +63,6 @@ This project is set up for development with [Claude Code](https://docs.anthropic
 | Beat Anticipation | Builds 0→1 as beat approaches (power curve)—use for tension, approaching motion |
 | Beat Arrival | Peaks at 1 on beat, fast decay—use for impact flash, hit response |
 | Bar Anticipation/Arrival | Same patterns for bar-level events |
-
-### Creating Custom Effects
-
-To add a new visual effect:
-
-1. **Create the effect file** in `src/effects/` implementing `VisualEffect` interface from `effect-interface.ts`
-2. **Required methods**:
-   - `init(width, height)` — Set up canvas and state
-   - `update(dt, music)` — Animate based on `MusicParams` (groove curves, tension, voices, etc.)
-   - `render()` — Return your offscreen canvas
-   - `getConfig()` — Define UI controls (sliders, toggles)
-3. **Register the effect** in `main.ts` (add to effect array and layer slot)
-4. **Use groove curves** for beat-synced motion:
-   ```typescript
-   // Pulse size on beat
-   const size = baseSize * (1 + 0.2 * music.beatGroove);
-
-   // Flash on beat arrival
-   const flash = music.beatArrival * 0.5;
-
-   // Build anticipation before bar
-   const glow = music.barAnticipation * 0.3;
-   ```
-5. **React to musical events**:
-   - `music.activeVoices` — All currently sounding notes
-   - `music.melodyOnset` — True on frame when melody note starts
-   - `music.tension` — Harmonic tension 0-1
-   - `music.chordRoot`, `music.chordQuality` — Current chord
-
-See `docs/effects.md` for the full `MusicParams` interface and animation patterns.
 
 ### Structure
 

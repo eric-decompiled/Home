@@ -4,6 +4,11 @@
   padding: 0;
 }
 
+html {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 :root {
   /* Dark mode (default) */
   --ui-bg: #0a0a0a;
@@ -52,6 +57,7 @@ body {
   color: var(--ui-text);
   height: 100vh;
   overflow: hidden;
+  overscroll-behavior: none;
   transition: background-color var(--ui-transition), color var(--ui-transition);
 }
 
@@ -2044,6 +2050,7 @@ canvas {
 
 .transport-btn,
 .toggle-btn,
+.hamburger-btn,
 select {
   touch-action: manipulation;
 }
@@ -2487,7 +2494,8 @@ body.ios-landscape-fullscreen .main-area {
 }
 
 /* Hide top-bar when layer panel is open - avoids z-index stacking issues */
-body.ios-landscape-fullscreen:has(.layer-panel.open) .top-bar {
+body.ios-landscape-fullscreen:has(.layer-panel.open) .top-bar,
+body.android-landscape-fullscreen:has(.layer-panel.open) .top-bar {
   display: none;
 }
 
@@ -2505,6 +2513,13 @@ body.ios-landscape-fullscreen canvas {
 }
 
 /* Android landscape pseudo-fullscreen mode */
+body.android-landscape-fullscreen {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
 body.android-landscape-fullscreen .top-bar {
   /* Position fixed so it overlays instead of pushing content */
   position: fixed;
@@ -2554,14 +2569,27 @@ body.android-landscape-fullscreen canvas {
   max-height: none;
 }
 
+body.android-landscape-fullscreen .layer-panel.open {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  max-width: 80vw;
+  z-index: 200;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
 /* --- Modal / Dialog --- */
 
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
+  width: 100%;
+  height: 100%;
   background: rgba(0, 0, 0, 0.75);
   display: flex;
   align-items: center;
@@ -2570,6 +2598,10 @@ body.android-landscape-fullscreen canvas {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s;
+  touch-action: none;
+  overscroll-behavior: contain;
+  overflow: hidden;
+  contain: strict;
 }
 
 .modal-overlay.visible {
@@ -2786,14 +2818,18 @@ body.android-landscape-fullscreen canvas {
   position: fixed;
   top: 48px; /* Below main app top bar */
   left: 0;
-  right: 0;
-  bottom: 0;
+  width: 100%;
+  height: calc(100% - 48px);
   background: var(--ui-bg);
   z-index: 3000;
   opacity: 0;
   pointer-events: none;
   transform: translateY(-100%);
   transition: opacity 0.3s ease-out, transform 0.3s ease-out, background var(--ui-transition);
+  touch-action: none;
+  overscroll-behavior: contain;
+  overflow: hidden;
+  contain: strict;
 }
 
 .fractal-config-overlay.visible {
@@ -4642,7 +4678,10 @@ body.android-landscape-fullscreen canvas {
 /* --- Layer Info Modal --- */
 .layer-info-modal {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   background: rgba(0, 0, 0, 0.7);
   display: flex;
   align-items: center;
@@ -4651,6 +4690,10 @@ body.android-landscape-fullscreen canvas {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s;
+  touch-action: none;
+  overscroll-behavior: contain;
+  overflow: hidden;
+  contain: strict;
 }
 
 .layer-info-modal.visible {
@@ -4772,7 +4815,10 @@ body.android-landscape-fullscreen canvas {
 /* --- Save Preset Modal --- */
 .save-modal-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
   display: flex;
@@ -4782,6 +4828,10 @@ body.android-landscape-fullscreen canvas {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s;
+  touch-action: none;
+  overscroll-behavior: contain;
+  overflow: hidden;
+  contain: strict;
 }
 
 .save-modal-overlay.visible {
@@ -4969,7 +5019,10 @@ body.android-landscape-fullscreen canvas {
 /* --- QR Code Modal --- */
 .qr-modal-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
   display: flex;
@@ -4979,6 +5032,10 @@ body.android-landscape-fullscreen canvas {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s;
+  touch-action: none;
+  overscroll-behavior: contain;
+  overflow: hidden;
+  contain: strict;
 }
 
 .qr-modal-overlay.visible {
@@ -5077,7 +5134,10 @@ body.android-landscape-fullscreen canvas {
 /* --- About Modal --- */
 .about-modal-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
   display: flex;
@@ -5087,6 +5147,10 @@ body.android-landscape-fullscreen canvas {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s;
+  touch-action: none;
+  overscroll-behavior: contain;
+  overflow: hidden;
+  contain: strict;
 }
 
 .about-modal-overlay.visible {
@@ -5416,7 +5480,10 @@ body.android-landscape-fullscreen canvas {
 /* --- Song Search Modal (vim-like) --- */
 .song-search-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
   display: flex;
@@ -5427,6 +5494,10 @@ body.android-landscape-fullscreen canvas {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s;
+  touch-action: none;
+  overscroll-behavior: contain;
+  overflow: hidden;
+  contain: strict;
 }
 
 .song-search-overlay.visible {
@@ -5560,7 +5631,10 @@ body.android-landscape-fullscreen canvas {
 /* --- Shortcuts Modal --- */
 .shortcuts-overlay {
   position: fixed;
-  inset: 0;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   background: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(4px);
   display: flex;
@@ -5570,6 +5644,10 @@ body.android-landscape-fullscreen canvas {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.15s;
+  touch-action: none;
+  overscroll-behavior: contain;
+  overflow: hidden;
+  contain: strict;
 }
 
 .shortcuts-overlay.visible {
