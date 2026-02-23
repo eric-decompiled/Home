@@ -3944,3 +3944,4 @@ loadSong(validTrackIdx);
 setTimeout(() => {
   midiBtn.classList.add('glow-pulse');
 }, 800);
+

@@ -25,6 +25,8 @@ html {
   --ui-accent: #16c79a;
   --ui-accent-glow: rgba(22, 199, 154, 0.25);
   --ui-topbar-bg: rgba(15, 52, 96, 0.3);
+  --ui-danger: #ff6b6b;
+  --ui-danger-hover: #ff8888;
   --ui-transition: 0.8s ease;
 }
 
@@ -44,6 +46,8 @@ html {
   --ui-accent: #d4763a;
   --ui-accent-glow: rgba(220, 120, 60, 0.3);
   --ui-topbar-bg: rgba(255, 220, 180, 0.5);
+  --ui-danger: #d9534f;
+  --ui-danger-hover: #e87472;
 }
 
 /* Disable transitions on initial page load */
@@ -2838,10 +2842,10 @@ body.android-landscape-fullscreen .layer-panel.open {
   pointer-events: none;
   transform: translateY(-100%);
   transition: opacity 0.3s ease-out, transform 0.3s ease-out, background var(--ui-transition);
-  touch-action: none;
+  touch-action: pan-y;
   overscroll-behavior: contain;
-  overflow: hidden;
-  contain: strict;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .fractal-config-overlay.visible {
@@ -2860,11 +2864,29 @@ body.android-landscape-fullscreen .layer-panel.open {
 .fc-panel {
   background: var(--ui-bg);
   width: 100%;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   transition: background var(--ui-transition);
+}
+
+/* Touch experience polish */
+.fc-panel button,
+.fc-panel .fc-grid-cell,
+.fc-panel .fc-palette-btn,
+.fc-panel .fc-preset-option,
+.fc-panel .fc-atlas-toggle {
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Accessibility: focus-visible outlines */
+.fc-panel button:focus-visible,
+.fc-panel .fc-grid-cell:focus-visible,
+.fc-panel .fc-family-btn:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
 }
 
 .fc-header {
@@ -2872,13 +2894,9 @@ body.android-landscape-fullscreen .layer-panel.open {
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
-  background: rgba(15, 52, 96, 0.5);
+  background: var(--ui-topbar-bg);
   border-bottom: 1px solid var(--ui-border);
   transition: background var(--ui-transition), border-color var(--ui-transition);
-}
-
-.light-mode .fc-header {
-  background: rgba(255, 220, 180, 0.7);
 }
 
 .fc-header h2 {
@@ -3013,7 +3031,7 @@ body.android-landscape-fullscreen .layer-panel.open {
 .fc-preset-delete {
   background: none;
   border: none;
-  color: #666;
+  color: var(--ui-text-dim);
   font-size: 14px;
   cursor: pointer;
   padding: 0 2px;
@@ -3024,25 +3042,25 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 .fc-preset-delete:hover {
   opacity: 1;
-  color: #ff6b6b;
+  color: var(--ui-danger);
 }
 
-.fc-family-bar {
-  display: flex;
-  align-items: center;
+.fc-family-content {
+  gap: 10px;
+}
+
+.fc-family-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
   gap: 6px;
-  padding: 8px 16px;
-  background: var(--ui-topbar-bg);
-  border-bottom: 1px solid var(--ui-border);
-  flex-wrap: wrap;
-  transition: background var(--ui-transition), border-color var(--ui-transition);
 }
 
 .fc-atlas-toggle {
-  margin-left: auto;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
+  padding: 6px 0 0 0;
   cursor: pointer;
   user-select: none;
 }
@@ -3107,13 +3125,15 @@ body.android-landscape-fullscreen .layer-panel.open {
 }
 
 .fc-family-btn {
-  padding: 4px 10px;
+  padding: 8px 4px;
+  min-height: 36px;
   background: var(--ui-bg-input);
   border: 1px solid var(--ui-border);
   border-radius: 4px;
   color: var(--ui-text-muted);
   font-size: 11px;
   cursor: pointer;
+  text-align: center;
   transition: all 0.15s ease, background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
 }
 
@@ -3132,10 +3152,10 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 @keyframes fc-family-glow {
   0%, 100% {
-    box-shadow: 0 0 4px rgba(22, 199, 154, 0.3);
+    box-shadow: 0 0 4px var(--ui-accent-glow);
   }
   50% {
-    box-shadow: 0 0 12px rgba(22, 199, 154, 0.6);
+    box-shadow: 0 0 12px var(--ui-accent-glow);
   }
 }
 
@@ -3182,28 +3202,112 @@ body.android-landscape-fullscreen .layer-panel.open {
   transition: color var(--ui-transition);
 }
 
-/* Collapsible sections (mobile only) */
+/* Collapsible sections */
 .fc-section {
-  display: contents; /* Transparent wrapper on desktop */
+  display: flex;
+  flex-direction: column;
 }
 
 .fc-section-toggle {
-  display: none; /* Hidden on desktop */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--ui-bg-input);
+  border: none;
+  border-bottom: 1px solid var(--ui-border);
+  color: var(--ui-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
+}
+
+.fc-section-toggle:hover {
+  background: var(--ui-bg-button-hover);
+  color: var(--ui-text);
+}
+
+.fc-section-toggle:active {
+  background: var(--ui-bg-button-active);
+}
+
+.fc-section-icon {
+  font-size: 10px;
+  color: var(--ui-accent);
+  transition: transform 0.2s, color var(--ui-transition);
 }
 
 .fc-section-content {
-  display: contents; /* Transparent on desktop */
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
 }
 
-/* Content area - flex row on desktop */
-.fc-content-area {
+.fc-section.collapsed .fc-section-content {
+  display: none;
+}
+
+.fc-section.collapsed .fc-section-icon {
+  transform: rotate(-90deg);
+}
+
+/* Editor section - contains map and preview side by side */
+.fc-editor-section {
   display: flex;
+  flex-direction: column;
+}
+
+.fc-editor-content {
+  flex-direction: row !important;
+  justify-content: space-around;
+  align-items: flex-start;
   gap: 16px;
-  padding: 12px 20px 20px;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+}
+
+/* Degree navigation in editor (compact, under palette) */
+.fc-degree-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 0 0 0;
+}
+
+.fc-degree-nav-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--ui-bg-button);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s, background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
+}
+
+.fc-degree-nav-btn:hover {
+  background: var(--ui-bg-button-hover);
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.fc-degree-nav-btn:active {
+  transform: scale(0.95);
+}
+
+.fc-degree-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--ui-accent);
+  font-family: monospace;
+  min-width: 32px;
+  text-align: center;
+  transition: color var(--ui-transition);
 }
 
 /* Degree × Quality Grid */
@@ -3219,10 +3323,10 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 .fc-grid-row {
   display: flex;
-  gap: 4px;
+  gap: 8px;
   align-items: flex-start;
-  flex-wrap: nowrap;
-  justify-content: flex-start;
+  flex-wrap: wrap;
+  justify-content: space-around;
 }
 
 .fc-grid-header-row {
@@ -3315,22 +3419,28 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 .fc-degree-block {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: stretch;
-  gap: 4px;
-  padding: 6px;
+  gap: 6px;
+  padding: 8px;
   background: var(--ui-bg-input);
   border-radius: 6px;
-  border: 1px solid var(--ui-border-light);
+  border: 2px solid transparent;
   flex-shrink: 1;
   min-width: 0;
-  transition: background var(--ui-transition), border-color var(--ui-transition);
+  transition: background var(--ui-transition), border-color 0.15s, box-shadow 0.15s;
+}
+
+.fc-degree-block.active {
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 8px var(--ui-accent-glow);
 }
 
 .fc-degree-main {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
+  justify-content: center;
   gap: 4px;
 }
 
@@ -3339,7 +3449,10 @@ body.android-landscape-fullscreen .layer-panel.open {
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
+  padding-top: 4px;
+  border-top: 1px solid var(--ui-border-light);
+  transition: border-color var(--ui-transition);
 }
 
 .fc-degree-cells {
@@ -3347,7 +3460,7 @@ body.android-landscape-fullscreen .layer-panel.open {
   flex-direction: row;
   flex-wrap: wrap;
   gap: 4px;
-  flex: 1;
+  justify-content: center;
 }
 
 .fc-orbit-controls {
@@ -3355,8 +3468,9 @@ body.android-landscape-fullscreen .layer-panel.open {
   flex-direction: column;
   gap: 4px;
   justify-content: center;
-  padding-left: 6px;
-  border-left: 1px solid var(--ui-border-light);
+  align-items: center;
+  padding-top: 4px;
+  border-top: 1px solid var(--ui-border-light);
   transition: border-color var(--ui-transition);
 }
 
@@ -3449,6 +3563,17 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 .fc-grid-cell.active .fc-cell-thumb {
   box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
+}
+
+/* Highlight cell when parent degree block is active */
+.fc-degree-block.active .fc-grid-cell {
+  border-color: var(--ui-text);
+  background: var(--ui-bg-button-active);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.3);
+}
+
+.fc-degree-block.active .fc-cell-thumb {
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
 }
 
 .fc-deg-dot {
@@ -3611,18 +3736,21 @@ body.android-landscape-fullscreen .layer-panel.open {
   transition: color var(--ui-transition);
 }
 
-/* Info button */
+/* Info button - centered below family grid */
 .fc-info-btn {
   background: linear-gradient(135deg, #2563eb, #3b82f6) !important;
   border: 1px solid #60a5fa !important;
   color: #fff !important;
-  font-size: 14px !important;
-  padding: 4px 8px !important;
-  margin-left: 4px;
+  width: auto;
+  padding: 6px 12px !important;
+  margin: 8px auto 0 auto;
+  display: block;
+  font-size: 10px !important;
 }
 
 .fc-info-btn:hover {
   background: linear-gradient(135deg, #3b82f6, #60a5fa) !important;
+  border-color: #93c5fd !important;
 }
 
 .fc-info-btn.pulse {
@@ -3926,14 +4054,12 @@ body.android-landscape-fullscreen .layer-panel.open {
   80% { transform: rotate(6deg); }
 }
 
-/* fc-main removed - replaced by fc-content-area */
+/* fc-main removed - replaced by fc-editor-content */
 
 .fc-locus-wrap {
-  flex: 1;
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 520px;
   position: relative;
 }
 
@@ -3942,10 +4068,10 @@ body.android-landscape-fullscreen .layer-panel.open {
   border: 1px solid var(--ui-border);
   border-radius: 6px;
   cursor: crosshair;
-  flex: 1;
   width: 100%;
-  height: 100%;
-  object-fit: contain;
+  max-width: 500px;
+  height: auto;
+  aspect-ratio: 1;
   transition: border-color var(--ui-transition);
 }
 
@@ -4296,8 +4422,9 @@ body.android-landscape-fullscreen .layer-panel.open {
   height: 18px;
   border-radius: 3px;
   cursor: pointer;
-  border: 2px solid transparent;
-  transition: border-color 0.15s;
+  border: 1px solid var(--ui-border-light);
+  outline: 1px solid transparent;
+  transition: border-color 0.15s, outline-color 0.15s;
 }
 
 .fc-palette-btn:hover {
@@ -4306,6 +4433,12 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 .fc-palette-btn.active {
   border-color: var(--ui-text);
+  outline: 1px solid var(--ui-text);
+}
+
+.fc-palette-btn:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 1px;
 }
 
 .fc-assignments {
@@ -4345,21 +4478,16 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 /* Responsive */
 @media (max-width: 960px) {
-  .fc-content-area {
-    flex-direction: column;
-    padding-bottom: 60px; /* Extra room at bottom for scroll */
+  .fc-editor-content {
+    flex-direction: column !important;
   }
 
   .fc-locus-wrap {
-    min-height: unset;
     flex: none;
   }
 
   .fc-locus-wrap canvas {
     max-width: 100%;
-    width: 100%;
-    height: auto;
-    aspect-ratio: 1;
   }
 
   .fc-preview-wrap {
@@ -4373,20 +4501,22 @@ body.android-landscape-fullscreen .layer-panel.open {
     height: auto;
   }
 
-  .fc-family-bar {
-    flex-wrap: wrap;
-    gap: 6px;
+  .fc-family-grid {
+    grid-template-columns: repeat(5, 1fr);
   }
 
   .fc-family-btn {
-    padding: 4px 8px;
-    font-size: 11px;
+    padding: 6px 4px;
+    font-size: 10px;
+    min-height: 36px;
   }
 }
 
 @media (max-width: 576px) {
   .fractal-config-overlay {
     top: 0; /* Full screen on mobile */
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
   }
 
   .fc-header {
@@ -4408,10 +4538,10 @@ body.android-landscape-fullscreen .layer-panel.open {
     display: none;
   }
 
-  .fc-content-area {
-    flex-direction: column;
-    padding: 0;
-    gap: 0;
+  .fc-editor-content {
+    flex-direction: column !important;
+    padding: 8px !important;
+    gap: 12px !important;
   }
 
   .fc-locus-wrap canvas {
@@ -4442,7 +4572,8 @@ body.android-landscape-fullscreen .layer-panel.open {
   }
 
   .fc-grid-cell {
-    height: 20px;
+    height: 32px;
+    min-height: 32px;
   }
 
   .fc-actions {
@@ -4450,13 +4581,18 @@ body.android-landscape-fullscreen .layer-panel.open {
     justify-content: flex-end;
   }
 
-  .fc-family-bar {
+  .fc-family-content {
     padding: 8px 12px;
   }
 
+  .fc-family-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
   .fc-family-btn {
-    padding: 4px 6px;
-    font-size: 10px;
+    padding: 10px 6px;
+    font-size: 11px;
+    min-height: 44px;
   }
 
   .fc-presets-bar {
@@ -4476,68 +4612,15 @@ body.android-landscape-fullscreen .layer-panel.open {
     margin-top: 8px;
   }
 
-  /* Collapsible sections on mobile */
-  .fc-section {
-    display: flex;
-    flex-direction: column;
-  }
-
+  /* Mobile section adjustments */
   .fc-section-toggle {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
     padding: 10px 12px;
-    background: var(--ui-bg-input);
-    border: none;
-    border-bottom: 1px solid var(--ui-border);
-    color: var(--ui-text-muted);
-    font-size: 12px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    cursor: pointer;
-    text-align: left;
-    transition: background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
   }
 
-  .fc-section-toggle:active {
-    background: var(--ui-bg-button-hover);
-  }
-
-  .fc-section-icon {
-    font-size: 10px;
-    color: var(--ui-accent);
-    transition: transform 0.2s, color var(--ui-transition);
-  }
-
-  .fc-section-content {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .fc-section.collapsed .fc-section-content {
-    display: none;
-  }
-
-  .fc-section.collapsed .fc-section-icon {
-    transform: rotate(-90deg);
-  }
-
-  /* Section content padding */
   .fc-section-content {
     padding: 12px;
   }
 
-  /* Hide duplicate preview header on mobile (section toggle shows it) */
-  .fc-preview-section .fc-preview-header > span:first-child {
-    display: none;
-  }
-
-  /* Locus and preview styling within sections */
-  .fc-locus-wrap {
-    min-height: unset;
-  }
 
   .fc-preview-wrap {
     width: 100%;

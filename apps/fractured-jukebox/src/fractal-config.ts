@@ -7,6 +7,7 @@
 
 import { loadFractalAnchors, saveFractalAnchors, type FractalAnchors, type FractalAnchor } from './state.ts';
 import { TWO_PI } from './effects/effect-utils.ts';
+import { palettes } from './palettes.ts';
 
 // --- User Presets ---
 
@@ -41,7 +42,8 @@ const JULIA_ITER = 100;  // Reduced for performance
 const LUT_SIZE = 2048;
 
 const DEGREE_NAMES = ['0', 'I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii'];
-const DEGREE_COLORS = ['#888', '#ff4444', '#44aaff', '#44dd88', '#ffaa22', '#ff66cc', '#88ccff', '#ffff44'];
+// Degree to palette index mapping (in key of C): I=C, ii=D, iii=E, IV=F, V=G, vi=A, vii=B
+const DEGREE_TO_PALETTE = [0, 0, 2, 4, 5, 7, 9, 11]; // index 0 unused, degrees 1-7
 const ORBIT_COLORS = ['#ff6666', '#66bbff', '#66ff99', '#ffcc44'];
 const ORBIT_LABELS = ['1', '2', '3', '4'];
 
@@ -751,22 +753,25 @@ const FAMILIES: FractalFamily[] = [
 const TYPE_TO_FAMILY: Record<number, number> = {};
 FAMILIES.forEach((f, i) => { TYPE_TO_FAMILY[f.typeNum] = i; });
 
-// --- Palettes ---
+// Get representative color from a palette (uses ~65% position for vibrant color)
+// Uses shared palettes from palettes.ts for consistency with app colors
+function getPaletteColorRGB(paletteIdx: number): [number, number, number] {
+  const p = palettes[paletteIdx];
+  const stop = p.stops[Math.floor(p.stops.length * 0.6)];
+  return [stop.color[0], stop.color[1], stop.color[2]];
+}
 
-const PALETTES = [
-  { name: 'C', stops: [{ pos: 0, color: [4, 0, 3] }, { pos: 0.15, color: [55, 0, 42] }, { pos: 0.4, color: [170, 20, 130] }, { pos: 0.65, color: [220, 60, 175] }, { pos: 0.85, color: [240, 120, 200] }, { pos: 1, color: [200, 80, 165] }] },
-  { name: 'C#', stops: [{ pos: 0, color: [3, 0, 8] }, { pos: 0.15, color: [35, 0, 55] }, { pos: 0.4, color: [110, 20, 175] }, { pos: 0.65, color: [160, 60, 220] }, { pos: 0.85, color: [185, 110, 235] }, { pos: 1, color: [145, 70, 195] }] },
-  { name: 'D', stops: [{ pos: 0, color: [1, 0, 10] }, { pos: 0.15, color: [18, 4, 65] }, { pos: 0.4, color: [65, 30, 175] }, { pos: 0.65, color: [110, 70, 220] }, { pos: 0.85, color: [150, 120, 240] }, { pos: 1, color: [110, 80, 200] }] },
-  { name: 'D#', stops: [{ pos: 0, color: [0, 0, 10] }, { pos: 0.15, color: [10, 8, 65] }, { pos: 0.4, color: [40, 40, 180] }, { pos: 0.65, color: [80, 90, 220] }, { pos: 0.85, color: [120, 140, 240] }, { pos: 1, color: [80, 100, 200] }] },
-  { name: 'E', stops: [{ pos: 0, color: [0, 4, 20] }, { pos: 0.15, color: [0, 28, 80] }, { pos: 0.4, color: [0, 95, 170] }, { pos: 0.65, color: [30, 155, 230] }, { pos: 0.85, color: [70, 190, 245] }, { pos: 1, color: [30, 140, 200] }] },
-  { name: 'F', stops: [{ pos: 0, color: [0, 3, 8] }, { pos: 0.15, color: [0, 30, 55] }, { pos: 0.4, color: [0, 120, 150] }, { pos: 0.65, color: [30, 180, 200] }, { pos: 0.85, color: [80, 210, 225] }, { pos: 1, color: [40, 170, 185] }] },
-  { name: 'F#', stops: [{ pos: 0, color: [0, 4, 3] }, { pos: 0.15, color: [0, 38, 30] }, { pos: 0.4, color: [10, 150, 115] }, { pos: 0.65, color: [40, 200, 155] }, { pos: 0.85, color: [90, 230, 185] }, { pos: 1, color: [50, 185, 145] }] },
-  { name: 'G', stops: [{ pos: 0, color: [0, 0, 0] }, { pos: 0.15, color: [0, 24, 16] }, { pos: 0.4, color: [15, 160, 120] }, { pos: 0.65, color: [50, 210, 165] }, { pos: 0.85, color: [95, 240, 195] }, { pos: 1, color: [55, 195, 155] }] },
-  { name: 'G#', stops: [{ pos: 0, color: [3, 2, 0] }, { pos: 0.15, color: [50, 35, 0] }, { pos: 0.4, color: [175, 135, 0] }, { pos: 0.65, color: [230, 190, 20] }, { pos: 0.85, color: [250, 215, 50] }, { pos: 1, color: [210, 170, 15] }] },
-  { name: 'A', stops: [{ pos: 0, color: [0, 0, 0] }, { pos: 0.15, color: [75, 0, 0] }, { pos: 0.35, color: [190, 35, 0] }, { pos: 0.55, color: [240, 120, 10] }, { pos: 0.75, color: [255, 190, 40] }, { pos: 0.9, color: [245, 160, 25] }, { pos: 1, color: [200, 100, 5] }] },
-  { name: 'A#', stops: [{ pos: 0, color: [5, 0, 1] }, { pos: 0.15, color: [58, 0, 22] }, { pos: 0.4, color: [190, 30, 80] }, { pos: 0.65, color: [235, 70, 130] }, { pos: 0.85, color: [245, 130, 175] }, { pos: 1, color: [205, 80, 135] }] },
-  { name: 'B', stops: [{ pos: 0, color: [5, 0, 3] }, { pos: 0.15, color: [50, 0, 35] }, { pos: 0.4, color: [170, 15, 110] }, { pos: 0.65, color: [215, 55, 160] }, { pos: 0.85, color: [235, 110, 195] }, { pos: 1, color: [195, 65, 155] }] },
-];
+// Get degree color RGB from palette (in key of C)
+function getDegreeColorRGB(deg: number): [number, number, number] {
+  if (deg < 1 || deg > 7) return [136, 136, 136];
+  return getPaletteColorRGB(DEGREE_TO_PALETTE[deg]);
+}
+
+// Get degree color as CSS string
+function getDegreeColor(deg: number): string {
+  const [r, g, b] = getDegreeColorRGB(deg);
+  return `rgb(${r}, ${g}, ${b})`;
+}
 
 // --- Default Anchors ---
 
@@ -845,7 +850,7 @@ export class FractalConfigPanel {
   // Touch/long-press state for mobile anchor placement
   private touchStartPos: { x: number; y: number } | null = null;
   private longPressTimer: number | null = null;
-  private static readonly LONG_PRESS_DURATION = 400; // ms
+  private static readonly LONG_PRESS_DURATION = 300; // ms - snappy for responsive touch
   private static readonly TOUCH_MOVE_THRESHOLD = 10; // px
 
   // Mobile modifier toggle (acts like Ctrl/Cmd on desktop)
@@ -1462,7 +1467,7 @@ export class FractalConfigPanel {
         const isActive = deg === 1 && q.id === 'major';
         return `<button class="fc-grid-cell${isActive ? ' active' : ''}"
           data-deg="${deg}" data-quality="${q.id}">
-          <span class="fc-cell-dot" style="background:${DEGREE_COLORS[deg]}"></span>
+          <span class="fc-cell-dot" style="background:${getDegreeColor(deg)}"></span>
         </button>`;
       }).join('');
 
@@ -1472,18 +1477,18 @@ export class FractalConfigPanel {
             <div class="fc-degree-cells">
               ${cells}
             </div>
-            <div class="fc-degree-footer">
-              <button class="fc-hotspot-btn" data-deg="${deg}" title="Cycle through areas of interest">!</button>
-              <div class="fc-grid-degree" data-deg="${deg}" title="Apply to all qualities">
-                <span class="fc-deg-dot" style="background:${DEGREE_COLORS[deg]}"></span>${name}
-              </div>
-            </div>
           </div>
           <div class="fc-orbit-controls">
             <label title="Orbit radius">⊕<input type="range" class="fc-radius-slider" data-deg="${deg}" min="1" max="100" value="20"></label>
             <label title="Orbit rotation">↻<input type="range" class="fc-rotation-slider" data-deg="${deg}" min="0" max="628" value="0"></label>
             <label title="Orbit skew (aspect ratio)">⬭<input type="range" class="fc-skew-slider" data-deg="${deg}" min="20" max="200" value="100"></label>
             <label title="Beat spread (angle between points)">∢<input type="range" class="fc-spread-slider" data-deg="${deg}" min="10" max="200" value="157"></label>
+          </div>
+          <div class="fc-degree-footer">
+            <button class="fc-hotspot-btn" data-deg="${deg}" title="Cycle through areas of interest">!</button>
+            <div class="fc-grid-degree" data-deg="${deg}" title="Apply to all qualities">
+              <span class="fc-deg-dot" style="background:${getDegreeColor(deg)}"></span>${name}
+            </div>
           </div>
         </div>`;
     };
@@ -1492,7 +1497,7 @@ export class FractalConfigPanel {
       `<div class="fc-grid-row">${degs.map(makeDegreeBlock).join('')}</div>`
     ).join('');
 
-    const paletteButtons = PALETTES.map((p, i) => {
+    const paletteButtons = palettes.map((p, i) => {
       const midStop = p.stops[Math.floor(p.stops.length * 0.6)];
       const c = midStop.color;
       return `<div class="fc-palette-btn${i === this.paletteIdx ? ' active' : ''}"
@@ -1515,7 +1520,7 @@ export class FractalConfigPanel {
           <div class="fc-actions">
             <button class="fc-btn fc-save-btn">Save</button>
             <button class="fc-btn fc-reset-btn">Reset</button>
-            <button class="fc-btn fc-copy-btn" title="Copy anchors as code">📋</button>
+            <button class="fc-btn fc-copy-btn" title="Copy anchors as code" aria-label="Copy anchors">📋</button>
           </div>
         </div>
 
@@ -1526,14 +1531,83 @@ export class FractalConfigPanel {
           </div>
         </div>
 
-        <div class="fc-family-bar">
-          ${FAMILIES.map((f, i) => `<button class="fc-family-btn${i === 0 ? ' active' : ''}" data-family="${i}">${f.label}</button>`).join('')}
-          <label class="fc-atlas-toggle" title="Toggle atlas grid overlay">
-            <span class="fc-atlas-label">Atlas</span>
-            <input type="checkbox" class="fc-atlas-checkbox">
-            <span class="fc-atlas-switch"></span>
-          </label>
-          <button class="fc-btn fc-info-btn" title="Family information">ℹ️</button>
+        <div class="fc-section fc-family-section">
+          <button class="fc-section-toggle" data-section="families">
+            <span class="fc-section-icon">▼</span>
+            <span>Families</span>
+          </button>
+          <div class="fc-section-content fc-family-content">
+            <div class="fc-family-grid">
+              ${FAMILIES.map((f, i) => `<button class="fc-family-btn${i === 0 ? ' active' : ''}" data-family="${i}">${f.label}</button>`).join('')}
+            </div>
+            <button class="fc-family-btn fc-info-btn" title="Family information" aria-label="Family information">Fractal Family Info</button>
+          </div>
+        </div>
+
+        <div class="fc-section fc-editor-section">
+          <button class="fc-section-toggle" data-section="editor">
+            <span class="fc-section-icon">▼</span>
+            <span>Editor</span>
+          </button>
+          <div class="fc-section-content fc-editor-content">
+            <div class="fc-locus-wrap">
+              <canvas id="fc-locus-canvas" width="${PANEL_SIZE}" height="${PANEL_SIZE}"></canvas>
+              <div class="fc-map-controls">
+                <div class="fc-map-row">
+                  <button class="fc-help-btn" title="Show controls" aria-label="Show controls">?</button>
+                  <button class="fc-map-btn" data-action="pan-up" title="Pan up">↑</button>
+                  <button class="fc-map-btn" data-action="zoom-in" title="Zoom in">+</button>
+                </div>
+                <div class="fc-map-row">
+                  <button class="fc-map-btn" data-action="pan-left" title="Pan left">←</button>
+                  <button class="fc-map-btn" data-action="reset-view" title="Reset view">⟲</button>
+                  <button class="fc-map-btn" data-action="pan-right" title="Pan right">→</button>
+                </div>
+                <div class="fc-map-row">
+                  <button class="fc-map-btn fc-map-empty"></button>
+                  <button class="fc-map-btn" data-action="pan-down" title="Pan down">↓</button>
+                  <button class="fc-map-btn" data-action="zoom-out" title="Zoom out">−</button>
+                </div>
+              </div>
+              <div class="fc-mobile-controls">
+                <button class="fc-modifier-btn" title="Toggle modifier (tap to place, drag to adjust skew)">
+                  <span class="fc-modifier-icon">⌘</span>
+                  <span class="fc-modifier-label">Mod</span>
+                </button>
+              </div>
+              <div class="fc-locus-status" id="fc-status">Tap anchor to select</div>
+            </div>
+
+            <div class="fc-preview-wrap">
+              <div class="fc-preview-header">
+                <span>Preview</span>
+                <div class="fc-bpm-control">
+                  <span class="fc-bpm-label">BPM</span>
+                  <button class="fc-bpm-btn fc-bpm-down">▼</button>
+                  <input type="number" id="fc-bpm" value="120" min="30" max="300" step="5">
+                  <button class="fc-bpm-btn fc-bpm-up">▲</button>
+                </div>
+              </div>
+              <canvas id="fc-julia-canvas" width="${JULIA_SIZE}" height="${JULIA_SIZE}"></canvas>
+              <div class="fc-julia-info" id="fc-julia-info">Select an anchor to preview</div>
+              <div class="fc-preview-range">
+                <span>⏸</span>
+                <input type="range" id="fc-preview-scale" min="0" max="200" value="100" title="Preview movement range">
+                <span>🔄</span>
+              </div>
+              <div class="fc-palette-bar">${paletteButtons}</div>
+              <div class="fc-degree-nav">
+                <button class="fc-degree-nav-btn fc-degree-prev" title="Previous degree">◀</button>
+                <span class="fc-degree-name" id="fc-current-degree">I</span>
+                <button class="fc-degree-nav-btn fc-degree-next" title="Next degree">▶</button>
+              </div>
+              <label class="fc-atlas-toggle" title="Toggle atlas grid overlay">
+                <input type="checkbox" class="fc-atlas-checkbox">
+                <span class="fc-atlas-switch"></span>
+                <span class="fc-atlas-label">Atlas</span>
+              </label>
+            </div>
+          </div>
         </div>
 
         <div class="fc-section fc-degree-section">
@@ -1543,74 +1617,6 @@ export class FractalConfigPanel {
           </button>
           <div class="fc-section-content fc-degree-grid">
             ${gridRows}
-          </div>
-        </div>
-
-        <div class="fc-content-area">
-          <div class="fc-section fc-map-section">
-            <button class="fc-section-toggle" data-section="map">
-              <span class="fc-section-icon">▼</span>
-              <span>Map</span>
-            </button>
-            <div class="fc-section-content">
-              <div class="fc-locus-wrap">
-                <canvas id="fc-locus-canvas" width="${PANEL_SIZE}" height="${PANEL_SIZE}"></canvas>
-                <div class="fc-map-controls">
-                  <div class="fc-map-row">
-                    <button class="fc-help-btn" title="Show controls">?</button>
-                    <button class="fc-map-btn" data-action="pan-up" title="Pan up">↑</button>
-                    <button class="fc-map-btn" data-action="zoom-in" title="Zoom in">+</button>
-                  </div>
-                  <div class="fc-map-row">
-                    <button class="fc-map-btn" data-action="pan-left" title="Pan left">←</button>
-                    <button class="fc-map-btn" data-action="reset-view" title="Reset view">⟲</button>
-                    <button class="fc-map-btn" data-action="pan-right" title="Pan right">→</button>
-                  </div>
-                  <div class="fc-map-row">
-                    <button class="fc-map-btn fc-map-empty"></button>
-                    <button class="fc-map-btn" data-action="pan-down" title="Pan down">↓</button>
-                    <button class="fc-map-btn" data-action="zoom-out" title="Zoom out">−</button>
-                  </div>
-                </div>
-                <div class="fc-mobile-controls">
-                  <button class="fc-modifier-btn" title="Toggle modifier (tap to place, drag to adjust skew)">
-                    <span class="fc-modifier-icon">⌘</span>
-                    <span class="fc-modifier-label">Mod</span>
-                  </button>
-                </div>
-                <div class="fc-locus-status" id="fc-status">Tap anchor to select</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="fc-section fc-preview-section">
-            <button class="fc-section-toggle" data-section="preview">
-              <span class="fc-section-icon">▼</span>
-              <span>Preview</span>
-            </button>
-            <div class="fc-section-content">
-              <div class="fc-preview-wrap">
-                <div class="fc-preview-header">
-                  <span>Preview</span>
-                  <div class="fc-bpm-control">
-                    <span class="fc-bpm-label">BPM</span>
-                    <button class="fc-bpm-btn fc-bpm-down">▼</button>
-                    <input type="number" id="fc-bpm" value="120" min="30" max="300" step="5">
-                    <button class="fc-bpm-btn fc-bpm-up">▲</button>
-                  </div>
-                </div>
-                <canvas id="fc-julia-canvas" width="${JULIA_SIZE}" height="${JULIA_SIZE}"></canvas>
-                <div class="fc-julia-info" id="fc-julia-info">Select an anchor to preview</div>
-                <div class="fc-preview-range">
-                  <span>⏸</span>
-                  <input type="range" id="fc-preview-scale" min="0" max="200" value="100" title="Preview movement range">
-                  <span>🔄</span>
-                </div>
-                <div class="fc-palette-bar">${paletteButtons}</div>
-
-                <div class="fc-assignments" id="fc-assignments"></div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -1717,8 +1723,8 @@ export class FractalConfigPanel {
       });
     });
 
-    // Family buttons
-    const familyBtns = this.container.querySelectorAll('.fc-family-btn');
+    // Family buttons (exclude info button)
+    const familyBtns = this.container.querySelectorAll('.fc-family-btn:not(.fc-info-btn)');
     const infoBtn = this.container.querySelector('.fc-info-btn') as HTMLElement;
     familyBtns.forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1798,11 +1804,11 @@ export class FractalConfigPanel {
       });
     });
 
-    // Degree label clicks (apply current anchor to all qualities for this degree)
+    // Degree label clicks (select degree, same as clicking the cell)
     this.container.querySelectorAll('.fc-grid-degree').forEach(label => {
       label.addEventListener('click', () => {
         const deg = parseInt((label as HTMLElement).dataset.deg!);
-        this.applyToAllQualities(deg);
+        this.selectDegreeQuality(deg, 'major');
       });
     });
 
@@ -1900,6 +1906,19 @@ export class FractalConfigPanel {
       const current = this.previewBpm;
       const prev = [...bpmTempos].reverse().find(t => t < current) ?? 40;
       updateBpm(prev);
+    });
+
+    // Degree navigation buttons
+    this.container.querySelector('.fc-degree-prev')!.addEventListener('click', () => {
+      const newDeg = this.selectedDegree <= 1 ? 7 : this.selectedDegree - 1;
+      this.selectDegreeQuality(newDeg, 'major');
+      this.updateDegreeNavDisplay();
+    });
+
+    this.container.querySelector('.fc-degree-next')!.addEventListener('click', () => {
+      const newDeg = this.selectedDegree >= 7 ? 1 : this.selectedDegree + 1;
+      this.selectDegreeQuality(newDeg, 'major');
+      this.updateDegreeNavDisplay();
     });
 
     // Drag up/down on input to change value
@@ -2547,12 +2566,24 @@ export class FractalConfigPanel {
     this.selectedDegree = deg;
     this.selectedQuality = quality;
 
-    // Update grid cell highlighting
-    this.container.querySelectorAll('.fc-grid-cell').forEach(cell => {
-      const el = cell as HTMLElement;
-      const cellDeg = parseInt(el.dataset.deg!);
-      const cellQuality = el.dataset.quality!;
-      cell.classList.toggle('active', cellDeg === deg && cellQuality === quality);
+    // Sync palette to degree (key of C)
+    if (deg >= 1 && deg <= 7) {
+      const paletteIdx = DEGREE_TO_PALETTE[deg];
+      this.setPalette(paletteIdx);
+      // Update palette button active state
+      this.container.querySelectorAll('.fc-palette-btn').forEach(btn => {
+        const idx = parseInt((btn as HTMLElement).dataset.idx!);
+        btn.classList.toggle('active', idx === paletteIdx);
+      });
+    }
+
+    // Highlight the entire degree block card
+    this.container.querySelectorAll('.fc-degree-block').forEach(block => {
+      const cell = block.querySelector('.fc-grid-cell') as HTMLElement;
+      if (cell) {
+        const blockDeg = parseInt(cell.dataset.deg!);
+        block.classList.toggle('active', blockDeg === deg);
+      }
     });
 
     const a = this.currentAnchor;
@@ -2567,6 +2598,16 @@ export class FractalConfigPanel {
     }
     this.drawOverlay();
     this.updateAssignments();
+    this.updateDegreeNavDisplay();
+  }
+
+  private updateDegreeNavDisplay(): void {
+    const display = this.container.querySelector('#fc-current-degree');
+    if (display) {
+      display.textContent = DEGREE_NAMES[this.selectedDegree];
+      // Update color to match the degree (palette color for key of C)
+      (display as HTMLElement).style.color = getDegreeColor(this.selectedDegree);
+    }
   }
 
   private copyToClipboard(): void {
@@ -2645,7 +2686,7 @@ export class FractalConfigPanel {
   }
 
   private buildPaletteLUT(): void {
-    const palette = PALETTES[this.paletteIdx];
+    const palette = palettes[this.paletteIdx];
     const stops = palette.stops;
     for (let i = 0; i < LUT_SIZE; i++) {
       const t = i / (LUT_SIZE - 1);
@@ -2917,7 +2958,7 @@ export class FractalConfigPanel {
       const THUMB_DRAW_SIZE = PANEL_SIZE / GRID_SIZE;
       const b = this.viewBounds[this.selectedFamily];
       const f = FAMILIES[this.selectedFamily];
-      const [colR, colG, colB] = this.parseHexColor(DEGREE_COLORS[this.selectedDegree]);
+      const [colR, colG, colB] = getDegreeColorRGB(this.selectedDegree);
 
       for (let gy = 0; gy < GRID_SIZE; gy++) {
         for (let gx = 0; gx < GRID_SIZE; gx++) {
@@ -3094,19 +3135,6 @@ export class FractalConfigPanel {
   }
 
   private updateAssignments(): void {
-    const div = this.container.querySelector('#fc-assignments')!;
-    let html = '';
-    for (let deg = 1; deg <= 7; deg++) {
-      const key = this.anchorKey(deg, this.selectedQuality);
-      const a = this.anchors.get(key);
-      html += `<div class="fc-assign-row">
-        <span class="fc-deg-dot" style="background:${DEGREE_COLORS[deg]}"></span>
-        <strong>${DEGREE_NAMES[deg]}</strong>
-        ${a ? `<span class="fc-type-tag">${FAMILIES[a.familyIdx].label}</span>` : '<span class="fc-unassigned">—</span>'}
-      </div>`;
-    }
-    div.innerHTML = html;
-
     // Update grid cell visual states
     this.updateGridStates();
   }
@@ -3196,8 +3224,8 @@ export class FractalConfigPanel {
     let cached = this.thumbnailCache.get(key);
     if (cached) return cached;
 
-    // Parse degree color
-    const [colR, colG, colB] = this.parseHexColor(DEGREE_COLORS[deg] || '#888888');
+    // Get degree color from palette (key of C)
+    const [colR, colG, colB] = getDegreeColorRGB(deg);
 
     // Render at 2x resolution for antialiasing (supersampling)
     const size = FractalConfigPanel.THUMB_SIZE;
@@ -3356,6 +3384,17 @@ export class FractalConfigPanel {
     this.renderLocus();
     this.drawOverlay();
     this.updateAssignments();
+    this.updateDegreeNavDisplay();
+
+    // Sync palette to selected degree on load
+    if (this.selectedDegree >= 1 && this.selectedDegree <= 7) {
+      const paletteIdx = DEGREE_TO_PALETTE[this.selectedDegree];
+      this.setPalette(paletteIdx);
+      this.container.querySelectorAll('.fc-palette-btn').forEach(btn => {
+        const idx = parseInt((btn as HTMLElement).dataset.idx!);
+        btn.classList.toggle('active', idx === paletteIdx);
+      });
+    }
 
     const a = this.currentAnchor;
     if (a) this.startPreview(a);
