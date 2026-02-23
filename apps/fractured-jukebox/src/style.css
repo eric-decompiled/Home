@@ -1738,8 +1738,21 @@ canvas {
   box-shadow:
     0 0 10px rgba(22, 199, 154, 0.08),
     inset 0 0 30px rgba(22, 199, 154, 0.02);
-  animation: btn-phosphor-glow 2s ease-in-out infinite;
   transition: transform 0.3s ease, background 0.3s ease;
+}
+
+/* Glow layer - animated via opacity for smooth iOS performance */
+.play-overlay-btn .glow-layer {
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  box-shadow:
+    0 0 15px rgba(22, 199, 154, 0.1),
+    0 0 30px rgba(22, 199, 154, 0.05),
+    inset 0 0 30px rgba(22, 199, 154, 0.03);
+  opacity: 0;
+  animation: btn-glow-pulse 2s ease-in-out infinite;
+  pointer-events: none;
 }
 
 /* Play icon wrapper */
@@ -1822,17 +1835,12 @@ canvas {
   pointer-events: none;
 }
 
-@keyframes btn-phosphor-glow {
+@keyframes btn-glow-pulse {
   0%, 100% {
-    box-shadow:
-      0 0 10px rgba(22, 199, 154, 0.06),
-      inset 0 0 20px rgba(22, 199, 154, 0.02);
+    opacity: 0;
   }
   50% {
-    box-shadow:
-      0 0 15px rgba(22, 199, 154, 0.1),
-      0 0 30px rgba(22, 199, 154, 0.05),
-      inset 0 0 30px rgba(22, 199, 154, 0.03);
+    opacity: 1;
   }
 }
 
@@ -2742,9 +2750,10 @@ body.android-landscape-fullscreen .layer-panel.open {
 }
 
 .custom-preset-btn.active {
-  background: rgba(147, 112, 219, 0.2);
+  background: rgba(147, 112, 219, 0.5);
   border-color: #9370db;
-  color: #b8a0f0;
+  color: var(--ui-accent);
+  box-shadow: 0 0 8px rgba(147, 112, 219, 0.4), inset 0 0 12px rgba(147, 112, 219, 0.15);
   animation: preset-pulse 0.3s ease-out;
 }
 
@@ -5048,12 +5057,12 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 .qr-modal {
   background: linear-gradient(145deg, rgba(20, 25, 40, 0.98), rgba(10, 15, 25, 0.98));
-  border: 1px solid rgba(22, 199, 154, 0.3);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   padding: 20px;
   width: 280px;
   max-width: 90vw;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 60px rgba(22, 199, 154, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   transform: scale(0.95);
   transition: transform 0.2s;
 }
@@ -5097,7 +5106,7 @@ body.android-landscape-fullscreen .layer-panel.open {
   gap: 12px;
 }
 
-.qr-modal-body canvas {
+.qr-modal-body img {
   border-radius: 8px;
   background: #fff;
   padding: 8px;
@@ -5113,8 +5122,8 @@ body.android-landscape-fullscreen .layer-panel.open {
 /* Light mode adjustments for QR modal */
 .light-mode .qr-modal {
   background: linear-gradient(145deg, rgba(255, 252, 248, 0.98), rgba(250, 245, 235, 0.98));
-  border-color: rgba(212, 118, 58, 0.3);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15), 0 0 60px rgba(212, 118, 58, 0.1);
+  border-color: var(--ui-border);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
 }
 
 .light-mode .qr-modal-header {

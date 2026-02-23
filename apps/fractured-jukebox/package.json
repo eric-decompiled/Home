@@ -7,18 +7,19 @@
     "dev": "vite --host",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "perf": "node --loader ts-node/esm scripts/perf-analysis.ts"
+    "perf": "npx tsx scripts/perf-analysis.ts",
+    "generate:qr": "npx tsx scripts/generate-qr.ts"
   },
   "devDependencies": {
     "@types/node": "^25.2.3",
     "puppeteer": "^24.37.3",
+    "qr-creator": "^1.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.0.2",
     "vite": "^4.3.2"
   },
   "dependencies": {
     "@tonejs/midi": "^2.0.28",
-    "qr-creator": "^1.0.0",
     "spessasynth_lib": "^4.1.1"
   }
 }

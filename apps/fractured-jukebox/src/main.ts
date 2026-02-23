@@ -591,6 +591,7 @@ app.innerHTML = `
           </div>
           <div class="play-overlay-center">
             <button class="play-overlay-btn" id="play-overlay-btn">
+              <div class="glow-layer"></div>
               <div class="play-icon-wrap">
                 <svg viewBox="0 0 24 24" width="52" height="52">
                   <path fill="currentColor" d="M8 5v14l11-7z"/>
@@ -720,7 +721,7 @@ app.innerHTML = `
         <button class="qr-modal-close" id="qr-modal-close">&times;</button>
       </div>
       <div class="qr-modal-body">
-        <canvas id="qr-canvas" width="200" height="200"></canvas>
+        <img src="/qr-code.png" alt="QR Code" width="200" height="200" />
         <p class="qr-modal-hint">Scan with your phone camera</p>
       </div>
     </div>
@@ -2678,32 +2679,11 @@ function generateShareURL(): string {
     : SHARE_BASE_URL;
 }
 
-// QR Code modal
+// QR Code modal (static image generated at build time)
 const qrModalOverlay = document.getElementById('qr-modal-overlay')!;
-const qrCanvas = document.getElementById('qr-canvas') as HTMLCanvasElement;
 const qrModalClose = document.getElementById('qr-modal-close')!;
 
-async function openQrModal(): Promise<void> {
-  const url = generateShareURL();
-
-  // Warn if URL is very long (QR codes become harder to scan)
-  if (url.length > 2000) {
-    showToast('URL is long - QR may be hard to scan', 3000, 'info');
-  }
-
-  // Dynamically import qr-creator to avoid HMR issues
-  const QrCreator = (await import('qr-creator')).default;
-
-  // Generate QR code with fixed colors for scannability
-  QrCreator.render({
-    text: url,
-    radius: 0.3,
-    ecLevel: 'M',
-    fill: '#000000',
-    background: '#ffffff',
-    size: 200,
-  }, qrCanvas);
-
+function openQrModal(): void {
   qrModalOverlay.classList.add('visible');
 }
 
@@ -2761,8 +2741,16 @@ function syncPresetButtons(preset: PresetName | null): void {
     const name = btn.id.replace('panel-preset-', '');
     btn.classList.toggle('active', name === preset);
   });
-  // Also clear custom preset highlights
+  // Also clear custom preset highlights when selecting official preset
   document.querySelectorAll('.custom-preset-btn').forEach(btn => btn.classList.remove('active'));
+}
+
+// Highlight a custom preset button by ID
+function highlightCustomPreset(id: string): void {
+  document.querySelectorAll('.custom-preset-btn').forEach(btn => {
+    const el = btn as HTMLElement;
+    el.classList.toggle('active', el.dataset.id === id);
+  });
 }
 
 // Clear preset highlights when manual changes are made
@@ -3022,12 +3010,14 @@ function renderSavedPresets(): void {
   for (const preset of presets) {
     const btn = document.createElement('button');
     btn.className = 'custom-preset-btn';
+    btn.dataset.id = preset.id;
     btn.textContent = preset.name;
     btn.addEventListener('click', () => {
       const { overlays } = applyState(preset.state, layerSlots, getAllEffects());
       applyOverlaysFromState(overlays);
       applySlotSelections();
-      clearPresetHighlights();
+      syncPresetButtons(null); // Clear official presets
+      highlightCustomPreset(preset.id);
     });
 
     // Delete button
