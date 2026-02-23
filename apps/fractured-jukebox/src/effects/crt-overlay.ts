@@ -21,7 +21,7 @@ export class CrtOverlayEffect implements VisualEffect {
   private lowH = 0;
   private ready = false;
 
-  private readonly pixelSize = 6;
+  private readonly pixelSize = 4;
   private readonly scanlineAlpha = 0.3;
   private sourceCanvas: HTMLCanvasElement | null = null;
 
