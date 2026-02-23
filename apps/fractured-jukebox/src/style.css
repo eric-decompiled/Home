@@ -607,7 +607,7 @@ a.toggle-btn {
   width: 0;
   overflow: hidden;
   background: var(--ui-bg-panel);
-  border-right: 1px solid var(--ui-border);
+  border-right: none;
   transition: width 0.25s ease, background var(--ui-transition), border-color var(--ui-transition);
   flex-shrink: 0;
   display: flex;
@@ -618,6 +618,7 @@ a.toggle-btn {
   width: 280px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  border-right: 1px solid var(--ui-border);
 }
 
 #layer-list {
@@ -2493,10 +2494,12 @@ body.ios-landscape-fullscreen .main-area {
   bottom: 0;
 }
 
-/* Hide top-bar when layer panel is open - avoids z-index stacking issues */
+/* Hide top-bar when layer panel is open - slide up animation */
 body.ios-landscape-fullscreen:has(.layer-panel.open) .top-bar,
 body.android-landscape-fullscreen:has(.layer-panel.open) .top-bar {
-  display: none;
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 body.ios-landscape-fullscreen .canvas-wrap {
