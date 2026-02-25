@@ -111,6 +111,45 @@ private showFamilyInfo(): void {
 }
 ```
 
+## Fractal Config Wizard
+
+The fractal configuration panel uses a wizard-only UI for creating and editing fractal anchor presets.
+
+### Wizard Steps
+
+| Step | Purpose | Key UI Elements |
+|------|---------|-----------------|
+| **1. Notes** | Select which notes share the anchor | 4×3 note grid, summary display, disabled Next until selection |
+| **2. Family** | Choose fractal type | Visual card grid with thumbnails, Info buttons, auto-advance on select |
+| **3. Anchor** | Place c-value on complex plane | Interactive locus map, Julia preview, zoom slider, pan controls |
+| **4. Movement** | Set beat-driven motion | Still/Subtle/Dynamic presets, advanced orbit controls |
+| **5. Save** | Name and save preset | Note coverage display, name input, Copy as Code button |
+
+### Navigation
+
+- **Cancel**: Header button, returns to closed state without saving
+- **Back/Next**: Per-step navigation buttons
+- **12-note check**: Before save step, verifies all notes are covered; redirects to notes step if incomplete
+
+### Mobile Responsiveness
+
+The Anchor step has special mobile handling:
+- Map and preview stack vertically
+- Zoom slider appears between map and preview
+- Preview area styled as a card
+- Sticky footer with coords and Back/Next buttons
+
+### Note Coverage
+
+On the Save step, note buttons are clickable to edit that note's anchor:
+- **Covered** (green): Note has a configured anchor
+- **Pending** (blue): Note selected in current wizard session
+- **Unconfigured** (dim): No anchor assigned yet
+
+### Copy as Code
+
+The Save step includes a "Copy as Code" button that copies the current anchor configuration as formatted JSON to the clipboard for programmatic use.
+
 ## Share URL
 
 Base URL is hardcoded to production: `https://decompiled.dev/apps/fractured-jukebox/`

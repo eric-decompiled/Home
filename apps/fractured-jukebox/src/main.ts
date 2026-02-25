@@ -725,7 +725,7 @@ app.innerHTML = `
         <button class="qr-modal-close" id="qr-modal-close">&times;</button>
       </div>
       <div class="qr-modal-body">
-        <img src="/qr-code.png" alt="QR Code" width="200" height="200" />
+        <img src="${import.meta.env.BASE_URL}qr-code.png" alt="QR Code" width="200" height="200" />
         <p class="qr-modal-hint">Scan with your phone camera</p>
       </div>
     </div>
@@ -2073,21 +2073,6 @@ function buildLayerPanel(): void {
       radioGroup.appendChild(effLabel);
     }
 
-    // Config button for fractal effect (only in Foreground slot)
-    let configBtn: HTMLButtonElement | null = null;
-    if (slot.name === 'Foreground') {
-      configBtn = document.createElement('button');
-      configBtn.className = 'slot-config-link';
-      configBtn.textContent = 'Custom';
-      configBtn.style.display = slot.activeId === 'fractal' ? 'block' : 'none';
-      configBtn.addEventListener('click', async () => {
-        if (slot.activeId === 'fractal') {
-          const panel = await getFractalConfigPanel();
-          panel.show();
-        }
-      });
-    }
-
     // Radio change handler
     radioGroup.addEventListener('change', (e) => {
       const target = e.target as HTMLInputElement;
@@ -2100,10 +2085,6 @@ function buildLayerPanel(): void {
       clearPresetHighlights();
       dirty = true;
       markUnsavedChanges();
-      // Show/hide config button for fractal
-      if (configBtn) {
-        configBtn.style.display = slot.activeId === 'fractal' ? 'block' : 'none';
-      }
       // Auto-toggle display checkbox based on effect selection (checkboxes are in overlays section)
       if (slot.name === 'Bass' && bassNumeralsCheckbox) {
         const shouldShow = slot.activeId !== null;
@@ -2119,11 +2100,6 @@ function buildLayerPanel(): void {
     header.appendChild(label);
     slotDiv.appendChild(header);
     slotDiv.appendChild(radioGroup);
-
-    // Config button on its own line (for effects with config panels)
-    if (configBtn) {
-      slotDiv.appendChild(configBtn);
-    }
 
     // Config section for active effect
     buildConfigSection(slotDiv, slot);
@@ -2333,46 +2309,54 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
   const configDiv = document.createElement('div');
   configDiv.className = 'slot-config';
 
-  // Add fractal preset selector if fractal effect and user presets exist
+  // Add fractal preset selector and customize button
   if (slot.activeId === 'fractal') {
+    const presetRow = document.createElement('div');
+    presetRow.className = 'config-row fractal-preset-row';
+
+    const presetBtnWrap = document.createElement('div');
+    presetBtnWrap.className = 'config-buttons fractal-preset-buttons';
+
+    // Default button
+    const defaultBtn = document.createElement('button');
+    const selectedId = fractalConfigPanel?.getSelectedPresetId() ?? null;
+    defaultBtn.className = 'config-btn fractal-preset-default' + (selectedId === null ? ' active' : '');
+    defaultBtn.textContent = 'Default';
+    defaultBtn.addEventListener('click', async () => {
+      const panel = await getFractalConfigPanel();
+      panel.selectPreset(null);
+      presetBtnWrap.querySelectorAll('.config-btn').forEach(b => b.classList.remove('active'));
+      defaultBtn.classList.add('active');
+    });
+    presetBtnWrap.appendChild(defaultBtn);
+
+    // User preset buttons
     const userPresets = loadUserPresets();
-    if (userPresets.length > 0) {
-      const presetRow = document.createElement('div');
-      presetRow.className = 'config-row fractal-preset-row';
-
-      const presetBtnWrap = document.createElement('div');
-      presetBtnWrap.className = 'config-buttons fractal-preset-buttons';
-
-      // Default button
-      const defaultBtn = document.createElement('button');
-      const selectedId = fractalConfigPanel?.getSelectedPresetId() ?? null;
-      defaultBtn.className = 'config-btn fractal-preset-default' + (selectedId === null ? ' active' : '');
-      defaultBtn.textContent = 'Default';
-      defaultBtn.addEventListener('click', async () => {
+    for (const preset of userPresets) {
+      const btn = document.createElement('button');
+      btn.className = 'config-btn fractal-preset-user' + (selectedId === preset.id ? ' active' : '');
+      btn.textContent = preset.name;
+      btn.addEventListener('click', async () => {
         const panel = await getFractalConfigPanel();
-        panel.selectPreset(null);
+        panel.selectPreset(preset.id);
         presetBtnWrap.querySelectorAll('.config-btn').forEach(b => b.classList.remove('active'));
-        defaultBtn.classList.add('active');
+        btn.classList.add('active');
       });
-      presetBtnWrap.appendChild(defaultBtn);
-
-      // User preset buttons
-      for (const preset of userPresets) {
-        const btn = document.createElement('button');
-        btn.className = 'config-btn fractal-preset-user' + (selectedId === preset.id ? ' active' : '');
-        btn.textContent = preset.name;
-        btn.addEventListener('click', async () => {
-          const panel = await getFractalConfigPanel();
-          panel.selectPreset(preset.id);
-          presetBtnWrap.querySelectorAll('.config-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-        });
-        presetBtnWrap.appendChild(btn);
-      }
-
-      presetRow.appendChild(presetBtnWrap);
-      configDiv.appendChild(presetRow);
+      presetBtnWrap.appendChild(btn);
     }
+
+    // Customize button - opens wizard
+    const customizeBtn = document.createElement('button');
+    customizeBtn.className = 'config-btn fractal-customize-btn';
+    customizeBtn.textContent = 'Customize';
+    customizeBtn.addEventListener('click', async () => {
+      const panel = await getFractalConfigPanel();
+      panel.showWizard();
+    });
+    presetBtnWrap.appendChild(customizeBtn);
+
+    presetRow.appendChild(presetBtnWrap);
+    configDiv.appendChild(presetRow);
   }
 
   const configs = effect.getConfig();
@@ -3620,6 +3604,7 @@ document.addEventListener('keydown', (e) => {
 // --- Interactive Piano ---
 // Track currently playing note from user interaction
 let interactivePianoNote: number | null = null;
+let pianoDragging = false;
 
 function isPianoRollActive(): boolean {
   const foregroundSlot = layerSlots.find(s => s.name === 'Foreground');
@@ -3638,6 +3623,20 @@ function getPianoRollCoords(e: MouseEvent | Touch): { x: number; y: number } {
   };
 }
 
+async function playPianoKey(midi: number): Promise<void> {
+  // Stop previous note if different
+  if (interactivePianoNote !== null && interactivePianoNote !== midi) {
+    stopNote(interactivePianoNote);
+  }
+  // Only play if it's a new note
+  if (interactivePianoNote !== midi) {
+    await ensureSynthReady();
+    interactivePianoNote = midi;
+    playNote(midi, 100);
+    pianoRollEffect.triggerKey(midi);
+  }
+}
+
 async function startPianoNote(e: MouseEvent | TouchEvent): Promise<boolean> {
   if (!isPianoRollActive()) return false;
 
@@ -3646,17 +3645,15 @@ async function startPianoNote(e: MouseEvent | TouchEvent): Promise<boolean> {
   const midi = pianoRollEffect.hitTestKey(x, y);
 
   if (midi !== null) {
-    // Ensure synth is ready before playing
-    await ensureSynthReady();
-    interactivePianoNote = midi;
-    playNote(midi, 100);
-    pianoRollEffect.triggerKey(midi);
+    pianoDragging = true;
+    await playPianoKey(midi);
     return true;
   }
   return false;
 }
 
 function stopPianoNote(): void {
+  pianoDragging = false;
   if (interactivePianoNote !== null) {
     stopNote(interactivePianoNote);
     interactivePianoNote = null;
@@ -3672,6 +3669,17 @@ canvas.addEventListener('mousemove', (e) => {
   const { x, y } = getPianoRollCoords(e);
   const midi = pianoRollEffect.hitTestKey(x, y);
   canvas.style.cursor = midi !== null ? 'pointer' : '';
+
+  // Handle drag-to-glide
+  if (pianoDragging && midi !== null) {
+    playPianoKey(midi);
+  } else if (pianoDragging && midi === null) {
+    // Dragged off keys, stop note but keep drag active
+    if (interactivePianoNote !== null) {
+      stopNote(interactivePianoNote);
+      interactivePianoNote = null;
+    }
+  }
 });
 
 canvas.addEventListener('mousedown', async (e) => {
@@ -3686,6 +3694,24 @@ canvas.addEventListener('mouseleave', stopPianoNote);
 canvas.addEventListener('touchstart', async (e) => {
   if (await startPianoNote(e)) {
     e.preventDefault();
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (e) => {
+  if (!pianoDragging || !isPianoRollActive()) return;
+  const touch = e.touches[0];
+  if (!touch) return;
+
+  const { x, y } = getPianoRollCoords(touch);
+  const midi = pianoRollEffect.hitTestKey(x, y);
+
+  if (midi !== null) {
+    playPianoKey(midi);
+    e.preventDefault();
+  } else if (interactivePianoNote !== null) {
+    // Dragged off keys
+    stopNote(interactivePianoNote);
+    interactivePianoNote = null;
   }
 }, { passive: false });
 
@@ -4023,6 +4049,6 @@ setTimeout(() => {
   midiBtn.classList.add('glow-pulse');
 }, 800);
 
-// Open fractal config panel by default
+// Open fractal wizard by default
 getFractalConfigPanel().then(panel => panel.show());
 

@@ -7,6 +7,7 @@
 
 import { loadFractalAnchors, saveFractalAnchors, DEFAULT_ANCHORS, type FractalAnchors } from './state.ts';
 import { TWO_PI } from './effects/effect-utils.ts';
+import { createModal } from './modal.ts';
 
 // --- User Presets ---
 
@@ -31,6 +32,29 @@ export function loadUserPresets(): UserPreset[] {
 function saveUserPresets(presets: UserPreset[]): void {
   localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(presets));
 }
+
+// Built-in presets (not deletable)
+const BUILTIN_PRESETS: UserPreset[] = [
+  {
+    id: 'builtin-fissure',
+    name: 'Fissure',
+    createdAt: 0,
+    anchors: {
+      "0": { "real": -0.00875512359772088, "imag": 0.9909881061665688, "type": 13, "orbitRadius": 0.035055250609613044, "orbitSkew": 1.2, "orbitRotation": 2.1489699315735677, "beatSpread": 2, "viewZoom": 8.010019261116824 },
+      "1": { "real": -1.2962329588644264, "imag": -0.0680529188084047, "type": 0, "orbitRadius": 0.013965968219907924, "orbitSkew": 1, "orbitRotation": 2.3155015023745777, "beatSpread": 1.57, "viewZoom": 14.290641121650348 },
+      "2": { "real": -0.045300277903361774, "imag": -0.8227197071542168, "type": 0, "orbitRadius": 0.02109600030052693, "orbitSkew": 0.6, "orbitRotation": 0.6688600567162444, "beatSpread": 0.4, "viewZoom": 5.511366693189319 },
+      "3": { "real": -0.481762, "imag": -0.531657, "type": 0, "orbitRadius": 0.022, "orbitSkew": 0.75, "orbitRotation": 1.8, "beatSpread": 0.55, "viewZoom": 5 },
+      "4": { "real": 0.5911659705487153, "imag": -0.783764651439258, "type": 4, "orbitRadius": 0.04356342172247925, "orbitSkew": 1.4, "orbitRotation": 4.742017641171973, "beatSpread": 1.2, "viewZoom": 8.325385800611308 },
+      "5": { "real": -0.34289194173663384, "imag": -0.4702064795412502, "type": 5, "orbitRadius": 0.03876615673630358, "orbitSkew": 0.6, "orbitRotation": -2.5488952488547305, "beatSpread": 0.3999999999999999, "viewZoom": 5.83555027198115 },
+      "6": { "real": -1.3471808747815495, "imag": -0.01712273973692982, "type": 4, "orbitRadius": 0.0165325876540038, "orbitSkew": 1.4, "orbitRotation": 2.4668517113662434, "beatSpread": 0.79, "viewZoom": 10.169887303745519 },
+      "7": { "real": -0.3612723048924612, "imag": 0.5777599512900581, "type": 5, "orbitRadius": 0.08757644488626272, "orbitSkew": 1.8, "orbitRotation": 0.36953099521330013, "beatSpread": 1, "viewZoom": 4.744486529187173 },
+      "8": { "real": -0.4081790517201934, "imag": -0.6080477138728951, "type": 0, "orbitRadius": 0.015883605384203563, "orbitSkew": 1, "orbitRotation": 5.181427283801671, "beatSpread": 1.57, "viewZoom": 12.966226416885256 },
+      "9": { "real": -0.123, "imag": 0.745, "type": 13, "orbitRadius": 0.03249160384216757, "orbitSkew": 1.2, "orbitRotation": 6.079701263919151, "beatSpread": 2, "viewZoom": 3.844852001534486 },
+      "10": { "real": -0.058364589944509326, "imag": 0.8996927972756301, "type": 0, "orbitRadius": 0.040710441705342236, "orbitSkew": 1.6, "orbitRotation": 0.06085796415835698, "beatSpread": 1.57, "viewZoom": 13.392062904097315 },
+      "11": { "real": -0.123, "imag": 0.745, "type": 0, "orbitRadius": 0.3845531682138359, "orbitSkew": 1, "orbitRotation": 1.792878228700377, "beatSpread": 1.57, "viewZoom": 2.197173594385127 }
+    }
+  }
+];
 
 // --- Constants ---
 
@@ -85,6 +109,8 @@ interface FamilyInfo {
   hotspots: string[];
   tips: string;
   related: string[];
+  tags: string[];  // geometry/style tags for filtering
+  colorNotes: number[];  // recommended note indices (0-11) for this family
 }
 
 const FAMILY_INFO: Record<string, FamilyInfo> = {
@@ -98,6 +124,8 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     hotspots: ['c = -0.75 (period-2 bulb)', 'c = -0.12 + 0.74i (spiral)', 'c = 0.28 + 0.01i (dendrite)', 'c = -1.0 (basilica)'],
     tips: 'The boundary between black and color contains all the interesting detail. Look for "mini-brots" - tiny copies of the full set hidden in the spirals.',
     related: ['Tricorn', 'Burning Ship'],
+    tags: ['smooth', 'organic', 'symmetric'],
+    colorNotes: [], // versatile - works with any color
   },
   'burning-ship': {
     formula: 'z → (|Re(z)| + i|Im(z)|)² + c',
@@ -109,6 +137,8 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     hotspots: ['c = -1.76 - 0.04i (ship hull)', 'c = -1.94 + 0.0i (flames)', 'c = -0.5 - 0.5i (spirals)'],
     tips: 'The ship is upside down in standard orientation. Zoom into the "flames" rising from the mast for incredible detail. The antenna regions contain mini-ships.',
     related: ['PerpBurn', 'Celtic', 'Buffalo'],
+    tags: ['angular', 'flame', 'dense'],
+    colorNotes: [9, 5, 1], // A (red), F (gold), C# (orange) - fire colors
   },
   'buffalo': {
     formula: 'z → |z|² - |z| + c',
@@ -120,6 +150,8 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     hotspots: ['c = -0.5 + 0.5i (horns)', 'c = -1.0 + 0.0i (body)', 'c = 0.0 - 0.8i (tail)'],
     tips: 'Look for the "horns" emerging from the main body. The interior contains dense, hair-like structures. Works well with warm color palettes.',
     related: ['Burning Ship', 'Celtic', 'PerpBurn'],
+    tags: ['organic', 'dense', 'intricate'],
+    colorNotes: [9, 5, 1, 10], // warm colors: A (red), F (gold), C# (orange), A# (coral)
   },
   'celtic': {
     formula: 'z → |Re(z²)| + i·Im(z²) + c',
@@ -131,6 +163,8 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     hotspots: ['c = -0.4 + 0.6i (knots)', 'c = -0.8 + 0.16i (crosses)', 'c = -0.45 - 0.5i (weave)'],
     tips: 'Celtic patterns emerge best near the boundary. The "crosses" form where four regions meet. Try zooming into areas where filaments interweave.',
     related: ['Burning Ship', 'Buffalo', 'PerpBurn'],
+    tags: ['intricate', 'symmetric', 'dense'],
+    colorNotes: [7, 5, 6], // G (green), F (gold), F# (yellow) - Irish/nature colors
   },
   'phoenix': {
     formula: 'z → z² + c + p·z₋₁',
@@ -141,7 +175,9 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     traits: ['Bird-like silhouettes', 'Memory effects', 'Feathered edges', 'Dynamic flow patterns', 'Wing structures'],
     hotspots: ['c = 0.56 + 0.0i (classic phoenix)', 'c = -0.4 + 0.1i (feathers)', 'c = 0.3 - 0.3i (wings)'],
     tips: 'The p parameter (memory weight) dramatically changes the character. At p = -0.5, bird shapes emerge. Watch how regions seem to "flow" into each other.',
-    related: ['Classic', 'Nova', 'Tricorn'],
+    related: ['Classic', 'Tricorn'],
+    tags: ['dynamic', 'organic', 'smooth'],
+    colorNotes: [], // rainbow/bright - works with any vibrant color
   },
   'tricorn': {
     formula: 'z → conj(z)² + c',
@@ -153,6 +189,8 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     hotspots: ['c = -0.1 + 0.9i (spike tip)', 'c = -1.0 + 0.0i (period-2)', 'c = 0.3 + 0.5i (mini-tricorn)'],
     tips: 'The three main "horns" each contain infinite detail. Look for mini-tricorns in the boundary regions. The Julia sets are often more symmetric than the locus.',
     related: ['Classic', 'Buffalo'],
+    tags: ['angular', 'symmetric', 'intricate'],
+    colorNotes: [4, 2, 3], // E (blue), D (purple), D# (violet) - cool colors
   },
   'perp-burn': {
     formula: 'z → (Re(z) + i|Im(z)|)² + c',
@@ -164,28 +202,8 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     hotspots: ['c = -1.75 + 0.0i (main flame)', 'c = -0.5 + 0.5i (side burns)', 'c = -1.0 - 0.3i (embers)'],
     tips: 'Compare directly with Burning Ship to see how the partial absolute value changes the structure. The vertical axis is a mirror line.',
     related: ['Burning Ship', 'Celtic', 'Buffalo'],
-  },
-  'newton-3': {
-    formula: 'z → z - (z³-1)/(3z²)',
-    year: '1879 (method) / 1983 (fractal)',
-    creator: 'Isaac Newton / John Hubbard',
-    category: 'Root-Finding',
-    description: 'Applies Newton\'s root-finding method to z³ - 1 = 0, which has three cube roots of unity. Points are colored by which root they converge to, with boundaries showing chaotic behavior. Unlike escape-time fractals, this uses convergence.',
-    traits: ['Three-color basins', 'Fractal boundaries', 'Root convergence', 'No escape iteration', 'Basin interleaving'],
-    hotspots: ['Origin region (all three roots compete)', 'Unit circle (root boundaries)', 'z = 0 (critical point)'],
-    tips: 'This fractal doesn\'t use "escape" - instead colors show which root each point finds. The boundaries between basins are infinitely complex. c parameter is not used.',
-    related: ['Nova', 'Magnet', 'Barnsley-1'],
-  },
-  'nova': {
-    formula: 'z → z - (z³-1)/(3z²) + c',
-    year: '1997',
-    creator: 'Paul Derbyshire',
-    category: 'Newton Hybrid',
-    description: 'A creative fusion of Newton\'s method with Julia set iteration - adds a constant c after each Newton step. This creates parameterized Newton fractals where the c value controls basin shapes and interactions.',
-    traits: ['Parameterized Newton', 'Three attractors', 'Complex basins', 'Rich color mixing', 'Flowing boundaries'],
-    hotspots: ['c = 0.0 + 0.0i (pure Newton)', 'c = 1.0 + 0.0i (distorted basins)', 'c = 0.5 + 0.5i (swirling)'],
-    tips: 'The three roots create natural triadic harmonies - try placing anchors near each root. Small c values give cleaner patterns while larger values create more turbulent basins.',
-    related: ['Newton-3', 'Phoenix', 'Magnet'],
+    tags: ['flame', 'symmetric', 'angular'],
+    colorNotes: [9, 1, 5], // fire colors like Burning Ship
   },
   'magnet': {
     formula: 'z → ((z² + c - 1)/(2z + c - 2))²',
@@ -196,7 +214,9 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     traits: ['Physics-derived', 'Single attractor at z=1', 'Magnetic domains', 'Phase boundaries', 'Convergent iteration'],
     hotspots: ['c = 0.0 + 0.0i (centered)', 'c = 2.0 + 0.0i (boundary)', 'c = 1.0 + 1.0i (distorted)'],
     tips: 'Points converge to z = 1 rather than escaping to infinity. The "domains" represent different convergence speeds. Has connections to real physical systems.',
-    related: ['Newton-3', 'Nova', 'Classic'],
+    related: ['Classic'],
+    tags: ['smooth', 'dynamic', 'intricate'],
+    colorNotes: [2, 4, 8], // D (purple), E (blue), G# (teal) - magnetic colors
   },
   'barnsley-1': {
     formula: 'z → (z-1)c if Re(z)≥0, else (z+1)c',
@@ -208,6 +228,8 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     hotspots: ['c = 0.38 + 0.62i (fern tips)', 'c = -0.15 + 0.78i (branches)', 'c = 0.52 + 0.25i (spirals)'],
     tips: 'The conditional nature creates natural-looking branching. Look for fern fronds and leaf structures. Best viewed with green/nature color palettes.',
     related: ['Celtic'],
+    tags: ['natural', 'organic', 'dynamic'],
+    colorNotes: [7, 11, 5], // G (green), B (lime), F (gold) - nature colors
   },
   'mandelbrot': {
     formula: 'z → z² + c (c = pixel)',
@@ -219,6 +241,8 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     hotspots: ['z₀ = 0 + 0i (classic)', 'z₀ = 0.5 + 0i (perturbed)', 'z₀ = 0 + 0.5i (imaginary shift)'],
     tips: 'Each point in this view IS a Julia set. Black = connected Julia, colored = disconnected (Cantor dust). Adjust z₀ sliders to see how initial conditions change the boundary.',
     related: ['Classic (Julia mode)', 'Tricorn', 'Burning Ship'],
+    tags: ['smooth', 'natural', 'symmetric'],
+    colorNotes: [], // versatile - works with any color
   },
 };
 
@@ -400,99 +424,6 @@ const FAMILIES: FractalFamily[] = [
   },
   // --- NEW FAMILIES ---
   {
-    id: 'newton-3', label: 'Newton-3', typeNum: 10,
-    bounds: { rMin: -2.0, rMax: 2.0, iMin: -2.0, iMax: 2.0 },
-    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
-      let x = cr + z0r, y = ci + z0i;
-      const roots = [[1, 0], [-0.5, Math.sqrt(3)/2], [-0.5, -Math.sqrt(3)/2]];
-      for (let i = 0; i < maxIter; i++) {
-        const r2 = x * x + y * y;
-        if (r2 < 1e-10) return 0;
-        const r = Math.sqrt(r2);
-        const theta = Math.atan2(y, x);
-        const r3 = r * r * r;
-        const z3r = r3 * Math.cos(3 * theta), z3i = r3 * Math.sin(3 * theta);
-        const z2r = 3 * r2 * Math.cos(2 * theta), z2i = 3 * r2 * Math.sin(2 * theta);
-        const numR = z3r - 1, numI = z3i;
-        const den = z2r * z2r + z2i * z2i;
-        if (den < 1e-10) return 0;
-        x = x - (numR * z2r + numI * z2i) / den;
-        y = y - (numI * z2r - numR * z2i) / den;
-        for (const [rr, ri] of roots) {
-          if ((x - rr) ** 2 + (y - ri) ** 2 < 0.0001) return i + 1;
-        }
-      }
-      return 0;
-    },
-    julia(fx, fy, _jR, _jI, maxIter) {
-      // Newton doesn't use c, just show convergence pattern
-      return this.locus(fx, fy, maxIter);
-    },
-  },
-  {
-    id: 'nova', label: 'Nova', typeNum: 11,
-    bounds: { rMin: -2.0, rMax: 2.0, iMin: -2.0, iMax: 2.0 },
-    // Nova: z = z - (z³-1)/(3z²) + c — algebraic form, no trig
-    // Cubic roots at e^(2πik/3) for k=0,1,2: (1,0), (-0.5, 0.866), (-0.5, -0.866)
-    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
-      let x = cr + z0r, y = ci + z0i;
-      const roots = [[1, 0], [-0.5, 0.866025], [-0.5, -0.866025]];
-      for (let i = 0; i < maxIter; i++) {
-        const x2 = x * x, y2 = y * y;
-        const r2 = x2 + y2;
-        if (r2 > 100) return i + 1;
-        // Check convergence to any root
-        for (let k = 0; k < 3; k++) {
-          const dx = x - roots[k][0], dy = y - roots[k][1];
-          if (dx * dx + dy * dy < 1e-6) {
-            // Color by convergence speed + root offset for variety
-            return (maxIter - i) * 0.5 + k * maxIter * 0.15 + 1;
-          }
-        }
-        if (r2 < 1e-12) return maxIter * 0.3; // Near origin
-        const z2r = x2 - y2, z2i = 2 * x * y;
-        const z3r = x * z2r - y * z2i, z3i = x * z2i + y * z2r;
-        const denR = 3 * z2r, denI = 3 * z2i;
-        const den2 = denR * denR + denI * denI;
-        if (den2 < 1e-12) return maxIter * 0.3;
-        const numR = z3r - 1, numI = z3i;
-        const divR = (numR * denR + numI * denI) / den2;
-        const divI = (numI * denR - numR * denI) / den2;
-        x = x - divR + cr;
-        y = y - divI + ci;
-      }
-      return maxIter * 0.5; // Didn't converge - mid brightness
-    },
-    julia(fx, fy, jR, jI, maxIter) {
-      let x = fx, y = fy;
-      const roots = [[1, 0], [-0.5, 0.866025], [-0.5, -0.866025]];
-      for (let i = 0; i < maxIter; i++) {
-        const x2 = x * x, y2 = y * y;
-        const r2 = x2 + y2;
-        if (r2 > 100) return i + 1;
-        // Check convergence to any root
-        for (let k = 0; k < 3; k++) {
-          const dx = x - roots[k][0], dy = y - roots[k][1];
-          if (dx * dx + dy * dy < 1e-6) {
-            return (maxIter - i) * 0.5 + k * maxIter * 0.15 + 1;
-          }
-        }
-        if (r2 < 1e-12) return maxIter * 0.3;
-        const z2r = x2 - y2, z2i = 2 * x * y;
-        const z3r = x * z2r - y * z2i, z3i = x * z2i + y * z2r;
-        const denR = 3 * z2r, denI = 3 * z2i;
-        const den2 = denR * denR + denI * denI;
-        if (den2 < 1e-12) return maxIter * 0.3;
-        const numR = z3r - 1, numI = z3i;
-        const divR = (numR * denR + numI * denI) / den2;
-        const divI = (numI * denR - numR * denI) / den2;
-        x = x - divR + jR;
-        y = y - divI + jI;
-      }
-      return maxIter * 0.5;
-    },
-  },
-  {
     id: 'magnet', label: 'Magnet-I', typeNum: 13,
     bounds: { rMin: -3.0, rMax: 3.0, iMin: -3.0, iMax: 3.0 },
     locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
@@ -604,16 +535,90 @@ interface InternalAnchor {
   viewZoom: number;      // visualizer zoom level
 }
 
+// --- Mode and Wizard Types ---
+
+type PanelMode = 'explore' | 'wizard';
+type WizardStep = 'choose-family' | 'place-anchor' | 'assign-notes';
+
+interface WizardState {
+  step: WizardStep;
+  tempAnchor: InternalAnchor | null;
+  assignedNotes: number[];
+  movementPreset: 'still' | 'pulse' | 'sway' | 'bounce' | 'swing' | 'spiral' | 'wild' | 'custom';
+  presetName: string;
+  // Wizard map view bounds (separate from main map)
+  mapBounds: { rMin: number; rMax: number; iMin: number; iMax: number } | null;
+  mapZoom: number;
+  showAtlas: boolean;
+  // Which note to use for preview coloring (index into assignedNotes)
+  previewNoteIdx: number;
+  // Notes configured in this wizard session (not pre-existing)
+  configuredNotes: Set<number>;
+  // Original anchor position from place-anchor step (for reset)
+  originalAnchor: { real: number; imag: number } | null;
+}
+
+// Movement presets for wizard step 4
+// orbitRadius: size of movement, orbitSkew: backbeat emphasis (>1 = beats 2&4 larger)
+// orbitRotation: orientation angle (radians), beatSpread: angle between beats (radians, π/2 = 90°)
+const MOVEMENT_PRESETS = {
+  still:   { orbitRadius: 0,     orbitSkew: 1.0, orbitRotation: 0,        beatSpread: 1.57 },  // No movement
+  pulse:   { orbitRadius: 0.025, orbitSkew: 0.6, orbitRotation: 1.57,     beatSpread: 0.4  },  // Vertical, tight, downbeat focus
+  sway:    { orbitRadius: 0.03,  orbitSkew: 1.0, orbitRotation: 0,        beatSpread: 1.57 },  // Horizontal gentle sway
+  bounce:  { orbitRadius: 0.04,  orbitSkew: 1.6, orbitRotation: 0,        beatSpread: 1.57 },  // Classic backbeat bounce
+  swing:   { orbitRadius: 0.05,  orbitSkew: 1.4, orbitRotation: 0.78,     beatSpread: 1.2  },  // 45° rotated, jazzy feel
+  spiral:  { orbitRadius: 0.06,  orbitSkew: 1.2, orbitRotation: 0.4,      beatSpread: 2.0  },  // Wide spread, slight rotation
+  wild:    { orbitRadius: 0.1,   orbitSkew: 1.8, orbitRotation: 0.52,     beatSpread: 1.0  },  // Large, tight, energetic
+};
+
+const WIZARD_STEPS: WizardStep[] = ['assign-notes', 'choose-family', 'place-anchor'];
+const WIZARD_STEP_LABELS: Record<WizardStep, string> = {
+  'assign-notes': 'Roots',
+  'choose-family': 'Family',
+  'place-anchor': 'Anchor',
+};
+
 // --- Fractal Config Panel Class ---
 
 export class FractalConfigPanel {
   private container: HTMLElement;
   private visible = false;
+  private noteGridAnimationId: number | null = null;
+  private noteGridStartTime: number = 0;
   private selectedDegree = 0;  // Pitch class 0-11 (C=0)
   private selectedQuality = 'major';  // Always major now (simplified)
   private selectedFamily = 0;
   // Anchor keys are just degree numbers as strings
   private anchors: Map<string, InternalAnchor> = new Map();
+
+  // Mode state: explore (landing) or wizard (preset creation)
+  private currentMode: PanelMode = 'wizard';
+  private wizardState: WizardState = {
+    step: 'assign-notes',
+    tempAnchor: null,
+    assignedNotes: [],
+    movementPreset: 'sway',
+    presetName: '',
+    mapBounds: null,
+    mapZoom: 1,
+    showAtlas: false,
+    previewNoteIdx: 0,
+    configuredNotes: new Set(),
+    originalAnchor: null,
+  };
+  // Wizard movement preview animation
+  private wizardPreviewAnim: number | null = null;
+  private wizardPreviewPhase = 0;
+  private wizardPreviewLastTime = 0;
+  // Wizard map zoom debounce
+  private wizardZoomDebounceTimer: number | null = null;
+  private wizardLocusBuffer: HTMLCanvasElement | null = null;
+  private wizardRenderedBounds: { rMin: number; rMax: number; iMin: number; iMax: number } | null = null;
+
+  /** Get current panel mode */
+  public get mode(): PanelMode {
+    return this.currentMode;
+  }
 
   // Canvas elements
   private locusCanvas: HTMLCanvasElement;
@@ -637,25 +642,11 @@ export class FractalConfigPanel {
   private previewBpm = 120;
   private previewScale = 1.0; // 0 = stopped, 1 = normal, 2 = big
 
-  // Drag state
+  // Drag state (used in wizard map interactions)
   private dragMode: 'center' | 'orbit' | 'pan' | null = null;
   private dragDeg = -1;
-  private dragStartMx = 0;
-  private dragStartMy = 0;
-  private dragStartData: Record<string, number> = {};
-  private isDragging = false;
   private snapMode: 'none' | 'cross' = 'none';
   private showAtlasGrid = false;
-  private dragDebounceTimer: number | null = null;
-
-  // Touch/long-press state for mobile anchor placement
-  private touchStartPos: { x: number; y: number } | null = null;
-  private longPressTimer: number | null = null;
-  private static readonly LONG_PRESS_DURATION = 400; // ms
-  private static readonly TOUCH_MOVE_THRESHOLD = 10; // px
-
-  // Mobile modifier toggle (acts like Ctrl/Cmd on desktop)
-  private modifierActive = false;
 
   // Callbacks
   public onAnchorsChange?: (anchors: Record<number, { real: number; imag: number; type: number; orbitRadius: number; orbitSkew?: number; orbitRotation?: number; beatSpread?: number; viewZoom?: number }>) => void;
@@ -963,18 +954,6 @@ export class FractalConfigPanel {
     modal.classList.remove('visible');
   }
 
-  /** Show controls modal */
-  private showControls(): void {
-    const modal = this.container.querySelector('#fc-controls-modal') as HTMLElement;
-    modal.classList.add('visible');
-  }
-
-  /** Hide controls modal */
-  private hideControls(): void {
-    const modal = this.container.querySelector('#fc-controls-modal') as HTMLElement;
-    modal.classList.remove('visible');
-  }
-
   /** Update family selector buttons to match selectedFamily state */
   private updateFamilyUI(): void {
     const familyBtns = this.container.querySelectorAll('.fc-family-btn');
@@ -1079,13 +1058,17 @@ export class FractalConfigPanel {
     this.container.innerHTML = this.buildHTML();
     document.body.appendChild(this.container);
 
-    // Get canvas refs
-    this.locusCanvas = this.container.querySelector('#fc-locus-canvas') as HTMLCanvasElement;
+    // Create offscreen canvases (explore mode canvases removed, but some code still references these)
+    this.locusCanvas = document.createElement('canvas');
+    this.locusCanvas.width = PANEL_SIZE;
+    this.locusCanvas.height = PANEL_SIZE;
     this.locusCtx = this.locusCanvas.getContext('2d')!;
     this.locusBuffer = document.createElement('canvas');
     this.locusBuffer.width = PANEL_SIZE;
     this.locusBuffer.height = PANEL_SIZE;
-    this.juliaCanvas = this.container.querySelector('#fc-julia-canvas') as HTMLCanvasElement;
+    this.juliaCanvas = document.createElement('canvas');
+    this.juliaCanvas.width = JULIA_SIZE;
+    this.juliaCanvas.height = JULIA_SIZE;
     this.juliaCtx = this.juliaCanvas.getContext('2d')!;
 
     // Initialize view bounds
@@ -1115,6 +1098,19 @@ export class FractalConfigPanel {
       </label>
     `;
 
+    // Built-in presets (no delete button)
+    for (const preset of BUILTIN_PRESETS) {
+      const checked = this.selectedPresetId === preset.id ? 'checked' : '';
+      html += `
+        <label class="fc-preset-option fc-preset-builtin">
+          <input type="radio" name="fc-preset" value="${preset.id}" ${checked}>
+          <span class="fc-preset-radio"></span>
+          <span class="fc-preset-name">${preset.name}</span>
+        </label>
+      `;
+    }
+
+    // User presets (with delete button)
     for (const preset of this.userPresets) {
       const checked = this.selectedPresetId === preset.id ? 'checked' : '';
       html += `
@@ -1122,7 +1118,7 @@ export class FractalConfigPanel {
           <input type="radio" name="fc-preset" value="${preset.id}" ${checked}>
           <span class="fc-preset-radio"></span>
           <span class="fc-preset-name">${preset.name}</span>
-          <button class="fc-preset-delete" data-id="${preset.id}" title="Delete preset">&times;</button>
+          <button class="fc-preset-delete" data-id="${preset.id}" title="Delete preset"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button>
         </label>
       `;
     }
@@ -1133,8 +1129,9 @@ export class FractalConfigPanel {
   private updatePresetsUI(): void {
     const bar = this.container.querySelector('.fc-presets-bar') as HTMLElement;
     const list = this.container.querySelector('.fc-presets-list');
+    const hasPresets = BUILTIN_PRESETS.length > 0 || this.userPresets.length > 0;
     if (bar) {
-      bar.style.display = this.userPresets.length === 0 ? 'none' : '';
+      bar.style.display = hasPresets ? '' : 'none';
     }
     if (list) {
       list.innerHTML = this.renderPresetsList();
@@ -1142,24 +1139,34 @@ export class FractalConfigPanel {
     }
   }
 
+  private presetHandlersSetup = false;
+
   private setupPresetHandlers(): void {
-    // Radio selection
-    this.container.querySelectorAll('.fc-preset-option input[type="radio"]').forEach(radio => {
-      radio.addEventListener('change', (e) => {
-        const value = (e.target as HTMLInputElement).value;
-        this.selectedPresetId = value || null;
+    // Only set up event delegation once
+    if (this.presetHandlersSetup) return;
+    this.presetHandlersSetup = true;
+
+    const list = this.container.querySelector('.fc-presets-list');
+    if (!list) return;
+
+    // Use event delegation for radio changes
+    list.addEventListener('change', (e) => {
+      const target = e.target as HTMLInputElement;
+      if (target.type === 'radio' && target.name === 'fc-preset') {
+        this.selectedPresetId = target.value || null;
         this.loadPreset(this.selectedPresetId);
-      });
+      }
     });
 
-    // Delete buttons
-    this.container.querySelectorAll('.fc-preset-delete').forEach(btn => {
-      btn.addEventListener('click', (e) => {
+    // Use event delegation for delete clicks
+    list.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      if (target.classList.contains('fc-preset-delete')) {
         e.preventDefault();
         e.stopPropagation();
-        const id = (e.target as HTMLElement).dataset.id;
+        const id = target.dataset.id;
         if (id) this.deletePreset(id);
-      });
+      }
     });
   }
 
@@ -1168,9 +1175,19 @@ export class FractalConfigPanel {
       // Load built-in default anchors (DEFAULT_ANCHORS)
       this.loadDefaultAnchors();
     } else {
-      const preset = this.userPresets.find(p => p.id === presetId);
+      // Search both built-in and user presets
+      const preset = BUILTIN_PRESETS.find(p => p.id === presetId)
+        || this.userPresets.find(p => p.id === presetId);
       if (preset) {
         this.loadAnchorsFromData(preset.anchors);
+      }
+    }
+
+    // Mark all 12 notes as configured so wizard shows them as editable
+    this.wizardState.configuredNotes.clear();
+    for (let i = 0; i < 12; i++) {
+      if (this.anchors.has(this.anchorKey(i))) {
+        this.wizardState.configuredNotes.add(i);
       }
     }
 
@@ -1182,13 +1199,19 @@ export class FractalConfigPanel {
     this.drawOverlay();
     this.updateAssignments();
     this.updateResetButtonState();
+        this.updateWizardNoteGrid();
+
+    // Hide editing indicator (loaded fresh preset)
+    this.showEditingIndicator(false);
 
     // Apply to visualizer
     this.emitAnchorChange();
     if (this.onSave) this.onSave();
 
-    const status = this.container.querySelector('#fc-status')!;
-    status.textContent = presetId ? 'Preset loaded' : 'Default loaded';
+    const status = this.container.querySelector('#fc-status');
+    if (status) {
+      status.textContent = presetId ? 'Preset loaded' : 'Default loaded';
+    }
   }
 
   /** Adjust view bounds to show all anchors for current family */
@@ -1325,34 +1348,10 @@ export class FractalConfigPanel {
     }
     this.updatePresetsUI();
     if (this.onPresetsChange) this.onPresetsChange();
-    const status = this.container.querySelector('#fc-status')!;
-    status.textContent = 'Preset deleted';
-  }
-
-  private promptSavePreset(): void {
-    const name = prompt('Enter preset name:');
-    if (!name || !name.trim()) return;
-
-    const anchors = this.getCurrentAnchorsData();
-    const preset: UserPreset = {
-      id: Date.now().toString(),
-      name: name.trim(),
-      anchors,
-      createdAt: Date.now(),
-    };
-
-    this.userPresets.push(preset);
-    saveUserPresets(this.userPresets);
-    this.selectedPresetId = preset.id;
-    this.updatePresetsUI();
-    if (this.onPresetsChange) this.onPresetsChange();
-
-    // Also apply to visualizer
-    this.emitAnchorChange();
-    if (this.onSave) this.onSave();
-
-    const status = this.container.querySelector('#fc-status')!;
-    status.textContent = `Saved as "${preset.name}"`;
+    const status = this.container.querySelector('#fc-status');
+    if (status) {
+      status.textContent = 'Preset deleted';
+    }
   }
 
   private getCurrentAnchorsData(): FractalAnchors {
@@ -1383,6 +1382,22 @@ export class FractalConfigPanel {
     if (this.onAnchorsChange) {
       this.onAnchorsChange(anchors);
     }
+    // Update save button state after anchor changes
+    this.updateSaveButtonState();
+  }
+
+  /** Copy current anchors as code to clipboard */
+  private copyAnchorsAsCode(): void {
+    const anchors = this.getCurrentAnchorsData();
+    const code = JSON.stringify(anchors, null, 2);
+    navigator.clipboard.writeText(code).then(() => {
+      const btn = this.container.querySelector('.fc-wizard-copy-code') as HTMLButtonElement;
+      if (btn) {
+        const original = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = original; }, 1500);
+      }
+    });
   }
 
   private buildHTML(): string {
@@ -1394,161 +1409,240 @@ export class FractalConfigPanel {
       [8, 9, 10, 11]  // G#, A, A#, B
     ];
 
-    const noteButtons = noteGrid.map(row =>
-      row.map(pc => {
-        const isActive = pc === 0;
-        return `<button class="fc-note-btn${isActive ? ' active' : ''}" data-deg="${pc}" data-quality="major" title="${NOTE_NAMES[pc]}" style="--note-color: ${NOTE_COLORS[pc]}; color: ${NOTE_COLORS[pc]}">${NOTE_NAMES[pc]}</button>`;
-      }).join('')
+
+    // Wizard note grid (4x3 preview cells with animated fractals)
+    const wizardNoteButtons = noteGrid.map(row =>
+      row.map(pc =>
+        `<button class="fc-wizard-note-btn" data-note="${pc}" style="--note-color: ${NOTE_COLORS[pc]}">
+          <canvas class="fc-wizard-note-canvas" width="80" height="80"></canvas>
+          <span class="fc-wizard-note-label">${NOTE_NAMES[pc]}</span>
+          <span class="fc-wizard-note-edit" data-note="${pc}" title="Edit anchor">✎</span>
+          <span class="fc-wizard-note-dice" data-note="${pc}" title="Random fractal">🎲</span>
+        </button>`
+      ).join('')
+    ).join('');
+
+    // Family grid for wizard step 1
+    const familyGrid = FAMILIES.map((f, i) => {
+      const info = FAMILY_INFO[f.id];
+      const tags = info?.tags?.slice(0, 3).map(t => `<span class="fc-wizard-family-tag">${t}</span>`).join('') || '';
+      const colorDots = info?.colorNotes?.length
+        ? info.colorNotes.slice(0, 4).map(n => `<span class="fc-wizard-family-color" style="--note-color: ${NOTE_COLORS[n]}" title="${NOTE_NAMES[n]}"></span>`).join('')
+        : '<span class="fc-wizard-family-color-any">any</span>';
+      return `<button class="fc-wizard-family-card" data-family="${i}">
+        <span class="fc-wizard-family-name">${f.label}</span>
+        <canvas class="fc-wizard-family-thumb" width="90" height="90"></canvas>
+        <div class="fc-wizard-family-tags">${tags}</div>
+        <div class="fc-wizard-family-colors">${colorDots}</div>
+        <span class="fc-wizard-family-info-btn" data-family="${i}">Info</span>
+      </button>`;
+    }).join('');
+
+    // Progress dots for wizard
+    const progressDots = WIZARD_STEPS.map((step, i) =>
+      `<div class="fc-wizard-progress-dot${i === 0 ? ' active' : ' upcoming'}" data-step="${step}">
+        <span class="fc-wizard-progress-num">${i + 1}</span>
+        <span class="fc-wizard-progress-label">${WIZARD_STEP_LABELS[step]}</span>
+      </div>`
     ).join('');
 
     return `
-      <div class="fc-panel fc-layout-horizontal">
+      <div class="fc-panel fc-layout-horizontal fc-mode-wizard">
         <div class="fc-header">
           <h2>Fractal Config</h2>
-          <button class="fc-close-btn">&times;</button>
+          <button class="fc-help-btn" title="How this works">?</button>
+          <button class="fc-btn fc-wizard-cancel">Cancel</button>
         </div>
 
-        <div class="fc-main-layout">
-          <!-- Left sidebar: Family selector only -->
-          <div class="fc-sidebar fc-left-sidebar">
-            <div class="fc-family-sidebar">
-              ${FAMILIES.map((f, i) => `<button class="fc-family-btn${i === 0 ? ' active' : ''}" data-family="${i}" title="${f.label}">
-                <span class="fc-family-name">${f.label}</span>
-                <span class="fc-family-notes"></span>
-              </button>`).join('')}
+        <!-- ===================== WIZARD MODE ===================== -->
+        <div class="fc-wizard-container">
+          <!-- Presets bar -->
+          <div class="fc-presets-bar">
+            <div class="fc-presets-label">Load Preset:</div>
+            <div class="fc-presets-list">
+              ${this.renderPresetsList()}
             </div>
-            <div class="fc-sidebar-actions">
-              <button class="fc-btn fc-info-btn" title="Family information">Info</button>
+            <button class="fc-btn fc-wizard-new-preset">+ New</button>
+          </div>
+
+          <!-- Progress indicator -->
+          <div class="fc-wizard-progress">
+            ${progressDots}
+          </div>
+
+          <!-- Step: Choose Family -->
+          <div class="fc-wizard-step" data-step="choose-family">
+            <div class="fc-wizard-intro">
+              <h3>Choose a Fractal Family</h3>
+              <p class="fc-wizard-intro-note">Tip: Click Info to learn about the history and math behind each fractal.</p>
+            </div>
+            <div class="fc-wizard-family-scroll">
+              <div class="fc-wizard-family-grid">
+                ${familyGrid}
+              </div>
+            </div>
+            <div class="fc-wizard-family-footer">
+              <div class="fc-wizard-family-footer-row">
+                <div class="fc-wizard-selected-roots">
+                  <span class="fc-wizard-selected-roots-label">Placing:</span>
+                  <span class="fc-wizard-selected-roots-chips"></span>
+                </div>
+                <div class="fc-wizard-family-nav">
+                  <button class="fc-btn fc-wizard-back">← Back</button>
+                  <button class="fc-btn fc-btn-primary fc-wizard-family-next" style="display: none;">Next →</button>
+                </div>
+              </div>
+              <div class="fc-wizard-related-families">
+                <span class="fc-wizard-related-label">Related:</span>
+                <span class="fc-wizard-related-chips"></span>
+              </div>
             </div>
           </div>
 
-          <!-- Middle sidebar: Preview + Note grid + Orbit controls -->
-          <div class="fc-sidebar fc-middle-sidebar">
-            <div class="fc-preview-section">
-              <canvas id="fc-julia-canvas" width="${JULIA_SIZE}" height="${JULIA_SIZE}"></canvas>
-              <div class="fc-preview-controls">
-                <div class="fc-bpm-control">
-                  <button class="fc-bpm-btn fc-bpm-down">−</button>
-                  <span class="fc-bpm-value"><input type="number" id="fc-bpm" value="120" min="30" max="300" step="5"></span>
-                  <button class="fc-bpm-btn fc-bpm-up">+</button>
-                </div>
-                <div class="fc-preview-range">
-                  <input type="range" id="fc-preview-scale" min="0" max="200" value="100" title="Preview movement range">
-                </div>
-              </div>
-            </div>
-
-            <div class="fc-note-section">
-              <div class="fc-section-label">Notes</div>
-              <div class="fc-note-grid">
-                ${noteButtons}
-              </div>
-            </div>
-
-            <div class="fc-anchor-section" style="--anchor-color: ${NOTE_COLORS[0]}">
-              <div class="fc-section-header">
-                <div class="fc-section-label">Anchor</div>
-                <div class="fc-formula">${FAMILY_INFO[FAMILIES[0].id]?.formula || 'z → z² + c'}</div>
-              </div>
-              <div class="fc-orbit-controls">
-                <div class="fc-orbit-row" title="Real component (c)">
-                  <span class="fc-orbit-icon">c</span>
-                  <button class="fc-orbit-btn fc-real-down">−</button>
-                  <input type="number" class="fc-real-input" min="-200" max="200" value="0" step="1">
-                  <button class="fc-orbit-btn fc-real-up">+</button>
-                </div>
-                <div class="fc-orbit-row" title="Imaginary component (i)">
-                  <span class="fc-orbit-icon">i</span>
-                  <button class="fc-orbit-btn fc-imag-down">−</button>
-                  <input type="number" class="fc-imag-input" min="-200" max="200" value="0" step="1">
-                  <button class="fc-orbit-btn fc-imag-up">+</button>
-                </div>
-                <div class="fc-zoom-container">
-                  <div class="fc-orbit-row fc-zoom-row" title="Visualizer zoom level">
-                    <span class="fc-zoom-icon fc-zoom-out">🔍</span>
-                    <input type="range" class="fc-zoom-slider" min="0" max="100" value="50">
-                    <span class="fc-zoom-icon fc-zoom-in">🔍</span>
+          <!-- Step: Place Anchor -->
+          <div class="fc-wizard-step" data-step="place-anchor">
+            <div class="fc-wizard-anchor-layout">
+              <div class="fc-wizard-sidebar">
+                <!-- Position Section -->
+                <div class="fc-wizard-section">
+                  <div class="fc-wizard-section-header">
+                    Position
+                    <span class="fc-wizard-family-name"></span>
                   </div>
-                  <div class="fc-zoom-info">
-                    <span class="fc-zoom-label">1.0×</span>
-                    <button class="fc-center-btn" title="Center map on anchor">◎</button>
+                  <div class="fc-wizard-position-btns">
+                    <button class="fc-wizard-position-btn fc-wizard-hotspot-btn" title="Jump to interesting spot">! Hotspot</button>
+                    <button class="fc-wizard-position-btn fc-wizard-center-btn" title="Center map on anchor">⌖ Center</button>
+                  </div>
+                  <div class="fc-wizard-param-grid">
+                    <div class="fc-wizard-param-row fc-wizard-scale-row">
+                      <label>Zoom</label>
+                      <input type="range" class="fc-wizard-scale-slider" min="0" max="100" value="0">
+                      <input type="number" class="fc-wizard-scale-input" value="1.0" step="0.1" min="1" max="1000">
+                    </div>
+                    <div class="fc-wizard-param-row">
+                      <label>Real</label>
+                      <input type="range" class="fc-wizard-real-slider" min="0" max="1000" value="500">
+                      <input type="number" class="fc-wizard-real-input" value="0" step="0.0001">
+                    </div>
+                    <div class="fc-wizard-param-row">
+                      <label>Imag</label>
+                      <input type="range" class="fc-wizard-imag-slider" min="0" max="1000" value="500">
+                      <input type="number" class="fc-wizard-imag-input" value="0" step="0.0001">
+                    </div>
                   </div>
                 </div>
-                <div class="fc-subsection-label">Movement</div>
-                <div class="fc-orbit-row" title="Orbit radius">
-                  <span class="fc-orbit-icon">⊕</span>
-                  <button class="fc-orbit-btn fc-radius-down">−</button>
-                  <input type="number" class="fc-radius-input" min="0.1" max="200" value="20" step="0.5">
-                  <button class="fc-orbit-btn fc-radius-up">+</button>
+
+                <!-- Movement Section -->
+                <div class="fc-wizard-section">
+                  <div class="fc-wizard-section-header">Movement</div>
+                  <div class="fc-wizard-movement-presets">
+                    <button class="fc-wizard-movement-btn" data-preset="still" title="No movement">
+                      <span class="fc-wizard-movement-icon">●</span>
+                      <span class="fc-wizard-movement-name">Still</span>
+                    </button>
+                    <button class="fc-wizard-movement-btn" data-preset="pulse" title="Vertical pulsing">
+                      <span class="fc-wizard-movement-icon">↕</span>
+                      <span class="fc-wizard-movement-name">Pulse</span>
+                    </button>
+                    <button class="fc-wizard-movement-btn selected" data-preset="sway" title="Gentle horizontal sway">
+                      <span class="fc-wizard-movement-icon">↔</span>
+                      <span class="fc-wizard-movement-name">Sway</span>
+                    </button>
+                    <button class="fc-wizard-movement-btn" data-preset="bounce" title="Backbeat bounce">
+                      <span class="fc-wizard-movement-icon">⬡</span>
+                      <span class="fc-wizard-movement-name">Bounce</span>
+                    </button>
+                    <button class="fc-wizard-movement-btn" data-preset="swing" title="Jazzy swing feel">
+                      <span class="fc-wizard-movement-icon">◐</span>
+                      <span class="fc-wizard-movement-name">Swing</span>
+                    </button>
+                    <button class="fc-wizard-movement-btn" data-preset="spiral" title="Wide spiral motion">
+                      <span class="fc-wizard-movement-icon">◎</span>
+                      <span class="fc-wizard-movement-name">Spiral</span>
+                    </button>
+                    <button class="fc-wizard-movement-btn" data-preset="wild" title="Large energetic movement">
+                      <span class="fc-wizard-movement-icon">✦</span>
+                      <span class="fc-wizard-movement-name">Wild</span>
+                    </button>
+                  </div>
+                  <div class="fc-wizard-param-grid">
+                    <div class="fc-wizard-param-row">
+                      <label>Radius</label>
+                      <input type="range" class="fc-wizard-radius-slider" min="0" max="1000" value="0">
+                      <input type="number" class="fc-wizard-radius-input" value="0" step="0.001" min="0">
+                    </div>
+                    <div class="fc-wizard-param-row">
+                      <label>Skew</label>
+                      <input type="range" class="fc-wizard-skew-slider" min="20" max="300" value="100">
+                      <input type="number" class="fc-wizard-skew-input" value="1.0" step="0.01" min="0.2" max="3">
+                    </div>
+                    <div class="fc-wizard-param-row">
+                      <label>Rotation</label>
+                      <input type="range" class="fc-wizard-rotation-slider" min="0" max="628" value="0">
+                      <input type="number" class="fc-wizard-rotation-input" value="0" step="1" min="0" max="360">
+                    </div>
+                    <div class="fc-wizard-param-row">
+                      <label>Spread</label>
+                      <input type="range" class="fc-wizard-spread-slider" min="10" max="314" value="157">
+                      <input type="number" class="fc-wizard-spread-input" value="90" step="1" min="5" max="180">
+                    </div>
+                  </div>
                 </div>
-                <div class="fc-orbit-row" title="Orbit rotation">
-                  <span class="fc-orbit-icon">↻</span>
-                  <button class="fc-orbit-btn fc-rotation-down">−</button>
-                  <input type="number" class="fc-rotation-input" min="0" max="628" value="0" step="10">
-                  <button class="fc-orbit-btn fc-rotation-up">+</button>
+              </div>
+              <div class="fc-wizard-map-area">
+                <canvas class="fc-wizard-locus-canvas" width="${PANEL_SIZE}" height="${PANEL_SIZE}"></canvas>
+                <div class="fc-wizard-preview-overlay">
+                  <canvas class="fc-wizard-movement-canvas" width="${JULIA_SIZE}" height="${JULIA_SIZE}"></canvas>
+                  <div class="fc-wizard-note-switcher"></div>
                 </div>
-                <div class="fc-orbit-row" title="Orbit skew (aspect ratio)">
-                  <span class="fc-orbit-icon">⬭</span>
-                  <button class="fc-orbit-btn fc-skew-down">−</button>
-                  <input type="number" class="fc-skew-input" min="20" max="200" value="100" step="5">
-                  <button class="fc-orbit-btn fc-skew-up">+</button>
-                </div>
-                <div class="fc-orbit-row" title="Beat spread (angle between points)">
-                  <span class="fc-orbit-icon">∢</span>
-                  <button class="fc-orbit-btn fc-spread-down">−</button>
-                  <input type="number" class="fc-spread-input" min="10" max="200" value="157" step="5">
-                  <button class="fc-orbit-btn fc-spread-up">+</button>
+                <div class="fc-wizard-map-controls fc-map-controls">
+                  <div class="fc-map-row">
+                    <button class="fc-map-btn" data-action="zoom-in" title="Zoom in">+</button>
+                    <button class="fc-map-btn" data-action="pan-up" title="Pan up">↑</button>
+                    <button class="fc-map-btn" data-action="zoom-out" title="Zoom out">−</button>
+                  </div>
+                  <div class="fc-map-row">
+                    <button class="fc-map-btn" data-action="pan-left" title="Pan left">←</button>
+                    <button class="fc-map-btn fc-wizard-atlas-btn" title="Toggle atlas grid">🗺</button>
+                    <button class="fc-map-btn" data-action="pan-right" title="Pan right">→</button>
+                  </div>
+                  <div class="fc-map-row">
+                    <button class="fc-map-btn" data-action="reset" title="Reset view">⟲</button>
+                    <button class="fc-map-btn" data-action="pan-down" title="Pan down">↓</button>
+                  </div>
                 </div>
               </div>
             </div>
-
-            <div class="fc-actions-section">
-              <div class="fc-section-label">Create Preset</div>
-              <div class="fc-anchor-actions">
-                <button class="fc-btn fc-save-btn">Save</button>
-                <button class="fc-btn fc-copy-btn" title="Copy anchors as code">📋</button>
-                <button class="fc-btn fc-reset-btn">Reset</button>
-              </div>
-            </div>
-
-            <div class="fc-presets-bar"${this.userPresets.length === 0 ? ' style="display:none"' : ''}>
-              <span class="fc-presets-label">Presets:</span>
-              <div class="fc-presets-list">
-                ${this.renderPresetsList()}
+            <div class="fc-wizard-anchor-footer">
+              <div class="fc-wizard-anchor-coords-display">c = 0.0000 + 0.0000i</div>
+              <div class="fc-wizard-anchor-nav">
+                <button class="fc-btn fc-wizard-back">← Back</button>
+                <button class="fc-btn fc-wizard-next fc-btn-primary">Next →</button>
               </div>
             </div>
           </div>
 
-          <!-- Right: Big Map -->
-          <div class="fc-map-area">
-            <canvas id="fc-locus-canvas" width="${PANEL_SIZE}" height="${PANEL_SIZE}"></canvas>
-            <div class="fc-map-controls">
-              <div class="fc-map-row">
-                <button class="fc-help-btn" title="Show controls">?</button>
-                <button class="fc-map-btn" data-action="pan-up" title="Pan up">↑</button>
-                <button class="fc-map-btn" data-action="zoom-in" title="Zoom in">+</button>
-              </div>
-              <div class="fc-map-row">
-                <button class="fc-map-btn" data-action="pan-left" title="Pan left">←</button>
-                <button class="fc-map-btn" data-action="reset-view" title="Reset view">⟲</button>
-                <button class="fc-map-btn" data-action="pan-right" title="Pan right">→</button>
-              </div>
-              <div class="fc-map-row">
-                <button class="fc-map-btn fc-atlas-btn" title="Toggle atlas grid">🗺</button>
-                <button class="fc-map-btn" data-action="pan-down" title="Pan down">↓</button>
-                <button class="fc-map-btn" data-action="zoom-out" title="Zoom out">−</button>
+          <!-- Step: Assign Notes (Home Page) -->
+          <div class="fc-wizard-step active" data-step="assign-notes">
+            <div class="fc-wizard-step-header">
+              <h3>Select a Chord Root to Configure</h3>
+            </div>
+            <div class="fc-wizard-note-grid">
+              ${wizardNoteButtons}
+            </div>
+            <div class="fc-wizard-home-save">
+              <input type="text" class="fc-wizard-name-input" placeholder="Preset name" maxlength="30">
+              <div class="fc-wizard-home-actions">
+                <button class="fc-btn fc-wizard-copy-code">Copy as Code</button>
+                <button class="fc-btn fc-btn-primary fc-wizard-save-btn">Save Preset</button>
               </div>
             </div>
-            <div class="fc-mobile-controls">
-              <button class="fc-modifier-btn" title="Toggle modifier (tap to place, drag to adjust skew)">
-                <span class="fc-modifier-icon">⌘</span>
-                <span class="fc-modifier-label">Mod</span>
-              </button>
-            </div>
-            <div class="fc-locus-status" id="fc-status">Click map to place anchor</div>
           </div>
+
+          <div class="fc-wizard-status"></div>
         </div>
 
+        <!-- ===================== MODALS ===================== -->
         <div class="modal-overlay fc-info-modal" id="fc-info-modal">
           <div class="modal-box fc-info-content">
             <div class="modal-header">
@@ -1632,14 +1726,62 @@ export class FractalConfigPanel {
             </div>
           </div>
         </div>
+
+        <!-- Help Modal -->
+        <div class="modal-overlay fc-help-modal" id="fc-help-modal">
+          <div class="modal-box fc-help-content">
+            <div class="modal-header">
+              <span>About Fractal Presets</span>
+              <button class="modal-close">&times;</button>
+            </div>
+            <div class="fc-help-body">
+              <p>Create custom fractal animations that respond to the music. Each note in the song triggers a different fractal pattern based on your configuration.</p>
+
+              <div class="fc-help-section">
+                <h4>Note Cards</h4>
+                <p>Each card represents a musical note (C through B). The preview shows how the fractal will look when that note plays.</p>
+                <ul>
+                  <li><strong>Edit (✎)</strong> – Configure the anchor point and animation</li>
+                  <li><strong>Randomize (🎲)</strong> – Generate a random interesting anchor</li>
+                </ul>
+              </div>
+
+              <div class="fc-help-section">
+                <h4>Fractal Families</h4>
+                <p>Different mathematical formulas create distinct visual styles:</p>
+                <ul>
+                  <li><strong>Classic</strong> – The original Mandelbrot/Julia set</li>
+                  <li><strong>Burning Ship</strong> – Sharp, crystalline structures</li>
+                  <li><strong>Tricorn</strong> – Three-fold symmetry patterns</li>
+                  <li><strong>Phoenix</strong> – Flowing, organic shapes</li>
+                </ul>
+              </div>
+
+              <div class="fc-help-section">
+                <h4>Anchor Placement</h4>
+                <p>The anchor point determines the center of your fractal. Different regions create different visual effects:</p>
+                <ul>
+                  <li><strong>Boundary regions</strong> – Most detail and complexity</li>
+                  <li><strong>Interior regions</strong> – Solid colors, less detail</li>
+                  <li><strong>Hotspots</strong> – Pre-selected interesting locations</li>
+                </ul>
+              </div>
+
+              <div class="fc-help-section">
+                <h4>Movement</h4>
+                <p>The orbit settings control how the fractal animates with the beat. Larger radius = more dramatic movement.</p>
+              </div>
+
+              <p class="fc-help-tip">Note: Fractals were the first feature of the Fractured Jukebox!</p>
+            </div>
+          </div>
+        </div>
+
       </div>
     `;
   }
 
   private setupEventHandlers(): void {
-    // Close button
-    this.container.querySelector('.fc-close-btn')!.addEventListener('click', () => this.hide());
-
     // Section toggles (mobile collapsible sections)
     this.container.querySelectorAll('.fc-section-toggle').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1678,14 +1820,11 @@ export class FractalConfigPanel {
       if (e.target === this.container) this.hide();
     });
 
-    // Info button (show family information modal)
-    this.container.querySelector('.fc-info-btn')!.addEventListener('click', () => this.showFamilyInfo());
-
     // Info modal close button
-    this.container.querySelector('#fc-info-modal .modal-close')!.addEventListener('click', () => this.hideFamilyInfo());
+    this.container.querySelector('#fc-info-modal .modal-close')?.addEventListener('click', () => this.hideFamilyInfo());
 
     // Close modal on backdrop click
-    this.container.querySelector('#fc-info-modal')!.addEventListener('click', (e) => {
+    this.container.querySelector('#fc-info-modal')?.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).classList.contains('modal-overlay')) {
         this.hideFamilyInfo();
       }
@@ -1695,26 +1834,9 @@ export class FractalConfigPanel {
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         const infoModal = this.container.querySelector('#fc-info-modal') as HTMLElement;
-        const controlsModal = this.container.querySelector('#fc-controls-modal') as HTMLElement;
-        if (infoModal.classList.contains('visible')) {
+        if (infoModal?.classList.contains('visible')) {
           this.hideFamilyInfo();
         }
-        if (controlsModal.classList.contains('visible')) {
-          this.hideControls();
-        }
-      }
-    });
-
-    // Help button (show controls modal)
-    this.container.querySelector('.fc-help-btn')!.addEventListener('click', () => this.showControls());
-
-    // Controls modal close button
-    this.container.querySelector('.fc-controls-close')!.addEventListener('click', () => this.hideControls());
-
-    // Close controls modal on backdrop click
-    this.container.querySelector('#fc-controls-modal')!.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).classList.contains('fc-controls-modal')) {
-        this.hideControls();
       }
     });
 
@@ -1856,697 +1978,1021 @@ export class FractalConfigPanel {
         status.textContent = this.showAtlasGrid ? 'Atlas grid ON' : 'Atlas grid OFF';
       });
     }
-    const copyBtn = this.container.querySelector('.fc-copy-btn')!;
-    copyBtn.addEventListener('click', () => {
-      this.copyToClipboard();
-      copyBtn.classList.remove('wiggle');
-      void (copyBtn as HTMLElement).offsetWidth; // force reflow
-      copyBtn.classList.add('wiggle');
-    });
-    copyBtn.addEventListener('animationend', () => copyBtn.classList.remove('wiggle'));
-    this.container.querySelector('.fc-reset-btn')!.addEventListener('click', () => this.resetToDefaults());
-    this.container.querySelector('.fc-save-btn')!.addEventListener('click', () => this.promptSavePreset());
-
     // Preset handlers
     this.setupPresetHandlers();
 
-    // BPM input with arrows and drag support
-    const bpmInput = this.container.querySelector('#fc-bpm') as HTMLInputElement;
-    const bpmTempos = [40, 60, 66, 72, 76, 80, 84, 88, 92, 96, 100, 104, 108, 112, 116, 120, 126, 132, 138, 144, 152, 160, 168, 176, 184, 192, 200, 208, 216, 224, 232, 240, 252, 264, 276, 288, 300];
+    // Wizard event handlers
+    this.setupWizardHandlers();
+  }
 
-    const updateBpm = (v: number) => {
-      const clamped = Math.max(30, Math.min(300, v));
-      bpmInput.value = String(clamped);
-      this.previewBpm = clamped;
-    };
+  /** Set up wizard-specific event handlers */
+  private setupWizardHandlers(): void {
+    // Help modal
+    const helpModal = createModal({
+      overlay: this.container.querySelector('#fc-help-modal') as HTMLElement,
+      closeButton: this.container.querySelector('#fc-help-modal .modal-close') as HTMLElement,
+    });
+    this.container.querySelector('.fc-help-btn')?.addEventListener('click', () => helpModal.open());
 
-    bpmInput.addEventListener('input', () => {
-      const v = parseInt(bpmInput.value);
-      if (v >= 30 && v <= 300) this.previewBpm = v;
+    // Navigation buttons - use event delegation for multiple button instances
+    this.container.querySelectorAll('.fc-wizard-cancel').forEach(btn => {
+      btn.addEventListener('click', () => this.wizardCancel());
+    });
+    this.container.querySelectorAll('.fc-wizard-back').forEach(btn => {
+      btn.addEventListener('click', () => this.wizardBack());
+    });
+    this.container.querySelectorAll('.fc-wizard-next').forEach(btn => {
+      btn.addEventListener('click', () => this.wizardNext());
     });
 
-    // Arrow buttons - jump to standard tempos
-    this.container.querySelector('.fc-bpm-up')!.addEventListener('click', () => {
-      const current = this.previewBpm;
-      const next = bpmTempos.find(t => t > current) ?? 300;
-      updateBpm(next);
-    });
-
-    this.container.querySelector('.fc-bpm-down')!.addEventListener('click', () => {
-      const current = this.previewBpm;
-      const prev = [...bpmTempos].reverse().find(t => t < current) ?? 40;
-      updateBpm(prev);
-    });
-
-    // Drag up/down on input to change value
-    let bpmDragStart = 0;
-    let bpmDragValue = 0;
-
-    bpmInput.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
-      bpmDragStart = e.clientY;
-      bpmDragValue = this.previewBpm;
-      bpmInput.style.cursor = 'ns-resize';
-
-      const onMove = (me: MouseEvent) => {
-        const delta = bpmDragStart - me.clientY;
-        updateBpm(bpmDragValue + Math.round(delta / 3));
-      };
-
-      const onUp = () => {
-        bpmInput.style.cursor = '';
-        window.removeEventListener('mousemove', onMove);
-        window.removeEventListener('mouseup', onUp);
-      };
-
-      window.addEventListener('mousemove', onMove);
-      window.addEventListener('mouseup', onUp);
-    });
-
-    // Preview scale slider (0 = stopped, 100 = normal, 200 = big)
-    const previewScaleSlider = this.container.querySelector('#fc-preview-scale') as HTMLInputElement;
-    previewScaleSlider.addEventListener('input', () => {
-      this.previewScale = parseInt(previewScaleSlider.value) / 100;
-    });
-
-    // Palette buttons
-    this.container.querySelectorAll('.fc-palette-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const idx = parseInt((btn as HTMLElement).dataset.idx!);
-        this.setPalette(idx);
-        this.container.querySelectorAll('.fc-palette-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+    // Step 1: Family info buttons (stop propagation to prevent card selection)
+    this.container.querySelectorAll('.fc-wizard-family-info-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const familyIdx = parseInt((btn as HTMLElement).dataset.family || '0');
+        const savedFamily = this.selectedFamily;
+        this.selectedFamily = familyIdx;
+        this.showFamilyInfo();
+        this.selectedFamily = savedFamily;
       });
     });
 
-    // Mobile modifier toggle button
-    const modifierBtn = this.container.querySelector('.fc-modifier-btn');
-    if (modifierBtn) {
-      modifierBtn.addEventListener('click', () => {
-        this.modifierActive = !this.modifierActive;
-        modifierBtn.classList.toggle('active', this.modifierActive);
-        const status = this.container.querySelector('#fc-status')!;
-        if (this.modifierActive) {
-          status.textContent = 'Mod ON: Tap to place, drag orbit for skew/spread';
+    // Step 1: Family tag click to highlight matching tags and show related families
+    this.container.querySelectorAll('.fc-wizard-family-tag').forEach(tag => {
+      tag.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const tagText = (tag as HTMLElement).textContent?.toLowerCase();
+        const allTags = this.container.querySelectorAll('.fc-wizard-family-tag');
+        const isHighlighted = tag.classList.contains('highlighted');
+        const relatedSection = this.container.querySelector('.fc-wizard-related-families');
+        const relatedChips = this.container.querySelector('.fc-wizard-related-chips');
+
+        // Remove all highlights first
+        allTags.forEach(t => t.classList.remove('highlighted'));
+
+        // If wasn't highlighted, highlight all matching tags and show related families
+        if (!isHighlighted && tagText) {
+          const matchingFamilies: string[] = [];
+          allTags.forEach(t => {
+            if ((t as HTMLElement).textContent?.toLowerCase() === tagText) {
+              t.classList.add('highlighted');
+              // Get parent card's family name
+              const card = t.closest('.fc-wizard-family-card');
+              if (card) {
+                const familyIdx = parseInt((card as HTMLElement).dataset.family || '0');
+                const familyName = FAMILIES[familyIdx]?.label;
+                if (familyName && !matchingFamilies.includes(familyName)) {
+                  matchingFamilies.push(familyName);
+                }
+              }
+            }
+          });
+
+          // Show related families section
+          if (relatedSection && relatedChips && matchingFamilies.length > 0) {
+            relatedChips.innerHTML = matchingFamilies.map(name =>
+              `<span class="fc-wizard-related-chip">${name}</span>`
+            ).join('');
+            relatedSection.classList.add('visible');
+
+            // Add click handlers to chips
+            relatedChips.querySelectorAll('.fc-wizard-related-chip').forEach(chip => {
+              chip.addEventListener('click', () => {
+                const familyName = chip.textContent;
+                const familyIdx = FAMILIES.findIndex(f => f.label === familyName);
+                if (familyIdx >= 0) {
+                  const card = this.container.querySelector(`.fc-wizard-family-card[data-family="${familyIdx}"]`);
+                  if (card) {
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    card.classList.add('pulse');
+                    setTimeout(() => card.classList.remove('pulse'), 600);
+                  }
+                }
+              });
+            });
+          }
         } else {
-          status.textContent = 'Hold to place anchor';
+          // Hide related families section
+          if (relatedSection) {
+            relatedSection.classList.remove('visible');
+          }
         }
+      });
+    });
+
+    // Step 1: Family selection
+    this.container.querySelectorAll('.fc-wizard-family-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const familyIdx = parseInt((card as HTMLElement).dataset.family || '0');
+        const isEditMode = this.wizardState.tempAnchor &&
+          (this.wizardState.tempAnchor.real !== 0 || this.wizardState.tempAnchor.imag !== 0);
+
+        if (isEditMode && this.wizardState.tempAnchor) {
+          // Edit mode: just update family on existing anchor
+          this.wizardState.tempAnchor.familyIdx = familyIdx;
+        } else {
+          // New note mode: create temp anchor with this family
+          this.wizardState.tempAnchor = {
+            familyIdx,
+            real: 0,
+            imag: 0,
+            orbitRadius: DEFAULT_ORBIT_RADIUS,
+            orbitSkew: DEFAULT_ORBIT_SKEW,
+            orbitRotation: DEFAULT_ORBIT_ROTATION,
+            beatSpread: DEFAULT_BEAT_SPREAD,
+            viewZoom: DEFAULT_VIEW_ZOOM,
+          };
+        }
+
+        // Update selection UI
+        this.container.querySelectorAll('.fc-wizard-family-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+
+        if (isEditMode) {
+          // Edit mode: show Next button, don't auto-advance
+          const nextBtn = this.container.querySelector('.fc-wizard-family-next') as HTMLElement;
+          if (nextBtn) nextBtn.style.display = '';
+        } else {
+          // New note mode: auto-advance to next step
+          this.wizardNext();
+        }
+      });
+    });
+
+    // Family step Next button (for edit mode)
+    this.container.querySelector('.fc-wizard-family-next')?.addEventListener('click', () => {
+      this.wizardNext();
+    });
+
+    // Step 1: Note selection - click goes directly to family selector
+    this.container.querySelectorAll('.fc-wizard-note-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        // Don't trigger if dice or edit button was clicked
+        const target = e.target as HTMLElement;
+        if (target.classList.contains('fc-wizard-note-dice') || target.classList.contains('fc-wizard-note-edit')) return;
+
+        const noteIdx = parseInt((btn as HTMLElement).dataset.note || '0');
+
+        // If note is already configured, edit it
+        if (this.wizardState.configuredNotes.has(noteIdx)) {
+          this.editNoteAnchor(noteIdx);
+          return;
+        }
+
+        // Select this note and go to family selector
+        this.wizardState.assignedNotes = [noteIdx];
+        this.updateWizardNoteGrid();
+        this.wizardNext();
+      });
+    });
+
+    // Dice buttons - random fractal for this note
+    this.container.querySelectorAll('.fc-wizard-note-dice').forEach(dice => {
+      dice.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const noteIdx = parseInt((dice as HTMLElement).dataset.note || '0');
+        this.randomizeNoteAnchor(noteIdx);
+      });
+    });
+
+    // Edit buttons - go to anchor placement step
+    this.container.querySelectorAll('.fc-wizard-note-edit').forEach(edit => {
+      edit.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const noteIdx = parseInt((edit as HTMLElement).dataset.note || '0');
+        this.editNoteAnchor(noteIdx);
+      });
+    });
+
+    // Step 4: Movement presets
+    this.container.querySelectorAll('.fc-wizard-movement-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const preset = (btn as HTMLElement).dataset.preset as keyof typeof MOVEMENT_PRESETS;
+        if (preset) {
+          this.wizardState.movementPreset = preset;
+          this.updateMovementPreview();
+        }
+      });
+    });
+
+    // Parameter controls with slider + number input sync
+    this.setupParamControls();
+
+    // Home page: Name input - validate on change
+    const nameInput = this.container.querySelector('.fc-wizard-name-input') as HTMLInputElement;
+    if (nameInput) {
+      nameInput.addEventListener('input', () => {
+        this.wizardState.presetName = nameInput.value;
+        this.updateSaveButtonState();
       });
     }
 
-    // Locus canvas interactions
-    this.setupLocusInteractions();
+    // Home page: Save preset button
+    this.container.querySelector('.fc-wizard-save-btn')?.addEventListener('click', () => {
+      this.saveAsPreset();
+    });
+
+    // Initial save button state
+    this.updateSaveButtonState();
+
+    // Home page: Copy as code button
+    this.container.querySelector('.fc-wizard-copy-code')?.addEventListener('click', () => {
+      this.copyAnchorsAsCode();
+    });
+
+    // Home page: New preset button - clear all configured notes
+    this.container.querySelector('.fc-wizard-new-preset')?.addEventListener('click', () => {
+      this.startNewPreset();
+    });
+
+    // Render family thumbnails on load
+    this.renderWizardFamilyThumbnails();
   }
 
-  private setupLocusInteractions(): void {
-    const canvas = this.locusCanvas;
+  /** Render thumbnails for wizard family grid */
+  private renderWizardFamilyThumbnails(): void {
+    const cards = this.container.querySelectorAll('.fc-wizard-family-card');
+    cards.forEach(card => {
+      const familyIdx = parseInt((card as HTMLElement).dataset.family || '0');
+      const canvas = card.querySelector('canvas') as HTMLCanvasElement;
+      if (!canvas) return;
 
-    const getPos = (e: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      // Account for object-fit: contain letterboxing
-      // Canvas is square (PANEL_SIZE x PANEL_SIZE), container may not be
-      const containerAspect = rect.width / rect.height;
-      const canvasAspect = 1; // Square canvas
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-      let renderWidth: number, renderHeight: number, offsetX: number, offsetY: number;
-      if (containerAspect > canvasAspect) {
-        // Container is wider than canvas - pillarboxing (empty space on sides)
-        renderHeight = rect.height;
-        renderWidth = rect.height * canvasAspect;
-        offsetX = (rect.width - renderWidth) / 2;
-        offsetY = 0;
-      } else {
-        // Container is taller than canvas - letterboxing (empty space top/bottom)
-        renderWidth = rect.width;
-        renderHeight = rect.width / canvasAspect;
-        offsetX = 0;
-        offsetY = (rect.height - renderHeight) / 2;
+      const f = FAMILIES[familyIdx];
+      const size = canvas.width;
+      const img = ctx.createImageData(size, size);
+      const d = img.data;
+      const b = f.bounds;
+      const rStep = (b.rMax - b.rMin) / size;
+      const iStep = (b.iMax - b.iMin) / size;
+      const maxIter = 50;
+
+      for (let py = 0; py < size; py++) {
+        const ci = b.iMin + py * iStep;
+        for (let px = 0; px < size; px++) {
+          const cr = b.rMin + px * rStep;
+          const esc = f.locus(cr, ci, maxIter);
+          const idx = (py * size + px) * 4;
+          if (esc === 0) {
+            d[idx] = 8; d[idx + 1] = 8; d[idx + 2] = 16;
+          } else {
+            const t = Math.sqrt(esc / maxIter);
+            d[idx] = Math.round(12 + t * 80);
+            d[idx + 1] = Math.round(20 + t * 140);
+            d[idx + 2] = Math.round(35 + t * 120);
+          }
+          d[idx + 3] = 255;
+        }
       }
+      ctx.putImageData(img, 0, 0);
+    });
+  }
 
+  /** Convert pixel to c-value using wizard map bounds */
+  private wizardPixelToC(px: number, py: number): { r: number; i: number } {
+    const f = FAMILIES[this.wizardState.tempAnchor?.familyIdx ?? 0];
+    const b = this.wizardState.mapBounds || f.bounds;
+    return {
+      r: b.rMin + (px / PANEL_SIZE) * (b.rMax - b.rMin),
+      i: b.iMin + (py / PANEL_SIZE) * (b.iMax - b.iMin),
+    };
+  }
+
+  /** Zoom wizard map around anchor point (or center if not placed) */
+  private wizardMapZoom(factor: number): void {
+    if (!this.wizardState.tempAnchor || !this.wizardState.mapBounds) return;
+
+    const f = FAMILIES[this.wizardState.tempAnchor.familyIdx];
+    const newZoom = Math.max(1, Math.min(1000, this.wizardState.mapZoom * factor));
+    const anchor = this.wizardState.tempAnchor;
+
+    // Zoom center: anchor point if placed, otherwise center of current view
+    const hasAnchor = anchor.real !== 0 || anchor.imag !== 0;
+    const b = this.wizardState.mapBounds;
+    const centerR = hasAnchor ? anchor.real : (b.rMin + b.rMax) / 2;
+    const centerI = hasAnchor ? anchor.imag : (b.iMin + b.iMax) / 2;
+
+    // Calculate new bounds at zoom level, centered on zoom point
+    const origWidth = f.bounds.rMax - f.bounds.rMin;
+    const origHeight = f.bounds.iMax - f.bounds.iMin;
+    const newWidth = origWidth / newZoom;
+    const newHeight = origHeight / newZoom;
+
+    this.wizardState.mapBounds = {
+      rMin: centerR - newWidth / 2,
+      rMax: centerR + newWidth / 2,
+      iMin: centerI - newHeight / 2,
+      iMax: centerI + newHeight / 2,
+    };
+    this.wizardState.mapZoom = newZoom;
+
+    // Use debounced render for smooth zoom
+    this.debouncedWizardRender();
+    this.updateWizardZoomSlider();
+  }
+
+  /** Reset wizard map to initial bounds */
+  private wizardMapReset(): void {
+    if (!this.wizardState.tempAnchor) return;
+    const f = FAMILIES[this.wizardState.tempAnchor.familyIdx];
+    this.wizardState.mapBounds = { ...f.bounds };
+    this.wizardState.mapZoom = 1;
+    // Clear the buffer to force fresh render at 1x
+    this.wizardLocusBuffer = null;
+    this.wizardRenderedBounds = null;
+
+    const wizardCanvas = this.container.querySelector('.fc-wizard-locus-canvas') as HTMLCanvasElement;
+    const hasAnchor = this.wizardState.tempAnchor.real !== 0 || this.wizardState.tempAnchor.imag !== 0;
+    if (wizardCanvas) {
+      if (hasAnchor) {
+        this.renderWizardLocusOverlay(wizardCanvas);
+      } else {
+        this.renderWizardLocus(wizardCanvas);
+      }
+    }
+    // Start animated preview at reset zoom
+    if (hasAnchor) {
+      this.startWizardPreview(this.wizardState.tempAnchor);
+    }
+    this.updateWizardZoomSlider();
+  }
+
+  /** Jump to a random interesting hotspot for the current family */
+  private wizardJumpToHotspot(wizardCanvas: HTMLCanvasElement): void {
+    if (!this.wizardState.tempAnchor) return;
+
+    const family = FAMILIES[this.wizardState.tempAnchor.familyIdx];
+    const info = FAMILY_INFO[family.id];
+    if (!info?.hotspots?.length) return;
+
+    // Pick a random hotspot
+    const hotspot = info.hotspots[Math.floor(Math.random() * info.hotspots.length)];
+
+    // Parse hotspot string like "c = -0.75 (period-2 bulb)" or "c = -0.12 + 0.74i (spiral)"
+    // Also handles "z₀ = 0 + 0i (classic)" format
+    // Format: c|z₀ = <real> or c|z₀ = <real> +/- <imag>i
+    const match = hotspot.match(/(?:c|z₀)\s*=\s*(-?[\d.]+)(?:\s*([+-])\s*([\d.]+)i)?/);
+    if (!match) {
+      // Fallback to family center for non-parseable hotspots (like Newton "Origin region")
+      const f = FAMILIES[this.wizardState.tempAnchor.familyIdx];
+      this.wizardState.tempAnchor.real = (f.bounds.rMin + f.bounds.rMax) / 2;
+      this.wizardState.tempAnchor.imag = (f.bounds.iMin + f.bounds.iMax) / 2;
+      this.renderWizardLocusOverlay(wizardCanvas);
+      this.updateWizardZoomSlider();
+      this.startWizardPreview(this.wizardState.tempAnchor);
+      return;
+    }
+
+    const real = parseFloat(match[1]);
+    const imag = match[3] ? parseFloat(match[3]) * (match[2] === '-' ? -1 : 1) : 0;
+
+    // Set anchor position
+    this.wizardState.tempAnchor.real = real;
+    this.wizardState.tempAnchor.imag = imag;
+
+    // Center view on the hotspot with some zoom
+    const f = FAMILIES[this.wizardState.tempAnchor.familyIdx];
+    const baseW = f.bounds.rMax - f.bounds.rMin;
+    const baseH = f.bounds.iMax - f.bounds.iMin;
+
+    // Set zoom to 4x for a good view of the detail
+    this.wizardState.mapZoom = 4;
+    const w = baseW / 4;
+    const h = baseH / 4;
+
+    this.wizardState.mapBounds = {
+      rMin: real - w / 2,
+      rMax: real + w / 2,
+      iMin: imag - h / 2,
+      iMax: imag + h / 2
+    };
+
+    // Clear buffer and re-render
+    this.wizardLocusBuffer = null;
+    this.wizardRenderedBounds = null;
+    this.renderWizardLocusOverlay(wizardCanvas);
+    this.updateWizardZoomSlider();
+    this.startWizardPreview(this.wizardState.tempAnchor);
+  }
+
+  /** Set up wizard step 2 map canvas interactions */
+  private setupWizardMapInteractions(): void {
+    const wizardCanvas = this.container.querySelector('.fc-wizard-locus-canvas') as HTMLCanvasElement;
+    if (!wizardCanvas) return;
+
+    const getPos = (e: MouseEvent | Touch) => {
+      const rect = wizardCanvas.getBoundingClientRect();
+      const clientX = 'clientX' in e ? e.clientX : (e as Touch).clientX;
+      const clientY = 'clientY' in e ? e.clientY : (e as Touch).clientY;
       return {
-        x: (e.clientX - rect.left - offsetX) * PANEL_SIZE / renderWidth,
-        y: (e.clientY - rect.top - offsetY) * PANEL_SIZE / renderHeight,
+        x: (clientX - rect.left) * PANEL_SIZE / rect.width,
+        y: (clientY - rect.top) * PANEL_SIZE / rect.height,
       };
     };
 
-    const hitTest = (mx: number, my: number) => {
-      const HIT_RADIUS = 14; // Generous hit area for easier grabbing
+    // Helper to get beat point pixel positions for orbit dragging
+    const getBeatPointPixels = () => {
+      const anchor = this.wizardState.tempAnchor;
+      const b = this.wizardState.mapBounds;
+      if (!anchor || !b || anchor.orbitRadius <= 0) return [];
 
-      // Check all visible anchors' orbit points (all qualities for selected degree)
-      // Find closest hit rather than first hit
-      let closestOrbit: { dist: number; deg: number; quality: string; orbitIdx: number } | null = null;
+      const rangeR = b.rMax - b.rMin;
+      const rangeI = b.iMax - b.iMin;
+      const cosR = Math.cos(anchor.orbitRotation);
+      const sinR = Math.sin(anchor.orbitRotation);
+      const points: { x: number; y: number; idx: number }[] = [];
 
-      for (const q of QUALITIES) {
-        const key = this.anchorKey(this.selectedDegree, q.id);
-        const a = this.anchors.get(key);
-        if (!a || a.familyIdx !== this.selectedFamily) continue;
+      for (let oi = 0; oi < 4; oi++) {
+        const isBackbeat = (oi === 1 || oi === 3);
+        const r = isBackbeat ? anchor.orbitRadius * anchor.orbitSkew : anchor.orbitRadius;
+        const angle = oi * anchor.beatSpread;
+        const opx = r * Math.cos(angle);
+        const opy = r * Math.sin(angle);
+        const dr = opx * cosR - opy * sinR;
+        const di = opx * sinR + opy * cosR;
 
-        // Check 4 points around the orbit (backbeat emphasis: beats 1,3 use skew)
-        const baseRadius = a.orbitRadius;
-        const cosR = Math.cos(a.orbitRotation);
-        const sinR = Math.sin(a.orbitRotation);
-        for (let oi = 0; oi < 4; oi++) {
-          // Beat points at 0, spread, 2*spread, 3*spread
-          // Backbeat emphasis: beats 1 and 3 get scaled radius
-          const isBackbeat = (oi === 1 || oi === 3);
-          const r = isBackbeat ? baseRadius * a.orbitSkew : baseRadius;
-          const angle = oi * a.beatSpread;
-          const px = r * Math.cos(angle);
-          const py = r * Math.sin(angle);
-          const dr = px * cosR - py * sinR;
-          const di = px * sinR + py * cosR;
-          const op = this.cToPixel(a.real + dr, a.imag + di);
-          const dist = Math.hypot(mx - op.x, my - op.y);
-          if (dist < HIT_RADIUS && (!closestOrbit || dist < closestOrbit.dist)) {
-            closestOrbit = { dist, deg: this.selectedDegree, quality: q.id, orbitIdx: oi };
-          }
-        }
+        const bpx = ((anchor.real + dr - b.rMin) / rangeR) * PANEL_SIZE;
+        const bpy = ((anchor.imag + di - b.iMin) / rangeI) * PANEL_SIZE;
+        points.push({ x: bpx, y: bpy, idx: oi });
       }
-
-      if (closestOrbit) {
-        return { type: 'orbit' as const, deg: closestOrbit.deg, quality: closestOrbit.quality, orbitIdx: closestOrbit.orbitIdx };
-      }
-
-      // Check anchor center dots (all qualities for selected degree)
-      let closestCenter: { dist: number; deg: number; quality: string } | null = null;
-
-      for (const q of QUALITIES) {
-        const key = this.anchorKey(this.selectedDegree, q.id);
-        const a = this.anchors.get(key);
-        if (!a || a.familyIdx !== this.selectedFamily) continue;
-        const p = this.cToPixel(a.real, a.imag);
-        const dist = Math.hypot(mx - p.x, my - p.y);
-        if (dist < HIT_RADIUS && (!closestCenter || dist < closestCenter.dist)) {
-          closestCenter = { dist, deg: this.selectedDegree, quality: q.id };
-        }
-      }
-
-      if (closestCenter) {
-        return { type: 'center' as const, deg: closestCenter.deg, quality: closestCenter.quality };
-      }
-
-      return { type: 'empty' as const, deg: -1, quality: '', orbitIdx: -1 };
+      return points;
     };
 
-    canvas.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
-      const pos = getPos(e);
-      const hit = hitTest(pos.x, pos.y);
-      this.dragStartMx = e.clientX;
-      this.dragStartMy = e.clientY;
-      this.isDragging = false;
+    // Track drag state
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+    let boundsAtDragStart: typeof this.wizardState.mapBounds = null;
+    let orbitDragMode = false;
 
-      if (hit.type === 'orbit') {
-        // Select the quality if different
-        if (hit.quality !== this.selectedQuality) {
-          this.selectDegreeQuality(hit.deg, hit.quality);
+    // Click to place anchor (only if not dragging)
+    let clickPending = false;
+    let clickPos = { x: 0, y: 0 };
+
+    wizardCanvas.addEventListener('mousedown', (e) => {
+      if (this.currentMode !== 'wizard' || this.wizardState.step !== 'place-anchor') return;
+      clickPos = getPos(e);
+      dragStart = clickPos;
+      boundsAtDragStart = this.wizardState.mapBounds ? { ...this.wizardState.mapBounds } : null;
+
+      // Check if clicking near a beat point (for orbit dragging)
+      const beatPoints = getBeatPointPixels();
+      const HIT_RADIUS = 15;
+      let hitBeatPoint = false;
+      for (const bp of beatPoints) {
+        const dist = Math.sqrt((clickPos.x - bp.x) ** 2 + (clickPos.y - bp.y) ** 2);
+        if (dist < HIT_RADIUS) {
+          hitBeatPoint = true;
+          break;
         }
-        this.dragMode = 'orbit';
-        this.dragDeg = hit.deg;
-        const key = this.anchorKey(hit.deg, hit.quality);
-        const a = this.anchors.get(key)!;
-        // Calculate initial offset from anchor center (the orbit point that was clicked)
-        const beatAngle = hit.orbitIdx * a.beatSpread;
-        // Backbeat emphasis: beats 1 and 3 get scaled radius
-        const isBackbeat = (hit.orbitIdx === 1 || hit.orbitIdx === 3);
-        const r = isBackbeat ? a.orbitRadius * a.orbitSkew : a.orbitRadius;
-        const px = r * Math.cos(beatAngle);
-        const py = r * Math.sin(beatAngle);
-        const cosR = Math.cos(a.orbitRotation);
-        const sinR = Math.sin(a.orbitRotation);
-        const startOffsetR = px * cosR - py * sinR;
-        const startOffsetI = px * sinR + py * cosR;
-        // Save original values for drag: radius, rotation, skew, spread, and beat angle
-        this.dragStartData = {
-          origRadius: a.orbitRadius,
-          origRotation: a.orbitRotation,
-          origSkew: a.orbitSkew,
-          origSpread: a.beatSpread,
-          beatAngle,
-          startOffsetR,
-          startOffsetI
+      }
+
+      if (hitBeatPoint) {
+        orbitDragMode = true;
+        isDragging = true;
+        clickPending = false;
+        wizardCanvas.style.cursor = 'move';
+      } else {
+        orbitDragMode = false;
+        isDragging = false;
+        clickPending = true;
+      }
+    });
+
+    wizardCanvas.addEventListener('mousemove', (e) => {
+      if (this.currentMode !== 'wizard' || this.wizardState.step !== 'place-anchor') return;
+      if (!boundsAtDragStart || !this.wizardState.mapBounds) return;
+
+      const pos = getPos(e);
+
+      // Handle orbit dragging
+      if (orbitDragMode && this.wizardState.tempAnchor) {
+        const anchor = this.wizardState.tempAnchor;
+        const b = this.wizardState.mapBounds;
+        const rangeR = b.rMax - b.rMin;
+        const rangeI = b.iMax - b.iMin;
+
+        // Convert anchor center to pixels
+        const anchorPx = ((anchor.real - b.rMin) / rangeR) * PANEL_SIZE;
+        const anchorPy = ((anchor.imag - b.iMin) / rangeI) * PANEL_SIZE;
+
+        // Calculate distance and angle from anchor to mouse
+        const dx = pos.x - anchorPx;
+        const dy = pos.y - anchorPy;
+        const distPx = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+
+        // Convert pixel distance to complex plane distance
+        const newRadius = (distPx / PANEL_SIZE) * rangeR;
+
+        // Update orbit radius and rotation
+        anchor.orbitRadius = Math.max(0.001, newRadius);
+        anchor.orbitRotation = angle;
+
+        // Switch to custom mode
+        this.wizardState.movementPreset = 'custom';
+
+        // Update sliders and redraw
+        this.syncParamInputs();
+        this.renderWizardLocusOverlay(wizardCanvas);
+        this.startWizardPreview(anchor);
+        return;
+      }
+
+      const dx = pos.x - dragStart.x;
+      const dy = pos.y - dragStart.y;
+
+      // If moved more than 5px, start dragging (pan mode)
+      if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+        isDragging = true;
+        clickPending = false;
+        wizardCanvas.style.cursor = 'grabbing';
+
+        // Pan bounds
+        const rRange = boundsAtDragStart.rMax - boundsAtDragStart.rMin;
+        const iRange = boundsAtDragStart.iMax - boundsAtDragStart.iMin;
+        const drPx = (dx / PANEL_SIZE) * rRange;
+        const diPx = (dy / PANEL_SIZE) * iRange;
+
+        this.wizardState.mapBounds = {
+          rMin: boundsAtDragStart.rMin - drPx,
+          rMax: boundsAtDragStart.rMax - drPx,
+          iMin: boundsAtDragStart.iMin - diPx,
+          iMax: boundsAtDragStart.iMax - diPx,
         };
-        this.isDragging = true;
-        canvas.style.cursor = 'move';
-      } else if (hit.type === 'center') {
-        // Select the quality if different
-        if (hit.quality !== this.selectedQuality) {
-          this.selectDegreeQuality(hit.deg, hit.quality);
-        }
-        this.dragMode = 'center';
-        this.dragDeg = hit.deg;
-        const key = this.anchorKey(hit.deg, hit.quality);
-        const a = this.anchors.get(key)!;
-        this.dragStartData = { real: a.real, imag: a.imag };
-        canvas.style.cursor = 'move';
-      } else {
-        this.dragMode = 'pan';
-        const b = this.viewBounds[this.selectedFamily];
-        this.dragStartData = { rMin: b.rMin, rMax: b.rMax, iMin: b.iMin, iMax: b.iMax };
-        canvas.style.cursor = 'grabbing';
-      }
-    });
 
-    window.addEventListener('mousemove', (e) => {
-      if (this.dragMode === null) return;
-
-      const rect = canvas.getBoundingClientRect();
-      const b = this.viewBounds[this.selectedFamily];
-      const dx = e.clientX - this.dragStartMx;
-      const dy = e.clientY - this.dragStartMy;
-
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) this.isDragging = true;
-      if (!this.isDragging) return;
-
-      // Account for object-fit: contain - use actual rendered size
-      const containerAspect = rect.width / rect.height;
-      let renderWidth: number, renderHeight: number;
-      if (containerAspect > 1) {
-        // Container wider than square - use height
-        renderHeight = rect.height;
-        renderWidth = rect.height;
-      } else {
-        // Container taller than square - use width
-        renderWidth = rect.width;
-        renderHeight = rect.width;
-      }
-
-      const cDx = dx * (b.rMax - b.rMin) / renderWidth;
-      const cDy = dy * (b.iMax - b.iMin) / renderHeight;
-
-      const dragKey = this.anchorKey(this.dragDeg, this.selectedQuality);
-      const dragAnchor = this.anchors.get(dragKey);
-
-      if (this.dragMode === 'orbit' && dragAnchor?.familyIdx === this.selectedFamily) {
-        // Calculate new offset from anchor center
-        const newOffsetR = this.dragStartData.startOffsetR + cDx;
-        const newOffsetI = this.dragStartData.startOffsetI + cDy;
-        const newVisualRadius = Math.sqrt(newOffsetR * newOffsetR + newOffsetI * newOffsetI);
-        const startVisualRadius = Math.sqrt(
-          this.dragStartData.startOffsetR * this.dragStartData.startOffsetR +
-          this.dragStartData.startOffsetI * this.dragStartData.startOffsetI
-        );
-
-        // Use proportional change to avoid numerical issues at high zoom
-        const radiusRatio = startVisualRadius > 0.0001 ? newVisualRadius / startVisualRadius : 1;
-        const newRadius = this.dragStartData.origRadius * radiusRatio;
-
-        // Calculate angle from anchor center to current position
-        const mouseAngle = Math.atan2(newOffsetI, newOffsetR);
-
-        // Track snap mode for visual feedback
-        this.snapMode = e.shiftKey ? 'cross' : 'none';
-
-        if (e.ctrlKey || e.metaKey) {
-          // Ctrl/Cmd+drag: adjust skew (vertical) and spread (horizontal)
-          // Vertical motion adjusts skew
-          const skewSensitivity = 3.0;
-          const newSkew = this.dragStartData.origSkew + cDy * skewSensitivity;
-          dragAnchor.orbitSkew = Math.max(0.2, Math.min(2.0, newSkew));
-
-          // Horizontal motion adjusts beat spread (angle between beat points)
-          // Range: 0.1 rad (~6°) to 2.0 rad (~115°) - covers tight to wide spreads
-          const spreadSensitivity = 4.0;
-          const newSpread = this.dragStartData.origSpread + cDx * spreadSensitivity;
-          dragAnchor.beatSpread = Math.max(0.1, Math.min(2.0, newSpread));
-
-          // Also update radius
-          dragAnchor.orbitRadius = Math.max(0.0001, newRadius);
+        // Re-render
+        if (this.wizardState.tempAnchor?.real !== 0 || this.wizardState.tempAnchor?.imag !== 0) {
+          this.renderWizardLocusOverlay(wizardCanvas);
         } else {
-          // Normal drag: adjust radius and rotation
-          const newRotation = mouseAngle - this.dragStartData.beatAngle;
-          dragAnchor.orbitRadius = Math.max(0.0001, newRadius);
-          dragAnchor.orbitRotation = newRotation;
+          this.renderWizardLocus(wizardCanvas);
         }
-        this.debouncedDraw();
-      } else if (this.dragMode === 'center' && dragAnchor?.familyIdx === this.selectedFamily) {
-        dragAnchor.real = this.dragStartData.real + cDx;
-        dragAnchor.imag = this.dragStartData.imag + cDy;
-        this.debouncedDraw();
-      } else if (this.dragMode === 'pan') {
-        const pDx = -dx * (this.dragStartData.rMax - this.dragStartData.rMin) / rect.width;
-        const pDy = -dy * (this.dragStartData.iMax - this.dragStartData.iMin) / rect.height;
-        b.rMin = this.dragStartData.rMin + pDx;
-        b.rMax = this.dragStartData.rMax + pDx;
-        b.iMin = this.dragStartData.iMin + pDy;
-        b.iMax = this.dragStartData.iMax + pDy;
-        this.debouncedDrawWithRender();
       }
     });
 
-    window.addEventListener('mouseup', (e) => {
-      if (this.dragMode === null) return;
-      canvas.style.cursor = 'crosshair';
+    const endDrag = () => {
+      if (this.currentMode !== 'wizard' || this.wizardState.step !== 'place-anchor') return;
 
-      if (!this.isDragging && this.dragMode !== 'orbit') {
-        if (this.dragMode === 'center') {
-          // Just select and preview
-          const key = this.anchorKey(this.dragDeg, this.selectedQuality);
-          const a = this.anchors.get(key);
-          if (a) this.startPreview(a);
-        } else if (e.ctrlKey || e.metaKey) {
-          // Ctrl/Cmd+click on empty — place anchor for current selection
-          const pos = getPos(e);
-          const c = this.pixelToC(pos.x, pos.y);
-          const existing = this.currentAnchor;
+      wizardCanvas.style.cursor = 'crosshair';
 
-          this.anchors.set(this.currentKey, {
-            familyIdx: this.selectedFamily,
-            real: c.r,
-            imag: c.i,
-            orbitRadius: existing?.orbitRadius ?? DEFAULT_ORBIT_RADIUS,
-            orbitSkew: existing?.orbitSkew ?? DEFAULT_ORBIT_SKEW,
-            orbitRotation: existing?.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
-            beatSpread: existing?.beatSpread ?? DEFAULT_BEAT_SPREAD,
-            viewZoom: existing?.viewZoom ?? DEFAULT_VIEW_ZOOM,
-          });
+      // Handle click if wasn't a drag (place anchor)
+      if (clickPending && !isDragging && !orbitDragMode && this.wizardState.tempAnchor) {
+        const c = this.wizardPixelToC(clickPos.x, clickPos.y);
 
-          this.startPreview(this.anchors.get(this.currentKey)!);
-          this.drawOverlay();
-          this.updateAssignments();
-          this.updateResetButtonState();
-        }
-      } else if (this.dragMode === 'center' || this.dragMode === 'orbit') {
-        const key = this.anchorKey(this.dragDeg, this.selectedQuality);
-        const a = this.anchors.get(key);
-        if (a) this.startPreview(a);
-        // Sync sliders to reflect any changes from dragging
-        this.syncOrbitSliders();
-        this.updateResetButtonState();
+        // Update temp anchor position
+        this.wizardState.tempAnchor.real = c.r;
+        this.wizardState.tempAnchor.imag = c.i;
+
+        // Update coords display and sliders
+        this.syncParamInputs();
+        const coordsText = `c = ${c.r.toFixed(4)} + ${c.i.toFixed(4)}i`;
+        const coordsFooter = this.container.querySelector('.fc-wizard-anchor-coords-display');
+        if (coordsFooter) coordsFooter.textContent = coordsText;
+
+        // Mark anchor on map and start animated preview
+        this.renderWizardLocusOverlay(wizardCanvas);
+        this.startWizardPreview(this.wizardState.tempAnchor);
       }
 
-      // Trigger debounced thumbnail update if we were moving an anchor position
-      if (this.dragMode === 'center') {
-              }
+      isDragging = false;
+      clickPending = false;
+      orbitDragMode = false;
+      boundsAtDragStart = null;
+    };
 
-      this.dragMode = null;
-      this.isDragging = false;
-      this.snapMode = 'none';
-      this.drawOverlay(); // Clear snap guides
+    wizardCanvas.addEventListener('mouseup', endDrag);
+    wizardCanvas.addEventListener('mouseleave', () => {
+      if (isDragging || orbitDragMode) {
+        wizardCanvas.style.cursor = 'crosshair';
+        isDragging = false;
+        orbitDragMode = false;
+      }
     });
 
-    // Zoom with ctrl+wheel (debounced render)
-    canvas.addEventListener('wheel', (e) => {
-      if (!e.ctrlKey) return;
-      e.preventDefault();
+    // Hover detection for beat points (cursor feedback)
+    wizardCanvas.addEventListener('mousemove', (e) => {
+      if (isDragging || orbitDragMode) return;
+      if (this.currentMode !== 'wizard' || this.wizardState.step !== 'place-anchor') return;
+
       const pos = getPos(e);
-      const c = this.pixelToC(pos.x, pos.y);
-      const b = this.viewBounds[this.selectedFamily];
-      const factor = e.deltaY < 0 ? 0.7 : 1.4;
-      const newW = (b.rMax - b.rMin) * factor;
-      const newH = (b.iMax - b.iMin) * factor;
-      const fracX = pos.x / PANEL_SIZE;
-      const fracY = pos.y / PANEL_SIZE;
-      b.rMin = c.r - fracX * newW;
-      b.rMax = c.r + (1 - fracX) * newW;
-      b.iMin = c.i - fracY * newH;
-      b.iMax = c.i + (1 - fracY) * newH;
+      const beatPoints = getBeatPointPixels();
+      const HIT_RADIUS = 15;
+      let nearBeatPoint = false;
 
-      const origB = FAMILIES[this.selectedFamily].bounds;
-      const origW = origB.rMax - origB.rMin;
-      this.zoomLevels[this.selectedFamily] = origW / (b.rMax - b.rMin);
-
-      // Immediately show scaled/blurry preview for responsive feel
-      this.drawScaledPreview();
-      this.drawOverlayMarkers();
-
-      // Debounce the expensive locus render
-      if (this.zoomDebounceTimer !== null) {
-        clearTimeout(this.zoomDebounceTimer);
+      for (const bp of beatPoints) {
+        const dist = Math.sqrt((pos.x - bp.x) ** 2 + (pos.y - bp.y) ** 2);
+        if (dist < HIT_RADIUS) {
+          nearBeatPoint = true;
+          break;
+        }
       }
-      this.zoomDebounceTimer = window.setTimeout(() => {
-        this.zoomDebounceTimer = null;
-        this.renderLocus();
-        this.drawOverlay();
-      }, 150);
+
+      wizardCanvas.style.cursor = nearBeatPoint ? 'move' : 'crosshair';
+    });
+
+    // Scroll wheel zoom (always zooms on anchor point or center)
+    wizardCanvas.addEventListener('wheel', (e) => {
+      if (this.currentMode !== 'wizard' || this.wizardState.step !== 'place-anchor') return;
+      e.preventDefault();
+
+      const factor = e.deltaY < 0 ? 1.08 : 0.93;
+      this.wizardMapZoom(factor);
     }, { passive: false });
 
-    // Double-click to reset view
-    canvas.addEventListener('dblclick', () => {
-      this.viewBounds[this.selectedFamily] = { ...FAMILIES[this.selectedFamily].bounds };
-      this.zoomLevels[this.selectedFamily] = 1.0;
-      this.renderLocus();
-      this.drawOverlay();
-    });
-
-    // Hover status
-    const modKey = navigator.platform.includes('Mac') ? '⌘' : 'Ctrl';
-    canvas.addEventListener('mousemove', (e) => {
-      if (this.dragMode) return;
-      const pos = getPos(e);
-      const c = this.pixelToC(pos.x, pos.y);
-      const status = this.container.querySelector('#fc-status')!;
-      status.textContent = `${FAMILIES[this.selectedFamily].label} | c = ${c.r.toFixed(4)} + ${c.i.toFixed(4)}i | ${modKey}+click=place`;
-    });
-
-    // Touch support for mobile - long press to place anchor
-    const getTouchPos = (touch: Touch) => {
-      const rect = canvas.getBoundingClientRect();
-      const containerAspect = rect.width / rect.height;
-      const canvasAspect = 1;
-
-      let renderWidth: number, renderHeight: number, offsetX: number, offsetY: number;
-      if (containerAspect > canvasAspect) {
-        renderHeight = rect.height;
-        renderWidth = rect.height * canvasAspect;
-        offsetX = (rect.width - renderWidth) / 2;
-        offsetY = 0;
-      } else {
-        renderWidth = rect.width;
-        renderHeight = rect.width / canvasAspect;
-        offsetX = 0;
-        offsetY = (rect.height - renderHeight) / 2;
-      }
-
-      return {
-        x: (touch.clientX - rect.left - offsetX) * PANEL_SIZE / renderWidth,
-        y: (touch.clientY - rect.top - offsetY) * PANEL_SIZE / renderHeight,
-      };
-    };
-
-    const cancelLongPress = () => {
-      if (this.longPressTimer !== null) {
-        clearTimeout(this.longPressTimer);
-        this.longPressTimer = null;
-      }
-      this.touchStartPos = null;
-    };
-
-    canvas.addEventListener('touchstart', (e) => {
-      if (e.touches.length !== 1) {
-        cancelLongPress();
-        return;
-      }
-
-      const touch = e.touches[0];
-      const pos = getTouchPos(touch);
-      const hit = hitTest(pos.x, pos.y);
-
-      this.touchStartPos = { x: touch.clientX, y: touch.clientY };
-
-      // If touching an existing anchor/orbit, handle like mouse
-      if (hit.type === 'orbit' || hit.type === 'center') {
-        cancelLongPress();
-        // Trigger the existing drag logic
-        this.dragStartMx = touch.clientX;
-        this.dragStartMy = touch.clientY;
-        this.isDragging = false;
-
-        if (hit.type === 'orbit') {
-          if (hit.quality !== this.selectedQuality) {
-            this.selectDegreeQuality(hit.deg, hit.quality);
+    // Map control buttons (within wizard map controls container)
+    const controlsContainer = this.container.querySelector('.fc-wizard-map-controls');
+    if (controlsContainer) {
+      controlsContainer.querySelectorAll('.fc-map-btn[data-action]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const action = (btn as HTMLElement).dataset.action;
+          switch (action) {
+            case 'zoom-in': this.wizardMapZoom(1.5); break;
+            case 'zoom-out': this.wizardMapZoom(0.67); break;
+            case 'reset': this.wizardMapReset(); break;
+            case 'pan-up': this.wizardMapPan(0, -0.2); break;
+            case 'pan-down': this.wizardMapPan(0, 0.2); break;
+            case 'pan-left': this.wizardMapPan(-0.2, 0); break;
+            case 'pan-right': this.wizardMapPan(0.2, 0); break;
           }
-          this.dragMode = 'orbit';
-          this.dragDeg = hit.deg;
-          const key = this.anchorKey(hit.deg, hit.quality);
-          const a = this.anchors.get(key)!;
-          const beatAngle = hit.orbitIdx * a.beatSpread;
-          const isBackbeat = (hit.orbitIdx === 1 || hit.orbitIdx === 3);
-          const r = isBackbeat ? a.orbitRadius * a.orbitSkew : a.orbitRadius;
-          const px = r * Math.cos(beatAngle);
-          const py = r * Math.sin(beatAngle);
-          const cosR = Math.cos(a.orbitRotation);
-          const sinR = Math.sin(a.orbitRotation);
-          this.dragStartData = {
-            origRadius: a.orbitRadius,
-            origRotation: a.orbitRotation,
-            origSkew: a.orbitSkew,
-            origSpread: a.beatSpread,
-            beatAngle,
-            startOffsetR: px * cosR - py * sinR,
-            startOffsetI: px * sinR + py * cosR
-          };
-          this.isDragging = true;
-        } else {
-          if (hit.quality !== this.selectedQuality) {
-            this.selectDegreeQuality(hit.deg, hit.quality);
-          }
-          this.dragMode = 'center';
-          this.dragDeg = hit.deg;
-          const key = this.anchorKey(hit.deg, hit.quality);
-          const a = this.anchors.get(key)!;
-          this.dragStartData = { real: a.real, imag: a.imag };
-        }
-        return;
-      }
-
-      // Empty area handling
-      const status = this.container.querySelector('#fc-status')!;
-
-      // Helper to place anchor
-      const placeAnchor = () => {
-        if (navigator.vibrate) navigator.vibrate(50);
-        const c = this.pixelToC(pos.x, pos.y);
-        const existing = this.currentAnchor;
-
-        this.anchors.set(this.currentKey, {
-          familyIdx: this.selectedFamily,
-          real: c.r,
-          imag: c.i,
-          orbitRadius: existing?.orbitRadius ?? DEFAULT_ORBIT_RADIUS,
-          orbitSkew: existing?.orbitSkew ?? DEFAULT_ORBIT_SKEW,
-          orbitRotation: existing?.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
-          beatSpread: existing?.beatSpread ?? DEFAULT_BEAT_SPREAD,
-          viewZoom: existing?.viewZoom ?? DEFAULT_VIEW_ZOOM,
         });
+      });
 
-        status.textContent = `Anchor placed at c = ${c.r.toFixed(4)} + ${c.i.toFixed(4)}i`;
-        this.startPreview(this.anchors.get(this.currentKey)!);
-        this.drawOverlay();
-        this.updateAssignments();
-        this.touchStartPos = null;
-      };
-
-      if (this.modifierActive) {
-        // Modifier ON: instant placement
-        placeAnchor();
-      } else {
-        // Modifier OFF: long press to place
-        status.textContent = 'Hold to place anchor...';
-
-        this.longPressTimer = window.setTimeout(() => {
-          this.longPressTimer = null;
-          if (!this.touchStartPos) return;
-          placeAnchor();
-        }, FractalConfigPanel.LONG_PRESS_DURATION);
-      }
-    }, { passive: true });
-
-    canvas.addEventListener('touchmove', (e) => {
-      // If dragging an anchor, handle movement
-      if (this.dragMode && e.touches.length === 1) {
-        const touch = e.touches[0];
-        const rect = canvas.getBoundingClientRect();
-        const b = this.viewBounds[this.selectedFamily];
-        const dx = touch.clientX - this.dragStartMx;
-        const dy = touch.clientY - this.dragStartMy;
-
-        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) this.isDragging = true;
-        if (!this.isDragging) return;
-
-        const containerAspect = rect.width / rect.height;
-        let renderWidth: number, renderHeight: number;
-        if (containerAspect > 1) {
-          renderHeight = rect.height;
-          renderWidth = rect.height;
+      // Atlas toggle
+      const atlasBtn = controlsContainer.querySelector('.fc-wizard-atlas-btn');
+      atlasBtn?.addEventListener('click', () => {
+        this.wizardState.showAtlas = !this.wizardState.showAtlas;
+        atlasBtn.classList.toggle('active', this.wizardState.showAtlas);
+        // Re-render with atlas grid
+        if (this.wizardState.tempAnchor?.real !== 0 || this.wizardState.tempAnchor?.imag !== 0) {
+          this.renderWizardLocusOverlay(wizardCanvas);
         } else {
-          renderWidth = rect.width;
-          renderHeight = rect.width;
+          this.renderWizardLocus(wizardCanvas);
         }
+      });
 
-        const cDx = dx * (b.rMax - b.rMin) / renderWidth;
-        const cDy = dy * (b.iMax - b.iMin) / renderHeight;
+    }
 
-        const dragKey = this.anchorKey(this.dragDeg, this.selectedQuality);
-        const dragAnchor = this.anchors.get(dragKey);
+    // Position section buttons (in sidebar)
+    const hotspotBtn = this.container.querySelector('.fc-wizard-hotspot-btn');
+    hotspotBtn?.addEventListener('click', () => {
+      this.wizardJumpToHotspot(wizardCanvas);
+    });
 
-        if (this.dragMode === 'orbit' && dragAnchor?.familyIdx === this.selectedFamily) {
-          const newOffsetR = this.dragStartData.startOffsetR + cDx;
-          const newOffsetI = this.dragStartData.startOffsetI + cDy;
-          const newRadius = Math.sqrt(newOffsetR * newOffsetR + newOffsetI * newOffsetI);
+    const centerBtn = this.container.querySelector('.fc-wizard-center-btn');
+    centerBtn?.addEventListener('click', () => {
+      this.wizardCenterOnAnchor(wizardCanvas);
+    });
 
-          if (this.modifierActive) {
-            // Modifier ON: adjust skew (vertical) and spread (horizontal)
-            const skewSensitivity = 3.0;
-            const newSkew = this.dragStartData.origSkew + cDy * skewSensitivity;
-            dragAnchor.orbitSkew = Math.max(0.2, Math.min(2.0, newSkew));
-
-            const spreadSensitivity = 4.0;
-            const newSpread = this.dragStartData.origSpread + cDx * spreadSensitivity;
-            dragAnchor.beatSpread = Math.max(0.1, Math.min(2.0, newSpread));
-
-            dragAnchor.orbitRadius = Math.max(0.01, newRadius);
-          } else {
-            // Modifier OFF: adjust radius and rotation
-            const mouseAngle = Math.atan2(newOffsetI, newOffsetR);
-            const newRotation = mouseAngle - this.dragStartData.beatAngle;
-            dragAnchor.orbitRadius = Math.max(0.01, newRadius);
-            dragAnchor.orbitRotation = newRotation;
-          }
-          this.debouncedDraw();
-        } else if (this.dragMode === 'center' && dragAnchor?.familyIdx === this.selectedFamily) {
-          dragAnchor.real = this.dragStartData.real + cDx;
-          dragAnchor.imag = this.dragStartData.imag + cDy;
-          this.debouncedDraw();
-        }
-        return;
-      }
-
-      // Check if finger moved too far - cancel long press
-      if (this.touchStartPos && e.touches.length === 1) {
-        const touch = e.touches[0];
-        const dx = touch.clientX - this.touchStartPos.x;
-        const dy = touch.clientY - this.touchStartPos.y;
-        if (Math.abs(dx) > FractalConfigPanel.TOUCH_MOVE_THRESHOLD ||
-            Math.abs(dy) > FractalConfigPanel.TOUCH_MOVE_THRESHOLD) {
-          cancelLongPress();
-          const status = this.container.querySelector('#fc-status')!;
-          status.textContent = 'Hold to place anchor';
-        }
-      }
-    }, { passive: true });
-
-    canvas.addEventListener('touchend', () => {
-      cancelLongPress();
-
-      if (this.dragMode === 'center' || this.dragMode === 'orbit') {
-        const key = this.anchorKey(this.dragDeg, this.selectedQuality);
-        const a = this.anchors.get(key);
-        if (a) this.startPreview(a);
-        this.syncOrbitSliders();
-        this.updateResetButtonState();
-        if (this.dragMode === 'center') {
-                  }
-      }
-
-      this.dragMode = null;
-      this.isDragging = false;
-      this.drawOverlay();
-
-      const status = this.container.querySelector('#fc-status')!;
-      status.textContent = 'Hold to place anchor';
-    }, { passive: true });
-
-    canvas.addEventListener('touchcancel', () => {
-      cancelLongPress();
-      this.dragMode = null;
-      this.isDragging = false;
-    }, { passive: true });
+    // Render locus when wizard step 2 becomes active (only if no anchor yet)
+    const hasAnchor = this.wizardState.tempAnchor?.real !== 0 || this.wizardState.tempAnchor?.imag !== 0;
+    if (!hasAnchor) {
+      this.renderWizardLocus(wizardCanvas);
+    }
   }
 
+  /** Update wizard zoom slider to reflect current zoom level */
+  private updateWizardZoomSlider(): void {
+    this.syncParamInputs();
+  }
+
+  /** Pan wizard map by a fraction of the current view */
+  private wizardMapPan(dxFrac: number, dyFrac: number): void {
+    if (!this.wizardState.mapBounds) return;
+
+    const b = this.wizardState.mapBounds;
+    const rRange = b.rMax - b.rMin;
+    const iRange = b.iMax - b.iMin;
+    const dr = dxFrac * rRange;
+    const di = dyFrac * iRange;
+
+    this.wizardState.mapBounds = {
+      rMin: b.rMin + dr,
+      rMax: b.rMax + dr,
+      iMin: b.iMin + di,
+      iMax: b.iMax + di,
+    };
+
+    // Use debounced render for smooth panning
+    this.debouncedWizardRender();
+  }
+
+  /** Center wizard map on current anchor position */
+  private wizardCenterOnAnchor(wizardCanvas: HTMLCanvasElement): void {
+    if (!this.wizardState.tempAnchor || !this.wizardState.mapBounds) return;
+
+    const anchor = this.wizardState.tempAnchor;
+    // Only center if anchor has been placed
+    if (anchor.real === 0 && anchor.imag === 0) return;
+
+    const b = this.wizardState.mapBounds;
+    const halfW = (b.rMax - b.rMin) / 2;
+    const halfH = (b.iMax - b.iMin) / 2;
+
+    this.wizardState.mapBounds = {
+      rMin: anchor.real - halfW,
+      rMax: anchor.real + halfW,
+      iMin: anchor.imag - halfH,
+      iMax: anchor.imag + halfH,
+    };
+
+    // Clear buffer and re-render
+    this.wizardLocusBuffer = null;
+    this.wizardRenderedBounds = null;
+    this.renderWizardLocusOverlay(wizardCanvas);
+    this.syncParamInputs();
+  }
+
+  /** Render locus for wizard step 2 */
+  private renderWizardLocus(canvas: HTMLCanvasElement): void {
+    if (!this.wizardState.tempAnchor) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const f = FAMILIES[this.wizardState.tempAnchor.familyIdx];
+    // Use wizard map bounds if available, otherwise family bounds
+    const b = this.wizardState.mapBounds || f.bounds;
+    const size = canvas.width;
+    const img = ctx.createImageData(size, size);
+    const d = img.data;
+    const rStep = (b.rMax - b.rMin) / size;
+    const iStep = (b.iMax - b.iMin) / size;
+    // Scale iterations with zoom for fidelity at deep zoom
+    const baseIter = 100;
+    const extraIter = Math.floor(Math.log2(this.wizardState.mapZoom)) * 50;
+    const maxIter = baseIter + extraIter;
+
+    for (let py = 0; py < size; py++) {
+      const ci = b.iMin + py * iStep;
+      for (let px = 0; px < size; px++) {
+        const cr = b.rMin + px * rStep;
+        const esc = f.locus(cr, ci, maxIter);
+        const idx = (py * size + px) * 4;
+        if (esc === 0) {
+          d[idx] = 8; d[idx + 1] = 8; d[idx + 2] = 16;
+        } else {
+          const t = Math.sqrt(esc / maxIter);
+          d[idx] = Math.round(12 + t * 50);
+          d[idx + 1] = Math.round(20 + t * 100);
+          d[idx + 2] = Math.round(35 + t * 80);
+        }
+        d[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+
+    // Cache the result for scaled preview
+    if (!this.wizardLocusBuffer) {
+      this.wizardLocusBuffer = document.createElement('canvas');
+      this.wizardLocusBuffer.width = size;
+      this.wizardLocusBuffer.height = size;
+    }
+    this.wizardLocusBuffer.getContext('2d')!.drawImage(canvas, 0, 0);
+    this.wizardRenderedBounds = { ...b };
+
+    // Draw atlas grid if enabled
+    if (this.wizardState.showAtlas) {
+      this.drawWizardAtlasGrid(canvas, ctx);
+    }
+  }
+
+  /** Draw scaled preview for wizard map during zoom (before full re-render) */
+  private drawWizardScaledPreview(canvas: HTMLCanvasElement): void {
+    if (!this.wizardLocusBuffer || !this.wizardRenderedBounds || !this.wizardState.mapBounds) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const view = this.wizardState.mapBounds;
+    const rendered = this.wizardRenderedBounds;
+    const size = canvas.width;
+
+    // Calculate source rect in the buffer that corresponds to new view
+    const srcX = (view.rMin - rendered.rMin) / (rendered.rMax - rendered.rMin) * size;
+    const srcY = (view.iMin - rendered.iMin) / (rendered.iMax - rendered.iMin) * size;
+    const srcW = (view.rMax - view.rMin) / (rendered.rMax - rendered.rMin) * size;
+    const srcH = (view.iMax - view.iMin) / (rendered.iMax - rendered.iMin) * size;
+
+    // Draw scaled buffer to canvas
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'low';
+    ctx.fillStyle = '#081020';
+    ctx.fillRect(0, 0, size, size);
+    ctx.drawImage(this.wizardLocusBuffer, srcX, srcY, srcW, srcH, 0, 0, size, size);
+  }
+
+  /** Debounced wizard locus render */
+  private debouncedWizardRender(): void {
+    const wizardCanvas = this.container.querySelector('.fc-wizard-locus-canvas') as HTMLCanvasElement;
+    if (!wizardCanvas) return;
+
+    // Show scaled preview immediately for responsive feel
+    this.drawWizardScaledPreview(wizardCanvas);
+
+    // Draw anchor overlay if placed
+    const hasAnchor = this.wizardState.tempAnchor?.real !== 0 || this.wizardState.tempAnchor?.imag !== 0;
+    if (hasAnchor) {
+      this.drawWizardAnchorOverlay(wizardCanvas);
+    }
+
+    // Debounce the expensive full render
+    if (this.wizardZoomDebounceTimer !== null) {
+      clearTimeout(this.wizardZoomDebounceTimer);
+    }
+    this.wizardZoomDebounceTimer = window.setTimeout(() => {
+      this.wizardZoomDebounceTimer = null;
+      if (this.wizardState.tempAnchor?.real !== 0 || this.wizardState.tempAnchor?.imag !== 0) {
+        this.renderWizardLocusOverlay(wizardCanvas);
+      } else {
+        this.renderWizardLocus(wizardCanvas);
+      }
+    }, 150);
+  }
+
+  /** Draw just the anchor marker overlay (without re-rendering locus) */
+  private drawWizardAnchorOverlay(canvas: HTMLCanvasElement): void {
+    if (!this.wizardState.tempAnchor || !this.wizardState.mapBounds) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const anchor = this.wizardState.tempAnchor;
+    const b = this.wizardState.mapBounds;
+    const size = canvas.width;
+
+    // Convert anchor position to pixel coords
+    const px = ((anchor.real - b.rMin) / (b.rMax - b.rMin)) * size;
+    const py = ((anchor.imag - b.iMin) / (b.iMax - b.iMin)) * size;
+
+    // Draw crosshair
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, size);
+    ctx.moveTo(0, py);
+    ctx.lineTo(size, py);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw anchor dot
+    ctx.beginPath();
+    ctx.arc(px, py, 8, 0, TWO_PI);
+    ctx.fillStyle = '#16c79a';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  /** Draw atlas grid overlay on wizard map */
+  private drawWizardAtlasGrid(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): void {
+    if (!this.wizardState.tempAnchor || !this.wizardState.mapBounds) return;
+
+    const GRID_SIZE = 8;
+    const THUMB_DRAW_SIZE = canvas.width / GRID_SIZE;
+    const b = this.wizardState.mapBounds;
+    const f = FAMILIES[this.wizardState.tempAnchor.familyIdx];
+
+    for (let gy = 0; gy < GRID_SIZE; gy++) {
+      for (let gx = 0; gx < GRID_SIZE; gx++) {
+        // Calculate c-value at grid center
+        const cr = b.rMin + (gx + 0.5) / GRID_SIZE * (b.rMax - b.rMin);
+        const ci = b.iMin + (gy + 0.5) / GRID_SIZE * (b.iMax - b.iMin);
+
+        // Render small Julia preview
+        const thumbSize = 32;
+        const thumbCanvas = document.createElement('canvas');
+        thumbCanvas.width = thumbSize;
+        thumbCanvas.height = thumbSize;
+        const thumbCtx = thumbCanvas.getContext('2d')!;
+        const img = thumbCtx.createImageData(thumbSize, thumbSize);
+        const d = img.data;
+        const range = 3.6, half = range / 2, step = range / thumbSize;
+        const iter = 40;
+
+        for (let py = 0; py < thumbSize; py++) {
+          for (let px = 0; px < thumbSize; px++) {
+            const fx = -half + px * step;
+            const fy = -half + py * step;
+            const esc = f.julia(fx, fy, cr, ci, iter);
+            const idx = (py * thumbSize + px) * 4;
+            if (esc === 0) {
+              d[idx] = d[idx + 1] = d[idx + 2] = 0;
+            } else {
+              const t = Math.sqrt(esc / iter);
+              // Use accent color for wizard atlas
+              d[idx] = Math.min(255, Math.round(t * 22));
+              d[idx + 1] = Math.min(255, Math.round(t * 199));
+              d[idx + 2] = Math.min(255, Math.round(t * 154));
+            }
+            d[idx + 3] = 200;
+          }
+        }
+        thumbCtx.putImageData(img, 0, 0);
+
+        // Draw on canvas
+        const drawX = gx * THUMB_DRAW_SIZE;
+        const drawY = gy * THUMB_DRAW_SIZE;
+        ctx.drawImage(thumbCanvas, drawX, drawY, THUMB_DRAW_SIZE, THUMB_DRAW_SIZE);
+
+        // Grid lines
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.strokeRect(drawX, drawY, THUMB_DRAW_SIZE, THUMB_DRAW_SIZE);
+      }
+    }
+  }
+
+  /** Render overlay showing anchor position on wizard locus */
+  private renderWizardLocusOverlay(canvas: HTMLCanvasElement): void {
+    if (!this.wizardState.tempAnchor) return;
+
+    // First redraw the locus
+    this.renderWizardLocus(canvas);
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const anchor = this.wizardState.tempAnchor;
+    const f = FAMILIES[anchor.familyIdx];
+    // Use wizard map bounds if available
+    const b = this.wizardState.mapBounds || f.bounds;
+    const size = canvas.width;
+
+    // Convert anchor position to pixel coords
+    const px = ((anchor.real - b.rMin) / (b.rMax - b.rMin)) * size;
+    const py = ((anchor.imag - b.iMin) / (b.iMax - b.iMin)) * size;
+
+    // Draw crosshair
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(px, 0);
+    ctx.lineTo(px, size);
+    ctx.moveTo(0, py);
+    ctx.lineTo(size, py);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Draw orbit beat points if there's any orbit radius
+    if (anchor.orbitRadius > 0) {
+      const rangeR = b.rMax - b.rMin;
+      const rangeI = b.iMax - b.iMin;
+      const baseRadius = anchor.orbitRadius;
+      const cosR = Math.cos(anchor.orbitRotation);
+      const sinR = Math.sin(anchor.orbitRotation);
+
+      for (let oi = 0; oi < 4; oi++) {
+        const isBackbeat = (oi === 1 || oi === 3);
+        const r = isBackbeat ? baseRadius * anchor.orbitSkew : baseRadius;
+        const angle = oi * anchor.beatSpread;
+        const opx = r * Math.cos(angle);
+        const opy = r * Math.sin(angle);
+        const dr = opx * cosR - opy * sinR;
+        const di = opx * sinR + opy * cosR;
+
+        // Convert to pixel coords
+        const bpx = ((anchor.real + dr - b.rMin) / rangeR) * size;
+        const bpy = ((anchor.imag + di - b.iMin) / rangeI) * size;
+
+        // Draw line from center to beat point
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(bpx, bpy);
+        ctx.strokeStyle = ORBIT_COLORS[oi];
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Draw beat point dot (larger for easier dragging)
+        ctx.beginPath();
+        ctx.arc(bpx, bpy, 7, 0, TWO_PI);
+        ctx.fillStyle = ORBIT_COLORS[oi];
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+
+    // Draw anchor dot (on top of orbit lines)
+    ctx.beginPath();
+    ctx.arc(px, py, 8, 0, TWO_PI);
+    ctx.fillStyle = '#16c79a';
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  /** Render Julia for wizard preview */
   private cToPixel(r: number, i: number): { x: number; y: number } {
     const b = this.viewBounds[this.selectedFamily];
     return {
       x: (r - b.rMin) / (b.rMax - b.rMin) * PANEL_SIZE,
       y: (i - b.iMin) / (b.iMax - b.iMin) * PANEL_SIZE,
-    };
-  }
-
-  private pixelToC(px: number, py: number): { r: number; i: number } {
-    const b = this.viewBounds[this.selectedFamily];
-    return {
-      r: b.rMin + (px / PANEL_SIZE) * (b.rMax - b.rMin),
-      i: b.iMin + (py / PANEL_SIZE) * (b.iMax - b.iMin),
     };
   }
 
@@ -2583,45 +3029,6 @@ export class FractalConfigPanel {
     }
     this.drawOverlay();
     this.updateAssignments();
-  }
-
-  private copyToClipboard(): void {
-    // Generate TypeScript code for the current anchors (major quality only for simplicity)
-    const lines: string[] = [];
-    lines.push('// Fractal anchor preset');
-    lines.push('{');
-    lines.push('  id: \'new-preset\',');
-    lines.push('  name: \'New Preset\',');
-    lines.push('  builtIn: true,');
-    lines.push('  anchors: {');
-
-    for (let deg = 0; deg <= 11; deg++) {
-      const key = this.anchorKey(deg, 'major');
-      const a = this.anchors.get(key);
-      if (!a) continue;
-
-      const f = FAMILIES[a.familyIdx];
-      const viewZoomStr = (a.viewZoom && a.viewZoom !== 1.0) ? `, viewZoom: ${a.viewZoom.toFixed(1)}` : '';
-      lines.push(`    ${deg}: { real: ${a.real.toFixed(4)}, imag: ${a.imag.toFixed(4)}, type: ${f.typeNum}, orbitRadius: ${a.orbitRadius.toFixed(4)}, orbitSkew: ${a.orbitSkew.toFixed(2)}, orbitRotation: ${a.orbitRotation.toFixed(2)}, beatSpread: ${a.beatSpread.toFixed(2)}${viewZoomStr} },`);
-    }
-
-    lines.push('  },');
-    lines.push('},');
-
-    const code = lines.join('\n');
-
-    navigator.clipboard.writeText(code).then(() => {
-      const status = this.container.querySelector('#fc-status')!;
-      status.textContent = 'Copied to clipboard!';
-      setTimeout(() => {
-        const isTouchDevice = 'ontouchstart' in window;
-        status.textContent = isTouchDevice ? 'Hold to place anchor' : 'Ctrl+click to place anchor';
-      }, 2000);
-    }).catch(err => {
-      console.error('Failed to copy:', err);
-      const status = this.container.querySelector('#fc-status')!;
-      status.textContent = 'Failed to copy - check console';
-    });
   }
 
   private buildPaletteLUT(): void {
@@ -2863,38 +3270,6 @@ export class FractalConfigPanel {
   private drawOverlay(): void {
     this.locusCtx.drawImage(this.locusBuffer, 0, 0);
     this.drawOverlayMarkers();
-  }
-
-  /** Debounced draw for drag operations */
-  private debouncedDraw(): void {
-    if (this.dragDebounceTimer !== null) {
-      cancelAnimationFrame(this.dragDebounceTimer);
-    }
-    this.dragDebounceTimer = requestAnimationFrame(() => {
-      this.dragDebounceTimer = null;
-      this.drawOverlay();
-      this.syncOrbitSliders();
-      this.updateResetButtonState();
-    });
-  }
-
-  /** Debounced draw with locus render for pan operations */
-  private debouncedDrawWithRender(): void {
-    if (this.dragDebounceTimer !== null) {
-      cancelAnimationFrame(this.dragDebounceTimer);
-    }
-    // Show scaled preview immediately
-    this.drawScaledPreview();
-    this.drawOverlayMarkers();
-    // Debounce full render
-    if (this.zoomDebounceTimer !== null) {
-      clearTimeout(this.zoomDebounceTimer);
-    }
-    this.zoomDebounceTimer = window.setTimeout(() => {
-      this.zoomDebounceTimer = null;
-      this.renderLocus();
-      this.drawOverlay();
-    }, 100);
   }
 
   /** Draw anchor markers on the locus canvas (assumes background already drawn) */
@@ -3280,6 +3655,1213 @@ export class FractalConfigPanel {
     }
   }
 
+  // --- Wizard Methods ---
+
+  /** Reset wizard to initial state */
+  private resetWizard(): void {
+    this.stopWizardPreview();
+
+    // Reset wizard state
+    this.wizardState = {
+      step: 'assign-notes',
+      tempAnchor: null,
+      assignedNotes: [],
+      movementPreset: 'sway',
+      presetName: '',
+      mapBounds: null,
+      mapZoom: 1,
+      showAtlas: false,
+      previewNoteIdx: 0,
+      configuredNotes: new Set(),
+      originalAnchor: null,
+    };
+    this.showWizardStep('assign-notes');
+  }
+
+  /** Show a specific wizard step */
+  private showWizardStep(step: WizardStep): void {
+    this.wizardState.step = step;
+
+    // Stop wizard preview when switching steps
+    this.stopWizardPreview();
+
+    // Update step containers visibility
+    const stepContainers = this.container.querySelectorAll('.fc-wizard-step');
+    stepContainers.forEach(el => {
+      const stepEl = el as HTMLElement;
+      const isActive = stepEl.dataset.step === step;
+      stepEl.classList.toggle('active', isActive);
+    });
+
+    // Show preset bar only on step 1 (assign-notes)
+    const presetBar = this.container.querySelector('.fc-presets-bar') as HTMLElement;
+    if (presetBar) {
+      presetBar.style.display = step === 'assign-notes' ? '' : 'none';
+    }
+
+    // Update progress indicator
+    const stepIdx = WIZARD_STEPS.indexOf(step);
+    const progressDots = this.container.querySelectorAll('.fc-wizard-progress-dot');
+    progressDots.forEach((dot, i) => {
+      dot.classList.toggle('completed', i < stepIdx);
+      dot.classList.toggle('active', i === stepIdx);
+      dot.classList.toggle('upcoming', i > stepIdx);
+    });
+
+    // Update note count
+    
+    // Update nav button states in the active step
+    const activeStep = this.container.querySelector(`.fc-wizard-step[data-step="${step}"]`);
+    if (activeStep) {
+      const backBtn = activeStep.querySelector('.fc-wizard-back') as HTMLButtonElement;
+      const nextBtn = activeStep.querySelector('.fc-wizard-next') as HTMLButtonElement;
+      if (backBtn) backBtn.style.visibility = stepIdx === 0 ? 'hidden' : 'visible';
+      if (nextBtn) {
+        nextBtn.textContent = step === 'place-anchor' ? 'Done' : 'Next →';
+      }
+    }
+
+    // Step-specific initialization
+    if (step === 'choose-family') {
+      this.updateFamilyGridThumbnails();
+      // Show selected roots in footer
+      const chipsContainer = this.container.querySelector('.fc-wizard-selected-roots-chips');
+      if (chipsContainer) {
+        chipsContainer.innerHTML = this.wizardState.assignedNotes
+          .map(n => `<span class="fc-wizard-root-chip" style="--note-color: ${NOTE_COLORS[n]}">${NOTE_NAMES[n]}</span>`)
+          .join('');
+      }
+
+      // Check if we're in edit mode (tempAnchor has real position)
+      const isEditMode = this.wizardState.tempAnchor &&
+        (this.wizardState.tempAnchor.real !== 0 || this.wizardState.tempAnchor.imag !== 0);
+      const nextBtn = this.container.querySelector('.fc-wizard-family-next') as HTMLElement;
+
+      if (isEditMode && this.wizardState.tempAnchor) {
+        // Edit mode: show Next button and pre-select current family
+        if (nextBtn) nextBtn.style.display = '';
+        const familyIdx = this.wizardState.tempAnchor.familyIdx;
+        this.container.querySelectorAll('.fc-wizard-family-card').forEach(c => {
+          c.classList.toggle('selected', parseInt((c as HTMLElement).dataset.family || '-1') === familyIdx);
+        });
+      } else {
+        // New note mode: hide Next button
+        if (nextBtn) nextBtn.style.display = 'none';
+      }
+    } else if (step === 'place-anchor') {
+      // Set up wizard map interactions and render locus
+      if (this.wizardState.tempAnchor) {
+        this.selectedFamily = this.wizardState.tempAnchor.familyIdx;
+        const f = FAMILIES[this.wizardState.tempAnchor.familyIdx];
+
+        // Check if editing existing anchor (has viewZoom > 1 or non-zero position)
+        const isEditing = this.wizardState.tempAnchor.viewZoom > 1 ||
+          this.wizardState.tempAnchor.real !== 0 || this.wizardState.tempAnchor.imag !== 0;
+
+        if (isEditing) {
+          // Editing: center view on anchor position at current zoom
+          const zoom = this.wizardState.mapZoom;
+          const viewWidth = (f.bounds.rMax - f.bounds.rMin) / zoom;
+          const viewHeight = (f.bounds.iMax - f.bounds.iMin) / zoom;
+          const centerR = this.wizardState.tempAnchor.real;
+          const centerI = this.wizardState.tempAnchor.imag;
+          this.wizardState.mapBounds = {
+            rMin: centerR - viewWidth / 2,
+            rMax: centerR + viewWidth / 2,
+            iMin: centerI - viewHeight / 2,
+            iMax: centerI + viewHeight / 2,
+          };
+        } else {
+          // New anchor: start with full family bounds
+          this.wizardState.mapBounds = { ...f.bounds };
+          this.wizardState.mapZoom = 1;
+        }
+
+        // Clear buffer to force fresh render
+        this.wizardLocusBuffer = null;
+        this.wizardRenderedBounds = null;
+
+        const wizardCanvas = this.container.querySelector('.fc-wizard-locus-canvas') as HTMLCanvasElement;
+        if (wizardCanvas) {
+          if (isEditing) {
+            // Editing: render with anchor overlay and start preview
+            this.renderWizardLocusOverlay(wizardCanvas);
+            this.startWizardPreview(this.wizardState.tempAnchor);
+          } else {
+            this.renderWizardLocus(wizardCanvas);
+          }
+          this.setupWizardMapInteractions();
+        }
+        // Set up note switcher for preview colors
+        this.updateWizardNoteSwitcher();
+
+        // Update parameter sliders to show current anchor values
+        this.syncParamInputs();
+      }
+
+      // Update family name display (outside tempAnchor check)
+      const familyNameEl = this.container.querySelector('.fc-wizard-family-name');
+      if (familyNameEl) {
+        const familyIdx = this.wizardState.tempAnchor?.familyIdx ?? this.selectedFamily;
+        const family = FAMILIES[familyIdx];
+        familyNameEl.textContent = family.label;
+      }
+    } else if (step === 'assign-notes') {
+      this.updateWizardNoteGrid();
+      this.startNoteGridAnimation();
+    }
+
+    // Stop animation when leaving assign-notes step
+    if (step !== 'assign-notes') {
+      this.stopNoteGridAnimation();
+    }
+  }
+
+  /** Start the note grid animation loop */
+  private startNoteGridAnimation(): void {
+    if (this.noteGridAnimationId !== null) return; // Already running
+    this.noteGridStartTime = performance.now();
+    const animate = () => {
+      this.renderNoteGridPreviews();
+      this.noteGridAnimationId = requestAnimationFrame(animate);
+    };
+    animate();
+  }
+
+  /** Stop the note grid animation */
+  private stopNoteGridAnimation(): void {
+    if (this.noteGridAnimationId !== null) {
+      cancelAnimationFrame(this.noteGridAnimationId);
+      this.noteGridAnimationId = null;
+    }
+  }
+
+  /** Render animated previews in the note grid */
+  private renderNoteGridPreviews(): void {
+    const cells = this.container.querySelectorAll('.fc-wizard-note-btn');
+    const now = performance.now();
+    const t = (now - this.noteGridStartTime) / 1000;
+
+    cells.forEach(cell => {
+      const noteIdx = parseInt((cell as HTMLElement).dataset.note || '0');
+      const canvas = cell.querySelector('canvas') as HTMLCanvasElement;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const key = this.anchorKey(noteIdx);
+      const anchor = this.anchors.get(key);
+      const size = canvas.width;
+
+      if (!anchor) {
+        // Zero state - show empty placeholder with note color hint
+        ctx.fillStyle = 'rgba(20, 20, 35, 0.8)';
+        ctx.fillRect(0, 0, size, size);
+
+        // Draw a subtle "?" or empty indicator
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.font = 'bold 32px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('?', size / 2, size / 2);
+        return;
+      }
+
+      // Calculate animated position using orbit parameters
+      const { real, imag, orbitRadius, orbitSkew, orbitRotation, beatSpread, familyIdx } = anchor;
+
+      // Simulate 4-beat cycle at ~120 BPM
+      const beatPhase = (t * 2) % 4;
+      const beatIdx = Math.floor(beatPhase);
+      const beatFrac = beatPhase - beatIdx;
+
+      const angles = [
+        orbitRotation,
+        orbitRotation + beatSpread,
+        orbitRotation + Math.PI,
+        orbitRotation + Math.PI + beatSpread
+      ];
+      const radii = [
+        orbitRadius,
+        orbitRadius * orbitSkew,
+        orbitRadius,
+        orbitRadius * orbitSkew
+      ];
+
+      const nextBeat = (beatIdx + 1) % 4;
+      const angle = angles[beatIdx] + (angles[nextBeat] - angles[beatIdx]) * beatFrac;
+      const radius = radii[beatIdx] + (radii[nextBeat] - radii[beatIdx]) * beatFrac;
+
+      const cr = real + Math.cos(angle) * radius;
+      const ci = imag + Math.sin(angle) * radius;
+
+      // Render Julia set
+      const family = FAMILIES[familyIdx];
+      const viewZoom = anchor.viewZoom || 1;
+      const viewSize = 3 / viewZoom;
+      const img = ctx.createImageData(size, size);
+      const d = img.data;
+
+      for (let py = 0; py < size; py++) {
+        const zi = -viewSize / 2 + (py / size) * viewSize;
+        for (let px = 0; px < size; px++) {
+          const zr = -viewSize / 2 + (px / size) * viewSize;
+          const esc = family.julia(zr, zi, cr, ci, 40);
+          const idx = (py * size + px) * 4;
+
+          if (esc === 0) {
+            d[idx] = 12; d[idx + 1] = 12; d[idx + 2] = 20;
+          } else {
+            const color = NOTE_COLORS[noteIdx];
+            const r = parseInt(color.slice(1, 3), 16);
+            const g = parseInt(color.slice(3, 5), 16);
+            const b = parseInt(color.slice(5, 7), 16);
+            const brightness = 0.3 + 0.7 * (esc / 40);
+            d[idx] = Math.floor(r * brightness);
+            d[idx + 1] = Math.floor(g * brightness);
+            d[idx + 2] = Math.floor(b * brightness);
+          }
+          d[idx + 3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    });
+  }
+
+  /** Navigate to next wizard step */
+  private wizardNext(): void {
+    const currentIdx = WIZARD_STEPS.indexOf(this.wizardState.step);
+
+    // Validate current step before proceeding
+    if (!this.validateWizardStep(this.wizardState.step)) {
+      return;
+    }
+
+    // If at place-anchor (last step), commit and loop back to assign-notes
+    if (this.wizardState.step === 'place-anchor') {
+      this.commitCurrentAnchor();
+      for (const noteIdx of this.wizardState.assignedNotes) {
+        this.wizardState.configuredNotes.add(noteIdx);
+      }
+      // Reset for next note
+      this.wizardState.assignedNotes = [];
+      this.wizardState.tempAnchor = null;
+      this.showWizardStep('assign-notes');
+      return;
+    }
+
+    // Otherwise advance to next step
+    if (currentIdx < WIZARD_STEPS.length - 1) {
+      this.showWizardStep(WIZARD_STEPS[currentIdx + 1]);
+    }
+  }
+
+  /** Navigate to previous wizard step */
+  private wizardBack(): void {
+    const currentIdx = WIZARD_STEPS.indexOf(this.wizardState.step);
+    if (currentIdx > 0) {
+      this.showWizardStep(WIZARD_STEPS[currentIdx - 1]);
+    }
+  }
+
+  /** Cancel wizard and close panel */
+  private wizardCancel(): void {
+    this.hide();
+  }
+
+  /** Commit current tempAnchor to assigned notes (without full save) */
+  private commitCurrentAnchor(): void {
+    const { tempAnchor, assignedNotes, movementPreset } = this.wizardState;
+    if (!tempAnchor || assignedNotes.length === 0) return;
+
+    // Apply movement preset values, capping orbitRadius to stay within 80% of visible area
+    if (movementPreset !== 'custom') {
+      const preset = MOVEMENT_PRESETS[movementPreset];
+      // At zoom Z, visible half-width is ~2/Z. Cap radius at 80% of that.
+      const zoom = this.wizardState.mapZoom;
+      const maxSafeRadius = 1.6 / zoom; // 80% of visible half-width
+      tempAnchor.orbitRadius = Math.min(preset.orbitRadius, maxSafeRadius);
+      tempAnchor.orbitSkew = preset.orbitSkew;
+      tempAnchor.orbitRotation = preset.orbitRotation;
+      tempAnchor.beatSpread = preset.beatSpread;
+    }
+
+    // Apply map zoom as view zoom
+    tempAnchor.viewZoom = this.wizardState.mapZoom;
+
+    // Save anchor for assigned notes
+    for (const noteIdx of assignedNotes) {
+      const key = this.anchorKey(noteIdx);
+      this.anchors.set(key, { ...tempAnchor });
+    }
+
+    // Emit changes so visualizer updates
+    this.emitAnchorChange();
+  }
+
+  /** Edit an existing note's anchor from the note grid or save step */
+  private editNoteAnchor(noteIdx: number): void {
+    const key = this.anchorKey(noteIdx);
+    const existingAnchor = this.anchors.get(key);
+
+    if (existingAnchor) {
+      // Load existing anchor for editing
+      this.wizardState.tempAnchor = { ...existingAnchor };
+      this.wizardState.originalAnchor = { real: existingAnchor.real, imag: existingAnchor.imag };
+      this.wizardState.mapZoom = existingAnchor.viewZoom || 1;
+    } else {
+      // Create default anchor for this note using family center
+      const family = FAMILIES[this.selectedFamily];
+      const r = (family.bounds.rMin + family.bounds.rMax) / 2;
+      const i = (family.bounds.iMin + family.bounds.iMax) / 2;
+      this.wizardState.tempAnchor = {
+        familyIdx: this.selectedFamily,
+        real: r,
+        imag: i,
+        orbitRadius: 0.02,
+        orbitSkew: 1,
+        orbitRotation: 0,
+        beatSpread: Math.PI / 2,
+        viewZoom: 1,
+      };
+      this.wizardState.originalAnchor = { real: r, imag: i };
+      this.wizardState.mapZoom = 1;
+    }
+
+    // Set this note as the only assigned note
+    this.wizardState.assignedNotes = [noteIdx];
+    this.wizardState.movementPreset = 'custom'; // Show actual values
+
+    // Show editing indicator and deselect preset radio
+    this.showEditingIndicator(true);
+
+    // Go directly to place-anchor step for editing
+    this.showWizardStep('place-anchor');
+  }
+
+  /** Show or hide the editing state - highlights New button when editing */
+  private showEditingIndicator(show: boolean): void {
+    const newBtn = this.container.querySelector('.fc-wizard-new-preset') as HTMLElement;
+    if (newBtn) {
+      newBtn.classList.toggle('editing', show);
+    }
+    // Deselect preset radio when editing
+    if (show) {
+      const radios = this.container.querySelectorAll('.fc-presets-list input[type="radio"]');
+      radios.forEach(r => (r as HTMLInputElement).checked = false);
+    }
+  }
+
+  /** Known interesting Julia set coordinates for random selection */
+  private static INTERESTING_POINTS = [
+    { r: -0.123, i: 0.745 },     // Douady's rabbit
+    { r: -0.75, i: 0.11 },       // Seahorse valley
+    { r: 0.285, i: 0.01 },       // Dendrites
+    { r: -0.038, i: 0.9825 },    // Triple spiral
+    { r: -0.75, i: 0.0 },        // San Marco
+    { r: -0.391, i: -0.587 },    // Siegel disk
+    { r: 0.0, i: 1.0 },          // Lightning
+    { r: -0.8, i: 0.156 },       // Spiral galaxy
+    { r: -0.7269, i: 0.1889 },   // Pinwheel
+    { r: -1.0, i: 0.0 },         // Basilica
+    { r: -0.194, i: 0.6557 },    // Feather
+    { r: -0.4, i: 0.6 },         // Starfish
+    { r: -0.835, i: -0.2321 },   // Soft spiral
+    { r: -0.70176, i: -0.3842 }, // Cloud
+    { r: -0.745428, i: 0.113009 }, // Deep seahorse
+    { r: -1.25, i: 0.0 },        // Basilica 2
+    { r: -0.481762, i: -0.531657 }, // Swirl
+    { r: -0.6180339887, i: 0.0 }, // Golden ratio
+    { r: -1.476, i: 0.0 },       // Antenna tip
+    { r: -0.12, i: -0.77 },      // Rabbit variant
+  ];
+
+  /** Randomize anchor for a specific note with visual interest scoring */
+  private randomizeNoteAnchor(noteIdx: number): void {
+    const MAX_ATTEMPTS = 20;
+    const MIN_SCORE = 0.15; // Minimum visual interest score (0-1)
+
+    let bestAnchor: InternalAnchor | null = null;
+    let bestScore = 0;
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      const candidate = this.generateRandomAnchor();
+      const score = this.scoreVisualInterest(candidate);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestAnchor = candidate;
+      }
+
+      // Good enough - stop early
+      if (score >= MIN_SCORE) break;
+    }
+
+    if (!bestAnchor) {
+      // Fallback to first known interesting point
+      const point = FractalConfigPanel.INTERESTING_POINTS[0];
+      bestAnchor = {
+        familyIdx: 0,
+        real: point.r,
+        imag: point.i,
+        orbitRadius: 0.03,
+        orbitSkew: 1.2,
+        orbitRotation: 0,
+        beatSpread: Math.PI / 2,
+        viewZoom: 5,
+      };
+    }
+
+    // Save anchor
+    const key = this.anchorKey(noteIdx);
+    this.anchors.set(key, bestAnchor);
+    this.wizardState.configuredNotes.add(noteIdx);
+
+    // Update UI
+        this.updateWizardNoteGrid();
+    this.showEditingIndicator(true);
+    this.emitAnchorChange();
+    if (this.onSave) this.onSave();
+  }
+
+  /** Generate a random anchor candidate */
+  private generateRandomAnchor(): InternalAnchor {
+    // Pick random family
+    const familyIdx = Math.floor(Math.random() * FAMILIES.length);
+    const family = FAMILIES[familyIdx];
+
+    // Pick random interesting point or generate one on the boundary
+    let real: number, imag: number;
+    if (Math.random() < 0.6) {
+      // Use a known interesting point with offset
+      const point = FractalConfigPanel.INTERESTING_POINTS[
+        Math.floor(Math.random() * FractalConfigPanel.INTERESTING_POINTS.length)
+      ];
+      real = point.r + (Math.random() - 0.5) * 0.1;
+      imag = point.i + (Math.random() - 0.5) * 0.1;
+    } else {
+      // Sample boundary
+      const found = this.findBoundaryPoint(family, 30);
+      real = found.r;
+      imag = found.i;
+    }
+
+    // Pick random movement preset (skip 'still')
+    const presetNames = Object.keys(MOVEMENT_PRESETS).filter(p => p !== 'still') as (keyof typeof MOVEMENT_PRESETS)[];
+    const movementPreset = presetNames[Math.floor(Math.random() * presetNames.length)];
+    const movement = MOVEMENT_PRESETS[movementPreset];
+
+    // Random zoom between 2 and 25
+    const viewZoom = 2 + Math.random() * 23;
+
+    return {
+      familyIdx,
+      real,
+      imag,
+      orbitRadius: movement.orbitRadius * (0.4 + Math.random() * 0.5),
+      orbitSkew: movement.orbitSkew,
+      orbitRotation: Math.random() * Math.PI * 2,
+      beatSpread: movement.beatSpread,
+      viewZoom,
+    };
+  }
+
+  /** Score visual interest of an anchor (0-1, higher = more interesting) */
+  private scoreVisualInterest(anchor: InternalAnchor): number {
+    const family = FAMILIES[anchor.familyIdx];
+    const size = 32; // Small sample size for speed
+    const viewSize = 3 / anchor.viewZoom;
+    const maxIter = 30;
+
+    // Render two frames at different beat phases
+    const frame1 = this.renderSmallFrame(anchor, family, size, viewSize, maxIter, 0);
+    const frame2 = this.renderSmallFrame(anchor, family, size, viewSize, maxIter, 0.5);
+
+    // Calculate metrics
+    const variance1 = this.calculateVariance(frame1);
+    const variance2 = this.calculateVariance(frame2);
+    const pixelChange = this.calculatePixelChange(frame1, frame2);
+
+    // Combined score:
+    // - Variance: rewards diverse escape times (not all same color)
+    // - Pixel change: rewards animation (fractal moves visibly)
+    const varianceScore = Math.min(1, (variance1 + variance2) / 2 / 400); // Normalize
+    const changeScore = Math.min(1, pixelChange / 0.3); // 30% pixel change = max score
+
+    // Weight animation change more heavily
+    return varianceScore * 0.3 + changeScore * 0.7;
+  }
+
+  /** Render a small frame for scoring */
+  private renderSmallFrame(
+    anchor: InternalAnchor,
+    family: typeof FAMILIES[0],
+    size: number,
+    viewSize: number,
+    maxIter: number,
+    beatPhase: number
+  ): number[] {
+    const { real, imag, orbitRadius, orbitSkew, orbitRotation, beatSpread } = anchor;
+
+    // Calculate position at this beat phase
+    const angles = [orbitRotation, orbitRotation + beatSpread, orbitRotation + Math.PI, orbitRotation + Math.PI + beatSpread];
+    const radii = [orbitRadius, orbitRadius * orbitSkew, orbitRadius, orbitRadius * orbitSkew];
+    const beatIdx = Math.floor(beatPhase * 4) % 4;
+    const angle = angles[beatIdx];
+    const radius = radii[beatIdx];
+
+    const cr = real + Math.cos(angle) * radius;
+    const ci = imag + Math.sin(angle) * radius;
+
+    const escapes: number[] = [];
+    for (let py = 0; py < size; py++) {
+      const zi = -viewSize / 2 + (py / size) * viewSize;
+      for (let px = 0; px < size; px++) {
+        const zr = -viewSize / 2 + (px / size) * viewSize;
+        escapes.push(family.julia(zr, zi, cr, ci, maxIter));
+      }
+    }
+    return escapes;
+  }
+
+  /** Calculate variance of escape times */
+  private calculateVariance(escapes: number[]): number {
+    const n = escapes.length;
+    const mean = escapes.reduce((a, b) => a + b, 0) / n;
+    const variance = escapes.reduce((sum, e) => sum + (e - mean) ** 2, 0) / n;
+    return variance;
+  }
+
+  /** Calculate fraction of pixels that changed between frames */
+  private calculatePixelChange(frame1: number[], frame2: number[]): number {
+    let changed = 0;
+    for (let i = 0; i < frame1.length; i++) {
+      // Consider changed if escape time differs by more than 2
+      if (Math.abs(frame1[i] - frame2[i]) > 2) changed++;
+    }
+    return changed / frame1.length;
+  }
+
+  /** Find a point on the Mandelbrot set boundary by random sampling */
+  private findBoundaryPoint(family: typeof FAMILIES[0], maxAttempts: number): { r: number; i: number } {
+    const b = family.bounds;
+    for (let i = 0; i < maxAttempts; i++) {
+      const r = b.rMin + Math.random() * (b.rMax - b.rMin);
+      const im = b.iMin + Math.random() * (b.iMax - b.iMin);
+      const esc = family.locus(r, im, 100);
+      // Look for points near the boundary (escape time between 20-80)
+      if (esc > 20 && esc < 80) {
+        return { r, i: im };
+      }
+    }
+    // Fallback to a known point
+    const point = FractalConfigPanel.INTERESTING_POINTS[0];
+    return { r: point.r, i: point.i };
+  }
+
+  /** Validate current wizard step */
+  private validateWizardStep(step: WizardStep): boolean {
+    const status = this.container.querySelector('.fc-wizard-status') as HTMLElement;
+
+    switch (step) {
+      case 'choose-family':
+        // Family is set when tempAnchor is created
+        if (!this.wizardState.tempAnchor) {
+          if (status) status.textContent = 'Select a fractal family';
+          return false;
+        }
+        return true;
+
+      case 'place-anchor':
+        // Check anchor position is set
+        if (!this.wizardState.tempAnchor || (this.wizardState.tempAnchor.real === 0 && this.wizardState.tempAnchor.imag === 0)) {
+          if (status) status.textContent = 'Click the map to place an anchor';
+          return false;
+        }
+        return true;
+
+      case 'assign-notes':
+        // At least one note must be selected
+        if (this.wizardState.assignedNotes.length === 0) {
+          if (status) status.textContent = 'Select at least one note';
+          return false;
+        }
+        return true;
+    }
+  }
+
+  /** Save current anchors as a new preset */
+  private saveAsPreset(): void {
+    const nameInput = this.container.querySelector('.fc-wizard-name-input') as HTMLInputElement;
+    const presetName = nameInput?.value?.trim() || '';
+
+    if (!presetName) {
+      const status = this.container.querySelector('.fc-wizard-status') as HTMLElement;
+      if (status) status.textContent = 'Enter a preset name to save';
+      return;
+    }
+
+    // Save all current anchors as a preset
+    const anchors = this.getCurrentAnchorsData();
+    const preset: UserPreset = {
+      id: Date.now().toString(),
+      name: presetName,
+      anchors,
+      createdAt: Date.now(),
+    };
+    this.userPresets.push(preset);
+    saveUserPresets(this.userPresets);
+    this.selectedPresetId = preset.id;
+    this.updatePresetsUI();
+    if (this.onPresetsChange) this.onPresetsChange();
+
+    // Clear the name input and hide editing indicator
+    if (nameInput) nameInput.value = '';
+    this.showEditingIndicator(false);
+
+    const status = this.container.querySelector('.fc-wizard-status') as HTMLElement;
+    if (status) status.textContent = `Saved preset "${presetName}"`;
+
+    // Update save button state after saving
+    this.updateSaveButtonState();
+  }
+
+  /** Update save button enabled state and tooltip */
+  private updateSaveButtonState(): void {
+    const saveBtn = this.container.querySelector('.fc-wizard-save-btn') as HTMLButtonElement;
+    if (!saveBtn) return;
+
+    const nameInput = this.container.querySelector('.fc-wizard-name-input') as HTMLInputElement;
+    const name = nameInput?.value?.trim() || '';
+
+    // Check if name is empty
+    if (!name) {
+      saveBtn.disabled = true;
+      saveBtn.title = 'Enter a preset name to save';
+      return;
+    }
+
+    // Check if current anchors match any existing preset
+    const currentAnchors = this.getCurrentAnchorsData();
+    const allPresets = [...BUILTIN_PRESETS, ...this.userPresets];
+
+    for (const preset of allPresets) {
+      if (this.anchorsMatch(currentAnchors, preset.anchors)) {
+        saveBtn.disabled = true;
+        saveBtn.title = `Matches existing preset "${preset.name}"`;
+        return;
+      }
+    }
+
+    // All checks passed
+    saveBtn.disabled = false;
+    saveBtn.title = 'Save as new preset';
+  }
+
+  /** Check if two anchor sets are identical */
+  private anchorsMatch(a: FractalAnchors, b: FractalAnchors): boolean {
+    for (let i = 0; i < 12; i++) {
+      const anchorA = a[i];
+      const anchorB = b[i];
+      if (!anchorA || !anchorB) {
+        if (anchorA !== anchorB) return false;
+        continue;
+      }
+      // Compare key properties with small tolerance for floats
+      if (Math.abs(anchorA.real - anchorB.real) > 0.0001) return false;
+      if (Math.abs(anchorA.imag - anchorB.imag) > 0.0001) return false;
+      if (anchorA.type !== anchorB.type) return false;
+      if (Math.abs((anchorA.viewZoom ?? 1) - (anchorB.viewZoom ?? 1)) > 0.01) return false;
+    }
+    return true;
+  }
+
+  /** Start a new preset from scratch - clear all configured notes */
+  private startNewPreset(): void {
+    // Clear all anchors
+    this.anchors.clear();
+    this.wizardState.configuredNotes.clear();
+    this.wizardState.assignedNotes = [];
+    this.wizardState.tempAnchor = null;
+
+    // Clear the name input
+    const nameInput = this.container.querySelector('.fc-wizard-name-input') as HTMLInputElement;
+    if (nameInput) nameInput.value = '';
+
+    // Deselect any selected preset
+    this.selectedPresetId = null;
+    const radios = this.container.querySelectorAll('.fc-preset-radio') as NodeListOf<HTMLInputElement>;
+    radios.forEach(r => r.checked = false);
+
+    // Hide editing indicator
+    this.showEditingIndicator(false);
+
+    // Update UI
+    this.updateWizardNoteGrid();
+    this.updateSaveButtonState();
+
+    // Save empty state
+    this.emitAnchorChange();
+    if (this.onSave) this.onSave();
+
+    const status = this.container.querySelector('.fc-wizard-status') as HTMLElement;
+    if (status) status.textContent = 'Starting new preset - configure notes below';
+  }
+
+  /** Update family grid thumbnails in wizard step 1 */
+  private updateFamilyGridThumbnails(): void {
+    const grid = this.container.querySelector('.fc-wizard-family-grid');
+    if (!grid) return;
+
+    // Thumbnails are rendered inline in the HTML, just update selection state
+    const cards = grid.querySelectorAll('.fc-wizard-family-card');
+    cards.forEach(card => {
+      const familyIdx = parseInt((card as HTMLElement).dataset.family || '0');
+      card.classList.toggle('selected', this.wizardState.tempAnchor?.familyIdx === familyIdx);
+    });
+  }
+
+  /** Update note grid selection state in wizard step 1 */
+  private updateWizardNoteGrid(): void {
+    const grid = this.container.querySelector('.fc-wizard-note-grid');
+    if (!grid) return;
+
+    const buttons = grid.querySelectorAll('.fc-wizard-note-btn');
+    buttons.forEach(btn => {
+      const noteIdx = parseInt((btn as HTMLElement).dataset.note || '0');
+      const isSelected = this.wizardState.assignedNotes.includes(noteIdx);
+      btn.classList.toggle('selected', isSelected);
+    });
+  }
+
+  /** Set up parameter controls with slider + number input sync */
+  private setupParamControls(): void {
+    const scaleSlider = this.container.querySelector('.fc-wizard-scale-slider') as HTMLInputElement;
+    const scaleInput = this.container.querySelector('.fc-wizard-scale-input') as HTMLInputElement;
+    const realSlider = this.container.querySelector('.fc-wizard-real-slider') as HTMLInputElement;
+    const realInput = this.container.querySelector('.fc-wizard-real-input') as HTMLInputElement;
+    const imagSlider = this.container.querySelector('.fc-wizard-imag-slider') as HTMLInputElement;
+    const imagInput = this.container.querySelector('.fc-wizard-imag-input') as HTMLInputElement;
+    const radiusSlider = this.container.querySelector('.fc-wizard-radius-slider') as HTMLInputElement;
+    const radiusInput = this.container.querySelector('.fc-wizard-radius-input') as HTMLInputElement;
+    const skewSlider = this.container.querySelector('.fc-wizard-skew-slider') as HTMLInputElement;
+    const skewInput = this.container.querySelector('.fc-wizard-skew-input') as HTMLInputElement;
+    const rotationSlider = this.container.querySelector('.fc-wizard-rotation-slider') as HTMLInputElement;
+    const rotationInput = this.container.querySelector('.fc-wizard-rotation-input') as HTMLInputElement;
+    const spreadSlider = this.container.querySelector('.fc-wizard-spread-slider') as HTMLInputElement;
+    const spreadInput = this.container.querySelector('.fc-wizard-spread-input') as HTMLInputElement;
+
+    // Scale/Zoom control - exponential mapping: slider 0-100 → zoom 1x-1000x
+    const updateScale = (fromSlider: boolean) => {
+      let zoom: number;
+      if (fromSlider && scaleSlider) {
+        zoom = Math.pow(1000, parseInt(scaleSlider.value) / 100);
+        if (scaleInput) scaleInput.value = zoom.toFixed(1);
+      } else if (scaleInput) {
+        zoom = Math.max(1, Math.min(1000, parseFloat(scaleInput.value) || 1));
+        if (scaleSlider) {
+          const sliderVal = Math.round(100 * Math.log(zoom) / Math.log(1000));
+          scaleSlider.value = String(Math.max(0, Math.min(100, sliderVal)));
+        }
+      } else { return; }
+      this.wizardMapSetZoom(zoom);
+    };
+    scaleSlider?.addEventListener('input', () => updateScale(true));
+    scaleInput?.addEventListener('change', () => updateScale(false));
+
+    // Real - slider position within current view bounds (0 = view min, 1000 = view max)
+    const updateReal = (fromSlider: boolean) => {
+      if (!this.wizardState.tempAnchor || !this.wizardState.mapBounds) return;
+      const b = this.wizardState.mapBounds;
+      if (fromSlider && realSlider) {
+        const t = parseInt(realSlider.value) / 1000;
+        this.wizardState.tempAnchor.real = b.rMin + t * (b.rMax - b.rMin);
+      } else if (realInput) {
+        this.wizardState.tempAnchor.real = parseFloat(realInput.value) || 0;
+      }
+      this.syncParamInputs();
+      this.updateMovementPreview();
+    };
+    realSlider?.addEventListener('input', () => updateReal(true));
+    realInput?.addEventListener('change', () => updateReal(false));
+
+    // Imag - slider position within current view bounds (0 = view min, 1000 = view max)
+    const updateImag = (fromSlider: boolean) => {
+      if (!this.wizardState.tempAnchor || !this.wizardState.mapBounds) return;
+      const b = this.wizardState.mapBounds;
+      if (fromSlider && imagSlider) {
+        const t = parseInt(imagSlider.value) / 1000;
+        this.wizardState.tempAnchor.imag = b.iMin + t * (b.iMax - b.iMin);
+      } else if (imagInput) {
+        this.wizardState.tempAnchor.imag = parseFloat(imagInput.value) || 0;
+      }
+      this.syncParamInputs();
+      this.updateMovementPreview();
+    };
+    imagSlider?.addEventListener('input', () => updateImag(true));
+    imagInput?.addEventListener('change', () => updateImag(false));
+
+    // Radius - exponential mapping for fine control, scaled by zoom
+    // At zoom 1x: slider 1000 = 0.2 radius
+    // At zoom 100x: slider 1000 = 0.002 radius
+    // Exponential curve gives finer control at low values
+    const MAX_RADIUS_BASE = 0.2;
+    const updateRadius = (fromSlider: boolean) => {
+      if (!this.wizardState.tempAnchor) return;
+      this.wizardState.movementPreset = 'custom';
+      if (fromSlider && radiusSlider) {
+        const t = parseInt(radiusSlider.value) / 1000;
+        const maxRadius = MAX_RADIUS_BASE / this.wizardState.mapZoom;
+        // Quadratic curve: more precision at low values
+        this.wizardState.tempAnchor.orbitRadius = Math.max(0, maxRadius * t * t);
+      } else if (radiusInput) {
+        this.wizardState.tempAnchor.orbitRadius = Math.max(0, parseFloat(radiusInput.value) || 0);
+      }
+      this.syncParamInputs();
+      this.updateMovementPreview();
+    };
+    radiusSlider?.addEventListener('input', () => updateRadius(true));
+    radiusInput?.addEventListener('change', () => updateRadius(false));
+
+    // Skew
+    const updateSkew = (fromSlider: boolean) => {
+      if (!this.wizardState.tempAnchor) return;
+      this.wizardState.movementPreset = 'custom';
+      if (fromSlider && skewSlider) {
+        this.wizardState.tempAnchor.orbitSkew = parseInt(skewSlider.value) / 100;
+      } else if (skewInput) {
+        this.wizardState.tempAnchor.orbitSkew = Math.max(0.2, Math.min(3, parseFloat(skewInput.value) || 1));
+      }
+      this.syncParamInputs();
+      this.updateMovementPreview();
+    };
+    skewSlider?.addEventListener('input', () => updateSkew(true));
+    skewInput?.addEventListener('change', () => updateSkew(false));
+
+    // Rotation (degrees)
+    const updateRotation = (fromSlider: boolean) => {
+      if (!this.wizardState.tempAnchor) return;
+      this.wizardState.movementPreset = 'custom';
+      if (fromSlider && rotationSlider) {
+        this.wizardState.tempAnchor.orbitRotation = parseInt(rotationSlider.value) / 100;
+      } else if (rotationInput) {
+        const deg = parseFloat(rotationInput.value) || 0;
+        this.wizardState.tempAnchor.orbitRotation = (deg * Math.PI) / 180;
+      }
+      this.syncParamInputs();
+      this.updateMovementPreview();
+    };
+    rotationSlider?.addEventListener('input', () => updateRotation(true));
+    rotationInput?.addEventListener('change', () => updateRotation(false));
+
+    // Spread (degrees)
+    const updateSpread = (fromSlider: boolean) => {
+      if (!this.wizardState.tempAnchor) return;
+      this.wizardState.movementPreset = 'custom';
+      if (fromSlider && spreadSlider) {
+        this.wizardState.tempAnchor.beatSpread = parseInt(spreadSlider.value) / 100;
+      } else if (spreadInput) {
+        const deg = Math.max(5, Math.min(180, parseFloat(spreadInput.value) || 90));
+        this.wizardState.tempAnchor.beatSpread = (deg * Math.PI) / 180;
+      }
+      this.syncParamInputs();
+      this.updateMovementPreview();
+    };
+    spreadSlider?.addEventListener('input', () => updateSpread(true));
+    spreadInput?.addEventListener('change', () => updateSpread(false));
+  }
+
+  /** Sync parameter inputs/sliders with current tempAnchor values */
+  private syncParamInputs(): void {
+    const anchor = this.wizardState.tempAnchor;
+    if (!anchor) return;
+
+    const zoom = this.wizardState.mapZoom;
+    const scaleSlider = this.container.querySelector('.fc-wizard-scale-slider') as HTMLInputElement;
+    const scaleInput = this.container.querySelector('.fc-wizard-scale-input') as HTMLInputElement;
+    const realSlider = this.container.querySelector('.fc-wizard-real-slider') as HTMLInputElement;
+    const realInput = this.container.querySelector('.fc-wizard-real-input') as HTMLInputElement;
+    const imagSlider = this.container.querySelector('.fc-wizard-imag-slider') as HTMLInputElement;
+    const imagInput = this.container.querySelector('.fc-wizard-imag-input') as HTMLInputElement;
+    const radiusSlider = this.container.querySelector('.fc-wizard-radius-slider') as HTMLInputElement;
+    const radiusInput = this.container.querySelector('.fc-wizard-radius-input') as HTMLInputElement;
+    const skewSlider = this.container.querySelector('.fc-wizard-skew-slider') as HTMLInputElement;
+    const skewInput = this.container.querySelector('.fc-wizard-skew-input') as HTMLInputElement;
+    const rotationSlider = this.container.querySelector('.fc-wizard-rotation-slider') as HTMLInputElement;
+    const rotationInput = this.container.querySelector('.fc-wizard-rotation-input') as HTMLInputElement;
+    const spreadSlider = this.container.querySelector('.fc-wizard-spread-slider') as HTMLInputElement;
+    const spreadInput = this.container.querySelector('.fc-wizard-spread-input') as HTMLInputElement;
+
+    // Update zoom/scale
+    if (scaleSlider) {
+      const sliderVal = Math.round(100 * Math.log(zoom) / Math.log(1000));
+      scaleSlider.value = String(Math.max(0, Math.min(100, sliderVal)));
+    }
+    if (scaleInput) scaleInput.value = zoom.toFixed(1);
+
+    // Update position sliders (relative to current view bounds)
+    const b = this.wizardState.mapBounds;
+    if (b) {
+      const realT = (anchor.real - b.rMin) / (b.rMax - b.rMin);
+      const imagT = (anchor.imag - b.iMin) / (b.iMax - b.iMin);
+      if (realSlider) realSlider.value = String(Math.round(Math.max(0, Math.min(1, realT)) * 1000));
+      if (imagSlider) imagSlider.value = String(Math.round(Math.max(0, Math.min(1, imagT)) * 1000));
+    }
+
+    // Update radius slider (exponential mapping, scaled by zoom)
+    const maxRadius = 0.2 / zoom;
+    // Inverse of quadratic: t = sqrt(radius / maxRadius)
+    const radiusT = Math.sqrt(Math.min(1, anchor.orbitRadius / maxRadius));
+    if (radiusSlider) radiusSlider.value = String(Math.round(radiusT * 1000));
+    if (skewSlider) skewSlider.value = String(Math.round(anchor.orbitSkew * 100));
+    if (rotationSlider) rotationSlider.value = String(Math.round(anchor.orbitRotation * 100));
+    if (spreadSlider) spreadSlider.value = String(Math.round(anchor.beatSpread * 100));
+
+    // Update number inputs
+    if (realInput) realInput.value = anchor.real.toFixed(4);
+    if (imagInput) imagInput.value = anchor.imag.toFixed(4);
+    if (radiusInput) radiusInput.value = anchor.orbitRadius.toFixed(4);
+    if (skewInput) skewInput.value = anchor.orbitSkew.toFixed(2);
+    if (rotationInput) rotationInput.value = String(Math.round(anchor.orbitRotation * 180 / Math.PI));
+    if (spreadInput) spreadInput.value = String(Math.round(anchor.beatSpread * 180 / Math.PI));
+  }
+
+  /** Set wizard map zoom to a specific level */
+  private wizardMapSetZoom(newZoom: number): void {
+    if (!this.wizardState.tempAnchor || !this.wizardState.mapBounds) return;
+
+    const f = FAMILIES[this.wizardState.tempAnchor.familyIdx];
+    const anchor = this.wizardState.tempAnchor;
+    const hasAnchor = anchor.real !== 0 || anchor.imag !== 0;
+    const b = this.wizardState.mapBounds;
+    const centerR = hasAnchor ? anchor.real : (b.rMin + b.rMax) / 2;
+    const centerI = hasAnchor ? anchor.imag : (b.iMin + b.iMax) / 2;
+
+    const origWidth = f.bounds.rMax - f.bounds.rMin;
+    const origHeight = f.bounds.iMax - f.bounds.iMin;
+    const newWidth = origWidth / newZoom;
+    const newHeight = origHeight / newZoom;
+
+    this.wizardState.mapBounds = {
+      rMin: centerR - newWidth / 2,
+      rMax: centerR + newWidth / 2,
+      iMin: centerI - newHeight / 2,
+      iMax: centerI + newHeight / 2,
+    };
+    this.wizardState.mapZoom = newZoom;
+    this.debouncedWizardRender();
+  }
+
+  /** Update note switcher in wizard place-anchor step */
+  private updateWizardNoteSwitcher(): void {
+    const switcher = this.container.querySelector('.fc-wizard-note-switcher');
+    if (!switcher) return;
+
+    const notes = this.wizardState.assignedNotes;
+    if (notes.length <= 1) {
+      // Single note or none - no need for switcher
+      switcher.innerHTML = notes.length === 1
+        ? `<span class="fc-wizard-note-chip active" style="--note-color: ${NOTE_COLORS[notes[0]]}">${NOTE_NAMES[notes[0]]}</span>`
+        : '';
+      return;
+    }
+
+    // Multiple notes - show clickable chips
+    switcher.innerHTML = notes.map((noteIdx, i) => {
+      const isActive = i === this.wizardState.previewNoteIdx;
+      return `<button class="fc-wizard-note-chip${isActive ? ' active' : ''}" data-idx="${i}" style="--note-color: ${NOTE_COLORS[noteIdx]}">${NOTE_NAMES[noteIdx]}</button>`;
+    }).join('');
+
+    // Add click handlers
+    switcher.querySelectorAll('.fc-wizard-note-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const idx = parseInt((chip as HTMLElement).dataset.idx || '0');
+        this.wizardState.previewNoteIdx = idx;
+        this.updateWizardNoteSwitcher();
+        // Animation automatically picks up the new note color
+      });
+    });
+  }
+
+  /** Update movement preview in wizard step 4 */
+  private updateMovementPreview(): void {
+    // Update movement preset button states
+    const buttons = this.container.querySelectorAll('.fc-wizard-movement-btn');
+    buttons.forEach(btn => {
+      const preset = (btn as HTMLElement).dataset.preset;
+      btn.classList.toggle('selected', preset === this.wizardState.movementPreset);
+    });
+
+    // Update preview animation if we have a temp anchor
+    if (this.wizardState.tempAnchor) {
+      const anchor = { ...this.wizardState.tempAnchor };
+
+      // Apply current movement preset for preview with animation
+      if (this.wizardState.movementPreset !== 'custom') {
+        const preset = MOVEMENT_PRESETS[this.wizardState.movementPreset];
+        this.animateToPreset(preset);
+      } else {
+        // Custom mode - just update normally
+        this.startWizardPreview(anchor);
+      }
+
+      // Redraw locus overlay to show updated orbit
+      const wizardCanvas = this.container.querySelector('.fc-wizard-locus-canvas') as HTMLCanvasElement;
+      if (wizardCanvas && this.wizardState.step === 'place-anchor') {
+        this.renderWizardLocusOverlay(wizardCanvas);
+      }
+    }
+  }
+
+  /** Animate sliders to preset values */
+  private animateToPreset(preset: { orbitRadius: number; orbitSkew: number; orbitRotation: number; beatSpread: number }): void {
+    if (!this.wizardState.tempAnchor) return;
+
+    const anchor = this.wizardState.tempAnchor;
+    const startValues = {
+      orbitRadius: anchor.orbitRadius,
+      orbitSkew: anchor.orbitSkew,
+      orbitRotation: anchor.orbitRotation,
+      beatSpread: anchor.beatSpread,
+    };
+    // Cap orbitRadius to stay within 80% of visible area at current zoom
+    const zoom = this.wizardState.mapZoom;
+    const maxSafeRadius = 1.6 / zoom; // 80% of visible half-width
+    const endValues = {
+      orbitRadius: Math.min(preset.orbitRadius, maxSafeRadius),
+      orbitSkew: preset.orbitSkew,
+      orbitRotation: preset.orbitRotation,
+      beatSpread: preset.beatSpread,
+    };
+    const duration = 200; // ms
+    const startTime = performance.now();
+
+    const animate = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(elapsed / duration, 1);
+      // Ease out cubic
+      const ease = 1 - Math.pow(1 - t, 3);
+
+      // Interpolate values
+      anchor.orbitRadius = startValues.orbitRadius + (endValues.orbitRadius - startValues.orbitRadius) * ease;
+      anchor.orbitSkew = startValues.orbitSkew + (endValues.orbitSkew - startValues.orbitSkew) * ease;
+      anchor.orbitRotation = startValues.orbitRotation + (endValues.orbitRotation - startValues.orbitRotation) * ease;
+      anchor.beatSpread = startValues.beatSpread + (endValues.beatSpread - startValues.beatSpread) * ease;
+
+      // Update preview
+      this.startWizardPreview({ ...anchor });
+      // Redraw locus overlay to show updated orbit
+      const wizardCanvas = this.container.querySelector('.fc-wizard-locus-canvas') as HTMLCanvasElement;
+      if (wizardCanvas && this.wizardState.step === 'place-anchor') {
+        this.renderWizardLocusOverlay(wizardCanvas);
+      }
+
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }
+
+  /** Start wizard movement preview animation */
+  private startWizardPreview(anchor: InternalAnchor): void {
+    this.stopWizardPreview();
+    this.wizardPreviewPhase = 0;
+    this.wizardPreviewLastTime = 0;
+
+    const canvas = this.container.querySelector('.fc-wizard-movement-canvas') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let frameCount = 0;
+    const loop = (time: number) => {
+      frameCount++;
+      // Only render every 3rd frame to reduce CPU load
+      if (frameCount % 3 !== 0) {
+        this.wizardPreviewAnim = requestAnimationFrame(loop);
+        return;
+      }
+
+      const dt = this.wizardPreviewLastTime === 0 ? 0.05 : Math.min((time - this.wizardPreviewLastTime) / 1000, 0.1);
+      this.wizardPreviewLastTime = time;
+
+      const bpm = 120;
+      const beatDur = 60 / bpm;
+      this.wizardPreviewPhase += dt;
+      const beatFloat = this.wizardPreviewPhase / beatDur;
+      const beatFrac = beatFloat - Math.floor(beatFloat);
+
+      // Calculate orbit position
+      const beatIdx = Math.floor(beatFloat) % 4;
+      const t = 1 - Math.pow(beatFrac, 0.4); // Quick attack, slow decay
+      const isBackbeat = beatIdx % 2 === 1;
+      const baseR = anchor.orbitRadius;
+      const effectiveR = isBackbeat ? baseR * anchor.orbitSkew : baseR;
+      const orbitAngle = beatIdx * anchor.beatSpread;
+      const px = effectiveR * Math.cos(orbitAngle) * t;
+      const py = effectiveR * Math.sin(orbitAngle) * t;
+      const cosR = Math.cos(anchor.orbitRotation);
+      const sinR = Math.sin(anchor.orbitRotation);
+      const cr = anchor.real + px * cosR - py * sinR;
+      const ci = anchor.imag + px * sinR + py * cosR;
+
+      // Render Julia to wizard canvas
+      this.renderWizardMovementJulia(canvas, ctx, anchor.familyIdx, cr, ci);
+      this.wizardPreviewAnim = requestAnimationFrame(loop);
+    };
+
+    this.wizardPreviewAnim = requestAnimationFrame(loop);
+  }
+
+  /** Stop wizard movement preview animation */
+  private stopWizardPreview(): void {
+    if (this.wizardPreviewAnim) {
+      cancelAnimationFrame(this.wizardPreviewAnim);
+      this.wizardPreviewAnim = null;
+    }
+  }
+
+  /** Render Julia set for wizard movement preview */
+  private renderWizardMovementJulia(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, familyIdx: number, jR: number, jI: number): void {
+    const f = FAMILIES[familyIdx];
+    const size = canvas.width;
+    const img = ctx.createImageData(size, size);
+    const d = img.data;
+    // Scale range by zoom: higher zoom = smaller range = more detail
+    const viewZoom = this.wizardState.mapZoom;
+    const range = 3.6 / viewZoom;
+    const half = range / 2;
+    const step = range / size;
+    // Scale iterations with zoom: +50 iter per doubling for deep zoom fidelity
+    const iter = 80 + Math.floor(50 * Math.log2(Math.max(1, viewZoom)));
+
+    // Use the selected note's color
+    const noteIdx = this.wizardState.assignedNotes[this.wizardState.previewNoteIdx] ?? 0;
+    const [colR, colG, colB] = this.parseHexColor(NOTE_COLORS[noteIdx]);
+
+    for (let py = 0; py < size; py++) {
+      const fy = -half + py * step;
+      for (let px = 0; px < size; px++) {
+        const fx = -half + px * step;
+        const esc = f.julia(fx, fy, jR, jI, iter);
+        const idx = (py * size + px) * 4;
+        if (esc === 0) {
+          d[idx] = d[idx + 1] = d[idx + 2] = 0;
+        } else {
+          const t = Math.sqrt(esc / iter);
+          d[idx] = Math.round(t * colR);
+          d[idx + 1] = Math.round(t * colG);
+          d[idx + 2] = Math.round(t * colB);
+        }
+        d[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
   // --- Public API ---
 
   show(): void {
@@ -3292,8 +4874,17 @@ export class FractalConfigPanel {
     this.drawOverlay();
     this.updateAssignments();
 
+    // Ensure the current wizard step is shown
+    this.showWizardStep(this.wizardState.step);
+
     const a = this.currentAnchor;
     if (a) this.startPreview(a);
+  }
+
+  /** Show the panel in wizard mode */
+  showWizard(): void {
+    this.resetWizard();
+    this.show();
   }
 
   hide(): void {
@@ -3309,6 +4900,7 @@ export class FractalConfigPanel {
     // Restore background scrolling
     document.body.style.overflow = '';
     this.stopPreview();
+    this.stopNoteGridAnimation();
   }
 
   toggle(): void {

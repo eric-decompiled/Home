@@ -14,7 +14,7 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 | `src/main.ts` | App shell: HTML, event listeners, render loop, UI, layer compositor |
 | `src/state.ts` | State management: URL sharing, JSON export/import, localStorage persistence |
 | `src/modal.ts` | Modal factory: open/close, backdrop dismiss, Escape key handling |
-| `src/fractal-config.ts` | Interactive fractal anchor editor panel |
+| `src/fractal-config.ts` | Wizard-based fractal anchor configuration panel |
 | `src/midi-analyzer.ts` | MIDI parsing, key detection, bar-level chord detection |
 | `src/music-mapper.ts` | Maps musical analysis → visual parameters |
 | `src/beat-sync.ts` | Generalized beat tracking with tempo change support |
@@ -59,7 +59,7 @@ When cleaning up or resetting to sensible defaults, use these settings:
 
 **UI State**:
 - Custom/layer panel: closed by default (`layerPanelOpen = false`)
-- Fractal config panel: open by default
+- Fractal config panel: closed by default
 - Preset button order: Stars, Clock, Warp, Piano (main) + Fractal, StarAurora, KaliGraph (experimental)
 - Default preset on fresh load: `warp`
 - Default playlist: `pop` (Classics)
@@ -76,12 +76,16 @@ When cleaning up or resetting to sensible defaults, use these settings:
 - Config shows only: Shapes, Spiral Lines toggle, Dark Backdrop toggle
 - Wave colors: use tension colors (not white/gray)
 
-**Fractal Config Panel**:
-- Map zoom and anchor viewZoom are bidirectionally synced
-- Orbit radius scales inversely with zoom (beat points stay proportionally in frame)
-- Min orbit radius scales with zoom: `0.0001 / viewZoom`
-- Preview iterations scale with zoom: `+50 iter per doubling` for deep zoom fidelity
-- Dotted viewport box uses preview range (3.6) not visualizer range (5.8)
+**Fractal Config Panel** (Wizard-only UI):
+- Wizard flow: Notes → Family → Anchor → Movement → Save
+- Notes step: Select which notes share the anchor, Next disabled until selection made
+- Family step: Visual grid of fractal families with Info buttons, click to select and auto-advance
+- Anchor step: Interactive map with zoom slider, Julia preview, sticky footer on mobile
+- Movement step: Still/Subtle/Dynamic presets with advanced orbit controls
+- Save step: Note coverage display (click to edit), preset name input, Copy as Code button
+- Cancel button in header returns to closed state
+- 12-note coverage check before save step (redirects to notes if incomplete)
+- Mobile responsive: stacked layout, sticky navigation footer
 
 ## Keyboard Shortcuts
 
