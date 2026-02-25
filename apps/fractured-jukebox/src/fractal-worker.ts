@@ -1,6 +1,6 @@
 const ctx = self as unknown as { onmessage: ((e: MessageEvent) => void) | null; postMessage: (msg: unknown, transfer: Transferable[]) => void };
 
-const BASE_RANGE = 5.8;
+const BASE_RANGE = 3.6;  // Must match preview in fractal-config.ts
 const LUT_SIZE = 2048;
 
 // Newton roots (cube roots of unity for n=3)
@@ -236,76 +236,11 @@ ctx.onmessage = (e: MessageEvent) => {
             ny = dr * jI + y * jR;
             break;
           }
-          case 15: {
-            // Barnsley Type 2: condition on Im(z*c)
-            const prod = x * jI + y * jR;
-            const dr = prod >= 0 ? x - 1 : x + 1;
-            nx = dr * jR - y * jI;
-            ny = dr * jI + y * jR;
-            break;
-          }
-          case 16: {
-            // Barnsley Type 3: quadratic with conditional
-            const z2r = x2 - y2 - 1;
-            const z2i = 2 * x * y;
-            if (x > 0) {
-              nx = z2r + jR;
-              ny = z2i + jI;
-            } else {
-              nx = z2r + jR * x + jR;
-              ny = z2i + jI * x + jI;
-            }
-            break;
-          }
-          case 17: {
-            // Multicorn-3: z = conj(z)³ + c
-            const r = Math.sqrt(x2 + y2);
-            const theta = Math.atan2(-y, x); // -y for conjugate
-            const r3 = r * r * r;
-            nx = r3 * Math.cos(3 * theta) + jR;
-            ny = r3 * Math.sin(3 * theta) + jI;
-            break;
-          }
           case 18:
             // Mandelbrot Classic: z² + c where c=pixel, z₀=slider
             nx = x2 - y2 + cR;
             ny = 2 * x * y + cI;
             break;
-          case 19: {
-            // Magnet Type II: z = ((z³ + 3(c-1)z + (c-1)(c-2)) / (3z² + 3(c-2)z + (c-1)(c-2) + 1))²
-            // Let q = c - 1, r = c - 2
-            const qR = jR - 1, qI = jI;
-            const rR = jR - 2, rI = jI;
-            // qr = (c-1)(c-2)
-            const qrR = qR * rR - qI * rI;
-            const qrI = qR * rI + qI * rR;
-            // z³
-            const z3R = x * x2 - 3 * x * y2;
-            const z3I = 3 * x2 * y - y * y2;
-            // 3qz = 3(c-1)z
-            const tqzR = 3 * (qR * x - qI * y);
-            const tqzI = 3 * (qR * y + qI * x);
-            // Numerator: z³ + 3(c-1)z + (c-1)(c-2)
-            const numR = z3R + tqzR + qrR;
-            const numI = z3I + tqzI + qrI;
-            // 3z²
-            const tz2R = 3 * (x2 - y2);
-            const tz2I = 3 * 2 * x * y;
-            // 3rz = 3(c-2)z
-            const trzR = 3 * (rR * x - rI * y);
-            const trzI = 3 * (rR * y + rI * x);
-            // Denominator: 3z² + 3(c-2)z + (c-1)(c-2) + 1
-            const denR = tz2R + trzR + qrR + 1;
-            const denI = tz2I + trzI + qrI;
-            const den2 = denR * denR + denI * denI;
-            if (den2 < 1e-10) { nx = 1e10; ny = 1e10; break; }
-            const divR = (numR * denR + numI * denI) / den2;
-            const divI = (numI * denR - numR * denI) / den2;
-            // Square the result
-            nx = divR * divR - divI * divI;
-            ny = 2 * divR * divI;
-            break;
-          }
           default:
             nx = x2 - y2 + jR;
             ny = 2 * x * y + jI;
@@ -322,13 +257,16 @@ ctx.onmessage = (e: MessageEvent) => {
         // Interior of the set: transparent so background layers show through
         data32[row * w + px] = 0x00000000;
       } else if (isConvergence && rootIndex >= 0) {
-        // Convergence coloring (Newton, Magnet): color by root, brightness by speed
-        const baseColor = ROOT_COLORS[rootIndex % ROOT_COLORS.length];
-        const brightness = 0.15 + 0.45 * (1 - iteration * invMaxIter);
+        // Convergence coloring (Newton, Magnet): use palette with speed-based brightness
+        const t = Math.sqrt(1 - iteration * invMaxIter);
+        let li = (t * lutMax) | 0;
+        if (li > lutMax) li = lutMax;
 
-        const oR = Math.min(255, Math.max(0, (baseColor[0] * brightness) | 0));
-        const oG = Math.min(255, Math.max(0, (baseColor[1] * brightness) | 0));
-        const oB = Math.min(255, Math.max(0, (baseColor[2] * brightness) | 0));
+        const lutIdx = li * 3;
+        const brightness = 0.3 + 0.7 * t;
+        const oR = Math.min(255, Math.max(0, (cLUT[lutIdx] * brightness) | 0));
+        const oG = Math.min(255, Math.max(0, (cLUT[lutIdx + 1] * brightness) | 0));
+        const oB = Math.min(255, Math.max(0, (cLUT[lutIdx + 2] * brightness) | 0));
 
         const maxC = oR > oG ? (oR > oB ? oR : oB) : (oG > oB ? oG : oB);
         let oA = maxC < 15 ? 0 : (maxC - 15) * 4;

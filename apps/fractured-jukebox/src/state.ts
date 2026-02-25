@@ -58,7 +58,7 @@ export interface EffectConfigs {
   };
 }
 
-// Fractal anchor for a single harmonic degree
+// Fractal anchor for a single pitch class
 export interface FractalAnchor {
   real: number;
   imag: number;
@@ -67,9 +67,10 @@ export interface FractalAnchor {
   orbitSkew?: number;   // aspect ratio: 1=circle, <1=wide, >1=tall (default 1)
   orbitRotation?: number; // ellipse rotation in radians (default 0)
   beatSpread?: number;  // angle between beat points in radians (default π/2 = 90°)
+  viewZoom?: number;    // visualizer zoom level (default 1.0)
 }
 
-// Full anchors for all degrees (0-7, where 0 mirrors 1)
+// Full anchors for all pitch classes (0-11: C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
 export type FractalAnchors = Record<number, FractalAnchor>;
 
 export interface VisualizerState {
@@ -864,7 +865,7 @@ export function renameCustomPreset(id: string, newName: string): boolean {
 
 // --- Fractal Anchors ---
 
-const ANCHORS_STORAGE_KEY = 'fractal-anchors';
+const ANCHORS_STORAGE_KEY = 'fractal-anchors-v2';
 
 /**
  * Load fractal anchors from localStorage
@@ -908,23 +909,32 @@ const RADIUS_SMALL = 0.025;   // Sensitive families (Burning Ship, Magnet, Barns
 const RADIUS_MEDIUM = 0.05;   // Default for most families
 const RADIUS_LARGE = 0.10;    // Stable families (Newton, Sine)
 
+// Default anchors by pitch class (0-11: C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
+// Single source of truth - imported by music-mapper.ts and fractal-config.ts
+export const DEFAULT_ANCHORS: FractalAnchors = {
+  0:  { real: 0.280, imag: 0.530, type: 0, orbitRadius: 0.05, orbitSkew: 1.0, orbitRotation: 0.00, beatSpread: 1.57 },    // C
+  1:  { real: -0.865, imag: 0.208, type: 6, orbitRadius: 0.32, orbitSkew: 1.5, orbitRotation: 1.83, beatSpread: 0.16 },   // C#
+  2:  { real: -0.815, imag: 0.380, type: 0, orbitRadius: 0.11, orbitSkew: 1.0, orbitRotation: 4.00, beatSpread: 0.69 },   // D
+  3:  { real: -0.657, imag: 0.762, type: 8, orbitRadius: 0.25, orbitSkew: 1.0, orbitRotation: -0.09, beatSpread: 0.46 },  // D#
+  4:  { real: -0.627, imag: -0.820, type: 9, orbitRadius: 0.27, orbitSkew: 0.6, orbitRotation: -1.43, beatSpread: 0.24 }, // E
+  5:  { real: 0.687, imag: -0.559, type: 9, orbitRadius: 0.46, orbitSkew: 0.6, orbitRotation: -1.93, beatSpread: 0.31 },  // F
+  6:  { real: 0.474, imag: -0.214, type: 5, orbitRadius: 0.10, orbitSkew: 2.0, orbitRotation: -1.02, beatSpread: 0.15 },  // F#
+  7:  { real: -0.847, imag: -0.456, type: 0, orbitRadius: 0.18, orbitSkew: 1.0, orbitRotation: 0.49, beatSpread: 0.57 },  // G
+  8:  { real: -0.750, imag: 0.100, type: 6, orbitRadius: 0.20, orbitSkew: 1.0, orbitRotation: 0.00, beatSpread: 1.57 },   // G#
+  9:  { real: -0.400, imag: 0.600, type: 6, orbitRadius: 0.22, orbitSkew: 1.0, orbitRotation: 0.00, beatSpread: 1.57 },   // A
+  10: { real: 0.285, imag: 0.530, type: 5, orbitRadius: 0.08, orbitSkew: 1.0, orbitRotation: 0.00, beatSpread: 1.57 },    // A#
+  11: { real: -0.800, imag: 0.156, type: 6, orbitRadius: 0.20, orbitSkew: 1.0, orbitRotation: 0.00, beatSpread: 1.57 },   // B
+};
+
 // Built-in anchor presets showcasing different families
 // Each uses family-appropriate orbit radius based on boundary sensitivity
+// Presets use pitch class keys (0-11: C, C#, D, D#, E, F, F#, G, G#, A, A#, B)
 export const BUILTIN_ANCHOR_PRESETS: AnchorPreset[] = [
   {
     id: 'beat-voyage',
     name: 'Beat Voyage',
     builtIn: true,
-    anchors: {
-      0: { real: 0.2800, imag: 0.5300, type: 0, orbitRadius: 0.0500, orbitSkew: 1.00, orbitRotation: 0.00, beatSpread: 1.57 },
-      1: { real: -0.8649, imag: 0.2083, type: 6, orbitRadius: 0.3199, orbitSkew: 1.50, orbitRotation: 1.83, beatSpread: 0.16 },
-      2: { real: -0.8149, imag: 0.3799, type: 0, orbitRadius: 0.1094, orbitSkew: 1.00, orbitRotation: 4.00, beatSpread: 0.69 },
-      3: { real: -0.6572, imag: 0.7617, type: 8, orbitRadius: 0.2480, orbitSkew: 1.00, orbitRotation: -0.09, beatSpread: 0.46 },
-      4: { real: -0.6267, imag: -0.8198, type: 9, orbitRadius: 0.2671, orbitSkew: 0.62, orbitRotation: -1.43, beatSpread: 0.24 },
-      5: { real: 0.6866, imag: -0.5589, type: 9, orbitRadius: 0.4612, orbitSkew: 0.59, orbitRotation: -1.93, beatSpread: 0.31 },
-      6: { real: 0.4743, imag: -0.2137, type: 5, orbitRadius: 0.1000, orbitSkew: 2.00, orbitRotation: -1.02, beatSpread: 0.15 },
-      7: { real: -0.8474, imag: -0.4560, type: 0, orbitRadius: 0.1794, orbitSkew: 1.00, orbitRotation: 0.49, beatSpread: 0.57 },
-    },
+    anchors: { ...DEFAULT_ANCHORS },
   },
   {
     id: 'classic-mix',

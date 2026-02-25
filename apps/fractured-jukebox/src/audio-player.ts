@@ -122,6 +122,23 @@ function ensureInit(): Promise<void> {
   return initPromise;
 }
 
+// Direct note playing for interactive piano
+export function playNote(midi: number, velocity = 100, channel = 0): void {
+  if (!synth) return;
+  synth.controllerChange(channel, 64, 127); // sustain pedal on for nicer sound
+  synth.noteOn(channel, midi, velocity);
+}
+
+export function stopNote(midi: number, channel = 0): void {
+  if (!synth) return;
+  synth.noteOff(channel, midi);
+}
+
+// Ensure synth is initialized (for interactive piano before playback starts)
+export async function ensureSynthReady(): Promise<void> {
+  await ensureInit();
+}
+
 export const audioPlayer = {
   /** Destroy the current sequencer and stop all sounds. Call before loading a new song. */
   destroy() {

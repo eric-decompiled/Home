@@ -51,7 +51,7 @@ interface QualityConfig {
 - Better ROI: Move effects to WebGL shaders
 
 **Future direction:** If revisiting, focus on:
-1. **WebGL migration** for compute-heavy effects (Flow Field, Domain Warp)
+1. **WebGL migration** for compute-heavy effects (Flow Field, Flux)
 2. **OffscreenCanvas** in workers for parallel rendering
 3. **Resolution scaling** (render at 0.5x, upscale) for bigger impact
 4. **Selective layer disabling** based on device capability detection

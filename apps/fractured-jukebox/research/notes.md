@@ -24,7 +24,7 @@ Research synthesis for improving The Fractured Jukebox visualizer design.
 
 **Implications for The Fractured Jukebox:**
 - Already using pitch→vertical (note spiral) - validated
-- Could map loudness→brightness more explicitly in domain warp
+- Could map loudness→brightness more explicitly in flux
 - Major/minor affecting palette saturation - already doing this with `modeDim`
 
 ---

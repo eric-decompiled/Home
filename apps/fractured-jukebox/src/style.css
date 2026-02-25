@@ -616,11 +616,12 @@ a.toggle-btn {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 .layer-panel.open {
   width: 280px;
-  overflow-y: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
   border-right: 1px solid var(--ui-border);
 }
@@ -630,6 +631,48 @@ a.toggle-btn {
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
+  direction: rtl; /* Scrollbar on left */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+  padding-left: 14px; /* Space for custom scrollbar */
+}
+
+#layer-list::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+#layer-list > * {
+  direction: ltr; /* Reset direction for children */
+}
+
+/* Custom scroll track on left side of layer panel */
+.layer-panel-scroll-track {
+  position: absolute;
+  left: 5px;
+  top: 50px; /* Below header */
+  bottom: 8px;
+  width: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  display: none; /* JS controls visibility */
+  z-index: 10;
+}
+
+.layer-panel.open .layer-panel-scroll-track {
+  display: block;
+}
+
+.layer-panel-scroll-thumb {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  background: var(--ui-accent);
+  border-radius: 3px;
+  min-height: 24px;
+}
+
+.light-mode .layer-panel-scroll-track {
+  background: rgba(0, 0, 0, 0.08);
 }
 
 .layer-panel-header {
@@ -1379,7 +1422,8 @@ a.toggle-btn {
   -webkit-appearance: none;
   width: 28px;
   height: 14px;
-  background: var(--ui-border-light);
+  background: var(--ui-bg-input);
+  border: none;
   border-radius: 7px;
   position: relative;
   cursor: pointer;
@@ -1394,18 +1438,22 @@ a.toggle-btn {
   left: 2px;
   width: 10px;
   height: 10px;
-  background: var(--ui-text-muted);
+  background: var(--ui-text-dim);
   border-radius: 50%;
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background 0.25s ease;
 }
 
 .config-row.inline input[type="checkbox"]:checked {
-  background: var(--ui-accent-glow);
+  background: rgba(22, 199, 154, 0.5);
+}
+
+.light-mode .config-row.inline input[type="checkbox"]:checked {
+  background: rgba(212, 118, 58, 0.5);
 }
 
 .config-row.inline input[type="checkbox"]:checked::after {
   transform: translateX(14px);
-  background: #fff;
+  background: var(--ui-accent);
 }
 
 .config-buttons {
@@ -1572,6 +1620,32 @@ canvas {
   border: 1px solid #1a1a2e;
   border-radius: 4px;
   touch-action: pan-y;
+  /* Prevent Dark Reader from modifying canvas */
+  isolation: isolate;
+}
+
+/* Dark Reader prevention - canvas elements should not be filtered */
+canvas,
+.canvas-wrap,
+.canvas-wrap canvas {
+  filter: none !important;
+  -webkit-filter: none !important;
+  background-image: none !important;
+  outline: none !important;
+}
+
+/* Darkreader data attributes - override any injected styles */
+[data-darkreader-mode] canvas,
+[data-darkreader-scheme] canvas {
+  border-color: #1a1a2e !important;
+  filter: none !important;
+  -webkit-filter: none !important;
+  background-color: #000 !important;
+}
+
+/* Light mode canvas border to prevent grey artifacts */
+.light-mode canvas {
+  border-color: var(--ui-border) !important;
 }
 
 /* --- Play overlay --- */
@@ -2647,6 +2721,48 @@ body.android-landscape-fullscreen .layer-panel.open {
   margin-bottom: 12px;
 }
 
+/* Shared modal header (created by createModal with title option) */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: -20px -20px 16px -20px;
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #16c79a;
+  background: rgba(15, 52, 96, 0.5);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: rgba(136, 153, 170, 0.6);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.modal-close:hover {
+  color: #fff;
+}
+
+.light-mode .modal-header {
+  background: rgba(200, 210, 220, 0.4);
+  color: #0d7377;
+}
+
+.light-mode .modal-close {
+  color: rgba(80, 90, 100, 0.6);
+}
+
+.light-mode .modal-close:hover {
+  color: #333;
+}
+
 .modal-message {
   font-size: 14px;
   color: #aaa;
@@ -2830,22 +2946,17 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 /* --- Fractal Config Panel --- */
 
+/* Always fullscreen overlay */
 .fractal-config-overlay {
   position: fixed;
-  top: 48px; /* Below main app top bar */
-  left: 0;
-  width: 100%;
-  height: calc(100% - 48px);
-  background: var(--ui-bg);
+  inset: 0;
   z-index: 3000;
+  background: var(--ui-bg);
   opacity: 0;
   pointer-events: none;
   transform: translateY(-100%);
   transition: opacity 0.3s ease-out, transform 0.3s ease-out, background var(--ui-transition);
-  touch-action: pan-y;
-  overscroll-behavior: contain;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden;
 }
 
 .fractal-config-overlay.visible {
@@ -2864,18 +2975,19 @@ body.android-landscape-fullscreen .layer-panel.open {
 .fc-panel {
   background: var(--ui-bg);
   width: 100%;
-  min-height: 100%;
+  height: 100%;
   display: flex;
   flex-direction: column;
   transition: background var(--ui-transition);
+  overflow: hidden;
 }
 
 /* Touch experience polish */
 .fc-panel button,
-.fc-panel .fc-grid-cell,
+.fc-panel .fc-note-btn,
 .fc-panel .fc-palette-btn,
 .fc-panel .fc-preset-option,
-.fc-panel .fc-atlas-toggle {
+.fc-panel .fc-family-btn {
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   -webkit-user-select: none;
@@ -2883,23 +2995,37 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 /* Accessibility: focus-visible outlines */
 .fc-panel button:focus-visible,
-.fc-panel .fc-grid-cell:focus-visible,
+.fc-panel .fc-note-btn:focus-visible,
 .fc-panel .fc-family-btn:focus-visible {
   outline: 2px solid var(--ui-accent);
   outline-offset: 2px;
 }
 
-.fc-header {
+/* Minimal header with close, title, help, and actions */
+.fc-header-minimal {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 8px 16px;
   background: var(--ui-topbar-bg);
   border-bottom: 1px solid var(--ui-border);
+  flex-shrink: 0;
   transition: background var(--ui-transition), border-color var(--ui-transition);
 }
 
-.fc-header h2 {
+.fc-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fc-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fc-header-minimal h2 {
   margin: 0;
   font-size: 16px;
   color: var(--ui-accent);
@@ -2914,6 +3040,7 @@ body.android-landscape-fullscreen .layer-panel.open {
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
+  margin-left: auto;
   transition: color var(--ui-transition);
 }
 
@@ -2921,20 +3048,200 @@ body.android-landscape-fullscreen .layer-panel.open {
   color: var(--ui-text);
 }
 
-/* Presets bar */
-.fc-presets-bar {
+/* Standard fc-header (used in horizontal layout) */
+.fc-header {
   display: flex;
   align-items: center;
-  gap: 10px;
   padding: 8px 16px;
   background: var(--ui-topbar-bg);
+  border-bottom: 1px solid var(--ui-border);
+  flex-shrink: 0;
+  gap: 12px;
+  transition: background var(--ui-transition), border-color var(--ui-transition);
+}
+
+.fc-header h2 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--ui-accent);
+  transition: color var(--ui-transition);
+}
+
+.fc-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.fc-help-icon-btn {
+  background: none;
+  border: 1px solid #4a9eff;
+  color: #4a9eff;
+  font-size: 11px;
+  font-weight: 700;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.fc-help-icon-btn:hover {
+  background: #4a9eff;
+  color: #fff;
+}
+
+/* Help modal */
+.fc-help-modal {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.fc-help-modal.visible {
+  display: flex;
+}
+
+.fc-help-content {
+  background: var(--ui-bg-panel);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  max-width: 520px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  animation: fc-modal-appear 0.2s ease-out;
+  transition: background var(--ui-transition), border-color var(--ui-transition);
+}
+
+.fc-help-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: rgba(15, 52, 96, 0.5);
   border-bottom: 1px solid var(--ui-border);
   transition: background var(--ui-transition), border-color var(--ui-transition);
 }
 
-.fc-presets-label {
-  font-size: 11px;
+.light-mode .fc-help-header {
+  background: rgba(255, 220, 180, 0.7);
+}
+
+.fc-help-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--ui-accent);
+  transition: color var(--ui-transition);
+}
+
+.fc-help-close {
+  background: none;
+  border: none;
   color: var(--ui-text-muted);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.fc-help-close:hover {
+  color: var(--ui-accent);
+}
+
+.fc-help-body {
+  padding: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.fc-help-body > p {
+  margin: 0 0 12px 0;
+  color: var(--ui-text-muted);
+  transition: color var(--ui-transition);
+}
+
+.fc-help-body ul {
+  margin: 0 0 12px;
+  padding-left: 20px;
+}
+
+.fc-help-body li {
+  margin-bottom: 8px;
+  color: var(--ui-text-muted);
+  transition: color var(--ui-transition);
+}
+
+.fc-help-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--ui-border-light);
+  transition: border-color var(--ui-transition);
+}
+
+.fc-help-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 12px;
+  padding-bottom: 0;
+}
+
+.fc-help-section h4 {
+  margin: 0 0 4px 0;
+  font-size: 13px;
+  color: var(--ui-accent);
+  font-weight: 600;
+  transition: color var(--ui-transition);
+}
+
+.fc-help-section p {
+  margin: 0 0 8px 0;
+  color: var(--ui-text-muted);
+  transition: color var(--ui-transition);
+}
+
+.fc-help-tip {
+  color: var(--ui-text-muted);
+  font-style: italic;
+  margin: 0 -20px -20px -20px !important;
+  padding: 12px 20px;
+  border-top: 1px solid var(--ui-border);
+  background: rgba(15, 52, 96, 0.35);
+  transition: background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
+}
+
+.light-mode .fc-help-tip {
+  background: rgba(255, 220, 180, 0.5);
+}
+
+/* Presets bar */
+.fc-presets-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  margin-top: 8px;
+  background: rgba(147, 112, 219, 0.08);
+  border: 1px solid rgba(147, 112, 219, 0.25);
+  border-radius: 6px;
+  transition: background var(--ui-transition), border-color var(--ui-transition);
+}
+
+.fc-presets-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #9370db;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   transition: color var(--ui-transition);
@@ -2943,18 +3250,23 @@ body.android-landscape-fullscreen .layer-panel.open {
 .fc-presets-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .fc-preset-option {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 10px;
+  padding: 5px 10px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 12px;
-  transition: background 0.15s;
+  font-size: 11px;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.fc-preset-option:hover {
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 .fc-preset-option input[type="radio"] {
@@ -3045,84 +3357,728 @@ body.android-landscape-fullscreen .layer-panel.open {
   color: var(--ui-danger);
 }
 
-.fc-family-content {
-  gap: 10px;
+/* Main layout: three-column (left sidebar + map + right sidebar) */
+.fc-main-layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-.fc-family-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
+/* Sidebar base styles (shared by left and right) */
+.fc-sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--ui-bg-panel);
+  overflow-y: auto;
+  transition: background var(--ui-transition), border-color var(--ui-transition);
 }
 
-.fc-atlas-toggle {
+/* Left sidebar: family selector only */
+.fc-left-sidebar {
+  width: 150px;
+  min-width: 150px;
+  border-right: 1px solid var(--ui-border);
+}
+
+/* Right sidebar: preview + note grid + orbit controls */
+.fc-middle-sidebar {
+  width: 220px;
+  min-width: 220px;
+  border-left: 1px solid var(--ui-border);
+  gap: 12px;
+  padding: 12px;
+}
+
+/* Vertical family selector */
+.fc-family-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Preview section in right sidebar */
+.fc-preview-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.fc-preview-section canvas {
+  width: 100%;
+  max-width: 196px;
+  height: auto;
+  aspect-ratio: 1;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+}
+
+.fc-preview-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.fc-preview-section .fc-bpm-control {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 6px 0 0 0;
+  gap: 4px;
+}
+
+.fc-preview-section .fc-bpm-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 14px;
+}
+
+.fc-preview-section .fc-bpm-value input {
+  width: 50px;
+  text-align: center;
+}
+
+.fc-preview-section .fc-preview-range {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.fc-preview-section .fc-preview-range input {
+  flex: 1;
+  height: 4px;
+}
+
+.fc-actions-section {
+  background: rgba(30, 30, 50, 0.4);
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.fc-anchor-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.fc-anchor-actions .fc-btn {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+/* Section labels in right sidebar */
+.fc-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--ui-text-muted);
+  margin-bottom: 6px;
+  transition: color var(--ui-transition);
+}
+
+/* Note section */
+.fc-note-section {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Anchor section - colored by selected note */
+.fc-anchor-section {
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, var(--anchor-color, #888) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--anchor-color, #888) 30%, transparent);
+  border-radius: 6px;
+  padding: 6px;
+  margin-bottom: 4px;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.fc-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.fc-subsection-label {
+  grid-column: 1 / -1;
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(180, 190, 200, 0.6);
+  margin-top: 6px;
+  margin-bottom: 2px;
+  padding-left: 2px;
+}
+
+.fc-formula {
+  font-family: 'Times New Roman', Georgia, serif;
+  font-size: 13px;
+  font-style: italic;
+  color: #fff;
+  letter-spacing: 0.5px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.fc-anchor-section .fc-section-label {
+  color: var(--anchor-color, #888);
+}
+
+.fc-anchor-section .fc-orbit-row {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: color-mix(in srgb, var(--anchor-color, #888) 25%, transparent);
+}
+
+.fc-anchor-section .fc-orbit-row:hover {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: color-mix(in srgb, var(--anchor-color, #888) 40%, transparent);
+}
+
+/* Zoom container spans full width */
+.fc-zoom-container {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Zoom slider row */
+.fc-zoom-row {
+  width: 100%;
+}
+
+.fc-zoom-info {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.fc-zoom-slider {
+  flex: 1;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
   cursor: pointer;
+}
+
+.fc-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: var(--anchor-color, #888);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.fc-zoom-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  background: var(--anchor-color, #888);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.fc-zoom-icon {
+  font-size: 10px;
+  opacity: 0.6;
   user-select: none;
 }
 
-.fc-atlas-checkbox {
+.fc-zoom-icon.fc-zoom-out {
+  font-size: 8px;
+}
+
+.fc-zoom-icon.fc-zoom-in {
+  font-size: 12px;
+}
+
+.fc-zoom-label {
+  font-size: 11px;
+  font-family: monospace;
+  color: rgba(200, 210, 220, 0.9);
+}
+
+.fc-center-btn {
+  background: none;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  opacity: 0.6;
+  padding: 0 2px;
+  color: var(--anchor-color, #888);
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.fc-center-btn:hover {
+  opacity: 1;
+  transform: scale(1.2);
+}
+
+/* Orbit section */
+.fc-orbit-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.fc-orbit-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.fc-orbit-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 5px;
+  background: rgba(100, 120, 140, 0.15);
+  border: 1px solid rgba(120, 140, 160, 0.4);
+  border-radius: 4px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.fc-orbit-row:hover {
+  background: rgba(100, 120, 140, 0.25);
+  border-color: rgba(140, 160, 180, 0.5);
+}
+
+.fc-orbit-icon {
+  font-size: 10px;
+  width: 12px;
+  text-align: center;
+  color: rgba(160, 180, 200, 0.8);
+  font-weight: 600;
+}
+
+.fc-orbit-btn {
+  background: none;
+  border: none;
+  color: rgba(160, 180, 200, 0.7);
+  font-size: 10px;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: color 0.15s, transform 0.1s;
+  line-height: 1;
+}
+
+.fc-orbit-btn:hover {
+  color: rgba(180, 200, 220, 1);
+  transform: scale(1.3);
+}
+
+.fc-orbit-btn:active {
+  transform: scale(0.9);
+}
+
+.fc-orbit-controls input[type="number"] {
+  width: 36px;
+  padding: 2px 3px;
+  background: var(--ui-bg);
+  border: 1px solid rgba(120, 140, 160, 0.4);
+  border-radius: 3px;
+  color: var(--ui-text);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: center;
+  cursor: ns-resize;
+  transition: all 0.15s;
+}
+
+.fc-orbit-controls input[type="number"]:hover {
+  background: rgba(100, 120, 140, 0.2);
+  border-color: rgba(140, 160, 180, 0.5);
+}
+
+.fc-orbit-controls input[type="number"]:focus {
+  border-color: rgba(160, 180, 200, 0.7);
+  box-shadow: 0 0 4px rgba(100, 120, 140, 0.3);
+  outline: none;
+  cursor: text;
+}
+
+.light-mode .fc-orbit-row {
+  background: rgba(80, 100, 120, 0.1);
+  border-color: rgba(100, 120, 140, 0.3);
+}
+
+.light-mode .fc-orbit-row:hover {
+  background: rgba(80, 100, 120, 0.15);
+}
+
+.light-mode .fc-orbit-icon {
+  color: rgba(60, 80, 100, 0.7);
+}
+
+.light-mode .fc-orbit-btn {
+  color: rgba(60, 80, 100, 0.6);
+}
+
+.light-mode .fc-orbit-btn:hover {
+  color: rgba(40, 60, 80, 0.9);
+}
+
+.light-mode .fc-orbit-controls input[type="number"] {
+  border-color: rgba(100, 120, 140, 0.3);
+}
+
+.light-mode .fc-orbit-controls input[type="number"]:hover {
+  background: rgba(80, 100, 120, 0.1);
+}
+
+/* Hide spin buttons */
+.fc-orbit-controls input[type="number"]::-webkit-inner-spin-button,
+.fc-orbit-controls input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.fc-orbit-controls input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* Palette section */
+.fc-palette-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.fc-palette-section .fc-palette-bar {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* Sidebar actions (atlas toggle, info button) */
+.fc-sidebar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--ui-border);
+  margin-top: auto;
+}
+
+/* Legacy - keep for compatibility */
+.fc-main-content {
   display: none;
 }
 
-.fc-atlas-switch {
-  position: relative;
-  width: 32px;
-  height: 16px;
-  background: var(--ui-bg-input);
-  border: 1px solid var(--ui-border-light);
-  border-radius: 8px;
-  transition: all 0.25s ease, background var(--ui-transition), border-color var(--ui-transition);
+/* Degree bar - now hidden (replaced by note grid) */
+.fc-degree-bar {
+  display: none;
 }
 
-.fc-atlas-switch::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 10px;
-  height: 10px;
-  background: var(--ui-text-muted);
-  border-radius: 50%;
-  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background 0.25s ease;
-}
-
-.fc-atlas-checkbox:checked + .fc-atlas-switch {
-  background: rgba(59, 130, 246, 0.4);
-  border-color: #3b82f6;
-}
-
-.fc-atlas-checkbox:checked + .fc-atlas-switch::after {
-  transform: translateX(16px);
-  background: #60a5fa;
-  box-shadow: 0 0 6px rgba(96, 165, 250, 0.6);
-}
-
-.fc-atlas-label {
+/* Formula in family sidebar */
+.fc-family-sidebar .fc-anchor-formula {
+  display: block;
+  font-family: 'Fira Code', 'JetBrains Mono', monospace;
   font-size: 11px;
-  color: var(--ui-text-dim);
-  transition: color 0.25s ease;
+  font-weight: 600;
+  color: var(--ui-accent);
+  text-align: center;
+  padding: 6px 4px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--ui-border);
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 8px var(--ui-accent-glow);
+  transition: color var(--ui-transition), border-color var(--ui-transition), text-shadow var(--ui-transition);
 }
 
-.fc-atlas-toggle:has(.fc-atlas-checkbox:checked) .fc-atlas-label {
-  color: #3b82f6;
+.fc-family-btn {
+  width: 100%;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  border-radius: 6px;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+  color: var(--ui-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s, background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
 }
 
-.fc-atlas-toggle:hover .fc-atlas-label {
-  color: #60a5fa;
+.fc-family-btn:hover {
+  background: var(--ui-bg-button-hover);
+  color: var(--ui-text);
+  border-color: var(--ui-accent);
 }
 
-.fc-atlas-toggle:hover .fc-atlas-switch {
-  border-color: #666;
+.fc-family-btn.active {
+  background: var(--ui-accent-glow);
+  color: var(--ui-accent);
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 8px var(--ui-accent-glow);
 }
 
-.fc-atlas-toggle:hover .fc-atlas-checkbox:checked + .fc-atlas-switch {
+.fc-family-name {
+  flex: 1;
+}
+
+.fc-family-notes {
+  display: flex;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+.fc-family-note-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.fc-family-btn.fc-info-btn {
+  justify-content: center;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
   border-color: #60a5fa;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
 }
+
+.fc-family-btn.fc-info-btn:hover {
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  border-color: #93c5fd;
+}
+
+.fc-family-btn.fc-info-btn.pulse {
+  animation: fc-info-pulse 800ms ease-out;
+}
+
+/* Map area - fills center column */
+.fc-map-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  background: var(--ui-bg);
+}
+
+.fc-map-area canvas {
+  display: block;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  cursor: crosshair;
+  /* Size based on the smaller dimension to stay square */
+  width: min(calc(100vh - 120px), calc(100vw - 420px));
+  height: min(calc(100vh - 120px), calc(100vw - 420px));
+  max-width: 100%;
+  max-height: 100%;
+  aspect-ratio: 1;
+  transition: border-color var(--ui-transition);
+}
+
+/* Status message at bottom of map */
+.fc-locus-status {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: var(--ui-bg-panel);
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--ui-text-muted);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0.9;
+  z-index: 5;
+  transition: background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
+}
+
+/* Calculating spinner overlay */
+.fc-calc-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s; /* Fade out only */
+}
+
+.fc-calc-spinner.visible {
+  opacity: 1;
+  transition: none; /* Appear instantly */
+}
+
+.fc-spinner-ring {
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(100, 200, 255, 0.2);
+  border-top-color: var(--ui-accent);
+  border-radius: 50%;
+  animation: fc-spin 0.8s linear infinite;
+}
+
+@keyframes fc-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Note grid - compact text labels with subtle boxes */
+.fc-note-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.fc-note-btn {
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  padding: 4px 0;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.fc-note-btn:hover {
+  border-color: var(--ui-text-muted);
+  transform: scale(1.05);
+}
+
+.fc-note-btn.active {
+  border-color: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  transform: scale(1.08);
+}
+
+/* Anchor control panel */
+.fc-anchor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  overflow: hidden;
+  transition: background var(--ui-transition), border-color var(--ui-transition);
+}
+
+.fc-anchor-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.fc-anchor-row label {
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--ui-text-muted);
+  min-width: 32px;
+  transition: color var(--ui-transition);
+}
+
+/* Coordinate control (BPM-style with arrows and drag) */
+.fc-coord-control {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.fc-coord-btn {
+  width: 18px;
+  height: 22px;
+  padding: 0;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border);
+  border-radius: 3px;
+  color: var(--ui-text-muted);
+  font-size: 8px;
+  cursor: pointer;
+  transition: background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
+}
+
+.fc-coord-btn:hover {
+  background: var(--ui-bg-panel);
+  border-color: var(--ui-accent);
+  color: var(--ui-accent);
+}
+
+.fc-coord-btn:active {
+  background: var(--ui-accent);
+  color: var(--ui-bg-panel);
+}
+
+.fc-coord-input {
+  width: 72px;
+  padding: 4px 2px;
+  font-size: 9px;
+  font-family: monospace;
+  background: var(--ui-bg-panel);
+  border: 1px solid var(--ui-border);
+  border-radius: 4px;
+  color: var(--ui-text);
+  text-align: center;
+  cursor: ew-resize;
+  -moz-appearance: textfield;
+  transition: background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
+}
+
+.fc-coord-input::-webkit-outer-spin-button,
+.fc-coord-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.fc-coord-input:focus {
+  outline: none;
+  border-color: var(--ui-accent);
+  cursor: text;
+}
+
+
+
+/* Floating preview panel */
+/* Preview sidebar - fixed column on right */
+.fc-preview-sidebar {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--ui-bg-panel);
+  border-right: 1px solid var(--ui-border);
+  overflow-y: auto;
+  transition: background var(--ui-transition), border-color var(--ui-transition);
+}
+
+/* Canvas styling moved to .fc-preview-canvas-wrap canvas */
 
 .fc-family-btn {
   padding: 8px 4px;
@@ -3159,155 +4115,10 @@ body.android-landscape-fullscreen .layer-panel.open {
   }
 }
 
-.fc-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  background: var(--ui-topbar-bg);
-  border-bottom: 1px solid var(--ui-border);
-  flex-wrap: wrap;
-  transition: background var(--ui-transition), border-color var(--ui-transition);
-}
-
-.fc-toolbar-section {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.fc-toolbar-divider {
-  width: 1px;
-  height: 24px;
-  background: linear-gradient(to bottom, transparent, var(--ui-border), transparent);
-  flex-shrink: 0;
-}
-
-.fc-section-label {
-  font-size: 10px;
-  color: var(--ui-text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  transition: color var(--ui-transition);
-}
-
-.fc-family-section {
-  gap: 6px;
-}
-
-.fc-help-text {
-  color: var(--ui-text-muted);
-  font-size: 12px;
-  line-height: 1.4;
-  transition: color var(--ui-transition);
-}
-
-/* Collapsible sections */
-.fc-section {
-  display: flex;
-  flex-direction: column;
-}
-
-.fc-section-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
-  background: var(--ui-bg-input);
-  border: none;
-  border-bottom: 1px solid var(--ui-border);
-  color: var(--ui-text-muted);
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  text-align: left;
-  transition: background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
-}
-
-.fc-section-toggle:hover {
-  background: var(--ui-bg-button-hover);
-  color: var(--ui-text);
-}
-
-.fc-section-toggle:active {
-  background: var(--ui-bg-button-active);
-}
-
-.fc-section-icon {
-  font-size: 10px;
-  color: var(--ui-accent);
-  transition: transform 0.2s, color var(--ui-transition);
-}
-
-.fc-section-content {
-  display: flex;
-  flex-direction: column;
-  padding: 8px 12px;
-}
-
-.fc-section.collapsed .fc-section-content {
-  display: none;
-}
-
-.fc-section.collapsed .fc-section-icon {
-  transform: rotate(-90deg);
-}
-
-/* Editor section - contains map and preview side by side */
-.fc-editor-section {
-  display: flex;
-  flex-direction: column;
-}
-
+/* Legacy styles - deprecated */
+.fc-editor-section,
 .fc-editor-content {
-  flex-direction: row !important;
-  justify-content: space-around;
-  align-items: flex-start;
-  gap: 16px;
-}
-
-/* Degree navigation in editor (compact, under palette) */
-.fc-degree-nav {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 6px 0 0 0;
-}
-
-.fc-degree-nav-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--ui-bg-button);
-  border: 1px solid var(--ui-border);
-  color: var(--ui-text-muted);
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s, background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
-}
-
-.fc-degree-nav-btn:hover {
-  background: var(--ui-bg-button-hover);
-  border-color: var(--ui-accent);
-  color: var(--ui-accent);
-}
-
-.fc-degree-nav-btn:active {
-  transform: scale(0.95);
-}
-
-.fc-degree-name {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--ui-accent);
-  font-family: monospace;
-  min-width: 32px;
-  text-align: center;
-  transition: color var(--ui-transition);
+  display: none;
 }
 
 /* Degree × Quality Grid */
@@ -3323,10 +4134,10 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 .fc-grid-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: flex-start;
   flex-wrap: wrap;
-  justify-content: space-around;
+  justify-content: center;
 }
 
 .fc-grid-header-row {
@@ -3374,31 +4185,6 @@ body.android-landscape-fullscreen .layer-panel.open {
 }
 
 /* Hotspot cycling button */
-.fc-hotspot-btn {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  background: linear-gradient(135deg, #1a3a5a, #0f2840);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: bold;
-  color: #4a9eff;
-  transition: all 0.15s;
-  border-radius: 3px;
-  margin-left: 2px;
-}
-
-.fc-hotspot-btn:hover {
-  background: linear-gradient(135deg, #2a4a6a, #1a3850);
-  color: #6ab4ff;
-  transform: scale(1.1);
-}
-
-.fc-hotspot-btn:active {
-  transform: scale(0.95);
-}
-
 .fc-grid-cell-wrap {
   display: flex;
   gap: 2px;
@@ -3422,12 +4208,12 @@ body.android-landscape-fullscreen .layer-panel.open {
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
-  padding: 8px;
+  padding: 10px 12px;
   background: var(--ui-bg-input);
   border-radius: 6px;
   border: 2px solid transparent;
-  flex-shrink: 1;
-  min-width: 0;
+  flex: 1 1 calc(16.666% - 6px);
+  min-width: 75px;
   transition: background var(--ui-transition), border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -3451,8 +4237,6 @@ body.android-landscape-fullscreen .layer-panel.open {
   justify-content: center;
   gap: 6px;
   padding-top: 4px;
-  border-top: 1px solid var(--ui-border-light);
-  transition: border-color var(--ui-transition);
 }
 
 .fc-degree-cells {
@@ -3461,31 +4245,6 @@ body.android-landscape-fullscreen .layer-panel.open {
   flex-wrap: wrap;
   gap: 4px;
   justify-content: center;
-}
-
-.fc-orbit-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  justify-content: center;
-  align-items: center;
-  padding-top: 4px;
-  border-top: 1px solid var(--ui-border-light);
-  transition: border-color var(--ui-transition);
-}
-
-.fc-orbit-controls label {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 12px;
-  color: var(--ui-text-muted);
-  transition: color var(--ui-transition);
-}
-
-.fc-orbit-controls input[type="range"] {
-  width: 50px;
-  height: 4px;
 }
 
 /* Playing state highlight - bright glow */
@@ -3736,105 +4495,52 @@ body.android-landscape-fullscreen .layer-panel.open {
   transition: color var(--ui-transition);
 }
 
-/* Info button - centered below family grid */
+/* Info button - inline with family buttons */
 .fc-info-btn {
-  background: linear-gradient(135deg, #2563eb, #3b82f6) !important;
-  border: 1px solid #60a5fa !important;
-  color: #fff !important;
-  width: auto;
-  padding: 6px 12px !important;
-  margin: 8px auto 0 auto;
-  display: block;
-  font-size: 10px !important;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border-color: #60a5fa;
+  color: #fff;
 }
 
 .fc-info-btn:hover {
-  background: linear-gradient(135deg, #3b82f6, #60a5fa) !important;
-  border-color: #93c5fd !important;
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  border-color: #93c5fd;
+  color: #fff;
 }
 
 .fc-info-btn.pulse {
-  animation: fc-info-pulse 1.5s ease-out;
+  animation: fc-info-pulse 800ms ease-out;
 }
 
 @keyframes fc-info-pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.8);
   }
-  50% {
-    box-shadow: 0 0 16px 4px rgba(59, 130, 246, 0.6);
+  70% {
+    box-shadow: 0 0 10px 3px rgba(59, 130, 246, 0.6);
   }
   100% {
     box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
   }
 }
 
-/* Info modal */
-.fc-info-modal {
-  display: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.8);
-  z-index: 1000;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  overflow-y: auto;
-}
-
-.fc-info-modal.visible {
-  display: flex;
-}
-
+/* Info modal - uses standard modal-overlay/modal-box classes */
 .fc-info-content {
-  background: var(--ui-bg-panel);
-  border: 1px solid var(--ui-border);
-  border-radius: 16px;
-  padding: 24px;
-  max-width: 550px;
-  width: 100%;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-  max-height: 90vh;
+  max-width: 520px;
+  max-height: 80vh;
   overflow-y: auto;
-  transition: background var(--ui-transition), border-color var(--ui-transition);
 }
 
-.fc-info-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--ui-border-light);
-  transition: border-color var(--ui-transition);
-}
-
-.fc-info-header h3 {
-  margin: 0;
+.fc-info-content .modal-header span {
   color: var(--ui-accent);
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 600;
-  transition: color var(--ui-transition);
 }
 
-.fc-info-close {
-  background: var(--ui-bg-button);
-  border: none;
-  color: var(--ui-text-muted);
-  font-size: 20px;
-  cursor: pointer;
-  padding: 4px 10px;
-  line-height: 1;
-  border-radius: 6px;
-  transition: all 0.15s, background var(--ui-transition), color var(--ui-transition);
-}
-
-.fc-info-close:hover {
-  color: var(--ui-text);
-  background: var(--ui-bg-button-hover);
+.fc-info-body {
+  padding: 20px;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .fc-info-meta {
@@ -3888,13 +4594,34 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 .fc-info-section {
   margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--ui-border-light);
+  transition: border-color var(--ui-transition);
+}
+
+.fc-info-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 12px;
+  padding-bottom: 0;
+}
+
+.fc-info-section h4 {
+  margin: 0 0 4px;
+  color: var(--ui-accent);
+  font-size: 13px;
+  font-weight: 600;
+  transition: color var(--ui-transition);
+}
+
+.fc-info-section-desc {
+  color: var(--ui-text-muted);
+  font-size: 12px;
+  margin: 0 0 8px !important;
+  transition: color var(--ui-transition);
 }
 
 .fc-info-section strong {
   color: var(--ui-accent);
-  display: block;
-  margin-bottom: 8px;
-  font-size: 13px;
   transition: color var(--ui-transition);
 }
 
@@ -3926,34 +4653,26 @@ body.android-landscape-fullscreen .layer-panel.open {
 }
 
 .fc-info-tips {
-  background: var(--ui-accent-glow);
-  border: 1px solid var(--ui-accent);
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 16px;
-  transition: background var(--ui-transition), border-color var(--ui-transition);
-}
-
-.fc-info-tips strong {
-  color: var(--ui-accent);
-  display: block;
-  margin-bottom: 6px;
-  font-size: 13px;
-  transition: color var(--ui-transition);
-}
-
-.fc-info-tips p {
-  margin: 0;
   color: var(--ui-text-muted);
-  font-size: 13px;
-  line-height: 1.5;
-  transition: color var(--ui-transition);
+  font-style: italic;
+  margin: 0 -20px 0 -20px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--ui-border);
+  background: rgba(15, 52, 96, 0.35);
+  transition: background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
+}
+
+.light-mode .fc-info-tips {
+  background: rgba(255, 220, 180, 0.5);
 }
 
 .fc-info-related {
-  padding-top: 12px;
-  border-top: 1px solid var(--ui-border-light);
-  transition: border-color var(--ui-transition);
+  margin: 0 -20px -20px -20px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--ui-border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .fc-info-related strong {
@@ -3968,9 +4687,17 @@ body.android-landscape-fullscreen .layer-panel.open {
   background: rgba(99, 102, 241, 0.2);
   color: #a5b4fc;
   padding: 4px 10px;
+  border: 1px solid transparent;
   border-radius: 12px;
   font-size: 11px;
   margin: 4px 4px 4px 0;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.fc-info-related-tag:hover {
+  background: rgba(99, 102, 241, 0.4);
+  border-color: rgba(99, 102, 241, 0.5);
 }
 
 .fc-actions {
@@ -3994,6 +4721,17 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 .fc-btn:hover:not(:disabled) {
   background: #1ee7ad;
+}
+
+.fc-btn.fc-info-btn {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: 1px solid #60a5fa;
+  color: #fff;
+}
+
+.fc-btn.fc-info-btn:hover {
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+  border-color: #93c5fd;
 }
 
 .fc-btn:disabled {
@@ -4054,54 +4792,60 @@ body.android-landscape-fullscreen .layer-panel.open {
   80% { transform: rotate(6deg); }
 }
 
-/* fc-main removed - replaced by fc-editor-content */
-
-.fc-locus-wrap {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  position: relative;
-}
-
-.fc-locus-wrap canvas {
-  display: block;
-  border: 1px solid var(--ui-border);
-  border-radius: 6px;
-  cursor: crosshair;
-  width: 100%;
-  max-width: 500px;
-  height: auto;
-  aspect-ratio: 1;
-  transition: border-color var(--ui-transition);
-}
-
-.fc-locus-status {
-  font-size: 11px;
-  color: var(--ui-text-dim);
-  font-family: monospace;
-  margin-top: 6px;
-  flex-shrink: 0;
-  transition: color var(--ui-transition);
-}
-
+/* Map controls - positioned bottom left of map area */
 .fc-map-controls {
   position: absolute;
   bottom: 24px;
-  left: 8px;
+  left: 24px;
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 2px;
-  background: var(--ui-bg-panel);
-  padding: 4px;
+  background: var(--ui-bg-input);
+  padding: 6px;
   border-radius: 6px;
   border: 1px solid var(--ui-border);
-  z-index: 10;
   transition: background var(--ui-transition), border-color var(--ui-transition);
+  z-index: 10;
 }
+
 
 .fc-map-row {
   display: flex;
   gap: 2px;
+}
+
+.fc-zoom-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--ui-border);
+  width: 100%;
+}
+
+.fc-zoom-label {
+  font-size: 10px;
+  color: var(--ui-text-muted);
+  user-select: none;
+}
+
+.fc-zoom-value {
+  font-size: 9px;
+  font-family: monospace;
+  color: var(--ui-text-muted);
+  min-width: 36px;
+  text-align: right;
+  user-select: none;
+}
+
+.fc-zoom-slider {
+  flex: 1;
+  max-width: 120px;
+  height: 4px;
+  cursor: pointer;
+  accent-color: var(--ui-accent);
 }
 
 .fc-map-empty {
@@ -4128,6 +4872,12 @@ body.android-landscape-fullscreen .layer-panel.open {
   background: var(--ui-bg-button-hover);
   border-color: var(--ui-accent);
   color: var(--ui-accent);
+}
+
+.fc-atlas-btn.active {
+  background: var(--ui-accent);
+  border-color: var(--ui-accent);
+  color: var(--ui-bg);
 }
 
 .fc-help-btn {
@@ -4215,9 +4965,11 @@ body.android-landscape-fullscreen .layer-panel.open {
 .fc-controls-content {
   background: var(--ui-bg-panel);
   border: 1px solid var(--ui-border);
-  border-radius: 8px;
-  max-width: 400px;
+  border-radius: 12px;
+  max-width: 520px;
   width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
   transition: background var(--ui-transition), border-color var(--ui-transition);
 }
 
@@ -4225,15 +4977,20 @@ body.android-landscape-fullscreen .layer-panel.open {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 16px 20px;
+  background: rgba(15, 52, 96, 0.5);
   border-bottom: 1px solid var(--ui-border);
-  transition: border-color var(--ui-transition);
+  transition: background var(--ui-transition), border-color var(--ui-transition);
+}
+
+.light-mode .fc-controls-header {
+  background: rgba(255, 220, 180, 0.7);
 }
 
 .fc-controls-header h3 {
   margin: 0;
   color: var(--ui-accent);
-  font-size: 14px;
+  font-size: 16px;
   transition: color var(--ui-transition);
 }
 
@@ -4241,19 +4998,54 @@ body.android-landscape-fullscreen .layer-panel.open {
   background: none;
   border: none;
   color: var(--ui-text-muted);
-  font-size: 20px;
+  font-size: 24px;
   cursor: pointer;
   padding: 0;
   line-height: 1;
-  transition: color var(--ui-transition);
+  transition: color 0.2s;
 }
 
 .fc-controls-close:hover {
-  color: var(--ui-text);
+  color: var(--ui-accent);
+}
+
+.fc-controls-body {
+  padding: 20px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.fc-controls-intro {
+  margin: 0 0 16px 0;
+  color: var(--ui-text-muted);
+  transition: color var(--ui-transition);
+}
+
+.fc-controls-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--ui-border-light);
+  transition: border-color var(--ui-transition);
+}
+
+.fc-controls-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 12px;
+  padding-bottom: 0;
+}
+
+.fc-controls-section h4 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: var(--ui-accent);
+  font-weight: 600;
+  transition: color var(--ui-transition);
 }
 
 .fc-controls-list {
-  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .fc-control-item {
@@ -4266,11 +5058,12 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 .fc-control-item:last-child {
   border-bottom: none;
+  padding-bottom: 0;
 }
 
 .fc-control-key {
   flex-shrink: 0;
-  min-width: 130px;
+  min-width: 145px;
   font-family: monospace;
   font-size: 11px;
   color: var(--ui-accent);
@@ -4284,6 +5077,20 @@ body.android-landscape-fullscreen .layer-panel.open {
   color: var(--ui-text-muted);
   font-size: 12px;
   transition: color var(--ui-transition);
+}
+
+.fc-controls-tip {
+  color: var(--ui-text-muted);
+  font-style: italic;
+  margin: 0 -20px -20px -20px !important;
+  padding: 12px 20px;
+  border-top: 1px solid var(--ui-border);
+  background: rgba(15, 52, 96, 0.35);
+  transition: background var(--ui-transition), border-color var(--ui-transition), color var(--ui-transition);
+}
+
+.light-mode .fc-controls-tip {
+  background: rgba(255, 220, 180, 0.5);
 }
 
 .fc-preview-wrap {
@@ -4303,6 +5110,115 @@ body.android-landscape-fullscreen .layer-panel.open {
   color: var(--ui-accent);
   font-weight: 600;
   transition: color var(--ui-transition);
+}
+
+.fc-preview-canvas-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.fc-preview-canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  transition: border-color var(--ui-transition);
+}
+
+.fc-enlarge-btn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.15s;
+  opacity: 0.6;
+  z-index: 10;
+}
+
+.fc-preview-canvas-wrap:hover .fc-enlarge-btn {
+  opacity: 1;
+}
+
+.fc-enlarge-btn:hover {
+  color: #fff;
+  background: rgba(0, 0, 0, 0.9);
+  border-color: var(--ui-accent);
+  transform: scale(1.1);
+}
+
+/* Preview modal */
+.fc-preview-modal {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  z-index: 1000;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.fc-preview-modal.visible {
+  display: flex;
+}
+
+.fc-preview-modal-content {
+  background: var(--ui-bg-panel);
+  border: 1px solid var(--ui-border);
+  border-radius: 12px;
+  padding: 16px;
+  max-width: 90vw;
+  max-height: 90vh;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+  animation: fc-modal-appear 0.2s ease-out;
+  transition: background var(--ui-transition), border-color var(--ui-transition);
+}
+
+.fc-preview-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.fc-preview-modal-header h3 {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ui-accent);
+}
+
+.fc-preview-modal-close {
+  background: transparent;
+  border: none;
+  color: var(--ui-text-muted);
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.fc-preview-modal-close:hover {
+  color: var(--ui-text);
+}
+
+#fc-preview-modal-canvas {
+  display: block;
+  border-radius: 8px;
+  border: 1px solid var(--ui-border);
+  /* Fill available space while staying square */
+  width: min(70vmin, 600px);
+  height: min(70vmin, 600px);
 }
 
 .fc-bpm-control {
@@ -4389,26 +5305,23 @@ body.android-landscape-fullscreen .layer-panel.open {
   transition: border-color var(--ui-transition);
 }
 
-.fc-julia-info {
-  font-size: 11px;
-  color: var(--ui-accent);
-  font-family: monospace;
-  transition: color var(--ui-transition);
-}
-
-.fc-preview-range {
+.fc-metronome {
   display: flex;
-  align-items: center;
   gap: 6px;
-  margin: 6px 0;
-  font-size: 12px;
+  align-items: center;
 }
 
-.fc-preview-range input[type="range"] {
-  flex: 1;
-  height: 4px;
-  cursor: pointer;
-  accent-color: var(--ui-accent);
+.fc-beat-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ui-bg-input);
+  border: 1px solid var(--ui-border-light);
+  transition: transform 0.1s, background-color 0.1s, box-shadow 0.1s;
+}
+
+.fc-beat-dot.active {
+  transform: scale(1.3);
 }
 
 .fc-palette-bar {
@@ -4476,154 +5389,106 @@ body.android-landscape-fullscreen .layer-panel.open {
   transition: color var(--ui-transition);
 }
 
-/* Responsive */
-@media (max-width: 960px) {
-  .fc-editor-content {
-    flex-direction: column !important;
-  }
-
-  .fc-locus-wrap {
-    flex: none;
-  }
-
-  .fc-locus-wrap canvas {
-    max-width: 100%;
-  }
-
-  .fc-preview-wrap {
-    min-width: unset;
-    width: 100%;
-  }
-
-  .fc-preview-wrap canvas {
-    max-width: 200px;
-    width: 100%;
-    height: auto;
-  }
-
-  .fc-family-grid {
-    grid-template-columns: repeat(5, 1fr);
-  }
-
-  .fc-family-btn {
-    padding: 6px 4px;
-    font-size: 10px;
-    min-height: 36px;
-  }
-}
-
-@media (max-width: 576px) {
-  .fractal-config-overlay {
-    top: 0; /* Full screen on mobile */
-    padding-top: env(safe-area-inset-top, 0);
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-
-  .fc-header {
-    padding: 12px 16px;
-  }
-
-  .fc-toolbar {
+/* Responsive - Mobile layout adjustments */
+@media (max-width: 800px) {
+  /* Stack layout vertically on mobile */
+  .fc-main-layout {
     flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 8px 12px;
   }
 
-  .fc-description {
-    display: none; /* Hide help text on mobile */
-  }
-
-  .fc-toolbar-divider {
+  /* Hide left sidebar on mobile, show family buttons differently */
+  .fc-left-sidebar {
     display: none;
   }
 
-  .fc-editor-content {
-    flex-direction: column !important;
-    padding: 8px !important;
-    gap: 12px !important;
-  }
-
-  .fc-locus-wrap canvas {
-    max-height: 50vh; /* Don't let locus dominate */
-  }
-
-  .fc-degree-grid {
-    padding: 6px 8px;
-    max-height: 40vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .fc-grid-row {
+  /* Right sidebar becomes horizontal strip at bottom */
+  .fc-middle-sidebar {
+    width: 100%;
+    min-width: 0;
+    flex-direction: row;
     flex-wrap: wrap;
-    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border-left: none;
+    border-top: 1px solid var(--ui-border);
   }
 
-  .fc-degree-block {
-    width: 100%;
-    flex-shrink: 0;
+  .fc-preview-section {
+    width: auto;
   }
 
-  .fc-grid-degree {
-    width: 40px;
-    min-width: 40px;
-    font-size: 10px;
+  .fc-preview-section canvas {
+    width: 100px;
+    max-width: 100px;
+    height: 100px;
   }
 
-  .fc-grid-cell {
-    height: 32px;
-    min-height: 32px;
+  .fc-note-section {
+    flex: 0 0 auto;
   }
 
-  .fc-actions {
-    width: 100%;
-    justify-content: flex-end;
+  .fc-note-grid {
+    gap: 3px;
   }
 
-  .fc-family-content {
-    padding: 8px 12px;
-  }
-
-  .fc-family-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .fc-family-btn {
-    padding: 10px 6px;
+  .fc-note-btn {
+    padding: 3px 5px;
     font-size: 11px;
-    min-height: 44px;
   }
 
+  .fc-orbit-section {
+    display: none; /* Hide on mobile for simplicity */
+  }
+
+  .fc-section-label {
+    display: none;
+  }
+
+  /* Map area adjustments */
+  .fc-map-area {
+    padding: 8px;
+    flex: 1;
+  }
+
+  .fc-map-area canvas {
+    width: min(calc(100vw - 32px), calc(100vh - 280px));
+    height: min(calc(100vw - 32px), calc(100vh - 280px));
+    max-height: 50vh;
+  }
+
+  /* Mobile controls visible */
+  .fc-mobile-controls {
+    display: flex;
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+  }
+
+  .fc-map-controls {
+    bottom: 16px;
+    left: 16px;
+  }
+
+  .fc-locus-status {
+    bottom: 16px;
+  }
+}
+
+/* Smaller mobile adjustments */
+@media (max-width: 576px) {
   .fc-presets-bar {
-    padding: 8px 12px;
-    flex-wrap: wrap;
+    display: none;
   }
 
   .fc-map-controls {
     transform: scale(0.85);
-    transform-origin: top right;
+    transform-origin: bottom left;
   }
 
-  /* Show mobile modifier button */
-  .fc-mobile-controls {
-    display: flex;
-    justify-content: center;
-    margin-top: 8px;
-  }
-
-  /* Mobile section adjustments */
-  .fc-section-toggle {
-    padding: 10px 12px;
-  }
-
-  .fc-section-content {
-    padding: 12px;
-  }
-
-
-  .fc-preview-wrap {
-    width: 100%;
+  .fc-header-actions .fc-copy-btn {
+    display: none;
   }
 }
 
@@ -5752,11 +6617,11 @@ body.android-landscape-fullscreen .layer-panel.open {
 
 .shortcuts-modal {
   background: linear-gradient(145deg, rgba(20, 25, 40, 0.98), rgba(10, 15, 25, 0.98));
-  border: 1px solid rgba(22, 199, 154, 0.3);
+  border: 1px solid var(--ui-border);
   border-radius: 12px;
   width: 320px;
   max-width: 90vw;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 60px rgba(22, 199, 154, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
   transform: scale(0.95);
   transition: transform 0.15s;
   overflow: hidden;
@@ -5772,7 +6637,7 @@ body.android-landscape-fullscreen .layer-panel.open {
   justify-content: space-between;
   padding: 14px 16px;
   background: rgba(15, 52, 96, 0.5);
-  border-bottom: 1px solid rgba(22, 199, 154, 0.2);
+  border-bottom: 1px solid var(--ui-border);
   color: #16c79a;
   font-weight: 600;
   font-size: 14px;

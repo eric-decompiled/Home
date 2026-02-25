@@ -5,9 +5,8 @@
  * Each anchor defines a c-plane position and 4 orbit offsets for beat-synchronized motion.
  */
 
-import { loadFractalAnchors, saveFractalAnchors, type FractalAnchors, type FractalAnchor } from './state.ts';
+import { loadFractalAnchors, saveFractalAnchors, DEFAULT_ANCHORS, type FractalAnchors } from './state.ts';
 import { TWO_PI } from './effects/effect-utils.ts';
-import { palettes } from './palettes.ts';
 
 // --- User Presets ---
 
@@ -41,13 +40,27 @@ const JULIA_SIZE = 200;  // Reduced for performance
 const JULIA_ITER = 100;  // Reduced for performance
 const LUT_SIZE = 2048;
 
-const DEGREE_NAMES = ['0', 'I', 'ii', 'iii', 'IV', 'V', 'vi', 'vii'];
-// Degree to palette index mapping (in key of C): I=C, ii=D, iii=E, IV=F, V=G, vi=A, vii=B
-const DEGREE_TO_PALETTE = [0, 0, 2, 4, 5, 7, 9, 11]; // index 0 unused, degrees 1-7
+// Pitch class names (0-11: C, C#, D, ..., B)
+const NOTE_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+// Note colors from palette 0.65 position (synced with palettes.ts)
+const NOTE_COLORS = [
+  '#96A0AF', // C - Silver Grey
+  '#D2640A', // C# - Orange
+  '#5A1982', // D - Dark Purple
+  '#C391E1', // D# - Pastel Violet
+  '#0F3C8C', // E - Deep Blue
+  '#AF730A', // F - Deep Gold
+  '#EBD71E', // F# - Yellow
+  '#145F23', // G - Forest Green
+  '#1996A0', // G# - Teal
+  '#AA1914', // A - Deep Red
+  '#E1826E', // A# - Coral
+  '#8CC823', // B - Lime
+];
 const ORBIT_COLORS = ['#ff6666', '#66bbff', '#66ff99', '#ffcc44'];
 const ORBIT_LABELS = ['1', '2', '3', '4'];
 
-// Simplified: one anchor per degree (no chord quality variants)
+// Simplified: one anchor per pitch class (no chord quality variants)
 const QUALITIES = [{ id: 'major', label: '' }];  // Single quality for compatibility
 
 // --- Fractal Families ---
@@ -84,7 +97,7 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     traits: ['Smooth, rounded bulbs', 'Cardioid main body', 'Infinite spiraling detail', 'Self-similar at all zoom levels', 'Connected interior'],
     hotspots: ['c = -0.75 (period-2 bulb)', 'c = -0.12 + 0.74i (spiral)', 'c = 0.28 + 0.01i (dendrite)', 'c = -1.0 (basilica)'],
     tips: 'The boundary between black and color contains all the interesting detail. Look for "mini-brots" - tiny copies of the full set hidden in the spirals.',
-    related: ['Tricorn', 'Multicorn-3', 'Burning Ship'],
+    related: ['Tricorn', 'Burning Ship'],
   },
   'burning-ship': {
     formula: 'z → (|Re(z)| + i|Im(z)|)² + c',
@@ -139,7 +152,7 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     traits: ['Three-fold symmetry', 'Tricorn shape', 'Spiky protrusions', 'Mirror-like reflections', 'Pinched bulbs'],
     hotspots: ['c = -0.1 + 0.9i (spike tip)', 'c = -1.0 + 0.0i (period-2)', 'c = 0.3 + 0.5i (mini-tricorn)'],
     tips: 'The three main "horns" each contain infinite detail. Look for mini-tricorns in the boundary regions. The Julia sets are often more symmetric than the locus.',
-    related: ['Classic', 'Multicorn-3', 'Buffalo'],
+    related: ['Classic', 'Buffalo'],
   },
   'perp-burn': {
     formula: 'z → (Re(z) + i|Im(z)|)² + c',
@@ -183,18 +196,7 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     traits: ['Physics-derived', 'Single attractor at z=1', 'Magnetic domains', 'Phase boundaries', 'Convergent iteration'],
     hotspots: ['c = 0.0 + 0.0i (centered)', 'c = 2.0 + 0.0i (boundary)', 'c = 1.0 + 1.0i (distorted)'],
     tips: 'Points converge to z = 1 rather than escaping to infinity. The "domains" represent different convergence speeds. Has connections to real physical systems.',
-    related: ['Magnet-II', 'Newton-3', 'Nova', 'Classic'],
-  },
-  'magnet-2': {
-    formula: 'z → ((z³ + 3(c-1)z + (c-1)(c-2)) / (3z² + 3(c-2)z + (c-1)(c-2) + 1))²',
-    year: '1994',
-    creator: 'Derived from physics',
-    category: 'Physics-Derived',
-    description: 'The second Magnet fractal from statistical mechanics. Uses cubic terms in the iteration, creating more intricate flame-like boundaries than Type I. Both types model magnetic phase transitions via renormalization group equations.',
-    traits: ['Cubic iteration', 'Flame-like tendrils', 'Single attractor at z=1', 'More intricate than Type I', 'Physics-derived'],
-    hotspots: ['c = 0.0 + 0.0i (centered)', 'c = 1.5 + 0.0i (boundary)', 'c = 0.5 + 0.5i (swirling)'],
-    tips: 'More complex than Magnet I due to cubic terms. The flame-like boundaries are characteristic. Converges to z = 1 like Type I.',
-    related: ['Magnet-I', 'Newton-3', 'Nova'],
+    related: ['Newton-3', 'Nova', 'Classic'],
   },
   'barnsley-1': {
     formula: 'z → (z-1)c if Re(z)≥0, else (z+1)c',
@@ -205,40 +207,7 @@ const FAMILY_INFO: Record<string, FamilyInfo> = {
     traits: ['Conditional iteration', 'Fern-like patterns', 'Branching structures', 'Asymmetric growth', 'Leaf-like shapes'],
     hotspots: ['c = 0.38 + 0.62i (fern tips)', 'c = -0.15 + 0.78i (branches)', 'c = 0.52 + 0.25i (spirals)'],
     tips: 'The conditional nature creates natural-looking branching. Look for fern fronds and leaf structures. Best viewed with green/nature color palettes.',
-    related: ['Barnsley-2', 'Barnsley-3', 'Celtic'],
-  },
-  'barnsley-2': {
-    formula: 'z → (z±1)c based on Im(z·c)',
-    year: '1988',
-    creator: 'Michael Barnsley',
-    category: 'Conditional/IFS',
-    description: 'Barnsley\'s second variation changes the condition to depend on the product of z and c, creating different domain boundaries. Often produces more organic, flowing shapes than Barnsley-1.',
-    traits: ['Complex conditions', 'Organic shapes', 'Interleaved domains', 'Natural forms', 'Smooth boundaries'],
-    hotspots: ['c = 0.28 + 0.54i (organic)', 'c = -0.42 + 0.38i (interleaved)', 'c = 0.65 + 0.32i (flowing)'],
-    tips: 'The condition based on Im(z·c) creates more complex domain boundaries. Look for regions where the two formulas compete.',
-    related: ['Barnsley-1', 'Barnsley-3', 'Phoenix'],
-  },
-  'barnsley-3': {
-    formula: 'z → (z²-1) + c·(z+1) or (z²-1) + c',
-    year: '1988',
-    creator: 'Michael Barnsley',
-    category: 'Conditional/IFS',
-    description: 'The third Barnsley variant combines quadratic iteration with conditional c multiplication. Creates dense filament structures with multiple competing domains.',
-    traits: ['Quadratic hybrid', 'Dense filaments', 'Multiple domains', 'Complex dynamics', 'Hairlike structures'],
-    hotspots: ['c = 0.22 + 0.35i (filaments)', 'c = -0.55 + 0.12i (dense)', 'c = 0.18 - 0.48i (domains)'],
-    tips: 'The quadratic base gives familiar bulb shapes, but the conditional term adds chaos. Look for regions where filaments explode from bulb boundaries.',
-    related: ['Barnsley-1', 'Barnsley-2', 'Classic'],
-  },
-  'multicorn-3': {
-    formula: 'z → conj(z)³ + c',
-    year: '1989+',
-    creator: 'Extension of Tricorn',
-    category: 'Higher-Order Conjugate',
-    description: 'A higher-order version of the Tricorn (Mandelbar) using the cube instead of square. The conjugate combined with odd power creates distinctive multi-fold symmetry with pointed lobes radiating from the center.',
-    traits: ['Multi-fold symmetry', 'Pointed lobes', 'Conjugate dynamics', 'Higher-order effects', 'Star-like shapes'],
-    hotspots: ['c = 0.0 + 0.8i (star tips)', 'c = -0.5 + 0.5i (lobes)', 'c = 0.3 - 0.3i (mini-corns)'],
-    tips: 'The odd power (3) with conjugate creates different symmetry than even powers. Look for star-like patterns with multiple arms. Each arm contains self-similar detail.',
-    related: ['Tricorn', 'Classic', 'Phoenix'],
+    related: ['Celtic'],
   },
   'mandelbrot': {
     formula: 'z → z² + c (c = pixel)',
@@ -566,74 +535,6 @@ const FAMILIES: FractalFamily[] = [
     },
   },
   {
-    id: 'magnet-2', label: 'Magnet-II', typeNum: 19,
-    bounds: { rMin: -3.0, rMax: 3.0, iMin: -3.0, iMax: 3.0 },
-    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
-      let x = z0r, y = z0i;
-      const qR = cr - 1, qI = ci;
-      const rR = cr - 2, rI = ci;
-      const qrR = qR * rR - qI * rI;
-      const qrI = qR * rI + qI * rR;
-      for (let i = 0; i < maxIter; i++) {
-        const d1 = (x - 1) ** 2 + y ** 2;
-        if (d1 < 0.0001) return i + 1;
-        if (x * x + y * y > 1000) return i + 1;
-        const x2 = x * x, y2 = y * y;
-        const z3R = x * x2 - 3 * x * y2;
-        const z3I = 3 * x2 * y - y * y2;
-        const tqzR = 3 * (qR * x - qI * y);
-        const tqzI = 3 * (qR * y + qI * x);
-        const numR = z3R + tqzR + qrR;
-        const numI = z3I + tqzI + qrI;
-        const tz2R = 3 * (x2 - y2);
-        const tz2I = 6 * x * y;
-        const trzR = 3 * (rR * x - rI * y);
-        const trzI = 3 * (rR * y + rI * x);
-        const denR = tz2R + trzR + qrR + 1;
-        const denI = tz2I + trzI + qrI;
-        const den2 = denR * denR + denI * denI;
-        if (den2 < 1e-10) return i + 1;
-        const divR = (numR * denR + numI * denI) / den2;
-        const divI = (numI * denR - numR * denI) / den2;
-        x = divR * divR - divI * divI;
-        y = 2 * divR * divI;
-      }
-      return 0;
-    },
-    julia(fx, fy, jR, jI, maxIter) {
-      let x = fx, y = fy;
-      const qR = jR - 1, qI = jI;
-      const rR = jR - 2, rI = jI;
-      const qrR = qR * rR - qI * rI;
-      const qrI = qR * rI + qI * rR;
-      for (let i = 0; i < maxIter; i++) {
-        const d1 = (x - 1) ** 2 + y ** 2;
-        if (d1 < 0.0001) return i + 1;
-        if (x * x + y * y > 1000) return i + 1;
-        const x2 = x * x, y2 = y * y;
-        const z3R = x * x2 - 3 * x * y2;
-        const z3I = 3 * x2 * y - y * y2;
-        const tqzR = 3 * (qR * x - qI * y);
-        const tqzI = 3 * (qR * y + qI * x);
-        const numR = z3R + tqzR + qrR;
-        const numI = z3I + tqzI + qrI;
-        const tz2R = 3 * (x2 - y2);
-        const tz2I = 6 * x * y;
-        const trzR = 3 * (rR * x - rI * y);
-        const trzI = 3 * (rR * y + rI * x);
-        const denR = tz2R + trzR + qrR + 1;
-        const denI = tz2I + trzI + qrI;
-        const den2 = denR * denR + denI * denI;
-        if (den2 < 1e-10) return i + 1;
-        const divR = (numR * denR + numI * denI) / den2;
-        const divI = (numI * denR - numR * denI) / den2;
-        x = divR * divR - divI * divI;
-        y = 2 * divR * divI;
-      }
-      return 0;
-    },
-  },
-  {
     id: 'barnsley-1', label: 'Barnsley-1', typeNum: 14,
     bounds: { rMin: -2.0, rMax: 2.0, iMin: -2.0, iMax: 2.0 },
     locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
@@ -657,121 +558,28 @@ const FAMILIES: FractalFamily[] = [
       return 0;
     },
   },
-  {
-    id: 'barnsley-2', label: 'Barnsley-2', typeNum: 15,
-    bounds: { rMin: -2.0, rMax: 2.0, iMin: -2.0, iMax: 2.0 },
-    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
-      let x = z0r, y = z0i;
-      for (let i = 0; i < maxIter; i++) {
-        if (x * x + y * y > 100) return i + 1;
-        const prod = x * ci + y * cr;
-        const dr = prod >= 0 ? x - 1 : x + 1;
-        x = dr * cr - y * ci;
-        y = dr * ci + y * cr;
-      }
-      return 0;
-    },
-    julia(fx, fy, jR, jI, maxIter) {
-      let x = fx, y = fy;
-      for (let i = 0; i < maxIter; i++) {
-        if (x * x + y * y > 100) return i + 1;
-        const prod = x * jI + y * jR;
-        const dr = prod >= 0 ? x - 1 : x + 1;
-        x = dr * jR - y * jI;
-        y = dr * jI + y * jR;
-      }
-      return 0;
-    },
-  },
-  {
-    id: 'barnsley-3', label: 'Barnsley-3', typeNum: 16,
-    bounds: { rMin: -2.0, rMax: 2.0, iMin: -2.0, iMax: 2.0 },
-    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
-      let x = z0r, y = z0i;
-      for (let i = 0; i < maxIter; i++) {
-        if (x * x + y * y > 100) return i + 1;
-        const z2r = x * x - y * y - 1;
-        const z2i = 2 * x * y;
-        if (x > 0) {
-          x = z2r + cr;
-          y = z2i + ci;
-        } else {
-          x = z2r + cr * x + cr;
-          y = z2i + ci * x + ci;
-        }
-      }
-      return 0;
-    },
-    julia(fx, fy, jR, jI, maxIter) {
-      let x = fx, y = fy;
-      for (let i = 0; i < maxIter; i++) {
-        if (x * x + y * y > 100) return i + 1;
-        const z2r = x * x - y * y - 1;
-        const z2i = 2 * x * y;
-        if (x > 0) {
-          x = z2r + jR;
-          y = z2i + jI;
-        } else {
-          x = z2r + jR * x + jR;
-          y = z2i + jI * x + jI;
-        }
-      }
-      return 0;
-    },
-  },
-  {
-    id: 'multicorn-3', label: 'Multicorn-3', typeNum: 17,
-    bounds: { rMin: -1.5, rMax: 1.5, iMin: -1.5, iMax: 1.5 },
-    locus(cr, ci, maxIter, z0r = 0, z0i = 0) {
-      let x = z0r, y = z0i;
-      for (let i = 0; i < maxIter; i++) {
-        if (x * x + y * y > 100) return i + 1;
-        const r = Math.sqrt(x * x + y * y);
-        const theta = Math.atan2(-y, x);
-        const r3 = r * r * r;
-        x = r3 * Math.cos(3 * theta) + cr;
-        y = r3 * Math.sin(3 * theta) + ci;
-      }
-      return 0;
-    },
-    julia(fx, fy, jR, jI, maxIter) {
-      let x = fx, y = fy;
-      for (let i = 0; i < maxIter; i++) {
-        if (x * x + y * y > 100) return i + 1;
-        const r = Math.sqrt(x * x + y * y);
-        const theta = Math.atan2(-y, x);
-        const r3 = r * r * r;
-        x = r3 * Math.cos(3 * theta) + jR;
-        y = r3 * Math.sin(3 * theta) + jI;
-      }
-      return 0;
-    },
-  },
 ];
 
 // Type → family index lookup
 const TYPE_TO_FAMILY: Record<number, number> = {};
 FAMILIES.forEach((f, i) => { TYPE_TO_FAMILY[f.typeNum] = i; });
 
-// Get representative color from a palette (uses ~65% position for vibrant color)
-// Uses shared palettes from palettes.ts for consistency with app colors
-function getPaletteColorRGB(paletteIdx: number): [number, number, number] {
-  const p = palettes[paletteIdx];
-  const stop = p.stops[Math.floor(p.stops.length * 0.6)];
-  return [stop.color[0], stop.color[1], stop.color[2]];
-}
+// --- Palettes ---
 
-// Get degree color RGB from palette (in key of C)
-function getDegreeColorRGB(deg: number): [number, number, number] {
-  if (deg < 1 || deg > 7) return [136, 136, 136];
-  return getPaletteColorRGB(DEGREE_TO_PALETTE[deg]);
-}
-
-// Get degree color as CSS string
-function getDegreeColor(deg: number): string {
-  const [r, g, b] = getDegreeColorRGB(deg);
-  return `rgb(${r}, ${g}, ${b})`;
-}
+const PALETTES = [
+  { name: 'C', stops: [{ pos: 0, color: [4, 0, 3] }, { pos: 0.15, color: [55, 0, 42] }, { pos: 0.4, color: [170, 20, 130] }, { pos: 0.65, color: [220, 60, 175] }, { pos: 0.85, color: [240, 120, 200] }, { pos: 1, color: [200, 80, 165] }] },
+  { name: 'C#', stops: [{ pos: 0, color: [3, 0, 8] }, { pos: 0.15, color: [35, 0, 55] }, { pos: 0.4, color: [110, 20, 175] }, { pos: 0.65, color: [160, 60, 220] }, { pos: 0.85, color: [185, 110, 235] }, { pos: 1, color: [145, 70, 195] }] },
+  { name: 'D', stops: [{ pos: 0, color: [1, 0, 10] }, { pos: 0.15, color: [18, 4, 65] }, { pos: 0.4, color: [65, 30, 175] }, { pos: 0.65, color: [110, 70, 220] }, { pos: 0.85, color: [150, 120, 240] }, { pos: 1, color: [110, 80, 200] }] },
+  { name: 'D#', stops: [{ pos: 0, color: [0, 0, 10] }, { pos: 0.15, color: [10, 8, 65] }, { pos: 0.4, color: [40, 40, 180] }, { pos: 0.65, color: [80, 90, 220] }, { pos: 0.85, color: [120, 140, 240] }, { pos: 1, color: [80, 100, 200] }] },
+  { name: 'E', stops: [{ pos: 0, color: [0, 4, 20] }, { pos: 0.15, color: [0, 28, 80] }, { pos: 0.4, color: [0, 95, 170] }, { pos: 0.65, color: [30, 155, 230] }, { pos: 0.85, color: [70, 190, 245] }, { pos: 1, color: [30, 140, 200] }] },
+  { name: 'F', stops: [{ pos: 0, color: [0, 3, 8] }, { pos: 0.15, color: [0, 30, 55] }, { pos: 0.4, color: [0, 120, 150] }, { pos: 0.65, color: [30, 180, 200] }, { pos: 0.85, color: [80, 210, 225] }, { pos: 1, color: [40, 170, 185] }] },
+  { name: 'F#', stops: [{ pos: 0, color: [0, 4, 3] }, { pos: 0.15, color: [0, 38, 30] }, { pos: 0.4, color: [10, 150, 115] }, { pos: 0.65, color: [40, 200, 155] }, { pos: 0.85, color: [90, 230, 185] }, { pos: 1, color: [50, 185, 145] }] },
+  { name: 'G', stops: [{ pos: 0, color: [0, 0, 0] }, { pos: 0.15, color: [0, 24, 16] }, { pos: 0.4, color: [15, 160, 120] }, { pos: 0.65, color: [50, 210, 165] }, { pos: 0.85, color: [95, 240, 195] }, { pos: 1, color: [55, 195, 155] }] },
+  { name: 'G#', stops: [{ pos: 0, color: [3, 2, 0] }, { pos: 0.15, color: [50, 35, 0] }, { pos: 0.4, color: [175, 135, 0] }, { pos: 0.65, color: [230, 190, 20] }, { pos: 0.85, color: [250, 215, 50] }, { pos: 1, color: [210, 170, 15] }] },
+  { name: 'A', stops: [{ pos: 0, color: [0, 0, 0] }, { pos: 0.15, color: [75, 0, 0] }, { pos: 0.35, color: [190, 35, 0] }, { pos: 0.55, color: [240, 120, 10] }, { pos: 0.75, color: [255, 190, 40] }, { pos: 0.9, color: [245, 160, 25] }, { pos: 1, color: [200, 100, 5] }] },
+  { name: 'A#', stops: [{ pos: 0, color: [5, 0, 1] }, { pos: 0.15, color: [58, 0, 22] }, { pos: 0.4, color: [190, 30, 80] }, { pos: 0.65, color: [235, 70, 130] }, { pos: 0.85, color: [245, 130, 175] }, { pos: 1, color: [205, 80, 135] }] },
+  { name: 'B', stops: [{ pos: 0, color: [5, 0, 3] }, { pos: 0.15, color: [50, 0, 35] }, { pos: 0.4, color: [170, 15, 110] }, { pos: 0.65, color: [215, 55, 160] }, { pos: 0.85, color: [235, 110, 195] }, { pos: 1, color: [195, 65, 155] }] },
+];
 
 // --- Default Anchors ---
 
@@ -779,17 +587,9 @@ const DEFAULT_ORBIT_RADIUS = 0.08;
 const DEFAULT_ORBIT_SKEW = 1.0;     // circle
 const DEFAULT_ORBIT_ROTATION = 0;   // no rotation
 const DEFAULT_BEAT_SPREAD = Math.PI / 2;  // 90° between beat points
+const DEFAULT_VIEW_ZOOM = 1.0;     // default visualizer zoom
 
-const PRESET_ANCHORS: FractalAnchor[] = [
-  { type: 4, real: 0.1691, imag: -0.4957, orbitRadius: 0.15 },
-  { type: 4, real: 0.1691, imag: -0.4957, orbitRadius: 0.15 },
-  { type: 8, real: 0.3215, imag: 0.3842, orbitRadius: 0.08 },
-  { type: 3, real: 0.3386, imag: -1.5682, orbitRadius: 0.35 },
-  { type: 6, real: -1.2810, imag: -0.4794, orbitRadius: 0.30 },
-  { type: 4, real: 0.3789, imag: 0.5193, orbitRadius: 0.06 },
-  { type: 3, real: -1.0169, imag: -1.0135, orbitRadius: 0.25 },
-  { type: 9, real: -0.5409, imag: -0.9587, orbitRadius: 0.28 },
-];
+// Use DEFAULT_ANCHORS from state.ts for all 12 pitch classes
 
 // --- Internal Anchor Format ---
 
@@ -801,6 +601,7 @@ interface InternalAnchor {
   orbitSkew: number;     // aspect ratio: 1=circle, <1=wide, >1=tall
   orbitRotation: number; // rotation in radians
   beatSpread: number;    // angle between beat points in radians (π/2 = 90°)
+  viewZoom: number;      // visualizer zoom level
 }
 
 // --- Fractal Config Panel Class ---
@@ -808,7 +609,7 @@ interface InternalAnchor {
 export class FractalConfigPanel {
   private container: HTMLElement;
   private visible = false;
-  private selectedDegree = 1;
+  private selectedDegree = 0;  // Pitch class 0-11 (C=0)
   private selectedQuality = 'major';  // Always major now (simplified)
   private selectedFamily = 0;
   // Anchor keys are just degree numbers as strings
@@ -850,16 +651,14 @@ export class FractalConfigPanel {
   // Touch/long-press state for mobile anchor placement
   private touchStartPos: { x: number; y: number } | null = null;
   private longPressTimer: number | null = null;
-  private static readonly LONG_PRESS_DURATION = 300; // ms - snappy for responsive touch
+  private static readonly LONG_PRESS_DURATION = 400; // ms
   private static readonly TOUCH_MOVE_THRESHOLD = 10; // px
 
   // Mobile modifier toggle (acts like Ctrl/Cmd on desktop)
   private modifierActive = false;
 
-  // Thumbnail cache - key is "deg:familyIdx:real:imag" rounded to 3 decimals
-  private thumbnailCache: Map<string, ImageData> = new Map();
-  private static readonly THUMB_SIZE = 94;
-  private static readonly THUMB_ITER = 60;  // Reduced for performance
+  // Callbacks
+  public onAnchorsChange?: (anchors: Record<number, { real: number; imag: number; type: number; orbitRadius: number; orbitSkew?: number; orbitRotation?: number; beatSpread?: number; viewZoom?: number }>) => void;
 
   // Locus cache - key is "familyIdx:bounds"
   private locusCache: Map<string, HTMLCanvasElement> = new Map();
@@ -868,9 +667,6 @@ export class FractalConfigPanel {
   private zoomDebounceTimer: number | null = null;
   // Track rendered bounds for scaled preview during zoom
   private renderedBounds: { rMin: number; rMax: number; iMin: number; iMax: number }[] = [];
-
-  // Debounce timer for thumbnail updates (1 second)
-  private thumbnailDebounceTimer: number | null = null;
 
   // Callbacks
   public onSave: (() => void) | null = null;
@@ -897,62 +693,6 @@ export class FractalConfigPanel {
     this.updatePresetsUI();
   }
 
-  // Hotspot cycling index per degree
-  private hotspotIndices: Map<number, number> = new Map();
-
-  /** Parse a hotspot string like "c = -0.75 (period-2 bulb)" or "c = -0.12 + 0.74i (spiral)" */
-  private parseHotspot(hotspot: string): { real: number; imag: number } | null {
-    // Match patterns like "c = -0.75", "c = -0.12 + 0.74i", "c = 0.28 + 0.01i", "z₀ = 0 + 0i"
-    const match = hotspot.match(/=\s*([-\d.]+)\s*([+-]\s*([\d.]+)i)?/);
-    if (!match) return null;
-
-    const real = parseFloat(match[1]);
-    let imag = 0;
-    if (match[2]) {
-      const imagStr = match[2].replace(/\s/g, '').replace('i', '');
-      imag = parseFloat(imagStr);
-    }
-
-    return { real, imag };
-  }
-
-  /** Cycle to next hotspot for a degree */
-  private cycleHotspot(deg: number): void {
-    const family = FAMILIES[this.selectedFamily];
-    const info = FAMILY_INFO[family.id];
-    const hotspots = info?.hotspots || [];
-
-    if (hotspots.length === 0) return;
-
-    // Get current index for this degree, default to -1 so first click goes to 0
-    const currentIdx = this.hotspotIndices.get(deg) ?? -1;
-    const nextIdx = (currentIdx + 1) % hotspots.length;
-    this.hotspotIndices.set(deg, nextIdx);
-
-    // Parse the hotspot
-    const parsed = this.parseHotspot(hotspots[nextIdx]);
-    if (!parsed) return;
-
-    // Update the anchor for this degree
-    const key = this.anchorKey(deg);
-    const anchor = this.anchors.get(key);
-    if (anchor) {
-      anchor.real = parsed.real;
-      anchor.imag = parsed.imag;
-      anchor.familyIdx = this.selectedFamily;
-      this.debouncedThumbnailUpdate();
-    }
-
-    // Update status
-    const status = this.container.querySelector('#fc-status')!;
-    status.textContent = `${DEGREE_NAMES[deg]} → ${hotspots[nextIdx]}`;
-
-    // Refresh display
-    this.selectDegreeQuality(deg, 'major');
-    this.drawOverlay();
-    if (this.onSave) this.onSave();
-  }
-
   /** Set orbit radius for a degree */
   private setOrbitRadius(deg: number, radius: number): void {
     const key = this.anchorKey(deg);
@@ -960,6 +700,7 @@ export class FractalConfigPanel {
     if (anchor) {
       anchor.orbitRadius = Math.max(0.01, radius);
       this.drawOverlay();
+      this.updateResetButtonState();
     }
   }
 
@@ -970,6 +711,7 @@ export class FractalConfigPanel {
     if (anchor) {
       anchor.orbitSkew = skew;
       this.drawOverlay();
+      this.updateResetButtonState();
     }
   }
 
@@ -980,6 +722,7 @@ export class FractalConfigPanel {
     if (anchor) {
       anchor.orbitRotation = rotation;
       this.drawOverlay();
+      this.updateResetButtonState();
     }
   }
 
@@ -990,6 +733,169 @@ export class FractalConfigPanel {
     if (anchor) {
       anchor.beatSpread = spread;
       this.drawOverlay();
+      this.updateResetButtonState();
+    }
+  }
+
+  /** Set anchor real component for a degree */
+  private setAnchorReal(deg: number, real: number): void {
+    const key = this.anchorKey(deg);
+    const anchor = this.anchors.get(key);
+    if (anchor) {
+      anchor.real = real;
+      this.renderJulia(this.selectedFamily, anchor.real, anchor.imag, anchor.viewZoom);
+      this.drawOverlay();
+      this.updateResetButtonState();
+      if (this.onSave) this.onSave();
+    }
+  }
+
+  /** Set anchor imaginary component for a degree */
+  private setAnchorImag(deg: number, imag: number): void {
+    const key = this.anchorKey(deg);
+    const anchor = this.anchors.get(key);
+    if (anchor) {
+      anchor.imag = imag;
+      this.renderJulia(this.selectedFamily, anchor.real, anchor.imag, anchor.viewZoom);
+      this.drawOverlay();
+      this.updateResetButtonState();
+      if (this.onSave) this.onSave();
+    }
+  }
+
+  /** Set anchor viewZoom for a degree */
+  private setAnchorZoom(deg: number, zoom: number): void {
+    const key = this.anchorKey(deg);
+    const anchor = this.anchors.get(key);
+    if (anchor) {
+      anchor.viewZoom = zoom;
+      this.renderJulia(this.selectedFamily, anchor.real, anchor.imag, anchor.viewZoom);
+
+      // Zoom the locus map centered on the anchor
+      this.zoomMapToAnchor(anchor, zoom);
+
+      if (this.onSave) this.onSave();
+    }
+  }
+
+  /** Zoom the locus map centered on an anchor point */
+  private zoomMapToAnchor(anchor: InternalAnchor, viewZoom: number): void {
+    const origB = FAMILIES[this.selectedFamily].bounds;
+    const origW = origB.rMax - origB.rMin;
+    const origH = origB.iMax - origB.iMin;
+
+    // Scale the view size inversely with viewZoom
+    const newW = origW / viewZoom;
+    const newH = origH / viewZoom;
+
+    // Center on anchor position
+    const b = this.viewBounds[this.selectedFamily];
+    b.rMin = anchor.real - newW / 2;
+    b.rMax = anchor.real + newW / 2;
+    b.iMin = anchor.imag - newH / 2;
+    b.iMax = anchor.imag + newH / 2;
+
+    // Update zoom level tracking
+    this.zoomLevels[this.selectedFamily] = viewZoom;
+
+    // Immediately show scaled preview for responsive feel
+    this.drawScaledPreview();
+    this.drawOverlayMarkers();
+
+    // Debounce the expensive locus render (longer delay for slider drags)
+    if (this.zoomDebounceTimer !== null) {
+      clearTimeout(this.zoomDebounceTimer);
+    }
+    this.zoomDebounceTimer = window.setTimeout(() => {
+      this.zoomDebounceTimer = null;
+      this.renderLocus();
+      this.drawOverlay();
+    }, 250);
+  }
+
+  /** Center the map view on the current anchor (keeps current zoom level) */
+  private centerMapOnAnchor(): void {
+    const anchor = this.currentAnchor;
+    if (!anchor) return;
+
+    const b = this.viewBounds[this.selectedFamily];
+    const halfW = (b.rMax - b.rMin) / 2;
+    const halfH = (b.iMax - b.iMin) / 2;
+
+    // Center on anchor position
+    b.rMin = anchor.real - halfW;
+    b.rMax = anchor.real + halfW;
+    b.iMin = anchor.imag - halfH;
+    b.iMax = anchor.imag + halfH;
+
+    // Render with debounce
+    this.drawScaledPreview();
+    this.drawOverlayMarkers();
+
+    if (this.zoomDebounceTimer !== null) {
+      clearTimeout(this.zoomDebounceTimer);
+    }
+    this.zoomDebounceTimer = window.setTimeout(() => {
+      this.zoomDebounceTimer = null;
+      this.renderLocus();
+      this.drawOverlay();
+    }, 100);
+  }
+
+  /** Convert slider value (0-100) to zoom (0.1-10000) with exponential mapping */
+  private sliderToZoom(slider: number): number {
+    // Center at 50 = 1.0x, exponential on both sides
+    if (slider <= 50) {
+      // 0-50 → 0.1-1.0
+      return 0.1 * Math.pow(10, slider / 50);
+    } else {
+      // 50-100 → 1.0-10000 (deep fractal zoom)
+      return Math.pow(10000, (slider - 50) / 50);
+    }
+  }
+
+  /** Convert zoom (0.1-10000) to slider value (0-100) */
+  private zoomToSlider(zoom: number): number {
+    if (zoom <= 1.0) {
+      // 0.1-1.0 → 0-50
+      return 50 * Math.log10(zoom * 10);
+    } else {
+      // 1.0-10000 → 50-100
+      return 50 + 50 * Math.log10(zoom) / 4; // log10(10000) = 4
+    }
+  }
+
+  /** Format zoom value for display */
+  private formatZoom(zoom: number): string {
+    if (zoom >= 1000) return `${Math.round(zoom / 100) / 10}k×`;
+    if (zoom >= 100) return `${Math.round(zoom)}×`;
+    if (zoom >= 10) return `${zoom.toFixed(1)}×`;
+    return `${zoom.toFixed(2)}×`;
+  }
+
+  /** Update orbit input values to match the selected degree's anchor */
+  private updateOrbitSliders(): void {
+    const key = this.anchorKey(this.selectedDegree);
+    const anchor = this.anchors.get(key);
+
+    const radiusInput = this.container.querySelector('.fc-radius-input') as HTMLInputElement;
+    const skewInput = this.container.querySelector('.fc-skew-input') as HTMLInputElement;
+    const rotationInput = this.container.querySelector('.fc-rotation-input') as HTMLInputElement;
+    const spreadInput = this.container.querySelector('.fc-spread-input') as HTMLInputElement;
+    const realInput = this.container.querySelector('.fc-real-input') as HTMLInputElement;
+    const imagInput = this.container.querySelector('.fc-imag-input') as HTMLInputElement;
+    const zoomSlider = this.container.querySelector('.fc-zoom-slider') as HTMLInputElement;
+    const zoomLabel = this.container.querySelector('.fc-zoom-label') as HTMLElement;
+
+    if (anchor) {
+      if (radiusInput) radiusInput.value = (anchor.orbitRadius * 250).toFixed(1);
+      if (skewInput) skewInput.value = String(Math.round(anchor.orbitSkew * 100));
+      if (rotationInput) rotationInput.value = String(Math.round(anchor.orbitRotation * 100));
+      if (spreadInput) spreadInput.value = String(Math.round(anchor.beatSpread * 100));
+      if (realInput) realInput.value = String(Math.round(anchor.real * 100));
+      if (imagInput) imagInput.value = String(Math.round(anchor.imag * 100));
+      if (zoomSlider) zoomSlider.value = String(Math.round(this.zoomToSlider(anchor.viewZoom)));
+      if (zoomLabel) zoomLabel.textContent = this.formatZoom(anchor.viewZoom);
     }
   }
 
@@ -1023,12 +929,32 @@ export class FractalConfigPanel {
     // Tips
     this.container.querySelector('#fc-info-tips-text')!.textContent = info?.tips || 'Explore the boundary regions for the most detail.';
 
-    // Related families
-    this.container.querySelector('#fc-info-related-list')!.innerHTML = (info?.related || [])
-      .map(r => `<span class="fc-info-related-tag">${r}</span>`)
+    // Related families (clickable)
+    const relatedList = this.container.querySelector('#fc-info-related-list')!;
+    relatedList.innerHTML = (info?.related || [])
+      .map(r => `<button class="fc-info-related-tag" data-family="${r}">${r}</button>`)
       .join('');
 
+    // Add click handlers for related family tags
+    relatedList.querySelectorAll('.fc-info-related-tag').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const label = (btn as HTMLElement).dataset.family;
+        if (label) this.showFamilyInfoByLabel(label);
+      });
+    });
+
     modal.classList.add('visible');
+  }
+
+  /** Show family info modal by family label */
+  private showFamilyInfoByLabel(label: string): void {
+    const idx = FAMILIES.findIndex(f => f.label === label);
+    if (idx >= 0) {
+      const savedFamily = this.selectedFamily;
+      this.selectedFamily = idx;
+      this.showFamilyInfo();
+      this.selectedFamily = savedFamily;
+    }
   }
 
   /** Hide family information modal */
@@ -1055,6 +981,14 @@ export class FractalConfigPanel {
     familyBtns.forEach((btn, i) => {
       btn.classList.toggle('active', i === this.selectedFamily);
     });
+
+    // Update formula display
+    const formulaEl = this.container.querySelector('.fc-formula') as HTMLElement;
+    if (formulaEl) {
+      const family = FAMILIES[this.selectedFamily];
+      const info = FAMILY_INFO[family.id];
+      formulaEl.textContent = info?.formula || 'z → z² + c';
+    }
   }
 
   /** Handle map control button clicks */
@@ -1115,26 +1049,9 @@ export class FractalConfigPanel {
     this.drawOverlay();
   }
 
-  /** Sync orbit sliders to current anchor values */
+  /** Sync orbit inputs to current anchor values */
   private syncOrbitSliders(): void {
-    for (let deg = 0; deg <= 7; deg++) {
-      const key = this.anchorKey(deg);
-      const anchor = this.anchors.get(key);
-      if (!anchor) continue;
-
-      const radiusSlider = this.container.querySelector(`.fc-radius-slider[data-deg="${deg}"]`) as HTMLInputElement;
-      const skewSlider = this.container.querySelector(`.fc-skew-slider[data-deg="${deg}"]`) as HTMLInputElement;
-      const rotSlider = this.container.querySelector(`.fc-rotation-slider[data-deg="${deg}"]`) as HTMLInputElement;
-      const spreadSlider = this.container.querySelector(`.fc-spread-slider[data-deg="${deg}"]`) as HTMLInputElement;
-
-      if (radiusSlider) radiusSlider.value = String(Math.round(anchor.orbitRadius * 250));
-      if (skewSlider) skewSlider.value = String(Math.round(anchor.orbitSkew * 100));
-      // Normalize rotation to 0-2π range for the slider
-      let normalizedRot = anchor.orbitRotation % (TWO_PI);
-      if (normalizedRot < 0) normalizedRot += TWO_PI;
-      if (rotSlider) rotSlider.value = String(Math.round(normalizedRot * 100));
-      if (spreadSlider) spreadSlider.value = String(Math.round(anchor.beatSpread * 100));
-    }
+    this.updateOrbitSliders();
   }
 
   // Helper: generate anchor key from degree (quality ignored now)
@@ -1248,7 +1165,7 @@ export class FractalConfigPanel {
 
   private loadPreset(presetId: string | null): void {
     if (presetId === null) {
-      // Load built-in default anchors (PRESET_ANCHORS)
+      // Load built-in default anchors (DEFAULT_ANCHORS)
       this.loadDefaultAnchors();
     } else {
       const preset = this.userPresets.find(p => p.id === presetId);
@@ -1267,8 +1184,7 @@ export class FractalConfigPanel {
     this.updateResetButtonState();
 
     // Apply to visualizer
-    const anchors = this.getCurrentAnchorsData();
-    saveFractalAnchors(anchors);
+    this.emitAnchorChange();
     if (this.onSave) this.onSave();
 
     const status = this.container.querySelector('#fc-status')!;
@@ -1339,7 +1255,7 @@ export class FractalConfigPanel {
 
   private loadAnchorsFromData(anchors: FractalAnchors): void {
     this.anchors.clear();
-    for (let deg = 0; deg <= 7; deg++) {
+    for (let deg = 0; deg <= 11; deg++) {
       const saved = anchors[deg];
       let anchor: InternalAnchor;
 
@@ -1353,10 +1269,11 @@ export class FractalConfigPanel {
           orbitSkew: saved.orbitSkew ?? DEFAULT_ORBIT_SKEW,
           orbitRotation: saved.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
           beatSpread: saved.beatSpread ?? DEFAULT_BEAT_SPREAD,
+          viewZoom: saved.viewZoom ?? DEFAULT_VIEW_ZOOM,
         };
       } else {
         // Use preset defaults
-        const p = PRESET_ANCHORS[deg];
+        const p = DEFAULT_ANCHORS[deg];
         const fi = TYPE_TO_FAMILY[p.type];
         anchor = {
           familyIdx: fi,
@@ -1366,6 +1283,7 @@ export class FractalConfigPanel {
           orbitSkew: p.orbitSkew ?? DEFAULT_ORBIT_SKEW,
           orbitRotation: p.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
           beatSpread: p.beatSpread ?? DEFAULT_BEAT_SPREAD,
+          viewZoom: p.viewZoom ?? DEFAULT_VIEW_ZOOM,
         };
       }
 
@@ -1376,11 +1294,11 @@ export class FractalConfigPanel {
     }
   }
 
-  /** Load built-in default anchors from PRESET_ANCHORS */
+  /** Load built-in default anchors from DEFAULT_ANCHORS */
   private loadDefaultAnchors(): void {
     this.anchors.clear();
-    for (let deg = 0; deg <= 7; deg++) {
-      const p = PRESET_ANCHORS[deg];
+    for (let deg = 0; deg <= 11; deg++) {
+      const p = DEFAULT_ANCHORS[deg];
       const fi = TYPE_TO_FAMILY[p.type];
       const anchor: InternalAnchor = {
         familyIdx: fi,
@@ -1390,6 +1308,7 @@ export class FractalConfigPanel {
         orbitSkew: p.orbitSkew ?? DEFAULT_ORBIT_SKEW,
         orbitRotation: p.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
         beatSpread: p.beatSpread ?? DEFAULT_BEAT_SPREAD,
+        viewZoom: p.viewZoom ?? DEFAULT_VIEW_ZOOM,
       };
       for (const q of QUALITIES) {
         this.anchors.set(this.anchorKey(deg, q.id), { ...anchor });
@@ -1429,7 +1348,7 @@ export class FractalConfigPanel {
     if (this.onPresetsChange) this.onPresetsChange();
 
     // Also apply to visualizer
-    saveFractalAnchors(anchors);
+    this.emitAnchorChange();
     if (this.onSave) this.onSave();
 
     const status = this.container.querySelector('#fc-status')!;
@@ -1438,7 +1357,7 @@ export class FractalConfigPanel {
 
   private getCurrentAnchorsData(): FractalAnchors {
     const out: FractalAnchors = {};
-    for (let deg = 0; deg <= 7; deg++) {
+    for (let deg = 0; deg <= 11; deg++) {
       const key = this.anchorKey(deg, 'major');
       const a = this.anchors.get(key);
       if (!a) continue;
@@ -1451,210 +1370,222 @@ export class FractalConfigPanel {
         orbitSkew: a.orbitSkew,
         orbitRotation: a.orbitRotation,
         beatSpread: a.beatSpread,
+        viewZoom: a.viewZoom,
       };
     }
     return out;
   }
 
+  /** Emit anchor change to visualizer */
+  private emitAnchorChange(): void {
+    const anchors = this.getCurrentAnchorsData();
+    saveFractalAnchors(anchors);
+    if (this.onAnchorsChange) {
+      this.onAnchorsChange(anchors);
+    }
+  }
+
   private buildHTML(): string {
 
-    // Build degree × quality grid - single row on desktop, wraps on mobile
-    const degreeRows = [[1, 2, 3, 4, 5, 6, 7]];
+    // Build compact note grid - 4 columns x 3 rows (C C# D D# / E F F# G / G# A A# B)
+    const noteGrid = [
+      [0, 1, 2, 3],   // C, C#, D, D#
+      [4, 5, 6, 7],   // E, F, F#, G
+      [8, 9, 10, 11]  // G#, A, A#, B
+    ];
 
-    const makeDegreeBlock = (deg: number) => {
-      const name = DEGREE_NAMES[deg];
-      const cells = QUALITIES.map(q => {
-        const isActive = deg === 1 && q.id === 'major';
-        return `<button class="fc-grid-cell${isActive ? ' active' : ''}"
-          data-deg="${deg}" data-quality="${q.id}">
-          <span class="fc-cell-dot" style="background:${getDegreeColor(deg)}"></span>
-        </button>`;
-      }).join('');
-
-      return `
-        <div class="fc-degree-block">
-          <div class="fc-degree-main">
-            <div class="fc-degree-cells">
-              ${cells}
-            </div>
-          </div>
-          <div class="fc-orbit-controls">
-            <label title="Orbit radius">⊕<input type="range" class="fc-radius-slider" data-deg="${deg}" min="1" max="100" value="20"></label>
-            <label title="Orbit rotation">↻<input type="range" class="fc-rotation-slider" data-deg="${deg}" min="0" max="628" value="0"></label>
-            <label title="Orbit skew (aspect ratio)">⬭<input type="range" class="fc-skew-slider" data-deg="${deg}" min="20" max="200" value="100"></label>
-            <label title="Beat spread (angle between points)">∢<input type="range" class="fc-spread-slider" data-deg="${deg}" min="10" max="200" value="157"></label>
-          </div>
-          <div class="fc-degree-footer">
-            <button class="fc-hotspot-btn" data-deg="${deg}" title="Cycle through areas of interest">!</button>
-            <div class="fc-grid-degree" data-deg="${deg}" title="Apply to all qualities">
-              <span class="fc-deg-dot" style="background:${getDegreeColor(deg)}"></span>${name}
-            </div>
-          </div>
-        </div>`;
-    };
-
-    const gridRows = degreeRows.map(degs =>
-      `<div class="fc-grid-row">${degs.map(makeDegreeBlock).join('')}</div>`
+    const noteButtons = noteGrid.map(row =>
+      row.map(pc => {
+        const isActive = pc === 0;
+        return `<button class="fc-note-btn${isActive ? ' active' : ''}" data-deg="${pc}" data-quality="major" title="${NOTE_NAMES[pc]}" style="--note-color: ${NOTE_COLORS[pc]}; color: ${NOTE_COLORS[pc]}">${NOTE_NAMES[pc]}</button>`;
+      }).join('')
     ).join('');
 
-    const paletteButtons = palettes.map((p, i) => {
-      const midStop = p.stops[Math.floor(p.stops.length * 0.6)];
-      const c = midStop.color;
-      return `<div class="fc-palette-btn${i === this.paletteIdx ? ' active' : ''}"
-        data-idx="${i}" title="${p.name}"
-        style="background:rgb(${c[0]},${c[1]},${c[2]})"></div>`;
-    }).join('');
-
     return `
-      <div class="fc-panel">
+      <div class="fc-panel fc-layout-horizontal">
         <div class="fc-header">
           <h2>Fractal Config</h2>
           <button class="fc-close-btn">&times;</button>
         </div>
 
-        <div class="fc-toolbar">
-          <div class="fc-toolbar-section fc-description">
-            <span class="fc-help-text">Click the preview to set anchor points. Each chord degree dances around its anchor during playback.</span>
-          </div>
-          <div class="fc-toolbar-divider"></div>
-          <div class="fc-actions">
-            <button class="fc-btn fc-save-btn">Save</button>
-            <button class="fc-btn fc-reset-btn">Reset</button>
-            <button class="fc-btn fc-copy-btn" title="Copy anchors as code" aria-label="Copy anchors">📋</button>
-          </div>
-        </div>
-
-        <div class="fc-presets-bar"${this.userPresets.length === 0 ? ' style="display:none"' : ''}>
-          <span class="fc-presets-label">Presets:</span>
-          <div class="fc-presets-list">
-            ${this.renderPresetsList()}
-          </div>
-        </div>
-
-        <div class="fc-section fc-family-section">
-          <button class="fc-section-toggle" data-section="families">
-            <span class="fc-section-icon">▼</span>
-            <span>Families</span>
-          </button>
-          <div class="fc-section-content fc-family-content">
-            <div class="fc-family-grid">
-              ${FAMILIES.map((f, i) => `<button class="fc-family-btn${i === 0 ? ' active' : ''}" data-family="${i}">${f.label}</button>`).join('')}
+        <div class="fc-main-layout">
+          <!-- Left sidebar: Family selector only -->
+          <div class="fc-sidebar fc-left-sidebar">
+            <div class="fc-family-sidebar">
+              ${FAMILIES.map((f, i) => `<button class="fc-family-btn${i === 0 ? ' active' : ''}" data-family="${i}" title="${f.label}">
+                <span class="fc-family-name">${f.label}</span>
+                <span class="fc-family-notes"></span>
+              </button>`).join('')}
             </div>
-            <button class="fc-family-btn fc-info-btn" title="Family information" aria-label="Family information">Fractal Family Info</button>
-          </div>
-        </div>
-
-        <div class="fc-section fc-editor-section">
-          <button class="fc-section-toggle" data-section="editor">
-            <span class="fc-section-icon">▼</span>
-            <span>Editor</span>
-          </button>
-          <div class="fc-section-content fc-editor-content">
-            <div class="fc-locus-wrap">
-              <canvas id="fc-locus-canvas" width="${PANEL_SIZE}" height="${PANEL_SIZE}"></canvas>
-              <div class="fc-map-controls">
-                <div class="fc-map-row">
-                  <button class="fc-help-btn" title="Show controls" aria-label="Show controls">?</button>
-                  <button class="fc-map-btn" data-action="pan-up" title="Pan up">↑</button>
-                  <button class="fc-map-btn" data-action="zoom-in" title="Zoom in">+</button>
-                </div>
-                <div class="fc-map-row">
-                  <button class="fc-map-btn" data-action="pan-left" title="Pan left">←</button>
-                  <button class="fc-map-btn" data-action="reset-view" title="Reset view">⟲</button>
-                  <button class="fc-map-btn" data-action="pan-right" title="Pan right">→</button>
-                </div>
-                <div class="fc-map-row">
-                  <button class="fc-map-btn fc-map-empty"></button>
-                  <button class="fc-map-btn" data-action="pan-down" title="Pan down">↓</button>
-                  <button class="fc-map-btn" data-action="zoom-out" title="Zoom out">−</button>
-                </div>
-              </div>
-              <div class="fc-mobile-controls">
-                <button class="fc-modifier-btn" title="Toggle modifier (tap to place, drag to adjust skew)">
-                  <span class="fc-modifier-icon">⌘</span>
-                  <span class="fc-modifier-label">Mod</span>
-                </button>
-              </div>
-              <div class="fc-locus-status" id="fc-status">Tap anchor to select</div>
+            <div class="fc-sidebar-actions">
+              <button class="fc-btn fc-info-btn" title="Family information">Info</button>
             </div>
+          </div>
 
-            <div class="fc-preview-wrap">
-              <div class="fc-preview-header">
-                <span>Preview</span>
-                <div class="fc-bpm-control">
-                  <span class="fc-bpm-label">BPM</span>
-                  <button class="fc-bpm-btn fc-bpm-down">▼</button>
-                  <input type="number" id="fc-bpm" value="120" min="30" max="300" step="5">
-                  <button class="fc-bpm-btn fc-bpm-up">▲</button>
-                </div>
-              </div>
+          <!-- Middle sidebar: Preview + Note grid + Orbit controls -->
+          <div class="fc-sidebar fc-middle-sidebar">
+            <div class="fc-preview-section">
               <canvas id="fc-julia-canvas" width="${JULIA_SIZE}" height="${JULIA_SIZE}"></canvas>
-              <div class="fc-julia-info" id="fc-julia-info">Select an anchor to preview</div>
-              <div class="fc-preview-range">
-                <span>⏸</span>
-                <input type="range" id="fc-preview-scale" min="0" max="200" value="100" title="Preview movement range">
-                <span>🔄</span>
+              <div class="fc-preview-controls">
+                <div class="fc-bpm-control">
+                  <button class="fc-bpm-btn fc-bpm-down">−</button>
+                  <span class="fc-bpm-value"><input type="number" id="fc-bpm" value="120" min="30" max="300" step="5"></span>
+                  <button class="fc-bpm-btn fc-bpm-up">+</button>
+                </div>
+                <div class="fc-preview-range">
+                  <input type="range" id="fc-preview-scale" min="0" max="200" value="100" title="Preview movement range">
+                </div>
               </div>
-              <div class="fc-palette-bar">${paletteButtons}</div>
-              <div class="fc-degree-nav">
-                <button class="fc-degree-nav-btn fc-degree-prev" title="Previous degree">◀</button>
-                <span class="fc-degree-name" id="fc-current-degree">I</span>
-                <button class="fc-degree-nav-btn fc-degree-next" title="Next degree">▶</button>
-              </div>
-              <label class="fc-atlas-toggle" title="Toggle atlas grid overlay">
-                <input type="checkbox" class="fc-atlas-checkbox">
-                <span class="fc-atlas-switch"></span>
-                <span class="fc-atlas-label">Atlas</span>
-              </label>
             </div>
+
+            <div class="fc-note-section">
+              <div class="fc-section-label">Notes</div>
+              <div class="fc-note-grid">
+                ${noteButtons}
+              </div>
+            </div>
+
+            <div class="fc-anchor-section" style="--anchor-color: ${NOTE_COLORS[0]}">
+              <div class="fc-section-header">
+                <div class="fc-section-label">Anchor</div>
+                <div class="fc-formula">${FAMILY_INFO[FAMILIES[0].id]?.formula || 'z → z² + c'}</div>
+              </div>
+              <div class="fc-orbit-controls">
+                <div class="fc-orbit-row" title="Real component (c)">
+                  <span class="fc-orbit-icon">c</span>
+                  <button class="fc-orbit-btn fc-real-down">−</button>
+                  <input type="number" class="fc-real-input" min="-200" max="200" value="0" step="1">
+                  <button class="fc-orbit-btn fc-real-up">+</button>
+                </div>
+                <div class="fc-orbit-row" title="Imaginary component (i)">
+                  <span class="fc-orbit-icon">i</span>
+                  <button class="fc-orbit-btn fc-imag-down">−</button>
+                  <input type="number" class="fc-imag-input" min="-200" max="200" value="0" step="1">
+                  <button class="fc-orbit-btn fc-imag-up">+</button>
+                </div>
+                <div class="fc-zoom-container">
+                  <div class="fc-orbit-row fc-zoom-row" title="Visualizer zoom level">
+                    <span class="fc-zoom-icon fc-zoom-out">🔍</span>
+                    <input type="range" class="fc-zoom-slider" min="0" max="100" value="50">
+                    <span class="fc-zoom-icon fc-zoom-in">🔍</span>
+                  </div>
+                  <div class="fc-zoom-info">
+                    <span class="fc-zoom-label">1.0×</span>
+                    <button class="fc-center-btn" title="Center map on anchor">◎</button>
+                  </div>
+                </div>
+                <div class="fc-subsection-label">Movement</div>
+                <div class="fc-orbit-row" title="Orbit radius">
+                  <span class="fc-orbit-icon">⊕</span>
+                  <button class="fc-orbit-btn fc-radius-down">−</button>
+                  <input type="number" class="fc-radius-input" min="0.1" max="200" value="20" step="0.5">
+                  <button class="fc-orbit-btn fc-radius-up">+</button>
+                </div>
+                <div class="fc-orbit-row" title="Orbit rotation">
+                  <span class="fc-orbit-icon">↻</span>
+                  <button class="fc-orbit-btn fc-rotation-down">−</button>
+                  <input type="number" class="fc-rotation-input" min="0" max="628" value="0" step="10">
+                  <button class="fc-orbit-btn fc-rotation-up">+</button>
+                </div>
+                <div class="fc-orbit-row" title="Orbit skew (aspect ratio)">
+                  <span class="fc-orbit-icon">⬭</span>
+                  <button class="fc-orbit-btn fc-skew-down">−</button>
+                  <input type="number" class="fc-skew-input" min="20" max="200" value="100" step="5">
+                  <button class="fc-orbit-btn fc-skew-up">+</button>
+                </div>
+                <div class="fc-orbit-row" title="Beat spread (angle between points)">
+                  <span class="fc-orbit-icon">∢</span>
+                  <button class="fc-orbit-btn fc-spread-down">−</button>
+                  <input type="number" class="fc-spread-input" min="10" max="200" value="157" step="5">
+                  <button class="fc-orbit-btn fc-spread-up">+</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="fc-actions-section">
+              <div class="fc-section-label">Create Preset</div>
+              <div class="fc-anchor-actions">
+                <button class="fc-btn fc-save-btn">Save</button>
+                <button class="fc-btn fc-copy-btn" title="Copy anchors as code">📋</button>
+                <button class="fc-btn fc-reset-btn">Reset</button>
+              </div>
+            </div>
+
+            <div class="fc-presets-bar"${this.userPresets.length === 0 ? ' style="display:none"' : ''}>
+              <span class="fc-presets-label">Presets:</span>
+              <div class="fc-presets-list">
+                ${this.renderPresetsList()}
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Big Map -->
+          <div class="fc-map-area">
+            <canvas id="fc-locus-canvas" width="${PANEL_SIZE}" height="${PANEL_SIZE}"></canvas>
+            <div class="fc-map-controls">
+              <div class="fc-map-row">
+                <button class="fc-help-btn" title="Show controls">?</button>
+                <button class="fc-map-btn" data-action="pan-up" title="Pan up">↑</button>
+                <button class="fc-map-btn" data-action="zoom-in" title="Zoom in">+</button>
+              </div>
+              <div class="fc-map-row">
+                <button class="fc-map-btn" data-action="pan-left" title="Pan left">←</button>
+                <button class="fc-map-btn" data-action="reset-view" title="Reset view">⟲</button>
+                <button class="fc-map-btn" data-action="pan-right" title="Pan right">→</button>
+              </div>
+              <div class="fc-map-row">
+                <button class="fc-map-btn fc-atlas-btn" title="Toggle atlas grid">🗺</button>
+                <button class="fc-map-btn" data-action="pan-down" title="Pan down">↓</button>
+                <button class="fc-map-btn" data-action="zoom-out" title="Zoom out">−</button>
+              </div>
+            </div>
+            <div class="fc-mobile-controls">
+              <button class="fc-modifier-btn" title="Toggle modifier (tap to place, drag to adjust skew)">
+                <span class="fc-modifier-icon">⌘</span>
+                <span class="fc-modifier-label">Mod</span>
+              </button>
+            </div>
+            <div class="fc-locus-status" id="fc-status">Click map to place anchor</div>
           </div>
         </div>
 
-        <div class="fc-section fc-degree-section">
-          <button class="fc-section-toggle" data-section="degrees">
-            <span class="fc-section-icon">▼</span>
-            <span>Degrees</span>
-          </button>
-          <div class="fc-section-content fc-degree-grid">
-            ${gridRows}
-          </div>
-        </div>
-
-        <div class="fc-info-modal" id="fc-info-modal">
-          <div class="fc-info-content">
-            <div class="fc-info-header">
-              <h3 id="fc-info-title">Family Name</h3>
-              <button class="fc-info-close">&times;</button>
+        <div class="modal-overlay fc-info-modal" id="fc-info-modal">
+          <div class="modal-box fc-info-content">
+            <div class="modal-header">
+              <span id="fc-info-title">Family Name</span>
+              <button class="modal-close">&times;</button>
             </div>
 
-            <div class="fc-info-meta">
-              <span class="fc-info-meta-item"><strong>Year:</strong> <span id="fc-info-year">1980</span></span>
-              <span class="fc-info-meta-item"><strong>Creator:</strong> <span id="fc-info-creator">Unknown</span></span>
-              <span class="fc-info-meta-item"><strong>Category:</strong> <span id="fc-info-category">Polynomial</span></span>
-            </div>
+            <div class="fc-info-body">
+              <div class="fc-info-meta">
+                <span class="fc-info-meta-item"><strong>Year:</strong> <span id="fc-info-year">1980</span></span>
+                <span class="fc-info-meta-item"><strong>Creator:</strong> <span id="fc-info-creator">Unknown</span></span>
+                <span class="fc-info-meta-item"><strong>Category:</strong> <span id="fc-info-category">Polynomial</span></span>
+              </div>
 
-            <div class="fc-info-formula" id="fc-info-formula">z → z² + c</div>
+              <div class="fc-info-formula" id="fc-info-formula">z → z² + c</div>
 
-            <p class="fc-info-desc" id="fc-info-desc">Description</p>
+              <p class="fc-info-desc" id="fc-info-desc">Description</p>
 
-            <div class="fc-info-section">
-              <strong>Visual Characteristics:</strong>
-              <ul id="fc-info-traits-list"></ul>
-            </div>
+              <div class="fc-info-section">
+                <strong>Visual Characteristics:</strong>
+                <ul id="fc-info-traits-list"></ul>
+              </div>
 
-            <div class="fc-info-section">
-              <strong>Interesting c-values to explore:</strong>
-              <ul id="fc-info-hotspots-list" class="fc-info-hotspots"></ul>
-            </div>
+              <div class="fc-info-section">
+                <strong>Interesting c-values to explore:</strong>
+                <ul id="fc-info-hotspots-list" class="fc-info-hotspots"></ul>
+              </div>
 
-            <div class="fc-info-tips">
-              <strong>💡 Tips:</strong>
-              <p id="fc-info-tips-text">Exploration tips will appear here.</p>
-            </div>
+              <div class="fc-info-tips">
+                <strong>💡 Tips:</strong>
+                <p id="fc-info-tips-text">Exploration tips will appear here.</p>
+              </div>
 
-            <div class="fc-info-related">
-              <strong>Related Families:</strong>
-              <span id="fc-info-related-list"></span>
+              <div class="fc-info-related">
+                <strong>Related Families:</strong>
+                <span id="fc-info-related-list"></span>
+              </div>
             </div>
           </div>
         </div>
@@ -1723,14 +1654,15 @@ export class FractalConfigPanel {
       });
     });
 
-    // Family buttons (exclude info button)
-    const familyBtns = this.container.querySelectorAll('.fc-family-btn:not(.fc-info-btn)');
+    // Family buttons
+    const familyBtns = this.container.querySelectorAll('.fc-family-btn');
     const infoBtn = this.container.querySelector('.fc-info-btn') as HTMLElement;
     familyBtns.forEach(btn => {
       btn.addEventListener('click', () => {
         familyBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.selectedFamily = parseInt((btn as HTMLElement).dataset.family!);
+        this.updateFamilyUI();
         this.renderLocus();
         this.drawOverlay();
         this.updateAssignments();
@@ -1750,11 +1682,11 @@ export class FractalConfigPanel {
     this.container.querySelector('.fc-info-btn')!.addEventListener('click', () => this.showFamilyInfo());
 
     // Info modal close button
-    this.container.querySelector('.fc-info-close')!.addEventListener('click', () => this.hideFamilyInfo());
+    this.container.querySelector('#fc-info-modal .modal-close')!.addEventListener('click', () => this.hideFamilyInfo());
 
     // Close modal on backdrop click
     this.container.querySelector('#fc-info-modal')!.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).classList.contains('fc-info-modal')) {
+      if ((e.target as HTMLElement).classList.contains('modal-overlay')) {
         this.hideFamilyInfo();
       }
     });
@@ -1794,78 +1726,136 @@ export class FractalConfigPanel {
       });
     });
 
-    // Grid cell clicks (select degree + quality)
-    this.container.querySelectorAll('.fc-grid-cell').forEach(cell => {
-      cell.addEventListener('click', () => {
-        const el = cell as HTMLElement;
+    // Note button clicks (select degree)
+    this.container.querySelectorAll('.fc-note-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const el = btn as HTMLElement;
         const deg = parseInt(el.dataset.deg!);
         const quality = el.dataset.quality!;
         this.selectDegreeQuality(deg, quality);
+        // Update active state
+        this.container.querySelectorAll('.fc-note-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        // Update orbit sliders to show current values for selected degree
+        this.updateOrbitSliders();
       });
     });
 
-    // Degree label clicks (select degree, same as clicking the cell)
-    this.container.querySelectorAll('.fc-grid-degree').forEach(label => {
-      label.addEventListener('click', () => {
-        const deg = parseInt((label as HTMLElement).dataset.deg!);
-        this.selectDegreeQuality(deg, 'major');
-      });
-    });
 
-    // Hotspot cycling buttons
-    this.container.querySelectorAll('.fc-hotspot-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const deg = parseInt((btn as HTMLElement).dataset.deg!);
-        this.cycleHotspot(deg);
-      });
-    });
+    // Helper to set up orbit input with buttons and drag support
+    const setupOrbitInput = (
+      inputSel: string,
+      upSel: string,
+      downSel: string,
+      onUpdate: (value: number) => void,
+      sensitivity = 1
+    ) => {
+      const input = this.container.querySelector(inputSel) as HTMLInputElement;
+      if (!input) return;
 
-    // Orbit radius sliders per degree
-    this.container.querySelectorAll('.fc-radius-slider').forEach(slider => {
-      slider.addEventListener('input', () => {
-        const el = slider as HTMLInputElement;
-        const deg = parseInt(el.dataset.deg!);
-        const radius = parseInt(el.value) / 250; // 1-100 -> 0.004-0.4
-        this.setOrbitRadius(deg, radius);
-      });
-    });
+      const step = parseFloat(input.step) || 1;
+      const decimals = step < 1 ? Math.ceil(-Math.log10(step)) : 0;
 
-    // Orbit skew sliders per degree
-    this.container.querySelectorAll('.fc-skew-slider').forEach(slider => {
-      slider.addEventListener('input', () => {
-        const el = slider as HTMLInputElement;
-        const deg = parseInt(el.dataset.deg!);
-        const skew = parseInt(el.value) / 100; // 20-200 -> 0.2-2.0
-        this.setOrbitSkew(deg, skew);
-      });
-    });
+      const update = () => onUpdate(parseFloat(input.value));
+      const clampAndUpdate = (v: number) => {
+        const min = parseFloat(input.min);
+        const max = parseFloat(input.max);
+        const clamped = Math.max(min, Math.min(max, v));
+        // Round to step precision
+        const rounded = Math.round(clamped / step) * step;
+        input.value = rounded.toFixed(decimals);
+        update();
+      };
 
-    // Orbit rotation sliders per degree
-    this.container.querySelectorAll('.fc-rotation-slider').forEach(slider => {
-      slider.addEventListener('input', () => {
-        const el = slider as HTMLInputElement;
-        const deg = parseInt(el.dataset.deg!);
-        const rotation = parseInt(el.value) / 100; // 0-628 -> 0-6.28 (2π)
-        this.setOrbitRotation(deg, rotation);
-      });
-    });
+      input.addEventListener('input', update);
 
-    // Beat spread sliders per degree
-    this.container.querySelectorAll('.fc-spread-slider').forEach(slider => {
-      slider.addEventListener('input', () => {
-        const el = slider as HTMLInputElement;
-        const deg = parseInt(el.dataset.deg!);
-        const spread = parseInt(el.value) / 100; // 10-157 -> 0.1-1.57 (π/2 max)
-        this.setBeatSpread(deg, spread);
+      // Button handlers
+      this.container.querySelector(upSel)?.addEventListener('click', () => {
+        input.stepUp();
+        update();
       });
-    });
+      this.container.querySelector(downSel)?.addEventListener('click', () => {
+        input.stepDown();
+        update();
+      });
 
-    this.container.querySelector('.fc-atlas-checkbox')!.addEventListener('change', (e) => {
-      this.showAtlasGrid = (e.target as HTMLInputElement).checked;
-      this.drawOverlay();
-      const status = this.container.querySelector('#fc-status')!;
-      status.textContent = this.showAtlasGrid ? 'Atlas grid ON' : 'Atlas grid OFF';
-    });
+      // Drag to change value
+      let dragStart = 0;
+      let dragValue = 0;
+      input.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        dragStart = e.clientY;
+        dragValue = parseFloat(input.value);
+        input.style.cursor = 'ns-resize';
+
+        const onMove = (me: MouseEvent) => {
+          const delta = dragStart - me.clientY;
+          clampAndUpdate(dragValue + delta * sensitivity);
+        };
+
+        const onUp = () => {
+          input.style.cursor = '';
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+        };
+
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      });
+    };
+
+    // Orbit radius (1-100 -> 0.004-0.4)
+    setupOrbitInput('.fc-radius-input', '.fc-radius-up', '.fc-radius-down',
+      (v) => this.setOrbitRadius(this.selectedDegree, v / 250), 0.5);
+
+    // Orbit skew (20-200 -> 0.2-2.0)
+    setupOrbitInput('.fc-skew-input', '.fc-skew-up', '.fc-skew-down',
+      (v) => this.setOrbitSkew(this.selectedDegree, v / 100), 1);
+
+    // Orbit rotation (0-628 -> 0-6.28)
+    setupOrbitInput('.fc-rotation-input', '.fc-rotation-up', '.fc-rotation-down',
+      (v) => this.setOrbitRotation(this.selectedDegree, v / 100), 2);
+
+    // Beat spread (10-200 -> 0.1-2.0)
+    setupOrbitInput('.fc-spread-input', '.fc-spread-up', '.fc-spread-down',
+      (v) => this.setBeatSpread(this.selectedDegree, v / 100), 1);
+
+    // Anchor real component (-200 to 200 -> -2.0 to 2.0)
+    setupOrbitInput('.fc-real-input', '.fc-real-up', '.fc-real-down',
+      (v) => this.setAnchorReal(this.selectedDegree, v / 100), 0.5);
+
+    // Anchor imaginary component (-200 to 200 -> -2.0 to 2.0)
+    setupOrbitInput('.fc-imag-input', '.fc-imag-up', '.fc-imag-down',
+      (v) => this.setAnchorImag(this.selectedDegree, v / 100), 0.5);
+
+    // Anchor viewZoom - exponential slider (0-100 -> 0.1x-10000x)
+    const zoomSlider = this.container.querySelector('.fc-zoom-slider') as HTMLInputElement;
+    const zoomLabel = this.container.querySelector('.fc-zoom-label') as HTMLElement;
+    if (zoomSlider && zoomLabel) {
+      const updateZoom = () => {
+        const zoom = this.sliderToZoom(parseInt(zoomSlider.value));
+        zoomLabel.textContent = this.formatZoom(zoom);
+        this.setAnchorZoom(this.selectedDegree, zoom);
+      };
+      zoomSlider.addEventListener('input', updateZoom);
+    }
+
+    // Center map on anchor button
+    const centerBtn = this.container.querySelector('.fc-center-btn');
+    if (centerBtn) {
+      centerBtn.addEventListener('click', () => this.centerMapOnAnchor());
+    }
+
+    const atlasBtn = this.container.querySelector('.fc-atlas-btn');
+    if (atlasBtn) {
+      atlasBtn.addEventListener('click', () => {
+        this.showAtlasGrid = !this.showAtlasGrid;
+        atlasBtn.classList.toggle('active', this.showAtlasGrid);
+        this.drawOverlay();
+        const status = this.container.querySelector('#fc-status')!;
+        status.textContent = this.showAtlasGrid ? 'Atlas grid ON' : 'Atlas grid OFF';
+      });
+    }
     const copyBtn = this.container.querySelector('.fc-copy-btn')!;
     copyBtn.addEventListener('click', () => {
       this.copyToClipboard();
@@ -1906,19 +1896,6 @@ export class FractalConfigPanel {
       const current = this.previewBpm;
       const prev = [...bpmTempos].reverse().find(t => t < current) ?? 40;
       updateBpm(prev);
-    });
-
-    // Degree navigation buttons
-    this.container.querySelector('.fc-degree-prev')!.addEventListener('click', () => {
-      const newDeg = this.selectedDegree <= 1 ? 7 : this.selectedDegree - 1;
-      this.selectDegreeQuality(newDeg, 'major');
-      this.updateDegreeNavDisplay();
-    });
-
-    this.container.querySelector('.fc-degree-next')!.addEventListener('click', () => {
-      const newDeg = this.selectedDegree >= 7 ? 1 : this.selectedDegree + 1;
-      this.selectDegreeQuality(newDeg, 'major');
-      this.updateDegreeNavDisplay();
     });
 
     // Drag up/down on input to change value
@@ -2164,7 +2141,15 @@ export class FractalConfigPanel {
         // Calculate new offset from anchor center
         const newOffsetR = this.dragStartData.startOffsetR + cDx;
         const newOffsetI = this.dragStartData.startOffsetI + cDy;
-        const newRadius = Math.sqrt(newOffsetR * newOffsetR + newOffsetI * newOffsetI);
+        const newVisualRadius = Math.sqrt(newOffsetR * newOffsetR + newOffsetI * newOffsetI);
+        const startVisualRadius = Math.sqrt(
+          this.dragStartData.startOffsetR * this.dragStartData.startOffsetR +
+          this.dragStartData.startOffsetI * this.dragStartData.startOffsetI
+        );
+
+        // Use proportional change to avoid numerical issues at high zoom
+        const radiusRatio = startVisualRadius > 0.0001 ? newVisualRadius / startVisualRadius : 1;
+        const newRadius = this.dragStartData.origRadius * radiusRatio;
 
         // Calculate angle from anchor center to current position
         const mouseAngle = Math.atan2(newOffsetI, newOffsetR);
@@ -2186,11 +2171,11 @@ export class FractalConfigPanel {
           dragAnchor.beatSpread = Math.max(0.1, Math.min(2.0, newSpread));
 
           // Also update radius
-          dragAnchor.orbitRadius = Math.max(0.01, newRadius);
+          dragAnchor.orbitRadius = Math.max(0.0001, newRadius);
         } else {
           // Normal drag: adjust radius and rotation
           const newRotation = mouseAngle - this.dragStartData.beatAngle;
-          dragAnchor.orbitRadius = Math.max(0.01, newRadius);
+          dragAnchor.orbitRadius = Math.max(0.0001, newRadius);
           dragAnchor.orbitRotation = newRotation;
         }
         this.debouncedDraw();
@@ -2233,11 +2218,13 @@ export class FractalConfigPanel {
             orbitSkew: existing?.orbitSkew ?? DEFAULT_ORBIT_SKEW,
             orbitRotation: existing?.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
             beatSpread: existing?.beatSpread ?? DEFAULT_BEAT_SPREAD,
+            viewZoom: existing?.viewZoom ?? DEFAULT_VIEW_ZOOM,
           });
 
           this.startPreview(this.anchors.get(this.currentKey)!);
           this.drawOverlay();
           this.updateAssignments();
+          this.updateResetButtonState();
         }
       } else if (this.dragMode === 'center' || this.dragMode === 'orbit') {
         const key = this.anchorKey(this.dragDeg, this.selectedQuality);
@@ -2245,12 +2232,12 @@ export class FractalConfigPanel {
         if (a) this.startPreview(a);
         // Sync sliders to reflect any changes from dragging
         this.syncOrbitSliders();
+        this.updateResetButtonState();
       }
 
       // Trigger debounced thumbnail update if we were moving an anchor position
       if (this.dragMode === 'center') {
-        this.debouncedThumbnailUpdate();
-      }
+              }
 
       this.dragMode = null;
       this.isDragging = false;
@@ -2420,6 +2407,7 @@ export class FractalConfigPanel {
           orbitSkew: existing?.orbitSkew ?? DEFAULT_ORBIT_SKEW,
           orbitRotation: existing?.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
           beatSpread: existing?.beatSpread ?? DEFAULT_BEAT_SPREAD,
+          viewZoom: existing?.viewZoom ?? DEFAULT_VIEW_ZOOM,
         });
 
         status.textContent = `Anchor placed at c = ${c.r.toFixed(4)} + ${c.i.toFixed(4)}i`;
@@ -2526,9 +2514,9 @@ export class FractalConfigPanel {
         const a = this.anchors.get(key);
         if (a) this.startPreview(a);
         this.syncOrbitSliders();
+        this.updateResetButtonState();
         if (this.dragMode === 'center') {
-          this.debouncedThumbnailUpdate();
-        }
+                  }
       }
 
       this.dragMode = null;
@@ -2566,24 +2554,21 @@ export class FractalConfigPanel {
     this.selectedDegree = deg;
     this.selectedQuality = quality;
 
-    // Sync palette to degree (key of C)
-    if (deg >= 1 && deg <= 7) {
-      const paletteIdx = DEGREE_TO_PALETTE[deg];
-      this.setPalette(paletteIdx);
-      // Update palette button active state
-      this.container.querySelectorAll('.fc-palette-btn').forEach(btn => {
-        const idx = parseInt((btn as HTMLElement).dataset.idx!);
-        btn.classList.toggle('active', idx === paletteIdx);
-      });
+    // Sync palette to match selected pitch class (colors match visualizer)
+    this.setPalette(deg);
+
+    // Update anchor section color
+    const anchorSection = this.container.querySelector('.fc-anchor-section') as HTMLElement;
+    if (anchorSection) {
+      anchorSection.style.setProperty('--anchor-color', NOTE_COLORS[deg]);
     }
 
-    // Highlight the entire degree block card
-    this.container.querySelectorAll('.fc-degree-block').forEach(block => {
-      const cell = block.querySelector('.fc-grid-cell') as HTMLElement;
-      if (cell) {
-        const blockDeg = parseInt(cell.dataset.deg!);
-        block.classList.toggle('active', blockDeg === deg);
-      }
+    // Update grid cell highlighting
+    this.container.querySelectorAll('.fc-grid-cell').forEach(cell => {
+      const el = cell as HTMLElement;
+      const cellDeg = parseInt(el.dataset.deg!);
+      const cellQuality = el.dataset.quality!;
+      cell.classList.toggle('active', cellDeg === deg && cellQuality === quality);
     });
 
     const a = this.currentAnchor;
@@ -2598,16 +2583,6 @@ export class FractalConfigPanel {
     }
     this.drawOverlay();
     this.updateAssignments();
-    this.updateDegreeNavDisplay();
-  }
-
-  private updateDegreeNavDisplay(): void {
-    const display = this.container.querySelector('#fc-current-degree');
-    if (display) {
-      display.textContent = DEGREE_NAMES[this.selectedDegree];
-      // Update color to match the degree (palette color for key of C)
-      (display as HTMLElement).style.color = getDegreeColor(this.selectedDegree);
-    }
   }
 
   private copyToClipboard(): void {
@@ -2620,13 +2595,14 @@ export class FractalConfigPanel {
     lines.push('  builtIn: true,');
     lines.push('  anchors: {');
 
-    for (let deg = 0; deg <= 7; deg++) {
+    for (let deg = 0; deg <= 11; deg++) {
       const key = this.anchorKey(deg, 'major');
       const a = this.anchors.get(key);
       if (!a) continue;
 
       const f = FAMILIES[a.familyIdx];
-      lines.push(`    ${deg}: { real: ${a.real.toFixed(4)}, imag: ${a.imag.toFixed(4)}, type: ${f.typeNum}, orbitRadius: ${a.orbitRadius.toFixed(4)}, orbitSkew: ${a.orbitSkew.toFixed(2)}, orbitRotation: ${a.orbitRotation.toFixed(2)}, beatSpread: ${a.beatSpread.toFixed(2)} },`);
+      const viewZoomStr = (a.viewZoom && a.viewZoom !== 1.0) ? `, viewZoom: ${a.viewZoom.toFixed(1)}` : '';
+      lines.push(`    ${deg}: { real: ${a.real.toFixed(4)}, imag: ${a.imag.toFixed(4)}, type: ${f.typeNum}, orbitRadius: ${a.orbitRadius.toFixed(4)}, orbitSkew: ${a.orbitSkew.toFixed(2)}, orbitRotation: ${a.orbitRotation.toFixed(2)}, beatSpread: ${a.beatSpread.toFixed(2)}${viewZoomStr} },`);
     }
 
     lines.push('  },');
@@ -2648,45 +2624,8 @@ export class FractalConfigPanel {
     });
   }
 
-  private applyToAllQualities(deg: number): void {
-    // Copy the current selection's anchor to all qualities for the given degree
-    const sourceAnchor = this.currentAnchor;
-    if (!sourceAnchor) {
-      console.log('No anchor to copy from current selection');
-      return;
-    }
-
-    // Copy to all qualities for this degree
-    for (const q of QUALITIES) {
-      const key = this.anchorKey(deg, q.id);
-      // Deep copy the anchor
-      this.anchors.set(key, {
-        familyIdx: sourceAnchor.familyIdx,
-        real: sourceAnchor.real,
-        imag: sourceAnchor.imag,
-        orbitRadius: sourceAnchor.orbitRadius,
-        orbitSkew: sourceAnchor.orbitSkew,
-        orbitRotation: sourceAnchor.orbitRotation,
-        beatSpread: sourceAnchor.beatSpread,
-      });
-    }
-
-    // Highlight the row to indicate success
-    this.container.querySelectorAll('.fc-grid-degree').forEach(label => {
-      const el = label as HTMLElement;
-      if (parseInt(el.dataset.deg!) === deg) {
-        el.classList.add('applied');
-        setTimeout(() => el.classList.remove('applied'), 300);
-      }
-    });
-
-    // Redraw to show all cells as having anchors
-    this.drawOverlay();
-    this.updateAssignments();
-  }
-
   private buildPaletteLUT(): void {
-    const palette = palettes[this.paletteIdx];
+    const palette = PALETTES[this.paletteIdx];
     const stops = palette.stops;
     for (let i = 0; i < LUT_SIZE; i++) {
       const t = i / (LUT_SIZE - 1);
@@ -2710,6 +2649,10 @@ export class FractalConfigPanel {
   private setPalette(idx: number): void {
     this.paletteIdx = idx;
     this.buildPaletteLUT();
+    // Update palette button UI
+    this.container.querySelectorAll('.fc-palette-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', i === idx);
+    });
   }
 
   private loadAnchors(): void {
@@ -2717,7 +2660,7 @@ export class FractalConfigPanel {
     const stored = loadFractalAnchors();
     if (stored) {
       // Load stored anchors - for backwards compatibility, copy each degree to all qualities
-      for (let deg = 0; deg <= 7; deg++) {
+      for (let deg = 0; deg <= 11; deg++) {
         const a = stored[deg];
         if (a) {
           const fi = TYPE_TO_FAMILY[a.type];
@@ -2730,6 +2673,7 @@ export class FractalConfigPanel {
               orbitSkew: a.orbitSkew ?? DEFAULT_ORBIT_SKEW,
               orbitRotation: a.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
               beatSpread: a.beatSpread ?? DEFAULT_BEAT_SPREAD,
+              viewZoom: a.viewZoom ?? DEFAULT_VIEW_ZOOM,
             };
             // Apply to all qualities for this degree
             for (const q of QUALITIES) {
@@ -2741,6 +2685,7 @@ export class FractalConfigPanel {
                 orbitSkew: anchor.orbitSkew,
                 orbitRotation: anchor.orbitRotation,
                 beatSpread: anchor.beatSpread,
+                viewZoom: anchor.viewZoom,
               });
             }
           }
@@ -2765,8 +2710,8 @@ export class FractalConfigPanel {
       this.zoomLevels[i] = 1.0;
     }
 
-    for (let deg = 0; deg <= 7; deg++) {
-      const p = PRESET_ANCHORS[deg];
+    for (let deg = 0; deg <= 11; deg++) {
+      const p = DEFAULT_ANCHORS[deg];
       const fi = TYPE_TO_FAMILY[p.type];
       const anchor: InternalAnchor = {
         familyIdx: fi,
@@ -2776,6 +2721,7 @@ export class FractalConfigPanel {
         orbitSkew: p.orbitSkew ?? DEFAULT_ORBIT_SKEW,
         orbitRotation: p.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
         beatSpread: p.beatSpread ?? DEFAULT_BEAT_SPREAD,
+        viewZoom: p.viewZoom ?? DEFAULT_VIEW_ZOOM,
       };
       // Apply to all qualities for this degree
       for (const q of QUALITIES) {
@@ -2787,6 +2733,7 @@ export class FractalConfigPanel {
           orbitSkew: anchor.orbitSkew,
           orbitRotation: anchor.orbitRotation,
           beatSpread: anchor.beatSpread,
+          viewZoom: anchor.viewZoom,
         });
       }
     }
@@ -2795,15 +2742,15 @@ export class FractalConfigPanel {
     this.drawOverlay();
     this.updateAssignments();
     this.updateResetButtonState();
-    this.selectDegreeQuality(1, 'major');
+    this.selectDegreeQuality(0, 'major');  // Select C (pitch class 0) by default
   }
 
   /** Check if all anchors match preset defaults */
   private anchorsMatchDefaults(): boolean {
-    for (let deg = 0; deg <= 7; deg++) {
+    for (let deg = 0; deg <= 11; deg++) {
       const key = this.anchorKey(deg, 'major');
       const a = this.anchors.get(key);
-      const p = PRESET_ANCHORS[deg];
+      const p = DEFAULT_ANCHORS[deg];
       if (!a) return false;
 
       const fi = TYPE_TO_FAMILY[p.type];
@@ -2958,7 +2905,7 @@ export class FractalConfigPanel {
       const THUMB_DRAW_SIZE = PANEL_SIZE / GRID_SIZE;
       const b = this.viewBounds[this.selectedFamily];
       const f = FAMILIES[this.selectedFamily];
-      const [colR, colG, colB] = getDegreeColorRGB(this.selectedDegree);
+      const [colR, colG, colB] = this.parseHexColor(NOTE_COLORS[this.selectedDegree]);
 
       for (let gy = 0; gy < GRID_SIZE; gy++) {
         for (let gx = 0; gx < GRID_SIZE; gx++) {
@@ -3028,22 +2975,10 @@ export class FractalConfigPanel {
       }
     }
 
-    // Degree colors for visual distinction
-    const degreeColors = [
-      '#888888', // 0 - gray (root)
-      '#ff6666', // 1 - red
-      '#ffaa44', // 2 - orange
-      '#ffff66', // 3 - yellow
-      '#66ff66', // 4 - green
-      '#66ffff', // 5 - cyan
-      '#6688ff', // 6 - blue
-      '#ff66ff', // 7 - magenta
-    ];
-
-    // Draw all anchors for degrees 1-7 that belong to current family
+    // Draw all anchors for pitch classes 0-11 that belong to current family
     // Draw non-selected first, then selected on top
     for (let pass = 0; pass < 2; pass++) {
-      for (let deg = 1; deg <= 7; deg++) {
+      for (let deg = 0; deg <= 11; deg++) {
         for (const q of QUALITIES) {
           const key = this.anchorKey(deg, q.id);
           const a = this.anchors.get(key);
@@ -3058,11 +2993,12 @@ export class FractalConfigPanel {
           if (pass === 1 && !isSelected) continue;
 
           const p = this.cToPixel(a.real, a.imag);
-          const col = degreeColors[deg];
+          const col = NOTE_COLORS[deg];
           const alpha = isSelectedDeg ? (isSelectedQuality ? 1.0 : 0.7) : 0.3;
 
           // Draw beat points visualization
           // Skew acts as backbeat emphasis: beats 1 and 3 get scaled radius
+          // Use actual orbit radius - points may extend beyond viewport at high zoom
           const baseRadius = a.orbitRadius;
           const cosR = Math.cos(a.orbitRotation);
           const sinR = Math.sin(a.orbitRotation);
@@ -3135,75 +3071,65 @@ export class FractalConfigPanel {
   }
 
   private updateAssignments(): void {
-    // Update grid cell visual states
-    this.updateGridStates();
+    // Update note button visual states to show which have anchors
+    this.updateNoteButtonStates();
+    // Update family buttons to show assigned notes
+    this.updateFamilyNotes();
   }
 
-  private updateGridStates(): void {
-    // Update each grid cell to show if it has an anchor and render thumbnail
-    this.container.querySelectorAll('.fc-grid-cell').forEach(cell => {
-      const el = cell as HTMLElement;
+  private updateNoteButtonStates(): void {
+    // Update each note button to show if it has an anchor
+    this.container.querySelectorAll('.fc-note-btn').forEach(btn => {
+      const el = btn as HTMLElement;
       const deg = parseInt(el.dataset.deg!);
-      const quality = el.dataset.quality!;
-      const key = this.anchorKey(deg, quality);
+      const key = this.anchorKey(deg);
       const anchor = this.anchors.get(key);
       const hasAnchor = !!anchor;
       el.classList.toggle('has-anchor', hasAnchor);
+    });
+  }
 
-      // Get or create the canvas for this cell
-      let canvas = el.querySelector('canvas') as HTMLCanvasElement | null;
-      if (!canvas) {
-        canvas = document.createElement('canvas');
-        canvas.width = FractalConfigPanel.THUMB_SIZE;
-        canvas.height = FractalConfigPanel.THUMB_SIZE;
-        canvas.className = 'fc-cell-thumb';
-        el.innerHTML = '';  // Remove the dot
-        el.appendChild(canvas);
-      }
+  /** Update family buttons to show which notes are assigned to each family */
+  private updateFamilyNotes(): void {
+    // Build map of family index -> assigned note degrees
+    const familyNotes: Map<number, number[]> = new Map();
+    for (let i = 0; i < FAMILIES.length; i++) {
+      familyNotes.set(i, []);
+    }
 
-      if (anchor) {
-        // Always render thumbnail (getOrRenderThumbnail uses cache)
-        const thumbData = this.getOrRenderThumbnail(anchor, deg);
-        const ctx = canvas.getContext('2d')!;
-        ctx.putImageData(thumbData, 0, 0);
-        canvas.style.opacity = '1';
-      } else {
-        // Clear the canvas
-        const ctx = canvas.getContext('2d')!;
-        ctx.fillStyle = '#111';
-        ctx.fillRect(0, 0, FractalConfigPanel.THUMB_SIZE, FractalConfigPanel.THUMB_SIZE);
-        canvas.style.opacity = '0.3';
+    // Collect notes for each family (parse degree from key "deg_quality")
+    this.anchors.forEach((anchor, key) => {
+      const deg = parseInt(key.split('_')[0]);
+      const notes = familyNotes.get(anchor.familyIdx);
+      if (notes && !notes.includes(deg)) {
+        notes.push(deg);
       }
     });
 
+    // Update each family button
+    this.container.querySelectorAll('.fc-family-btn').forEach(btn => {
+      const el = btn as HTMLElement;
+      const familyIdx = parseInt(el.dataset.family!);
+      const notesContainer = el.querySelector('.fc-family-notes') as HTMLElement;
+      if (!notesContainer) return;
+
+      const notes = familyNotes.get(familyIdx) || [];
+      if (notes.length === 0) {
+        notesContainer.innerHTML = '';
+      } else {
+        // Sort notes and create colored dots
+        notes.sort((a, b) => a - b);
+        notesContainer.innerHTML = notes.map(deg =>
+          `<span class="fc-family-note-dot" style="background: ${NOTE_COLORS[deg]}" title="${NOTE_NAMES[deg]}"></span>`
+        ).join('');
+      }
+    });
   }
 
-  private markAllThumbnailsDirty(): void {
-    this.thumbnailCache.clear();
-  }
-
-  /** Debounced thumbnail update - waits 1 second after last change */
-  private debouncedThumbnailUpdate(): void {
-    if (this.thumbnailDebounceTimer !== null) {
-      clearTimeout(this.thumbnailDebounceTimer);
-    }
-    this.thumbnailDebounceTimer = window.setTimeout(() => {
-      this.thumbnailDebounceTimer = null;
-      this.markAllThumbnailsDirty();
-      this.updateAssignments();
-    }, 1000);
-  }
-
-  private getThumbnailKey(anchor: InternalAnchor, deg: number): string {
-    // Round to 3 decimals to allow some cache hits when fine-tuning
-    // Include degree for color differentiation
-    const r = anchor.real.toFixed(3);
-    const i = anchor.imag.toFixed(3);
-    return `${deg}:${anchor.familyIdx}:${r}:${i}`;
-  }
+  // No-op: thumbnail rendering removed with simplified UI
+  private markAllThumbnailsDirty(): void {}
 
   private parseHexColor(hex: string): [number, number, number] {
-    // Parse "#rrggbb" or "#rgb" format
     const h = hex.replace('#', '');
     if (h.length === 3) {
       return [
@@ -3217,76 +3143,6 @@ export class FractalConfigPanel {
       parseInt(h.substring(2, 4), 16),
       parseInt(h.substring(4, 6), 16),
     ];
-  }
-
-  private getOrRenderThumbnail(anchor: InternalAnchor, deg: number): ImageData {
-    const key = this.getThumbnailKey(anchor, deg);
-    let cached = this.thumbnailCache.get(key);
-    if (cached) return cached;
-
-    // Get degree color from palette (key of C)
-    const [colR, colG, colB] = getDegreeColorRGB(deg);
-
-    // Render at 2x resolution for antialiasing (supersampling)
-    const size = FractalConfigPanel.THUMB_SIZE;
-    const ssSize = size * 2;  // 2x supersample
-    const iter = FractalConfigPanel.THUMB_ITER;
-    const f = FAMILIES[anchor.familyIdx];
-    const range = 3.6, half = range / 2;
-    const step = range / ssSize;
-
-    // Render at 2x resolution
-    const ssData = new Float32Array(ssSize * ssSize * 3);
-    for (let py = 0; py < ssSize; py++) {
-      for (let px = 0; px < ssSize; px++) {
-        const fx = -half + px * step;
-        const fy = -half + py * step;
-        const esc = f.julia(fx, fy, anchor.real, anchor.imag, iter);
-        const idx = (py * ssSize + px) * 3;
-        if (esc === 0) {
-          ssData[idx] = ssData[idx + 1] = ssData[idx + 2] = 0;
-        } else {
-          const t = Math.sqrt(esc / iter);
-          ssData[idx] = t * colR;
-          ssData[idx + 1] = t * colG;
-          ssData[idx + 2] = t * colB;
-        }
-      }
-    }
-
-    // Downsample 2x2 blocks with averaging for antialiasing
-    const data = new Uint8ClampedArray(size * size * 4);
-    for (let py = 0; py < size; py++) {
-      for (let px = 0; px < size; px++) {
-        const sx = px * 2, sy = py * 2;
-        // Average 2x2 block
-        let r = 0, g = 0, b = 0;
-        for (let dy = 0; dy < 2; dy++) {
-          for (let dx = 0; dx < 2; dx++) {
-            const sidx = ((sy + dy) * ssSize + (sx + dx)) * 3;
-            r += ssData[sidx];
-            g += ssData[sidx + 1];
-            b += ssData[sidx + 2];
-          }
-        }
-        const idx = (py * size + px) * 4;
-        data[idx] = Math.min(255, Math.round(r / 4));
-        data[idx + 1] = Math.min(255, Math.round(g / 4));
-        data[idx + 2] = Math.min(255, Math.round(b / 4));
-        data[idx + 3] = 255;
-      }
-    }
-
-    cached = new ImageData(data, size, size);
-    this.thumbnailCache.set(key, cached);
-
-    // Limit cache size
-    if (this.thumbnailCache.size > 200) {
-      const firstKey = this.thumbnailCache.keys().next().value;
-      if (firstKey) this.thumbnailCache.delete(firstKey);
-    }
-
-    return cached;
   }
 
   // --- Preview Animation ---
@@ -3328,7 +3184,7 @@ export class FractalConfigPanel {
       const cr = anchor.real + px * cosR - py * sinR;
       const ci = anchor.imag + px * sinR + py * cosR;
 
-      this.renderJulia(anchor.familyIdx, cr, ci);
+      this.renderJulia(anchor.familyIdx, cr, ci, anchor.viewZoom);
       this.previewAnim = requestAnimationFrame(loop);
     };
 
@@ -3342,35 +3198,86 @@ export class FractalConfigPanel {
     }
   }
 
-  private renderJulia(familyIdx: number, jR: number, jI: number): void {
+  private renderJulia(familyIdx: number, jR: number, jI: number, viewZoom = 1.0): void {
     const f = FAMILIES[familyIdx];
     const img = this.juliaCtx.createImageData(JULIA_SIZE, JULIA_SIZE);
     const d = img.data;
-    const range = 3.6, half = range / 2, step = range / JULIA_SIZE;
-    const lut = this.paletteLUT;
+    // Scale range by viewZoom: higher zoom = smaller range = more detail
+    const range = 3.6 / viewZoom;
+    const half = range / 2;
+    const step = range / JULIA_SIZE;
+    // Scale iterations with zoom: +50 iter per doubling for deep zoom fidelity
+    const iter = JULIA_ITER + Math.floor(50 * Math.log2(Math.max(1, viewZoom)));
+
+    // Use the selected note's color
+    const [colR, colG, colB] = this.parseHexColor(NOTE_COLORS[this.selectedDegree]);
 
     for (let py = 0; py < JULIA_SIZE; py++) {
       for (let px = 0; px < JULIA_SIZE; px++) {
         const fx = -half + px * step;
         const fy = -half + py * step;
-        const esc = f.julia(fx, fy, jR, jI, JULIA_ITER);
+        const esc = f.julia(fx, fy, jR, jI, iter);
         const idx = (py * JULIA_SIZE + px) * 4;
-        if (esc === 0) {
+        if (esc === 0 || !Number.isFinite(esc)) {
           d[idx] = d[idx + 1] = d[idx + 2] = 0;
         } else {
-          const t = Math.sqrt(esc / JULIA_ITER);
-          const li = Math.min(LUT_SIZE - 1, Math.round(t * (LUT_SIZE - 1))) * 3;
-          d[idx] = lut[li];
-          d[idx + 1] = lut[li + 1];
-          d[idx + 2] = lut[li + 2];
+          const t = Math.min(1, Math.sqrt(Math.max(0, esc) / iter));
+          d[idx] = Math.round(t * colR);
+          d[idx + 1] = Math.round(t * colG);
+          d[idx + 2] = Math.round(t * colB);
         }
         d[idx + 3] = 255;
       }
     }
     this.juliaCtx.putImageData(img, 0, 0);
+    this.drawJuliaOverlay(viewZoom);
+  }
 
-    const info = this.container.querySelector('#fc-julia-info')!;
-    info.textContent = `${f.label} | c = ${jR.toFixed(4)} + ${jI.toFixed(4)}i`;
+  /** Draw viewport overlay on Julia preview (zoom indicator, reference box) */
+  private drawJuliaOverlay(viewZoom: number): void {
+    const ctx = this.juliaCtx;
+    const size = JULIA_SIZE;
+    const center = size / 2;
+
+    // Draw subtle center crosshair
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 4]);
+    ctx.beginPath();
+    ctx.moveTo(center - 10, center);
+    ctx.lineTo(center + 10, center);
+    ctx.moveTo(center, center - 10);
+    ctx.lineTo(center, center + 10);
+    ctx.stroke();
+    ctx.restore();
+
+    // Show zoom level when not 1x
+    if (Math.abs(viewZoom - 1.0) > 0.01) {
+      const zoomText = `${viewZoom.toFixed(1)}x`;
+      ctx.save();
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      // Text shadow for readability
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillText(zoomText, size - 5, 6);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(zoomText, size - 6, 5);
+      ctx.restore();
+
+      // When zoomed in, show a reference box indicating 1x viewport size
+      if (viewZoom > 1) {
+        const refSize = size / viewZoom;
+        const refOffset = (size - refSize) / 2;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.strokeRect(refOffset, refOffset, refSize, refSize);
+        ctx.restore();
+      }
+    }
   }
 
   // --- Public API ---
@@ -3384,17 +3291,6 @@ export class FractalConfigPanel {
     this.renderLocus();
     this.drawOverlay();
     this.updateAssignments();
-    this.updateDegreeNavDisplay();
-
-    // Sync palette to selected degree on load
-    if (this.selectedDegree >= 1 && this.selectedDegree <= 7) {
-      const paletteIdx = DEGREE_TO_PALETTE[this.selectedDegree];
-      this.setPalette(paletteIdx);
-      this.container.querySelectorAll('.fc-palette-btn').forEach(btn => {
-        const idx = parseInt((btn as HTMLElement).dataset.idx!);
-        btn.classList.toggle('active', idx === paletteIdx);
-      });
-    }
 
     const a = this.currentAnchor;
     if (a) this.startPreview(a);

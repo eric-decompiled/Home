@@ -47,6 +47,29 @@ interface CustomPreset {
 | `deleteCustomPreset(id)` | Delete a custom preset |
 | `deleteAllCustomPresets()` | Clear all custom presets |
 
+### FractalAnchor Schema
+
+```typescript
+interface FractalAnchor {
+  type: number;           // Fractal family (0=Classic, 3=Burning Ship, etc.)
+  real: number;           // C-plane real coordinate
+  imag: number;           // C-plane imaginary coordinate
+  orbitRadius: number;    // Beat orbit radius in c-plane units
+  orbitSkew?: number;     // Backbeat emphasis (default 1.0 = circle)
+  orbitRotation?: number; // Orbit rotation in radians (default 0)
+  beatSpread?: number;    // Angle between beat points (default π/2 = 90°)
+  viewZoom?: number;      // Visualizer zoom level (default 1.0)
+}
+
+type FractalAnchors = { [pitchClass: number]: FractalAnchor };  // 0-11
+```
+
+**viewZoom Integration:**
+- Controls Julia set zoom level in the visualizer
+- Synced bidirectionally with map zoom in fractal config panel
+- Orbit radius scales inversely with viewZoom to keep beat points in frame
+- Higher viewZoom requires more iterations for fractal detail (auto-scaled)
+
 ### Storage Keys
 
 - `fractured-jukebox-presets` — Array of custom presets (JSON)
@@ -84,7 +107,7 @@ Layer values and config params use short names:
 | flowfield | `flow` | `ff` | `w`=useWhite |
 | note-spiral | `spiral` | `ns` | `t`=tightness, `s`=shapes |
 | piano-roll | `piano` | `pr` | `p`=pianoSound |
-| domainwarp | `warp` | `dw` | |
+| flux | `flux` | `fx` | |
 | chladni | `chladni` | `ch` | |
 | kaleidoscope | `kaleido` | `ks` | |
 | fractal | `fractal` | `fr` | |

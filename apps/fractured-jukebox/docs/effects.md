@@ -6,7 +6,7 @@ Effects are organized into layer slots (mutually exclusive within each slot). Ea
 
 | Slot | Purpose | Effects |
 |------|---------|---------|
-| **Background** | Full-canvas animated backdrop | Chladni, Domain Warp, Waves, Flow Field, Starfield |
+| **Background** | Full-canvas animated backdrop | Chladni, Flux, Waves, Flow Field, Starfield |
 | **Foreground** | Main visual element | Graph Chain, Note Spiral, Fractal, Piano Roll, Tonnetz |
 | **Overlay** | Post-process effects | Kaleidoscope, Feedback Trail, CRT |
 | **Melody** | Melodic visualization | Melody Aurora, Melody Web, Melody Clock |
@@ -54,13 +54,13 @@ See `research/graph-evolution.md` for design notes and music mapping theory.
 - **Mouse interaction**: Repulsion field pushes puck away (radius 120, strength 200). Click and drag to grab, flick to throw with velocity transfer.
 - **Beam collision**: Actual geometric hit detection—beam tips check distance to current puck position. Hits register marks on puck, trigger flash, and give tiny momentum bump.
 - **Hit marks**: Accumulate on puck surface with 8-second decay, colored by pitch class.
-- **Transparent compositing**: No background fill, layers over Domain Warp or other backgrounds.
+- **Transparent compositing**: No background fill, layers over Flux or other backgrounds.
 
 ### Wave Interference
 `src/effects/wave-interference.ts` — WebGL ripple simulation. Drops appear at melody onsets positioned by pitch class (clock position) and octave (radius). Per-note coloring from chromatic palette. Models wave reflection off boundaries via ghost sources with phase inversion. Configurable decay, frequency, reflection amount.
 
-### Domain Warp
-`src/effects/domain-warp.ts` — WebGL layered fbm warped through itself. Per-degree anchors control warp amount/scale/flow. Uses **spatial wave tank physics**:
+### Flux
+`src/effects/flux.ts` — WebGL layered fbm warped through itself. Per-degree anchors control warp amount/scale/flow. Uses **spatial wave tank physics**:
 - **Bass wave**: pushes from bottom (low notes below middle C, bass line)
 - **Melody wave**: pushes from sides (high notes, melody, harmony)
 - **Chord quality modulation**: dim/aug = rough texture, 7ths = sophisticated detail, major = clean

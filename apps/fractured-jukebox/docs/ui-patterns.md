@@ -19,15 +19,96 @@ The initial overlay shown before playback starts. Uses CSS grid for layout.
 
 ## Modals
 
-Modal pattern used for Save Preset, QR Code, About:
+All modals use the shared `createModal()` factory from `src/modal.ts`.
+
+### Usage
+
+```ts
+import { createModal } from './modal.ts';
+
+// With auto-generated header (creates .modal-header with title + close button)
+const myModal = createModal({
+  overlayId: 'my-modal-overlay',
+  title: 'Modal Title',
+});
+
+// With existing header elements
+const aboutModal = createModal({
+  overlayId: 'about-modal-overlay',
+  closeButtonId: 'about-modal-close',
+});
+
+// By element reference (container-scoped modals)
+const infoModal = createModal({
+  overlay: container.querySelector('#fc-info-modal') as HTMLElement,
+  closeButton: container.querySelector('.fc-info-close') as HTMLElement,
+});
+
+// API
+myModal.open();
+myModal.close();
+myModal.isOpen();        // boolean
+myModal.setTitle('New'); // update title (only if title option was provided)
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `overlayId` | string | - | Overlay element ID (uses `document.getElementById`) |
+| `overlay` | HTMLElement | - | Overlay element directly (for container-scoped modals) |
+| `closeButtonId` | string | - | Close button element ID |
+| `closeButton` | HTMLElement | - | Close button element directly |
+| `title` | string | - | If provided, creates a `.modal-header` with title and close button |
+| `dismissOnBackdrop` | boolean | true | Close when clicking backdrop |
+| `dismissOnEscape` | boolean | true | Close when pressing Escape key |
+| `onOpen` | () => void | - | Callback when modal opens |
+| `onClose` | () => void | - | Callback when modal closes |
+
+### CSS Classes
+
+The framework uses these shared CSS classes (defined in `style.css`):
+
+- `.modal-header` - Header bar with darker background, flex layout
+- `.modal-close` - Close button (×) with hover state
+
+When `title` is provided, the header is automatically prepended to the modal content.
+
+### CSS Pattern
+
 - Overlay: `position: fixed; inset: 0; z-index: 10001`
 - Visibility toggle via `.visible` class (opacity + pointer-events)
-- Close on: X button, backdrop click, Escape key
-- Each modal registers its own Escape handler
+- Content scales from 0.95 to 1.0 on open
+- Borders should use `var(--ui-border)` (not green accent color)
+
+### Current Modals
+
+| Modal | Location | ID/Selector |
+|-------|----------|-------------|
+| About | main.ts | `about-modal-overlay` |
+| QR Code | main.ts | `qr-modal-overlay` |
+| Layer Info | main.ts | `layer-info-modal` |
+| Fractal Info | fractal-config.ts | `#fc-info-modal` |
+| Fractal Controls | fractal-config.ts | `#fc-controls-modal` |
+| Fractal Help | fractal-config.ts | `#fc-help-modal` |
+
+### Notes
 
 **QR Code**: Use dynamic import to avoid Vite HMR issues:
 ```ts
 const QrCreator = (await import('qr-creator')).default;
+```
+
+**Content population**: For modals that need dynamic content (like Fractal Info), populate the content before calling `open()`:
+```ts
+private showFamilyInfo(): void {
+  // Populate content first
+  this.container.querySelector('#fc-info-title')!.textContent = family.label;
+  // ... more content
+
+  // Then open
+  this.infoModal.open();
+}
 ```
 
 ## Share URL

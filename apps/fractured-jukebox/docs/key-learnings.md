@@ -132,6 +132,10 @@
 - **Cross-component callbacks must propagate fully**: When fractal config saves, call `musicMapper.reloadAnchors()` not just `dirty = true`. The fractal engine reads from localStorage but doesn't know when it changes—must explicitly notify
 - **Data attributes for reliable DOM queries**: Use `data-slot="Foreground"` on elements for clean `querySelector('.layer-slot[data-slot="Foreground"]')`. Avoids fragile `:has()` selectors with nested structure assumptions
 - **Sync UI state across component boundaries**: When selecting degree cards from different fractal families, update family selector buttons to match. Internal state changes must reflect in all related UI elements
+- **Bidirectional zoom sync**: Map zoom level and anchor viewZoom must stay in sync. When user zooms the map, update anchor's viewZoom. When selecting an anchor, set map zoom to match anchor's viewZoom. Prevents confusion where preview shows different zoom than map
+- **Orbit radius scales with zoom**: At high zoom, fixed orbit radius extends outside visible area. Scale orbit radius inversely with zoom (`newRadius = oldRadius * oldZoom / newZoom`). Min/max radius must also scale with zoom (`minRadius = 0.0001 / zoom`) to allow deep zoom with tiny orbits
+- **Iteration scaling for zoom fidelity**: Deep zoom requires more iterations to resolve fractal detail. Add ~50 iterations per doubling of zoom level: `baseIter + Math.log2(viewZoom) * 50`. Cap at MAX_ITERATIONS to prevent performance issues
+- **Preview viewport box matches preview range**: The dotted viewport indicator on the map should use the same base range as the preview (3.6) for consistent visual correspondence, not the visualizer's larger range (5.8)
 
 ### Documentation & Diagrams
 - **Hand-crafted SVG for architecture diagrams**: Write SVG directly instead of using drawing tools. Excalidraw-compatible format (`<!-- svg-source:excalidraw -->` comment) allows future editing

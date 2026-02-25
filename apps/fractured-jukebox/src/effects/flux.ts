@@ -1,4 +1,4 @@
-// --- Domain Warping Centerpiece ---
+// --- Flux ---
 // Layered fractal Brownian motion (fbm) warped through itself.
 // Creates flowing organic structures — tendrils, clouds, aurora-like forms.
 //
@@ -133,9 +133,9 @@ void main() {
 }`;
 
 
-export class DomainWarpEffect implements VisualEffect {
-  readonly id = 'domainwarp';
-  readonly name = 'Domain Warp';
+export class FluxEffect implements VisualEffect {
+  readonly id = 'flux';
+  readonly name = 'Flux';
   readonly isPostProcess = false;
   readonly defaultBlend: BlendMode = 'source-over';
   readonly defaultOpacity = 1.0;
@@ -215,7 +215,7 @@ export class DomainWarpEffect implements VisualEffect {
     gl.shaderSource(fs, FRAG_SRC);
     gl.compileShader(fs);
     if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
-      console.error('DomainWarp frag:', gl.getShaderInfoLog(fs));
+      console.error('Flux frag:', gl.getShaderInfoLog(fs));
     }
 
     this.program = gl.createProgram()!;

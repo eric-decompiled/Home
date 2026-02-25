@@ -13,6 +13,7 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 |------|------|
 | `src/main.ts` | App shell: HTML, event listeners, render loop, UI, layer compositor |
 | `src/state.ts` | State management: URL sharing, JSON export/import, localStorage persistence |
+| `src/modal.ts` | Modal factory: open/close, backdrop dismiss, Escape key handling |
 | `src/fractal-config.ts` | Interactive fractal anchor editor panel |
 | `src/midi-analyzer.ts` | MIDI parsing, key detection, bar-level chord detection |
 | `src/music-mapper.ts` | Maps musical analysis → visual parameters |
@@ -31,7 +32,7 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 
 ## Quick Reference
 
-**Layers**: Background (Chladni, Domain Warp, Waves, Flow Field, Starfield) | Foreground (Graph Chain, Note Spiral, Fractal, Piano Roll, Tonnetz) | Overlay (Kaleidoscope, Feedback Trail, CRT) | HUD (Theory Bar) | Melody/Bass clocks and webs
+**Layers**: Background (Chladni, Flux, Waves, Flow Field, Starfield) | Foreground (Graph Chain, Note Spiral, Fractal, Piano Roll, Tonnetz) | Overlay (Kaleidoscope, Feedback Trail, CRT) | HUD (Theory Bar) | Melody/Bass clocks and webs
 
 **Presets**:
 - `warp` (default): Chladni + Note Spiral + Kaleidoscope + Melody/Bass Clocks
@@ -75,6 +76,13 @@ When cleaning up or resetting to sensible defaults, use these settings:
 - Config shows only: Shapes, Spiral Lines toggle, Dark Backdrop toggle
 - Wave colors: use tension colors (not white/gray)
 
+**Fractal Config Panel**:
+- Map zoom and anchor viewZoom are bidirectionally synced
+- Orbit radius scales inversely with zoom (beat points stay proportionally in frame)
+- Min orbit radius scales with zoom: `0.0001 / viewZoom`
+- Preview iterations scale with zoom: `+50 iter per doubling` for deep zoom fidelity
+- Dotted viewport box uses preview range (3.6) not visualizer range (5.8)
+
 ## Keyboard Shortcuts
 
 See [`docs/shortcuts.md`](docs/shortcuts.md) for keyboard and gesture shortcuts.
@@ -89,7 +97,11 @@ Use `showToast(message, duration?)` for user feedback:
 
 ## UI Patterns
 
-See [`docs/ui-patterns.md`](docs/ui-patterns.md) for play overlay, modals, share URL, and layer panel footer patterns.
+See [`docs/ui-patterns.md`](docs/ui-patterns.md) for play overlay, share URL, and layer panel footer patterns.
+
+### Modals
+
+Use `createModal()` from `src/modal.ts` for all modals. Handles backdrop dismiss, Escape key, and close button automatically. See [`docs/ui-patterns.md`](docs/ui-patterns.md#modals) for full API reference.
 
 ## Performance Testing
 

@@ -3,7 +3,8 @@ import type { MusicParams, ActiveVoice, UpcomingNote, UpcomingChord, RGB } from 
 import { createMidiBeatSync, createIdleBeatSync, type BeatSync, type TempoEvent, type TimeSignatureEvent } from './beat-sync.ts';
 import { palettes } from './fractal-engine.ts';
 import { audioPlayer } from './audio-player.ts';
-import { TWO_PI, KEY_ANGLES } from './effects/effect-utils.ts';
+import { TWO_PI } from './effects/effect-utils.ts';
+import { DEFAULT_ANCHORS, type FractalAnchor } from './state.ts';
 
 // --- Beat strength by meter position ---
 // Returns 0-1 based on metrical hierarchy (1.0 = downbeat, lower = weaker beats)
@@ -27,7 +28,7 @@ function computeBeatStrength(beatIndex: number, beatsPerBar: number): number {
   return 0.25;
 }
 
-// --- Julia set anchors by harmonic degree ---
+// --- Julia set anchors by pitch class (0-11: C, C#, D, ..., B) ---
 
 interface CValue {
   real: number;
@@ -38,6 +39,7 @@ interface CValue {
   orbitSkew: number;     // aspect ratio: 1=circle, <1=wide, >1=tall
   orbitRotation: number; // ellipse rotation in radians
   beatSpread: number;    // angle between beat points in radians (π/2 = 90°)
+  viewZoom: number;      // visualizer zoom level
 }
 
 // type: 0=Julia z²+c, 1=Cubic z³+c, 2=Quartic z⁴+c, 3=BurningShip,
@@ -47,19 +49,28 @@ const DEFAULT_ORBIT_RADIUS = 0.08;
 const DEFAULT_ORBIT_SKEW = 1.0;     // circle
 const DEFAULT_ORBIT_ROTATION = 0;   // no rotation
 const DEFAULT_BEAT_SPREAD = Math.PI / 2;  // 90° between beat points
+const DEFAULT_VIEW_ZOOM = 1.0;      // default visualizer zoom
 
-const defaultAnchors: Record<number, CValue> = {
-  0: { real: 0.2800, imag: 0.5300, type: 0, orbitRadius: 0.0500, orbitSkew: 1.00, orbitRotation: 0.00, beatSpread: 1.57 },
-  1: { real: -0.8649, imag: 0.2083, type: 6, orbitRadius: 0.3199, orbitSkew: 1.50, orbitRotation: 1.83, beatSpread: 0.16 },
-  2: { real: -0.8149, imag: 0.3799, type: 0, orbitRadius: 0.1094, orbitSkew: 1.00, orbitRotation: 4.00, beatSpread: 0.69 },
-  3: { real: -0.6572, imag: 0.7617, type: 8, orbitRadius: 0.2480, orbitSkew: 1.00, orbitRotation: -0.09, beatSpread: 0.46 },
-  4: { real: -0.6267, imag: -0.8198, type: 9, orbitRadius: 0.2671, orbitSkew: 0.62, orbitRotation: -1.43, beatSpread: 0.24 },
-  5: { real: 0.6866, imag: -0.5589, type: 9, orbitRadius: 0.4612, orbitSkew: 0.59, orbitRotation: -1.93, beatSpread: 0.31 },
-  6: { real: 0.4743, imag: -0.2137, type: 5, orbitRadius: 0.1000, orbitSkew: 2.00, orbitRotation: -1.02, beatSpread: 0.15 },
-  7: { real: -0.8474, imag: -0.4560, type: 0, orbitRadius: 0.1794, orbitSkew: 1.00, orbitRotation: 0.49, beatSpread: 0.57 },
-};
+// Default anchors imported from state.ts (single source of truth)
+// Convert FractalAnchor to CValue by providing defaults for optional fields
+function anchorToCValue(a: FractalAnchor): CValue {
+  return {
+    real: a.real,
+    imag: a.imag,
+    type: a.type,
+    orbitRadius: a.orbitRadius,
+    orbitSkew: a.orbitSkew ?? DEFAULT_ORBIT_SKEW,
+    orbitRotation: a.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
+    beatSpread: a.beatSpread ?? DEFAULT_BEAT_SPREAD,
+    viewZoom: a.viewZoom ?? DEFAULT_VIEW_ZOOM,
+  };
+}
 
-const STORAGE_KEY = 'fractal-anchors';
+const defaultAnchors: Record<number, CValue> = Object.fromEntries(
+  Object.entries(DEFAULT_ANCHORS).map(([k, v]) => [Number(k), anchorToCValue(v)])
+);
+
+const STORAGE_KEY = 'fractal-anchors-v2';
 
 let anchors: Record<number, CValue> = { ...defaultAnchors };
 
@@ -68,11 +79,11 @@ function loadAnchorsFromStorage(): void {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw) as Record<string, any>;
-    if (!parsed['0'] || !parsed['1']) return;
+    if (!parsed['0']) return;
 
     const loaded: Record<number, CValue> = {};
-    for (let d = 0; d <= 7; d++) {
-      const p = parsed[d];
+    for (let pc = 0; pc <= 11; pc++) {
+      const p = parsed[pc];
       if (!p || typeof p.real !== 'number') continue;
 
       // Get orbitRadius: direct value, or compute from legacy orbits array
@@ -88,7 +99,7 @@ function loadAnchorsFromStorage(): void {
         orbitRadius = sum / p.orbits.length;
       }
 
-      loaded[d] = {
+      loaded[pc] = {
         real: p.real,
         imag: p.imag,
         type: p.type ?? 0,
@@ -97,6 +108,7 @@ function loadAnchorsFromStorage(): void {
         orbitSkew: typeof p.orbitSkew === 'number' ? p.orbitSkew : DEFAULT_ORBIT_SKEW,
         orbitRotation: typeof p.orbitRotation === 'number' ? p.orbitRotation : DEFAULT_ORBIT_ROTATION,
         beatSpread: typeof p.beatSpread === 'number' ? p.beatSpread : DEFAULT_BEAT_SPREAD,
+        viewZoom: typeof p.viewZoom === 'number' ? p.viewZoom : DEFAULT_VIEW_ZOOM,
       };
     }
     if (Object.keys(loaded).length >= 2) {
@@ -105,33 +117,29 @@ function loadAnchorsFromStorage(): void {
   } catch { /* ignore malformed data */ }
 }
 
-loadAnchorsFromStorage();
+// Note: We no longer auto-load from localStorage on startup.
+// App always starts with DEFAULT_ANCHORS unless a preset is explicitly applied.
+// The loadAnchorsFromStorage function is kept for reloadAnchors() which is called
+// when applying a preset that was saved to localStorage.
 
-// Live-reload when config.html saves in another tab
-window.addEventListener('storage', (e) => {
-  if (e.key === STORAGE_KEY) loadAnchorsFromStorage();
-});
-
-// Root pitch class applies a tiny rotation around the degree anchor
-function centerForChord(degree: number, root: number): CValue {
-  const anchor = anchors[degree] ?? anchors[0];
-  const angle = KEY_ANGLES[root];
-  // Very small radius — these c-values are precisely tuned for visual weight
-  const radius = 0.005;
+// Direct lookup by pitch class - each note has its own curated anchor
+function centerForChord(root: number): CValue {
+  const anchor = anchors[root] ?? anchors[0];
   return {
-    real: anchor.real + radius * Math.cos(angle),
-    imag: anchor.imag + radius * Math.sin(angle),
+    real: anchor.real,
+    imag: anchor.imag,
     type: anchor.type,
     phoenix: anchor.phoenix,
     orbitRadius: anchor.orbitRadius ?? DEFAULT_ORBIT_RADIUS,
     orbitSkew: anchor.orbitSkew ?? DEFAULT_ORBIT_SKEW,
     orbitRotation: anchor.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
     beatSpread: anchor.beatSpread ?? DEFAULT_BEAT_SPREAD,
+    viewZoom: anchor.viewZoom ?? DEFAULT_VIEW_ZOOM,
   };
 }
 
 function getDefaultAnchor(): CValue {
-  return anchors[1];
+  return anchors[0];  // C (pitch class 0) is the tonic default
 }
 
 // --- Fractal parameter state ---
@@ -144,6 +152,7 @@ export interface FractalParams {
   paletteIndex: number;
   baseIter: number;
   rotation: number;         // radians
+  viewZoom: number;         // visualizer zoom level
   melodyPitchClass: number; // -1 if none
   melodyVelocity: number;   // 0-1
   bassPitchClass: number;   // -1 if none
@@ -170,11 +179,9 @@ let currentPalette = 4;
 let currentFractalType = getDefaultAnchor().type;
 let currentPhoenixP = -0.5;
 
-// --- Physics-based orbit state ---
+// --- Orbit state ---
 // Beat-driven elliptical motion around the anchor point
 let currentBeatAngle = 0;     // Current beat angle (snaps, smoothed by beat pulse)
-let orbitRadiusOffset = 0;    // Deviation from base radius
-let orbitRadiusVel = 0;       // Radial velocity (for spring physics)
 let currentOrbitRadius = 0.12; // Base orbit radius (from anchor)
 let targetOrbitRadius = 0.12;  // Target radius (snaps on chord change)
 let currentOrbitSkew = 1.0;    // Aspect ratio (1=circle, <1=wide, >1=tall)
@@ -183,6 +190,8 @@ let currentOrbitRotation = 0;  // Ellipse rotation angle
 let targetOrbitRotation = 0;
 let currentBeatSpread = Math.PI / 2;  // Angle between beat points
 let targetBeatSpread = Math.PI / 2;
+let currentViewZoom = 1.0;     // Visualizer zoom level
+let targetViewZoom = 1.0;
 
 // Beat-driven rotation
 let rotationAngle = 0;
@@ -664,7 +673,7 @@ export const musicMapper = {
       lastChordIndex = currentChordIdx;
       const chord = chords[currentChordIdx];
 
-      const center = centerForChord(chord.degree, chord.root);
+      const center = centerForChord(chord.root);
       // Direct assignment - centerForChord already returns a new object
       targetCenter = center;
       targetTension = chord.tension;
@@ -680,6 +689,7 @@ export const musicMapper = {
       targetOrbitSkew = center.orbitSkew;
       targetOrbitRotation = center.orbitRotation;
       targetBeatSpread = center.beatSpread;
+      targetViewZoom = center.viewZoom;
     }
 
     // --- Exponential snap toward target ---
@@ -692,6 +702,8 @@ export const musicMapper = {
     currentOrbitSkew += (targetOrbitSkew - currentOrbitSkew) * snapDecay;
     currentOrbitRotation += (targetOrbitRotation - currentOrbitRotation) * snapDecay;
     currentBeatSpread += (targetBeatSpread - currentBeatSpread) * snapDecay;
+    // viewZoom snaps instantly (no tween) - fractals must be fully recalculated at each zoom level
+    currentViewZoom = targetViewZoom;
 
     // Tension smoothing with melodic modulation
     // Combine harmonic tension (from chord analysis) with real-time melodic tension
@@ -822,11 +834,6 @@ export const musicMapper = {
     rotationVelocity *= Math.exp(-rotationFriction * safeDt);
     rotationAngle += rotationVelocity * safeDt;
 
-    // Groove curves for timing
-    const beatArrival = beat.beatArrival ?? 0;
-    const barArrival = beat.barArrival ?? 0;
-    const beatAnticipation = beat.beatAnticipation ?? 0;
-
     // --- Beat-driven angle ---
     const currentBeatIdx = beat.beatIndex % 4;
     // Snap angle directly to current beat point (no interpolation needed)
@@ -837,23 +844,8 @@ export const musicMapper = {
     // This makes the orbit retract to center at beat boundaries
     const beatPulse = Math.sin(Math.PI * beat.beatPhase);
 
-    // --- Radial physics: spring toward base radius ---
-    // Beat/bar arrival kicks outward, anticipation pulls inward
-    const emphasis = (beat.beatIndex % 2 === 0) ? 1.0 : 0.7; // 2-feel: 1,3 stronger
-    const beatKick = beatArrival * currentTension * 0.15 * emphasis;
-    const barKick = barArrival * currentTension * 0.25; // Bigger on beat 1
-    const anticipationPull = -beatAnticipation * currentTension * 0.08;
-
-    orbitRadiusVel += beatKick + barKick + anticipationPull;
-
-    // Spring physics: pull back toward base radius
-    const radiusK = 8.0;
-    const radiusDamping = 2.5;
-    orbitRadiusVel += (-radiusK * orbitRadiusOffset - radiusDamping * orbitRadiusVel) * safeDt;
-    orbitRadiusOffset += orbitRadiusVel * safeDt;
-
-    // Compute final orbit position
-    const baseRadius = currentOrbitRadius + orbitRadiusOffset;
+    // Compute final orbit position - strict adherence to anchor's orbit radius (no spring physics)
+    const baseRadius = currentOrbitRadius;
     // Skew acts as backbeat emphasis: beats 1 and 3 (the "clap" beats) get scaled
     const isBackbeat = (currentBeatIdx === 1 || currentBeatIdx === 3);
     const effectiveRadius = isBackbeat ? baseRadius * currentOrbitSkew : baseRadius;
@@ -934,6 +926,7 @@ export const musicMapper = {
       paletteIndex: currentPalette,
       baseIter: iterBase,
       rotation: rotationAngle,
+      viewZoom: currentViewZoom,
       melodyPitchClass: melPC,
       melodyVelocity: highestVel,
       bassPitchClass: currentBassPC,
@@ -1095,9 +1088,9 @@ export const musicMapper = {
     targetOrbitRotation = currentOrbitRotation;
     currentBeatSpread = def.beatSpread ?? DEFAULT_BEAT_SPREAD;
     targetBeatSpread = currentBeatSpread;
+    currentViewZoom = def.viewZoom ?? DEFAULT_VIEW_ZOOM;
+    targetViewZoom = currentViewZoom;
     currentBeatAngle = 0;
-    orbitRadiusOffset = 0;
-    orbitRadiusVel = 0;
     lastChordIndex = -1;
     rotationAngle = 0;
     rotationVelocity = 0;
@@ -1158,5 +1151,41 @@ export const musicMapper = {
     targetOrbitRotation = currentOrbitRotation;
     currentBeatSpread = def.beatSpread ?? DEFAULT_BEAT_SPREAD;
     targetBeatSpread = currentBeatSpread;
+    currentViewZoom = def.viewZoom ?? DEFAULT_VIEW_ZOOM;
+    targetViewZoom = currentViewZoom;
   },
+
+  /** Set anchors directly in memory (for live preview without localStorage) */
+  setAnchors(data: Record<number, { real: number; imag: number; type: number; orbitRadius: number; orbitSkew?: number; orbitRotation?: number; beatSpread?: number; viewZoom?: number }>): void {
+    for (let pc = 0; pc <= 11; pc++) {
+      const p = data[pc];
+      if (!p) continue;
+      anchors[pc] = {
+        real: p.real,
+        imag: p.imag,
+        type: p.type,
+        orbitRadius: p.orbitRadius,
+        orbitSkew: p.orbitSkew ?? DEFAULT_ORBIT_SKEW,
+        orbitRotation: p.orbitRotation ?? DEFAULT_ORBIT_ROTATION,
+        beatSpread: p.beatSpread ?? DEFAULT_BEAT_SPREAD,
+        viewZoom: p.viewZoom ?? DEFAULT_VIEW_ZOOM,
+      };
+    }
+    // Update current state
+    const def = getDefaultAnchor();
+    currentCenter = { ...def };
+    targetCenter = { ...def };
+    currentFractalType = def.type;
+    currentOrbitRadius = def.orbitRadius ?? DEFAULT_ORBIT_RADIUS;
+    targetOrbitRadius = currentOrbitRadius;
+    currentOrbitSkew = def.orbitSkew ?? DEFAULT_ORBIT_SKEW;
+    targetOrbitSkew = currentOrbitSkew;
+    currentOrbitRotation = def.orbitRotation ?? DEFAULT_ORBIT_ROTATION;
+    targetOrbitRotation = currentOrbitRotation;
+    currentBeatSpread = def.beatSpread ?? DEFAULT_BEAT_SPREAD;
+    targetBeatSpread = currentBeatSpread;
+    currentViewZoom = def.viewZoom ?? DEFAULT_VIEW_ZOOM;
+    targetViewZoom = currentViewZoom;
+  },
+
 };

@@ -206,12 +206,14 @@ export class PianoRollEffect implements VisualEffect {
     // Draw particles (behind keyboard, in front of notes)
     this.drawParticles(ctx);
 
-    // Draw white keys as simple rectangles (black keys overlay on top)
+    // Draw white keys with 3D depth effect
     const maxDepress = 4 * this.resScale; // max pixels to depress
+    const bevelSize = Math.max(2, whiteKeyWidth * 0.08); // bevel/highlight size
     let whiteIdx = 0;
     for (let midi = MIDI_LO; midi <= MIDI_HI; midi++) {
       if (!isBlackKey(midi)) {
         const x = whiteIdx * whiteKeyWidth;
+        const keyW = whiteKeyWidth - 1;
         const state = this.keyStates.get(midi);
         const brightness = state?.brightness ?? 0;
 
@@ -219,42 +221,87 @@ export class PianoRollEffect implements VisualEffect {
         const depress = brightness > 0.1 ? maxDepress * Math.min(1, brightness) : 0;
         const keyY = kbTop + depress;
 
-        // Key fill with gradient from two palette stops
+        // Main key body with gradient
         if (brightness > 0.1) {
           const [topColor, bottomColor] = this.getKeyGradientColors(midi);
-          // Pulse with groove curve, slight transparency when depressed
           const pulse = 0.85 + grooveMod * 0.15;
           const alpha = (0.75 + brightness * 0.25) * pulse;
           const keyGradient = ctx.createLinearGradient(0, keyY, 0, keyY + kbHeight);
           keyGradient.addColorStop(0, rgba(topColor[0], topColor[1], topColor[2], alpha));
-          keyGradient.addColorStop(1, rgba(bottomColor[0], bottomColor[1], bottomColor[2], alpha));
+          keyGradient.addColorStop(0.85, rgba(bottomColor[0], bottomColor[1], bottomColor[2], alpha));
+          keyGradient.addColorStop(1, rgba(bottomColor[0] * 0.7, bottomColor[1] * 0.7, bottomColor[2] * 0.7, alpha));
           ctx.fillStyle = keyGradient;
         } else {
-          // Unlit white key gradient
+          // Unlit white key with realistic ivory gradient
           const whiteGradient = ctx.createLinearGradient(0, keyY, 0, keyY + kbHeight);
-          whiteGradient.addColorStop(0, '#f8f8f8');
-          whiteGradient.addColorStop(1, '#e0e0e0');
+          whiteGradient.addColorStop(0, '#fafafa');
+          whiteGradient.addColorStop(0.03, '#f5f5f5');
+          whiteGradient.addColorStop(0.85, '#e8e8e8');
+          whiteGradient.addColorStop(1, '#d0d0d0');
           ctx.fillStyle = whiteGradient;
         }
-        ctx.fillRect(x, keyY, whiteKeyWidth - 1, kbHeight);
+        ctx.fillRect(x, keyY, keyW, kbHeight);
 
-        // Key border
-        ctx.strokeStyle = '#666';
+        // Left edge highlight (light hitting from left)
+        const leftHighlight = ctx.createLinearGradient(x, 0, x + bevelSize, 0);
+        leftHighlight.addColorStop(0, 'rgba(255,255,255,0.4)');
+        leftHighlight.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = leftHighlight;
+        ctx.fillRect(x, keyY, bevelSize, kbHeight - bevelSize);
+
+        // Right edge shadow
+        const rightShadow = ctx.createLinearGradient(x + keyW - bevelSize, 0, x + keyW, 0);
+        rightShadow.addColorStop(0, 'rgba(0,0,0,0)');
+        rightShadow.addColorStop(1, 'rgba(0,0,0,0.15)');
+        ctx.fillStyle = rightShadow;
+        ctx.fillRect(x + keyW - bevelSize, keyY, bevelSize, kbHeight - bevelSize);
+
+        // Bottom front face (3D depth)
+        const frontDepth = Math.max(3, bevelSize * 0.8);
+        const frontGradient = ctx.createLinearGradient(0, keyY + kbHeight - frontDepth, 0, keyY + kbHeight);
+        frontGradient.addColorStop(0, brightness > 0.1 ? 'rgba(180,160,140,0.6)' : 'rgba(200,195,190,0.8)');
+        frontGradient.addColorStop(1, brightness > 0.1 ? 'rgba(120,100,80,0.8)' : 'rgba(160,155,150,0.9)');
+        ctx.fillStyle = frontGradient;
+        ctx.fillRect(x, keyY + kbHeight - frontDepth, keyW, frontDepth);
+
+        // Subtle rounded top highlight
+        const topHighlight = ctx.createLinearGradient(0, keyY, 0, keyY + bevelSize * 1.5);
+        topHighlight.addColorStop(0, 'rgba(255,255,255,0.5)');
+        topHighlight.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = topHighlight;
+        ctx.fillRect(x + 1, keyY, keyW - 2, bevelSize * 1.5);
+
+        // Key separator line
+        ctx.strokeStyle = 'rgba(100,100,100,0.5)';
         ctx.lineWidth = 1;
-        ctx.strokeRect(x, keyY, whiteKeyWidth - 1, kbHeight);
+        ctx.beginPath();
+        ctx.moveTo(x + keyW, keyY);
+        ctx.lineTo(x + keyW, keyY + kbHeight);
+        ctx.stroke();
 
-        // Glow effect (no shadow blur)
+        // Glow effect when pressed
         if (brightness > 0.5) {
           const [gr, gg, gb] = this.getNoteColorRGB(midi);
           ctx.fillStyle = rgba(gr, gg, gb, 0.3 * brightness);
-          ctx.fillRect(x + 2, keyY + 2, whiteKeyWidth - 5, kbHeight - 4);
+          ctx.fillRect(x + 2, keyY + 2, keyW - 4, kbHeight - frontDepth - 4);
+        }
+
+        // Label all C keys with their octave number
+        if (midi % 12 === 0) {
+          const octave = Math.floor(midi / 12) - 1;
+          const fontSize = Math.max(10, Math.min(14, whiteKeyWidth * 0.65));
+          ctx.font = `bold ${fontSize}px sans-serif`;
+          ctx.fillStyle = brightness > 0.1 ? 'rgba(50,45,40,0.95)' : 'rgba(100,95,85,0.9)';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(`C${octave}`, x + keyW / 2, keyY + kbHeight - frontDepth - 3);
         }
 
         whiteIdx++;
       }
     }
 
-    // Draw black keys (on top)
+    // Draw black keys with 3D depth effect (on top)
     whiteIdx = 0;
     for (let midi = MIDI_LO; midi <= MIDI_HI; midi++) {
       if (!isBlackKey(midi)) {
@@ -270,31 +317,61 @@ export class PianoRollEffect implements VisualEffect {
         // Key depression - shifts key down when pressed
         const depress = brightness > 0.1 ? maxDepress * 0.7 * Math.min(1, brightness) : 0;
         const keyY = kbTop + depress;
+        const bkBevel = Math.max(1.5, blackKeyWidth * 0.1);
 
-        // Key fill with gradient from two palette stops
+        // Main key body
         if (brightness > 0.1) {
           const [topColor, bottomColor] = this.getKeyGradientColors(midi);
-          // Pulse with groove curve, slight transparency when depressed
           const pulse = 0.85 + grooveMod * 0.15;
           const alpha = (0.75 + brightness * 0.25) * pulse;
           const keyGradient = ctx.createLinearGradient(0, keyY, 0, keyY + blackKeyHeight);
           keyGradient.addColorStop(0, rgba(topColor[0], topColor[1], topColor[2], alpha));
-          keyGradient.addColorStop(1, rgba(bottomColor[0], bottomColor[1], bottomColor[2], alpha));
+          keyGradient.addColorStop(0.8, rgba(bottomColor[0], bottomColor[1], bottomColor[2], alpha));
+          keyGradient.addColorStop(1, rgba(bottomColor[0] * 0.6, bottomColor[1] * 0.6, bottomColor[2] * 0.6, alpha));
           ctx.fillStyle = keyGradient;
         } else {
-          // Unlit black key gradient
+          // Unlit black key with glossy ebony gradient
           const blackGradient = ctx.createLinearGradient(0, keyY, 0, keyY + blackKeyHeight);
-          blackGradient.addColorStop(0, '#333');
-          blackGradient.addColorStop(1, '#1a1a1a');
+          blackGradient.addColorStop(0, '#3a3a3a');
+          blackGradient.addColorStop(0.1, '#2a2a2a');
+          blackGradient.addColorStop(0.8, '#1a1a1a');
+          blackGradient.addColorStop(1, '#0a0a0a');
           ctx.fillStyle = blackGradient;
         }
         ctx.fillRect(x, keyY, blackKeyWidth, blackKeyHeight);
 
-        // Glow effect (no shadow blur)
+        // Glossy top highlight
+        const glossHighlight = ctx.createLinearGradient(0, keyY, 0, keyY + blackKeyHeight * 0.3);
+        glossHighlight.addColorStop(0, 'rgba(255,255,255,0.25)');
+        glossHighlight.addColorStop(0.5, 'rgba(255,255,255,0.08)');
+        glossHighlight.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = glossHighlight;
+        ctx.fillRect(x + bkBevel, keyY, blackKeyWidth - bkBevel * 2, blackKeyHeight * 0.3);
+
+        // Left bevel (light)
+        const leftBevel = ctx.createLinearGradient(x, 0, x + bkBevel, 0);
+        leftBevel.addColorStop(0, 'rgba(80,80,80,0.8)');
+        leftBevel.addColorStop(1, 'rgba(40,40,40,0)');
+        ctx.fillStyle = leftBevel;
+        ctx.fillRect(x, keyY, bkBevel, blackKeyHeight);
+
+        // Right bevel (shadow)
+        const rightBevel = ctx.createLinearGradient(x + blackKeyWidth - bkBevel, 0, x + blackKeyWidth, 0);
+        rightBevel.addColorStop(0, 'rgba(0,0,0,0)');
+        rightBevel.addColorStop(1, 'rgba(0,0,0,0.5)');
+        ctx.fillStyle = rightBevel;
+        ctx.fillRect(x + blackKeyWidth - bkBevel, keyY, bkBevel, blackKeyHeight);
+
+        // Front face (bottom edge depth)
+        const frontFace = Math.max(2, bkBevel * 0.7);
+        ctx.fillStyle = brightness > 0.1 ? 'rgba(30,25,20,0.9)' : 'rgba(5,5,5,0.95)';
+        ctx.fillRect(x, keyY + blackKeyHeight - frontFace, blackKeyWidth, frontFace);
+
+        // Glow effect when pressed
         if (brightness > 0.5) {
           const [gr, gg, gb] = this.getNoteColorRGB(midi);
-          ctx.fillStyle = rgba(gr, gg, gb, 0.3 * brightness);
-          ctx.fillRect(x + 2, keyY + 2, blackKeyWidth - 4, blackKeyHeight - 4);
+          ctx.fillStyle = rgba(gr, gg, gb, 0.35 * brightness);
+          ctx.fillRect(x + bkBevel, keyY + bkBevel, blackKeyWidth - bkBevel * 2, blackKeyHeight - frontFace - bkBevel * 2);
         }
       }
     }
@@ -559,6 +636,70 @@ export class PianoRollEffect implements VisualEffect {
     // Map octave brightness (0.25-1.0) to palette position (0.3-0.8)
     const pos = 0.3 + octaveBrightness * 0.5;
     return samplePaletteColor(pc, pos);
+  }
+
+  /**
+   * Hit-test a point on the canvas and return the MIDI note if a key was clicked.
+   * Coordinates should be relative to the piano roll canvas (0,0 at top-left).
+   * Returns null if no key was hit.
+   */
+  hitTestKey(x: number, y: number): number | null {
+    const kbHeight = this.height * this.keyboardHeight;
+    const kbTop = this.height - kbHeight;
+
+    // Only check if click is in keyboard area
+    if (y < kbTop) return null;
+
+    const whiteKeyWidth = this.width / TOTAL_WHITE_KEYS;
+    const blackKeyWidth = whiteKeyWidth * 0.6;
+    const blackKeyHeight = kbHeight * 0.6;
+
+    // Check black keys first (they're on top)
+    let whiteIdx = 0;
+    for (let midi = MIDI_LO; midi <= MIDI_HI; midi++) {
+      if (!isBlackKey(midi)) {
+        whiteIdx++;
+      } else {
+        // Black key position
+        const pc = midi % 12;
+        const offset = blackKeyOffset[pc] ?? 0.5;
+        const keyX = (whiteIdx - 1 + offset) * whiteKeyWidth - blackKeyWidth / 2;
+
+        // Check if within black key bounds
+        if (x >= keyX && x < keyX + blackKeyWidth && y < kbTop + blackKeyHeight) {
+          return midi;
+        }
+      }
+    }
+
+    // Check white keys
+    whiteIdx = 0;
+    for (let midi = MIDI_LO; midi <= MIDI_HI; midi++) {
+      if (!isBlackKey(midi)) {
+        const keyX = whiteIdx * whiteKeyWidth;
+        if (x >= keyX && x < keyX + whiteKeyWidth) {
+          return midi;
+        }
+        whiteIdx++;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Trigger visual feedback for a note being played interactively.
+   */
+  triggerKey(midi: number): void {
+    if (midi < MIDI_LO || midi > MIDI_HI) return;
+    const state = this.keyStates.get(midi) || { brightness: 0 };
+    state.brightness = 1.0;
+    this.keyStates.set(midi, state);
+  }
+
+  /** Get current render dimensions for coordinate mapping */
+  getDimensions(): { width: number; height: number } {
+    return { width: this.width, height: this.height };
   }
 
   isReady(): boolean { return this.ready; }

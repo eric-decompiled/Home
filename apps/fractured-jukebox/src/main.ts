@@ -11,7 +11,7 @@ requestAnimationFrame(() => document.documentElement.classList.remove('theme-loa
 
 import { fractalEngine } from './fractal-engine.ts';
 import { analyzeMidiBuffer, type MusicTimeline } from './midi-analyzer.ts';
-import { audioPlayer, unlockAudio } from './audio-player.ts';
+import { audioPlayer, unlockAudio, playNote, stopNote, ensureSynthReady } from './audio-player.ts';
 import { musicMapper } from './music-mapper.ts';
 import { Compositor } from './effects/compositor.ts';
 import { FractalEffect } from './effects/fractal-effect.ts';
@@ -19,7 +19,7 @@ import { FlowFieldEffect } from './effects/flow-field.ts';
 import { KaleidoscopeEffect } from './effects/kaleidoscope.ts';
 import { WaveInterferenceEffect } from './effects/wave-interference.ts';
 import { ChladniEffect } from './effects/chladni.ts';
-import { DomainWarpEffect } from './effects/domain-warp.ts';
+import { FluxEffect } from './effects/flux.ts';
 import { TonnetzEffect } from './effects/tonnetz.ts';
 import { MelodyAuroraEffect } from './effects/melody-aurora.ts';
 import { MelodyWebEffect } from './effects/melody-web.ts';
@@ -39,6 +39,7 @@ import { GraphChainEffect } from './effects/graph-chain.ts';
 import { FeedbackTrailEffect } from './effects/feedback-trail.ts';
 import { CrtOverlayEffect } from './effects/crt-overlay.ts';
 import type { VisualEffect } from './effects/effect-interface.ts';
+import { createModal } from './modal.ts';
 import {
   type VisualizerState,
   PRESET_LAYERS,
@@ -70,9 +71,9 @@ async function getFractalConfigPanel(): Promise<InstanceType<typeof import('./fr
 
   const mod = await ensureFractalConfigModule();
   fractalConfigPanel = new mod.FractalConfigPanel();
-  fractalConfigPanel.onSave = () => {
+  fractalConfigPanel.onAnchorsChange = (anchors) => {
     dirty = true;
-    musicMapper.reloadAnchors();
+    musicMapper.setAnchors(anchors);
   };
   fractalConfigPanel.onPresetsChange = () => {
     const foregroundSlot = layerSlots.find(s => s.name === 'Foreground');
@@ -269,7 +270,7 @@ const flowFieldEffect = new FlowFieldEffect();
 const kaleidoscopeEffect = new KaleidoscopeEffect();
 const waveEffect = new WaveInterferenceEffect();
 const chladniEffect = new ChladniEffect();
-const domainWarpEffect = new DomainWarpEffect();
+const fluxEffect = new FluxEffect();
 const tonnetzEffect = new TonnetzEffect();
 const melodyAuroraEffect = new MelodyAuroraEffect();
 const melodyWebEffect = new MelodyWebEffect();
@@ -305,7 +306,7 @@ const layerSlots: LayerSlot[] = [
   },
   {
     name: 'Background',
-    effects: [starFieldEffect, domainWarpEffect, waveEffect, chladniEffect, flowFieldEffect],
+    effects: [starFieldEffect, fluxEffect, waveEffect, chladniEffect, flowFieldEffect],
     activeId: 'flowfield',  // Fractal Dance default
   },
   {
@@ -539,6 +540,9 @@ app.innerHTML = `
 
     <div class="main-area">
       <div class="layer-panel" id="layer-panel">
+        <div class="layer-panel-scroll-track">
+          <div class="layer-panel-scroll-thumb"></div>
+        </div>
         <div class="layer-panel-header">
           <div class="layer-panel-title">
             <span>Visuals</span>
@@ -659,7 +663,7 @@ app.innerHTML = `
             <li><strong>Starfield</strong> – Drifting stars that pulse with the beat</li>
             <li><strong>Flow Field</strong> – Flowing particles guided by harmonic energy</li>
             <li><strong>Chladni</strong> – Vibrating plate patterns that morph with chords</li>
-            <li><strong>Domain Warp</strong> – Psychedelic noise warped by bass and melody</li>
+            <li><strong>Flux</strong> – Psychedelic noise warped by bass and melody</li>
           </ul>
         </div>
 
@@ -668,7 +672,7 @@ app.innerHTML = `
           <p class="layer-info-desc">Post-processing effects applied on top.</p>
           <ul>
             <li><strong>Kaleidoscope</strong> – Mirror symmetry that rotates with the beat</li>
-            <li><strong>Feedback Trail</strong> – Motion blur trails that follow the visuals</li>
+            <li><strong>Feedback</strong> – Motion blur trails that follow the visuals</li>
             <li><strong>Theory Bar</strong> – Shows chord progressions and Roman numeral analysis</li>
           </ul>
         </div>
@@ -1066,6 +1070,35 @@ const layersToggle = document.getElementById('layers-toggle') as HTMLButtonEleme
 const layerPanel = document.getElementById('layer-panel')!;
 let layerPanelOpen = false;
 const layerList = document.getElementById('layer-list')!;
+const layerPanelScrollTrack = document.querySelector('.layer-panel-scroll-track') as HTMLElement;
+const layerPanelScrollThumb = document.querySelector('.layer-panel-scroll-thumb') as HTMLElement;
+
+// Layer panel custom scroll indicator
+function updateLayerPanelScroll(): void {
+  const { scrollTop, scrollHeight, clientHeight } = layerList;
+  const scrollable = scrollHeight > clientHeight + 1;
+
+  if (!layerPanelOpen || !scrollable) {
+    layerPanelScrollTrack.style.opacity = '0';
+    return;
+  }
+
+  layerPanelScrollTrack.style.opacity = '1';
+  const trackHeight = layerPanelScrollTrack.clientHeight;
+  const thumbHeight = Math.max(30, (clientHeight / scrollHeight) * trackHeight);
+  const maxScroll = scrollHeight - clientHeight;
+  const thumbTop = maxScroll > 0 ? (scrollTop / maxScroll) * (trackHeight - thumbHeight) : 0;
+  layerPanelScrollThumb.style.height = `${thumbHeight}px`;
+  layerPanelScrollThumb.style.top = `${thumbTop}px`;
+}
+
+layerList.addEventListener('scroll', updateLayerPanelScroll);
+// Update when panel content changes
+const layerListObserver = new MutationObserver(() => {
+  requestAnimationFrame(updateLayerPanelScroll);
+});
+layerListObserver.observe(layerList, { childList: true, subtree: true });
+
 const colorsGrid = document.getElementById('colors-grid')!;
 const colorsSection = document.getElementById('colors-section')!;
 const savedPresetsSection = document.getElementById('saved-presets')!;
@@ -1169,6 +1202,9 @@ hamburgerBtn.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
   layerPanel.classList.toggle('open', layerPanelOpen);
+  if (layerPanelOpen) {
+    requestAnimationFrame(() => requestAnimationFrame(updateLayerPanelScroll));
+  }
 });
 
 // --- Playlist category switching ---
@@ -1588,6 +1624,9 @@ layersToggle.addEventListener('click', () => {
   layerPanelOpen = !layerPanelOpen;
   layersToggle.classList.toggle('active', layerPanelOpen);
   layerPanel.classList.toggle('open', layerPanelOpen);
+  if (layerPanelOpen) {
+    requestAnimationFrame(() => requestAnimationFrame(updateLayerPanelScroll));
+  }
 });
 
 // Reset layer panel scroll on orientation change to prevent wonky positioning
@@ -1633,22 +1672,12 @@ layerPanel.addEventListener('touchend', () => {
 
 // Layer info modal
 const layerInfoBtn = document.getElementById('layer-info-btn')!;
-const layerInfoModal = document.getElementById('layer-info-modal')!;
-const layerInfoClose = document.getElementById('layer-info-close')!;
-
-layerInfoBtn.addEventListener('click', () => {
-  layerInfoModal.classList.add('visible');
+const layerInfoModal = createModal({
+  overlayId: 'layer-info-modal',
+  closeButtonId: 'layer-info-close',
 });
 
-layerInfoClose.addEventListener('click', () => {
-  layerInfoModal.classList.remove('visible');
-});
-
-layerInfoModal.addEventListener('click', (e) => {
-  if (e.target === layerInfoModal) {
-    layerInfoModal.classList.remove('visible');
-  }
-});
+layerInfoBtn.addEventListener('click', layerInfoModal.open);
 
 // --- Fractal Config Panel (lazy-loaded when needed) ---
 // Panel is loaded on-demand via getFractalConfigPanel()
@@ -2204,7 +2233,7 @@ function buildLayerPanel(): void {
   numeralsToggleDiv.appendChild(numeralsLabel);
   overlaysToggles.appendChild(numeralsToggleDiv);
 
-  // Feedback Trail toggle
+  // Feedback toggle
   const feedbackToggleDiv = document.createElement('div');
   feedbackToggleDiv.className = 'slot-display-toggle';
   const feedbackLabel = document.createElement('label');
@@ -2224,7 +2253,7 @@ function buildLayerPanel(): void {
   const feedbackSwitch = document.createElement('span');
   feedbackSwitch.className = 'toggle-switch';
   feedbackLabel.appendChild(feedbackSwitch);
-  feedbackLabel.appendChild(document.createTextNode('Feedback Trail'));
+  feedbackLabel.appendChild(document.createTextNode('Feedback'));
   feedbackToggleDiv.appendChild(feedbackLabel);
   overlaysToggles.appendChild(feedbackToggleDiv);
 
@@ -2476,7 +2505,7 @@ layerList.addEventListener('click', async (e) => {
 
   // QR Code button
   if (target.id === 'qr-code-btn' || target.closest('#qr-code-btn')) {
-    openQrModal();
+    qrModal.open();
     return;
   }
 });
@@ -2680,52 +2709,21 @@ function generateShareURL(): string {
 }
 
 // QR Code modal (static image generated at build time)
-const qrModalOverlay = document.getElementById('qr-modal-overlay')!;
-const qrModalClose = document.getElementById('qr-modal-close')!;
-
-function openQrModal(): void {
-  qrModalOverlay.classList.add('visible');
-}
-
-function closeQrModal(): void {
-  qrModalOverlay.classList.remove('visible');
-}
-
-qrModalClose.addEventListener('click', closeQrModal);
-qrModalOverlay.addEventListener('click', (e) => {
-  if (e.target === qrModalOverlay) closeQrModal();
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && qrModalOverlay.classList.contains('visible')) {
-    closeQrModal();
-  }
+const qrModal = createModal({
+  overlayId: 'qr-modal-overlay',
+  closeButtonId: 'qr-modal-close',
 });
 
 // About modal
-const aboutModalOverlay = document.getElementById('about-modal-overlay')!;
-const aboutModalClose = document.getElementById('about-modal-close')!;
 const playOverlayAbout = document.getElementById('play-overlay-about') as HTMLButtonElement;
-
-function openAboutModal(): void {
-  aboutModalOverlay.classList.add('visible');
-}
-
-function closeAboutModal(): void {
-  aboutModalOverlay.classList.remove('visible');
-}
+const aboutModal = createModal({
+  overlayId: 'about-modal-overlay',
+  closeButtonId: 'about-modal-close',
+});
 
 playOverlayAbout.addEventListener('click', (e) => {
   e.stopPropagation(); // Don't trigger play overlay click
-  openAboutModal();
-});
-aboutModalClose.addEventListener('click', closeAboutModal);
-aboutModalOverlay.addEventListener('click', (e) => {
-  if (e.target === aboutModalOverlay) closeAboutModal();
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && aboutModalOverlay.classList.contains('visible')) {
-    closeAboutModal();
-  }
+  aboutModal.open();
 });
 
 // Sync all preset button highlights to match the given preset (or clear if null)
@@ -2775,7 +2773,7 @@ function getPresetSummary(): string {
     }
   }
   if (kaleidoscopeEnabled) parts.push('Kaleidoscope');
-  if (feedbackTrailEnabled) parts.push('Feedback Trail');
+  if (feedbackTrailEnabled) parts.push('Feedback');
   return parts.length > 0 ? parts.join(' · ') : 'No effects selected';
 }
 
@@ -2988,7 +2986,7 @@ if (aboutShortcutsLink) {
   aboutShortcutsLink.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    closeAboutModal();
+    aboutModal.close();
     openShortcutsModal();
   });
 }
@@ -3619,6 +3617,81 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// --- Interactive Piano ---
+// Track currently playing note from user interaction
+let interactivePianoNote: number | null = null;
+
+function isPianoRollActive(): boolean {
+  const foregroundSlot = layerSlots.find(s => s.name === 'Foreground');
+  return foregroundSlot?.activeId === 'piano-roll';
+}
+
+function getPianoRollCoords(e: MouseEvent | Touch): { x: number; y: number } {
+  const rect = canvas.getBoundingClientRect();
+  // Map to piano roll's internal dimensions, not main canvas
+  const { width, height } = pianoRollEffect.getDimensions();
+  const scaleX = width / rect.width;
+  const scaleY = height / rect.height;
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top) * scaleY,
+  };
+}
+
+async function startPianoNote(e: MouseEvent | TouchEvent): Promise<boolean> {
+  if (!isPianoRollActive()) return false;
+
+  const point = 'touches' in e ? e.touches[0] : e;
+  const { x, y } = getPianoRollCoords(point);
+  const midi = pianoRollEffect.hitTestKey(x, y);
+
+  if (midi !== null) {
+    // Ensure synth is ready before playing
+    await ensureSynthReady();
+    interactivePianoNote = midi;
+    playNote(midi, 100);
+    pianoRollEffect.triggerKey(midi);
+    return true;
+  }
+  return false;
+}
+
+function stopPianoNote(): void {
+  if (interactivePianoNote !== null) {
+    stopNote(interactivePianoNote);
+    interactivePianoNote = null;
+  }
+}
+
+// Mouse/touch handlers for piano keys
+canvas.addEventListener('mousemove', (e) => {
+  if (!isPianoRollActive()) {
+    canvas.style.cursor = '';
+    return;
+  }
+  const { x, y } = getPianoRollCoords(e);
+  const midi = pianoRollEffect.hitTestKey(x, y);
+  canvas.style.cursor = midi !== null ? 'pointer' : '';
+});
+
+canvas.addEventListener('mousedown', async (e) => {
+  if (await startPianoNote(e)) {
+    e.preventDefault();
+  }
+});
+
+canvas.addEventListener('mouseup', stopPianoNote);
+canvas.addEventListener('mouseleave', stopPianoNote);
+
+canvas.addEventListener('touchstart', async (e) => {
+  if (await startPianoNote(e)) {
+    e.preventDefault();
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchend', stopPianoNote);
+canvas.addEventListener('touchcancel', stopPianoNote);
+
 // Click/tap canvas to play/pause (Cmd+click toggles theory bar)
 canvas.addEventListener('click', (e) => {
   // Cmd+click (Mac) or Ctrl+click (Windows) toggles theory bar
@@ -3629,6 +3702,11 @@ canvas.addEventListener('click', (e) => {
   if (!timeline) return;
   // In fullscreen, don't toggle if tapping near top (that's for controls)
   if (getFullscreenEl() && e.clientY <= 100) return;
+  // Don't play/pause if clicking piano keys
+  if (isPianoRollActive()) {
+    const { x, y } = getPianoRollCoords(e);
+    if (pianoRollEffect.hitTestKey(x, y) !== null) return;
+  }
   playBtn.click();
 });
 
@@ -3871,7 +3949,7 @@ function loop(time: number): void {
 
     // Set fractal-specific params
     fractalEffect.setFractalParams(
-      params.cReal, params.cImag, 1.0,
+      params.cReal, params.cImag, params.viewZoom,
       params.baseIter, renderFidelity,
       params.fractalType, params.phoenixP,
       params.rotation, params.paletteIndex
@@ -3944,4 +4022,7 @@ loadSong(validTrackIdx);
 setTimeout(() => {
   midiBtn.classList.add('glow-pulse');
 }, 800);
+
+// Open fractal config panel by default
+getFractalConfigPanel().then(panel => panel.show());
 
