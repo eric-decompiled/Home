@@ -1427,8 +1427,8 @@ a.toggle-btn {
 }
 
 .config-btn {
-  padding: 3px 7px;
-  font-size: 9px;
+  padding: 4px 8px;
+  font-size: 10px;
   background: var(--ui-bg-button);
   border: 1px solid var(--ui-border);
   border-radius: 3px;
@@ -1453,11 +1453,15 @@ a.toggle-btn {
   flex-wrap: wrap;
 }
 
-/* Fractal customize button - primary color */
+/* Fractal customize button - primary color, full-size */
 .fractal-customize-btn {
+  padding: 6px 14px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
   background: var(--ui-accent) !important;
   border-color: var(--ui-accent) !important;
   color: #fff !important;
+  border-radius: 4px !important;
 }
 
 .fractal-customize-btn:hover {
@@ -6441,6 +6445,12 @@ body.android-landscape-fullscreen .layer-panel.open {
   gap: 6px 16px;
 }
 
+/* Single-column sections (tips, descriptions) should span full width */
+.about-section p,
+.about-section ul {
+  grid-column: 1 / -1;
+}
+
 .about-section h3 {
   grid-column: 1 / -1;
   margin: 0 0 4px 0;
@@ -6449,6 +6459,14 @@ body.android-landscape-fullscreen .layer-panel.open {
   text-transform: uppercase;
   letter-spacing: 1px;
   color: rgba(136, 153, 170, 0.6);
+}
+
+/* Stack sections on mobile */
+@media (max-width: 480px) {
+  .about-section {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
 }
 
 .about-item {
@@ -7341,6 +7359,13 @@ body.android-landscape-fullscreen .layer-panel.open {
   width: 100%;
 }
 
+/* Larger cards on desktop */
+@media (min-width: 768px) {
+  .fc-wizard-family-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 16px;
+  }
+}
 
 .fc-wizard-family-card {
   display: flex;
@@ -7358,15 +7383,28 @@ body.android-landscape-fullscreen .layer-panel.open {
   justify-content: flex-start;
 }
 
+/* Larger cards on desktop */
+@media (min-width: 768px) {
+  .fc-wizard-family-card {
+    height: 240px;
+    padding: 10px 12px 12px;
+    gap: 6px;
+  }
+}
+
 .fc-wizard-family-info-btn {
   margin-top: auto;
-  padding: 4px 12px;
+  padding: 6px 12px;
   font-size: 11px;
   color: #fff;
   background: var(--ui-accent);
   border-radius: 4px;
   cursor: pointer;
   transition: all 0.15s;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .fc-wizard-family-info-btn:hover {
@@ -7422,16 +7460,16 @@ body.android-landscape-fullscreen .layer-panel.open {
 .fc-wizard-family-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
+  gap: 4px;
   justify-content: center;
   align-content: flex-start;
-  height: 30px;
+  height: 38px;
   overflow: hidden;
 }
 
 .fc-wizard-family-tag {
-  font-size: 8px;
-  padding: 2px 5px;
+  font-size: 9px;
+  padding: 3px 6px;
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.4);
   color: var(--ui-text-muted);
