@@ -277,6 +277,101 @@ console.log(yellow('\nTest 8: Boolean config encoding'));
   assertEqual(decoded?.configs?.['note-spiral']?.darkBackdrop, false, 'Boolean false decoded');
 }
 
+// Test 9: Bass numerals and melody notes toggles
+console.log(yellow('\nTest 9: Bass numerals and melody notes toggles'));
+{
+  const state: VisualizerState = {
+    version: 1,
+    layers: {
+      bg: 'starfield',
+      fg: 'note-spiral',
+      overlay: null,
+      overlays: [],
+      melody: 'melody-clock',
+      bass: 'bass-clock',
+      hud: null,
+    },
+    configs: {
+      'bass-clock': {
+        showNumerals: false, // non-default (default is true)
+      },
+      'melody-clock': {
+        showNotes: false, // non-default (default is true)
+      },
+    },
+  };
+  const url = stateToURL(state);
+  assert(url.includes('bc.n=0'), 'Bass-clock showNumerals=false encoded');
+  assert(url.includes('mc.n=0'), 'Melody-clock showNotes=false encoded');
+
+  const decoded = urlToState(url);
+  assertEqual(decoded?.configs?.['bass-clock']?.showNumerals, false, 'Bass-clock showNumerals decoded');
+  assertEqual(decoded?.configs?.['melody-clock']?.showNotes, false, 'Melody-clock showNotes decoded');
+}
+
+// Test 10: Bass-fire numerals (default is false, test non-default true)
+console.log(yellow('\nTest 10: Bass-fire numerals toggle'));
+{
+  const state: VisualizerState = {
+    version: 1,
+    layers: {
+      bg: 'starfield',
+      fg: 'note-star',
+      overlay: null,
+      overlays: [],
+      melody: null,
+      bass: 'bass-fire',
+      hud: null,
+    },
+    configs: {
+      'bass-fire': {
+        showNumerals: true, // non-default for bass-fire (default is false)
+      },
+    },
+  };
+  const url = stateToURL(state);
+  assert(url.includes('bf.n=1'), 'Bass-fire showNumerals=true encoded');
+
+  const decoded = urlToState(url);
+  assertEqual(decoded?.configs?.['bass-fire']?.showNumerals, true, 'Bass-fire showNumerals decoded');
+}
+
+// Test 11: Overlay configs roundtrip (kaleidoscope, feedback-trail)
+console.log(yellow('\nTest 11: Overlay configs roundtrip'));
+{
+  const state: VisualizerState = {
+    version: 1,
+    layers: {
+      bg: 'chladni',
+      fg: 'note-spiral',
+      overlay: null,
+      overlays: ['kaleidoscope', 'feedback-trail'],
+      melody: null,
+      bass: null,
+      hud: null,
+    },
+    configs: {
+      'kaleidoscope': {
+        foldCount: 12, // non-default (default is 7)
+        rotationSpeed: 0.5, // non-default (default is 0.2)
+      },
+      'feedback-trail': {
+        decay: 0.95, // non-default (default is 0.92)
+        zoom: 1.02, // non-default (default is 1.008)
+      },
+    },
+  };
+  const url = stateToURL(state);
+  assert(url.includes('ks.f=12'), 'Kaleidoscope foldCount encoded');
+  assert(url.includes('ft.d=0.95'), 'Feedback-trail decay encoded');
+
+  const decoded = urlToState(url);
+  assertEqual(decoded?.configs?.['kaleidoscope']?.foldCount, 12, 'Kaleidoscope foldCount decoded');
+  assertEqual(decoded?.configs?.['kaleidoscope']?.rotationSpeed, 0.5, 'Kaleidoscope rotationSpeed decoded');
+  assertEqual(decoded?.configs?.['feedback-trail']?.decay, 0.95, 'Feedback-trail decay decoded');
+  assertEqual(decoded?.configs?.['feedback-trail']?.zoom, 1.02, 'Feedback-trail zoom decoded');
+}
+
 // Summary
 console.log(yellow('\n=== Summary ==='));
 console.log(`${green(String(passed))} passed, ${failed > 0 ? red(String(failed)) : '0'} failed`);

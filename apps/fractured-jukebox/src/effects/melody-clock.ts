@@ -707,7 +707,9 @@ export class MelodyClockEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'showNotes', label: 'Show Notes', type: 'toggle', value: this.showNotes },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {

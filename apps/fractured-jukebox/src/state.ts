@@ -194,6 +194,22 @@ export const CONFIG_SHORTS: Record<string, Record<string, string>> = {
     'edgeWidth': 'e',
     'glowIntensity': 'g',
   },
+  'bass-clock': { 'showNumerals': 'n' },
+  'bass-fire': { 'showNumerals': 'n' },
+  'bass-web': { 'showNumerals': 'n' },
+  'melody-clock': { 'showNotes': 'n' },
+  'kaleidoscope': {
+    'foldCount': 'f',
+    'rotationSpeed': 'r',
+    'mirrorMode': 'm',
+    'centerOffsetX': 'x',
+    'centerOffsetY': 'y',
+  },
+  'feedback-trail': {
+    'decay': 'd',
+    'zoom': 'z',
+    'rotation': 'r',
+  },
 };
 
 // Build reverse mappings
@@ -329,6 +345,11 @@ export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
     warpMult: 1.0,
     warpScale: 3.5,
     colorByChord: false,
+  },
+  'feedback-trail': {
+    decay: 0.92,
+    zoom: 1.008,
+    rotation: 0.003,
   },
 };
 

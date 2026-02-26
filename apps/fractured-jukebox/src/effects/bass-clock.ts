@@ -657,7 +657,9 @@ export class BassClockEffect implements VisualEffect {
   }
 
   getConfig(): EffectConfig[] {
-    return [];
+    return [
+      { key: 'showNumerals', label: 'Show Numerals', type: 'toggle', value: this.showNumerals },
+    ];
   }
 
   getDefaults(): Record<string, number | string | boolean> {
