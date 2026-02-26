@@ -1633,7 +1633,7 @@ export class FractalConfigPanel {
             <div class="fc-wizard-home-save">
               <input type="text" class="fc-wizard-name-input" placeholder="Preset name" maxlength="30">
               <div class="fc-wizard-home-actions">
-                <button class="fc-btn fc-wizard-copy-code">Copy as Code</button>
+                <button class="fc-btn fc-wizard-copy-code" title="Please email eric@decompiled.dev this if you think you have good settings :)">Copy as Code</button>
                 <button class="fc-btn fc-btn-primary fc-wizard-save-btn">Save Preset</button>
               </div>
             </div>
@@ -1643,41 +1643,42 @@ export class FractalConfigPanel {
         </div>
 
         <!-- ===================== MODALS ===================== -->
-        <div class="modal-overlay fc-info-modal" id="fc-info-modal">
-          <div class="modal-box fc-info-content">
-            <div class="modal-header">
+        <!-- Family Info Modal (uses about-modal structure) -->
+        <div class="about-modal-overlay" id="fc-info-modal">
+          <div class="about-modal">
+            <div class="about-modal-header">
               <span id="fc-info-title">Family Name</span>
-              <button class="modal-close">&times;</button>
+              <button class="about-modal-close" id="fc-info-close">&times;</button>
             </div>
 
-            <div class="fc-info-body">
+            <div class="about-modal-body">
               <div class="fc-info-meta">
-                <span class="fc-info-meta-item"><strong>Year:</strong> <span id="fc-info-year">1980</span></span>
-                <span class="fc-info-meta-item"><strong>Creator:</strong> <span id="fc-info-creator">Unknown</span></span>
-                <span class="fc-info-meta-item"><strong>Category:</strong> <span id="fc-info-category">Polynomial</span></span>
+                <span class="fc-info-meta-item"><span class="about-label">Year:</span> <span id="fc-info-year">1980</span></span>
+                <span class="fc-info-meta-item"><span class="about-label">Creator:</span> <span id="fc-info-creator">Unknown</span></span>
+                <span class="fc-info-meta-item"><span class="about-label">Category:</span> <span id="fc-info-category">Polynomial</span></span>
               </div>
 
               <div class="fc-info-formula" id="fc-info-formula">z → z² + c</div>
 
-              <p class="fc-info-desc" id="fc-info-desc">Description</p>
+              <p id="fc-info-desc">Description</p>
 
-              <div class="fc-info-section">
-                <strong>Visual Characteristics:</strong>
+              <div class="about-section">
+                <h3>Visual Characteristics</h3>
                 <ul id="fc-info-traits-list"></ul>
               </div>
 
-              <div class="fc-info-section">
-                <strong>Interesting c-values to explore:</strong>
+              <div class="about-section">
+                <h3>Interesting c-values to explore</h3>
                 <ul id="fc-info-hotspots-list" class="fc-info-hotspots"></ul>
               </div>
 
-              <div class="fc-info-tips">
-                <strong>💡 Tips:</strong>
+              <div class="about-section">
+                <h3>💡 Tips</h3>
                 <p id="fc-info-tips-text">Exploration tips will appear here.</p>
               </div>
 
-              <div class="fc-info-related">
-                <strong>Related Families:</strong>
+              <div class="about-section">
+                <h3>Related Families</h3>
                 <span id="fc-info-related-list"></span>
               </div>
             </div>
@@ -1727,52 +1728,46 @@ export class FractalConfigPanel {
           </div>
         </div>
 
-        <!-- Help Modal -->
-        <div class="modal-overlay fc-help-modal" id="fc-help-modal">
-          <div class="modal-box fc-help-content">
-            <div class="modal-header">
+        <!-- Help Modal (uses about-modal structure) -->
+        <div class="about-modal-overlay" id="fc-help-modal">
+          <div class="about-modal">
+            <div class="about-modal-header">
               <span>About Fractal Presets</span>
-              <button class="modal-close">&times;</button>
+              <button class="about-modal-close" id="fc-help-close">&times;</button>
             </div>
-            <div class="fc-help-body">
-              <p>Create custom fractal animations that respond to the music. Each note in the song triggers a different fractal pattern based on your configuration.</p>
+            <div class="about-modal-body">
+              <p>Fractals inspired this entire project—though honestly, the effort-to-aesthetics ratio isn't great. But as a way to explore fractal mathematics, it's educational and endlessly fascinating (well, up to 1000× zoom anyway).</p>
+              <p>Each chord root triggers a different fractal anchor point—C through B, twelve in total. Chord qualities like major or minor aren't distinguished. Configure where each root lands in fractal space and watch the harmony unfold.</p>
 
-              <div class="fc-help-section">
-                <h4>Note Cards</h4>
-                <p>Each card represents a musical note (C through B). The preview shows how the fractal will look when that note plays.</p>
-                <ul>
-                  <li><strong>Edit (✎)</strong> – Configure the anchor point and animation</li>
-                  <li><strong>Randomize (🎲)</strong> – Generate a random interesting anchor</li>
-                </ul>
+              <div class="about-section">
+                <h3>Note Cards</h3>
+                <div class="about-item"><span class="about-label">Edit (✎)</span> — Configure the anchor point and animation</div>
+                <div class="about-item"><span class="about-label">Randomize (🎲)</span> — Generate a random anchor</div>
               </div>
 
-              <div class="fc-help-section">
-                <h4>Fractal Families</h4>
+              <div class="about-section">
+                <h3>Fractal Families</h3>
                 <p>Different mathematical formulas create distinct visual styles:</p>
-                <ul>
-                  <li><strong>Classic</strong> – The original Mandelbrot/Julia set</li>
-                  <li><strong>Burning Ship</strong> – Sharp, crystalline structures</li>
-                  <li><strong>Tricorn</strong> – Three-fold symmetry patterns</li>
-                  <li><strong>Phoenix</strong> – Flowing, organic shapes</li>
-                </ul>
+                <div class="about-item"><span class="about-label">Classic</span> — The original Mandelbrot/Julia set</div>
+                <div class="about-item"><span class="about-label">Burning Ship</span> — Sharp, crystalline structures</div>
+                <div class="about-item"><span class="about-label">Tricorn</span> — Three-fold symmetry patterns</div>
+                <div class="about-item"><span class="about-label">Phoenix</span> — Flowing, organic shapes</div>
               </div>
 
-              <div class="fc-help-section">
-                <h4>Anchor Placement</h4>
+              <div class="about-section">
+                <h3>Anchor Placement</h3>
                 <p>The anchor point determines the center of your fractal. Different regions create different visual effects:</p>
-                <ul>
-                  <li><strong>Boundary regions</strong> – Most detail and complexity</li>
-                  <li><strong>Interior regions</strong> – Solid colors, less detail</li>
-                  <li><strong>Hotspots</strong> – Pre-selected interesting locations</li>
-                </ul>
+                <div class="about-item"><span class="about-label">Boundary regions</span> — Most detail and complexity</div>
+                <div class="about-item"><span class="about-label">Interior regions</span> — Solid colors, less detail</div>
+                <div class="about-item"><span class="about-label">Hotspots</span> — Pre-selected interesting locations</div>
               </div>
 
-              <div class="fc-help-section">
-                <h4>Movement</h4>
+              <div class="about-section">
+                <h3>Movement</h3>
                 <p>The orbit settings control how the fractal animates with the beat. Larger radius = more dramatic movement.</p>
               </div>
 
-              <p class="fc-help-tip">Note: Fractals were the first feature of the Fractured Jukebox!</p>
+              <p class="about-note">Tip: The boundary between colored and black regions has the most visual detail. Zoom in and explore!</p>
             </div>
           </div>
         </div>
@@ -1821,21 +1816,29 @@ export class FractalConfigPanel {
     });
 
     // Info modal close button
-    this.container.querySelector('#fc-info-modal .modal-close')?.addEventListener('click', () => this.hideFamilyInfo());
+    this.container.querySelector('#fc-info-close')?.addEventListener('click', () => this.hideFamilyInfo());
 
     // Close modal on backdrop click
     this.container.querySelector('#fc-info-modal')?.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).classList.contains('modal-overlay')) {
+      if ((e.target as HTMLElement).classList.contains('about-modal-overlay')) {
         this.hideFamilyInfo();
       }
     });
 
-    // Close modal on Escape key
+    // Close modal or panel on Escape key
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && this.visible) {
+        // First check if any modals are open
         const infoModal = this.container.querySelector('#fc-info-modal') as HTMLElement;
+        const helpModal = this.container.querySelector('#fc-help-modal') as HTMLElement;
+
         if (infoModal?.classList.contains('visible')) {
           this.hideFamilyInfo();
+        } else if (helpModal?.classList.contains('visible')) {
+          helpModal.classList.remove('visible');
+        } else {
+          // No modals open, close the panel (state is preserved)
+          this.hide();
         }
       }
     });
@@ -1987,10 +1990,10 @@ export class FractalConfigPanel {
 
   /** Set up wizard-specific event handlers */
   private setupWizardHandlers(): void {
-    // Help modal
+    // Help modal (uses about-modal structure)
     const helpModal = createModal({
       overlay: this.container.querySelector('#fc-help-modal') as HTMLElement,
-      closeButton: this.container.querySelector('#fc-help-modal .modal-close') as HTMLElement,
+      closeButton: this.container.querySelector('#fc-help-close') as HTMLElement,
     });
     this.container.querySelector('.fc-help-btn')?.addEventListener('click', () => helpModal.open());
 

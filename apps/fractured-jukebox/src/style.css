@@ -1453,6 +1453,18 @@ a.toggle-btn {
   flex-wrap: wrap;
 }
 
+/* Fractal customize button - primary color */
+.fractal-customize-btn {
+  background: var(--ui-accent) !important;
+  border-color: var(--ui-accent) !important;
+  color: #fff !important;
+}
+
+.fractal-customize-btn:hover {
+  background: var(--ui-accent-hover) !important;
+  border-color: var(--ui-accent-hover) !important;
+}
+
 .fractal-preset-default {
   border-color: var(--ui-accent);
   color: var(--ui-accent);
@@ -1488,7 +1500,7 @@ a.toggle-btn {
 .config-value {
   font-size: 10px;
   color: #888;
-  min-width: 30px;
+  min-width: 36px;
   text-align: right;
 }
 
@@ -3203,7 +3215,8 @@ body.android-landscape-fullscreen .layer-panel.open {
 }
 
 .light-mode .fc-help-tip {
-  background: rgba(255, 220, 180, 0.5);
+  background: rgba(180, 140, 100, 0.12);
+  border-top-color: rgba(180, 140, 100, 0.2);
 }
 
 /* Presets bar */
@@ -3343,8 +3356,8 @@ body.android-landscape-fullscreen .layer-panel.open {
   display: flex;
   align-items: center;
   justify-content: center;
-  align-self: stretch;
   width: 28px;
+  padding: 6px 0;
   margin-left: auto;
   background: var(--ui-danger);
   border: none;
@@ -3358,6 +3371,11 @@ body.android-landscape-fullscreen .layer-panel.open {
 .fc-preset-delete:hover {
   opacity: 1;
   background: #ff6b6b;
+}
+
+.fc-preset-delete svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* Built-in preset - blue/teal */
@@ -7415,11 +7433,15 @@ body.android-landscape-fullscreen .layer-panel.open {
   font-size: 8px;
   padding: 2px 5px;
   border-radius: 8px;
-  background: var(--ui-bg);
+  background: rgba(0, 0, 0, 0.4);
   color: var(--ui-text-muted);
   text-transform: lowercase;
   cursor: pointer;
   transition: all 0.15s;
+}
+
+.light-mode .fc-wizard-family-tag {
+  background: rgba(0, 0, 0, 0.12);
 }
 
 .fc-wizard-family-tag:hover {
