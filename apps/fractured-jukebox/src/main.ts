@@ -1979,25 +1979,8 @@ function syncMelodyNotes(value: boolean): void {
 }
 
 // --- Overlay/toggle persistence ---
-// URL params are authoritative - only load localStorage when no URL params
-const hasUrlParams = window.location.search.length > 1;
-
-// Load saved overlay preferences ONLY when no URL params (URL takes precedence)
-if (!hasUrlParams) {
-  const savedKaleidoscope = localStorage.getItem('kaleidoscopeEnabled');
-  if (savedKaleidoscope !== null) {
-    kaleidoscopeEnabled = savedKaleidoscope === 'true';
-  }
-  const savedFeedbackTrail = localStorage.getItem('feedbackTrailEnabled');
-  if (savedFeedbackTrail !== null) {
-    feedbackTrailEnabled = savedFeedbackTrail === 'true';
-  }
-  const savedCrtOverlay = localStorage.getItem('crtOverlayEnabled');
-  if (savedCrtOverlay !== null) {
-    crtOverlayEnabled = savedCrtOverlay === 'true';
-  }
-}
-// Apply overlay states (from URL or localStorage)
+// Overlays follow presets/URLs - no localStorage override
+// (User changes are saved to localStorage for UI checkbox sync, but presets are authoritative on load)
 applySlotSelections();
 
 // --- Build layer panel UI ---
