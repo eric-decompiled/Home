@@ -443,16 +443,28 @@ function applyURLSettings(): { presetApplied?: string } {
   const { overlays } = applyState(urlState as VisualizerState, layerSlots, getAllEffects());
   applyOverlaysFromState(overlays);
 
-  // Sync toggle variables from URL state configs (same logic as applyPreset)
-  const stateConfigs = urlState.configs ?? {};
-  const bassClockConfig = stateConfigs['bass-clock'] as Record<string, unknown> | undefined;
-  const bassFireConfig = stateConfigs['bass-fire'] as Record<string, unknown> | undefined;
-  const melodyConfig = stateConfigs['melody-clock'] as Record<string, unknown> | undefined;
-  // Use explicit false from any bass config, otherwise default to true
-  const bassNumeralsVal = (bassClockConfig?.showNumerals ?? bassFireConfig?.showNumerals) ?? true;
-  showBassNumerals = bassNumeralsVal as boolean;
-  const melodyNotesVal = melodyConfig?.showNotes ?? true;
-  showMelodyNotes = melodyNotesVal as boolean;
+  // Global toggle params take precedence over effect configs
+  // Check new global state fields first (num= and let= params)
+  if (typeof urlState.showNumerals === 'boolean') {
+    showBassNumerals = urlState.showNumerals;
+  } else {
+    // Fall back to effect configs for backwards compat
+    const stateConfigs = urlState.configs ?? {};
+    const bassClockConfig = stateConfigs['bass-clock'] as Record<string, unknown> | undefined;
+    const bassFireConfig = stateConfigs['bass-fire'] as Record<string, unknown> | undefined;
+    const bassNumeralsVal = (bassClockConfig?.showNumerals ?? bassFireConfig?.showNumerals) ?? true;
+    showBassNumerals = bassNumeralsVal as boolean;
+  }
+
+  if (typeof urlState.showNotes === 'boolean') {
+    showMelodyNotes = urlState.showNotes;
+  } else {
+    // Fall back to effect configs for backwards compat
+    const stateConfigs = urlState.configs ?? {};
+    const melodyConfig = stateConfigs['melody-clock'] as Record<string, unknown> | undefined;
+    const melodyNotesVal = melodyConfig?.showNotes ?? true;
+    showMelodyNotes = melodyNotesVal as boolean;
+  }
 
   applySlotSelections();
   return result;
@@ -1967,13 +1979,11 @@ function syncMelodyNotes(value: boolean): void {
 }
 
 // --- Overlay/toggle persistence ---
-// Only load localStorage values if we have URL params (not default preset)
-// When loading the default 'warp' preset, the preset should be authoritative
+// URL params are authoritative - only load localStorage when no URL params
 const hasUrlParams = window.location.search.length > 1;
 
-// Load saved overlay preferences only if URL has params (otherwise preset is authoritative)
-// Note: numerals/letters toggles are NOT persisted - they follow presets/effect selection
-if (hasUrlParams) {
+// Load saved overlay preferences ONLY when no URL params (URL takes precedence)
+if (!hasUrlParams) {
   const savedKaleidoscope = localStorage.getItem('kaleidoscopeEnabled');
   if (savedKaleidoscope !== null) {
     kaleidoscopeEnabled = savedKaleidoscope === 'true';
@@ -1987,7 +1997,7 @@ if (hasUrlParams) {
     crtOverlayEnabled = savedCrtOverlay === 'true';
   }
 }
-// Apply loaded overlay states
+// Apply overlay states (from URL or localStorage)
 applySlotSelections();
 
 // --- Build layer panel UI ---
@@ -2674,7 +2684,10 @@ function getEnabledOverlays(): string[] {
 const SHARE_BASE_URL = 'https://decompiled.dev/apps/fractured-jukebox/';
 
 function generateShareURL(): string {
-  const state = getCurrentState(layerSlots, getEnabledOverlays());
+  const state = getCurrentState(layerSlots, getEnabledOverlays(), {
+    showNumerals: showBassNumerals,
+    showNotes: showMelodyNotes,
+  });
   const baseQuery = stateToURL(state);
   const params = new URLSearchParams(baseQuery);
 
@@ -2779,7 +2792,10 @@ function confirmSavePreset(): void {
     return;
   }
 
-  const state = getCurrentState(layerSlots, getEnabledOverlays());
+  const state = getCurrentState(layerSlots, getEnabledOverlays(), {
+    showNumerals: showBassNumerals,
+    showNotes: showMelodyNotes,
+  });
   saveCustomPreset(name, state);
   renderSavedPresets();
   closeSaveModal();

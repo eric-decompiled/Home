@@ -27,7 +27,9 @@ function unwrapRiff(buffer: ArrayBuffer): ArrayBuffer {
 }
 
 let audioCtx: AudioContext | null = null;
-let synth: WorkletSynthesizer | null = null;
+let synth: WorkletSynthesizer | null = null;        // Main synth for MIDI playback
+let keyboardSynth: WorkletSynthesizer | null = null; // Dedicated synth for interactive piano
+let keyboardGain: GainNode | null = null;            // Volume boost for keyboard
 let sequencer: Sequencer | null = null;
 let analyser: AnalyserNode | null = null;
 let analyserData: Uint8Array<ArrayBuffer> | null = null;
@@ -93,7 +95,15 @@ async function init(): Promise<void> {
     new URL("/spessasynth_processor.min.js", import.meta.url).href,
   );
 
+  // Create main synth for MIDI playback
   synth = new WorkletSynthesizer(audioCtx);
+
+  // Create dedicated synth for interactive keyboard (isolated from MIDI songs)
+  keyboardSynth = new WorkletSynthesizer(audioCtx);
+
+  // Create gain node to boost keyboard volume (user notes should stand out)
+  keyboardGain = audioCtx.createGain();
+  keyboardGain.gain.value = 1.78;  // ~5dB boost
 
   // Create analyser for loudness metering
   analyser = audioCtx.createAnalyser();
@@ -101,8 +111,10 @@ async function init(): Promise<void> {
   analyser.smoothingTimeConstant = 0.8;
   analyserData = new Uint8Array(analyser.frequencyBinCount);
 
-  // Connect: synth -> analyser -> destination
+  // Connect: main synth -> analyser, keyboard synth -> gain -> analyser -> output
   synth.connect(analyser);
+  keyboardSynth.connect(keyboardGain);
+  keyboardGain.connect(analyser);
   analyser.connect(audioCtx.destination);
 
   const sfResponse = await fetch(`${import.meta.env.BASE_URL}TimGM6mb.sf2`);
@@ -111,8 +123,18 @@ async function init(): Promise<void> {
   }
   const sfBuffer = await sfResponse.arrayBuffer();
 
+  // Copy buffer before first use (addSoundBank may detach the original)
+  const sfBufferCopy = sfBuffer.slice(0);
+
+  // Load soundfont into both synths
   await synth.soundBankManager.addSoundBank(sfBuffer, "gm");
+  await keyboardSynth.soundBankManager.addSoundBank(sfBufferCopy, "gm");
+
   await synth.isReady;
+  await keyboardSynth.isReady;
+
+  // Set keyboard synth to Grand Piano permanently
+  keyboardSynth.programChange(0, 0);  // Channel 0, Program 0 = Acoustic Grand Piano
 }
 
 function ensureInit(): Promise<void> {
@@ -122,16 +144,17 @@ function ensureInit(): Promise<void> {
   return initPromise;
 }
 
-// Direct note playing for interactive piano
-export function playNote(midi: number, velocity = 100, channel = 0): void {
-  if (!synth) return;
-  synth.controllerChange(channel, 64, 127); // sustain pedal on for nicer sound
-  synth.noteOn(channel, midi, velocity);
+// Direct note playing for interactive piano (uses dedicated keyboard synth)
+export function playNote(midi: number, velocity = 100): void {
+  if (!keyboardSynth) return;
+
+  keyboardSynth.controllerChange(0, 64, 127); // sustain pedal on for nicer sound
+  keyboardSynth.noteOn(0, midi, velocity);
 }
 
-export function stopNote(midi: number, channel = 0): void {
-  if (!synth) return;
-  synth.noteOff(channel, midi);
+export function stopNote(midi: number): void {
+  if (!keyboardSynth) return;
+  keyboardSynth.noteOff(0, midi);
 }
 
 // Ensure synth is initialized (for interactive piano before playback starts)
@@ -149,6 +172,7 @@ export const audioPlayer = {
     if (synth) {
       synth.stopAll(true);
     }
+    // Note: keyboardSynth is NOT stopped - it stays ready for interactive piano
     pendingMidiBuffer = null;
     resetTimeTracking();
   },

@@ -85,6 +85,9 @@ export interface VisualizerState {
     hud: string | null;
   };
   configs: EffectConfigs;
+  // Global UI toggles (independent of which effect is active)
+  showNumerals?: boolean;    // Bass roman numerals overlay toggle
+  showNotes?: boolean;       // Melody note letters overlay toggle
   anchors?: FractalAnchors;  // Optional - only in JSON/localStorage, never in URL
   customColors?: Record<number, string>;  // Optional - pitch class (0-11) to hex color
 }
@@ -358,10 +361,12 @@ export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
 /**
  * Get current state from layer slots and effects
  * @param overlays - Array of enabled overlay effect IDs (for new multi-overlay system)
+ * @param globalToggles - Optional global UI toggle states
  */
 export function getCurrentState(
   layerSlots: { activeId: string | null; effects: VisualEffect[] }[],
-  overlays?: string[]
+  overlays?: string[],
+  globalToggles?: { showNumerals?: boolean; showNotes?: boolean }
 ): VisualizerState {
   const state: VisualizerState = {
     version: 1,
@@ -375,6 +380,9 @@ export function getCurrentState(
       hud: layerSlots[5]?.activeId ?? null,
     },
     configs: {},
+    // Global UI toggles (only set if false, since true is default)
+    ...(globalToggles?.showNumerals === false ? { showNumerals: false } : {}),
+    ...(globalToggles?.showNotes === false ? { showNotes: false } : {}),
   };
 
   // Collect configs from all active effects
@@ -611,6 +619,14 @@ export function stateToURL(state: VisualizerState): string {
     }
   }
 
+  // Encode global UI toggles (only if false, since true is the default)
+  if (state.showNumerals === false) {
+    params.set('num', '0');
+  }
+  if (state.showNotes === false) {
+    params.set('let', '0');
+  }
+
   return params.toString();
 }
 
@@ -707,6 +723,16 @@ export function urlToState(queryString: string): Partial<VisualizerState> | null
       state.configs![effectId][configKey] = parsedValue;
     }
   });
+
+  // Parse global UI toggles
+  const numParam = params.get('num');
+  if (numParam === '0' || numParam === 'false') {
+    state.showNumerals = false;
+  }
+  const letParam = params.get('let');
+  if (letParam === '0' || letParam === 'false') {
+    state.showNotes = false;
+  }
 
   // Migrate if needed
   return migrateState(state as VisualizerState);

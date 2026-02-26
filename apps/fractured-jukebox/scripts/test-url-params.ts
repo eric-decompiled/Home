@@ -372,6 +372,56 @@ console.log(yellow('\nTest 11: Overlay configs roundtrip'));
   assertEqual(decoded?.configs?.['feedback-trail']?.zoom, 1.02, 'Feedback-trail zoom decoded');
 }
 
+// Test 12: Global toggle params (num= and let=) work with any effect
+console.log(yellow('\nTest 12: Global toggle params with non-clock effects'));
+{
+  // State with melody-aurora (not melody-clock) but numerals/notes OFF
+  const state: VisualizerState = {
+    version: 1,
+    layers: {
+      bg: 'flux',
+      fg: 'note-star',
+      overlay: null,
+      overlays: ['kaleidoscope'],
+      melody: 'melody-aurora',
+      bass: 'bass-fire',
+      hud: null,
+    },
+    configs: {},
+    showNumerals: false,  // Global toggle OFF
+    showNotes: false,     // Global toggle OFF
+  };
+  const url = stateToURL(state);
+  assert(url.includes('num=0'), 'Global showNumerals=false encoded as num=0');
+  assert(url.includes('let=0'), 'Global showNotes=false encoded as let=0');
+
+  const decoded = urlToState(url);
+  assertEqual(decoded?.showNumerals, false, 'Global showNumerals decoded');
+  assertEqual(decoded?.showNotes, false, 'Global showNotes decoded');
+}
+
+// Test 13: Global toggles default to undefined (not encoded when true)
+console.log(yellow('\nTest 13: Global toggles not encoded when true (default)'));
+{
+  const state: VisualizerState = {
+    version: 1,
+    layers: {
+      bg: 'flux',
+      fg: 'note-star',
+      overlay: null,
+      overlays: [],
+      melody: 'melody-aurora',
+      bass: 'bass-fire',
+      hud: null,
+    },
+    configs: {},
+    // showNumerals and showNotes not set (defaults to true)
+  };
+  const url = stateToURL(state);
+  assert(!url.includes('num='), 'num param not present when default');
+  assert(!url.includes('let='), 'let param not present when default');
+}
+
 // Summary
 console.log(yellow('\n=== Summary ==='));
 console.log(`${green(String(passed))} passed, ${failed > 0 ? red(String(failed)) : '0'} failed`);
