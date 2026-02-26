@@ -4049,6 +4049,4 @@ setTimeout(() => {
   midiBtn.classList.add('glow-pulse');
 }, 800);
 
-// Open fractal wizard by default
-getFractalConfigPanel().then(panel => panel.show());
 

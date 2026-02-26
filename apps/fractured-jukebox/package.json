@@ -7,6 +7,8 @@
     "dev": "vite --host",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "test": "npx tsx scripts/test-url-params.ts",
+    "test:ci": "npx tsx scripts/test-url-params.ts --warn",
     "perf": "npx tsx scripts/perf-analysis.ts",
     "generate:qr": "npx tsx scripts/generate-qr.ts"
   },

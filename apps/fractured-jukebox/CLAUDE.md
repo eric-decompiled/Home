@@ -53,6 +53,21 @@ Vanilla TypeScript + Vite, no framework. Matches sibling projects (lissajous, re
 
 See [`docs/state-schema.md`](docs/state-schema.md) for full procedure.
 
+## Testing
+
+Run URL parameter roundtrip tests when modifying effects, presets, or state encoding:
+
+```bash
+npm test                  # Run tests, exit 1 on failure
+npm run test:ci           # Run tests, warn only (for CI)
+```
+
+**When to run**: Before committing changes to `src/state.ts`, adding/removing/renaming effects, or modifying preset definitions. Fix failures immediately.
+
+**CI behavior**: Tests run in GitHub Actions but use `--warn` flag so failures don't block deploys. This allows experimental changes while still surfacing issues.
+
+**Test file**: `scripts/test-url-params.ts` — tests encode/decode roundtrip for presets, custom layers, effect configs, and edge cases.
+
 ## Cleanup Defaults
 
 When cleaning up or resetting to sensible defaults, use these settings:

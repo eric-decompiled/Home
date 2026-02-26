@@ -112,7 +112,7 @@ const PRESETS_STORAGE_KEY = 'fractured-jukebox-presets';
 
 // --- URL Compression Mappings ---
 
-export const SLOT_KEYS = ['fg', 'bg', 'overlay', 'melody', 'bass', 'hud'] as const;
+export const SLOT_KEYS = ['bg', 'fg', 'overlay', 'melody', 'bass', 'hud'] as const;
 export type SlotKey = typeof SLOT_KEYS[number];
 
 // Effect ID ↔ short name for layer params (single words where possible)
@@ -129,13 +129,14 @@ export const EFFECT_SHORT_NAMES: Record<string, string> = {
   'feedback-trail': 'trail',
   'crt-overlay': 'crt',
   'fractal': 'fractal',
-  'bass-clock': 'clock',
-  'bass-fire': 'fire',
-  'bass-web': 'web',
-  'melody-clock': 'clock',
-  'melody-web': 'web',
-  'melody-aurora': 'aurora',
-  'melody-fire': 'fire',
+  'flux': 'flux',
+  'bass-clock': 'bclock',
+  'bass-fire': 'bfire',
+  'bass-web': 'bweb',
+  'melody-clock': 'mclock',
+  'melody-web': 'mweb',
+  'melody-aurora': 'maurora',
+  'melody-fire': 'mfire',
   'tonnetz': 'tonnetz',
   'waves': 'waves',
   'theory-bar': 'theory',
@@ -157,7 +158,9 @@ export const EFFECT_PREFIXES: Record<string, string> = {
   'chladni': 'ch',
   'kaleidoscope': 'ks',
   'feedback-trail': 'ft',
+  'crt-overlay': 'cr',
   'fractal': 'fr',
+  'flux': 'fx',
   'bass-clock': 'bc',
   'bass-fire': 'bf',
   'bass-web': 'bw',
@@ -321,6 +324,11 @@ export const DEFAULT_CONFIGS: Record<string, Record<string, unknown>> = {
   },
   'fractal': {
     preset: 'beat-voyage',
+  },
+  'flux': {
+    warpMult: 1.0,
+    warpScale: 3.5,
+    colorByChord: false,
   },
 };
 

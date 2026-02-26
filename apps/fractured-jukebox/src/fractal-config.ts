@@ -1609,6 +1609,7 @@ export class FractalConfigPanel {
                   <div class="fc-map-row">
                     <button class="fc-map-btn" data-action="reset" title="Reset view">⟲</button>
                     <button class="fc-map-btn" data-action="pan-down" title="Pan down">↓</button>
+                    <button class="fc-map-btn" data-action="center" title="Center on anchor">⌖</button>
                   </div>
                 </div>
               </div>
@@ -2322,6 +2323,31 @@ export class FractalConfigPanel {
     this.updateWizardZoomSlider();
   }
 
+  /** Center wizard map on the current anchor point */
+  private wizardMapCenterOnAnchor(): void {
+    if (!this.wizardState.tempAnchor || !this.wizardState.mapBounds) return;
+
+    const anchor = this.wizardState.tempAnchor;
+    const b = this.wizardState.mapBounds;
+    const w = b.rMax - b.rMin;
+    const h = b.iMax - b.iMin;
+
+    // Recenter bounds on anchor
+    b.rMin = anchor.real - w / 2;
+    b.rMax = anchor.real + w / 2;
+    b.iMin = anchor.imag - h / 2;
+    b.iMax = anchor.imag + h / 2;
+
+    // Clear buffer and re-render
+    this.wizardLocusBuffer = null;
+    this.wizardRenderedBounds = null;
+
+    const wizardCanvas = this.container.querySelector('.fc-wizard-locus-canvas') as HTMLCanvasElement;
+    if (wizardCanvas) {
+      this.renderWizardLocusOverlay(wizardCanvas);
+    }
+  }
+
   /** Jump to a random interesting hotspot for the current family */
   private wizardJumpToHotspot(wizardCanvas: HTMLCanvasElement): void {
     if (!this.wizardState.tempAnchor) return;
@@ -2613,6 +2639,7 @@ export class FractalConfigPanel {
             case 'zoom-in': this.wizardMapZoom(1.5); break;
             case 'zoom-out': this.wizardMapZoom(0.67); break;
             case 'reset': this.wizardMapReset(); break;
+            case 'center': this.wizardMapCenterOnAnchor(); break;
             case 'pan-up': this.wizardMapPan(0, -0.2); break;
             case 'pan-down': this.wizardMapPan(0, 0.2); break;
             case 'pan-left': this.wizardMapPan(-0.2, 0); break;
