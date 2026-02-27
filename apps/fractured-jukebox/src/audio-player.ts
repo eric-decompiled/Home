@@ -235,7 +235,8 @@ export const audioPlayer = {
   },
 
   seek(time: number) {
-    const target = Math.max(0, time);
+    // Avoid seeking to exactly 0 - sequencer has issues at time 0
+    const target = Math.max(1, time);
     resetTimeTracking(target);
     if (sequencer) {
       sequencer.currentTime = target;

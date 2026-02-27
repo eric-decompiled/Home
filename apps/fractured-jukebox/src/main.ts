@@ -3457,7 +3457,7 @@ prevBtn.addEventListener('click', async () => {
   // If past 3 seconds, rewind to start instead of going to previous track
   const currentTime = audioPlayer.getCurrentTime();
   if (currentTime > 3) {
-    resetForSeek(0);
+    audioPlayer.seek(0);
     seekBar.value = '0';
     updateTimeDisplay(0);
     return;
