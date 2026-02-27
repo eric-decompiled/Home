@@ -154,7 +154,7 @@ export class PianoRollEffect implements VisualEffect {
     // Decay brightness for notes no longer active
     for (const [midi, state] of this.keyStates) {
       if (!this.activeNotes.has(midi)) {
-        state.brightness *= Math.exp(-4.0 * dt); // decay for visible return
+        state.brightness *= Math.exp(-8.0 * dt); // faster decay for snappier response
       }
       if (state.brightness < 0.01) {
         this.keyStates.delete(midi);
