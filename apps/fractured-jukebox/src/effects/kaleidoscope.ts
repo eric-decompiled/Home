@@ -24,7 +24,7 @@ export class KaleidoscopeEffect implements VisualEffect {
   private zoomPulse = 1.0;
   private zoomTarget = 1.0;
   private mirrorMode: 'reflect' | 'rotate' = 'rotate';
-  private rotationSpeed = 0.2;
+  private rotationSpeed = 0.10;
   private centerOffsetX = 0;
   private centerOffsetY = 0;
   private lastChordDegree = -1;
@@ -91,16 +91,16 @@ export class KaleidoscopeEffect implements VisualEffect {
     // Continuous groove modulation: rotation "breathes" with the beat
     // beatGroove peaks at 1 on the beat, so (beatGroove - 0.5) gives -0.5 to +0.5
     // Groove curves drive the main rhythmic motion
-    const grooveRotation = (beatGroove - 0.5) * 0.18 + (barGroove - 0.5) * 0.10;
+    const grooveRotation = (beatGroove - 0.5) * 0.08 + (barGroove - 0.5) * 0.04;
 
     // Beat strength drives rotation direction: strong beats push forward, weak beats pull back
-    this.rotationVelocity += (music.beatStrength * 2 - 1) * music.drumEnergy * 0.045;
+    this.rotationVelocity += (music.beatStrength * 2 - 1) * music.drumEnergy * 0.02;
     // Arrival adds small punch
-    this.rotationVelocity += beatArrival * 0.015;
+    this.rotationVelocity += beatArrival * 0.008;
 
     // Melody pitch → rotation offset (subtle color)
     if (music.melodyOnset) {
-      this.rotationVelocity += ((music.melodyPitchClass % 12) / 12 - 0.5) * 0.012;
+      this.rotationVelocity += ((music.melodyPitchClass % 12) / 12 - 0.5) * 0.006;
     }
 
     // === ZOOM: groove-driven breathing + anticipation ===
@@ -130,8 +130,8 @@ export class KaleidoscopeEffect implements VisualEffect {
     }
 
     // Rotation dynamics: base speed + groove modulation + impulse velocity
-    // Low damping lets momentum carry through smoothly
-    this.rotationVelocity *= Math.exp(-0.6 * dt);
+    // Higher damping for smoother, more controlled rotation
+    this.rotationVelocity *= Math.exp(-1.2 * dt);
     this.rotation += (this.rotationSpeed + grooveRotation + this.rotationVelocity) * dt;
   }
 
@@ -210,7 +210,7 @@ export class KaleidoscopeEffect implements VisualEffect {
   getDefaults(): Record<string, number | string | boolean> {
     return {
       foldCount: 7,
-      rotationSpeed: 0.2,
+      rotationSpeed: 0.10,
       mirrorMode: 'rotate',
       centerOffsetX: 0,
       centerOffsetY: 0,

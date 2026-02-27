@@ -261,7 +261,11 @@ export const audioPlayer = {
         smoothTime = seqTime;
         return seqTime;
       } else {
-        // Sequencer still reporting stale time, use seek target
+        // Sequencer still reporting stale time - interpolate from seek target
+        if (!sequencer.paused) {
+          const delta = realTime - lastRealTime;
+          smoothTime = seekTarget + Math.min(delta, 2.0);
+        }
         return smoothTime;
       }
     }

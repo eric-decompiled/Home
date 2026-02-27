@@ -263,7 +263,7 @@ const keyRotationState = { value: 0 }; // animated by GSAP
 
 // Multi-voice tracking
 let currentActiveVoices: ActiveVoice[] = [];
-let lastActiveKeys = new Set<string>(); // "channel:midi" for onset detection
+let lastActiveKeys = new Set<string>(); // "channel:midi:time" for onset detection
 
 // Lookahead window for piano roll
 let noteLookaheadSeconds = 4.0;
@@ -877,8 +877,8 @@ export const musicMapper = {
         // Melody/bass detection
         if (n.midi > highestMidi) { highestMidi = n.midi; highestVel = n.velocity; }
         if (n.midi < lowestMidi) { lowestMidi = n.midi; lowestVel = n.velocity; }
-        // Active voice tracking
-        const key = `${n.channel}:${n.midi}`;
+        // Active voice tracking - include note time to distinguish overlapping notes
+        const key = `${n.channel}:${n.midi}:${n.time}`;
         newActiveKeys.add(key);
         voices.push({
           midi: n.midi,
