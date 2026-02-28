@@ -6,8 +6,8 @@
 import type { VisualEffect, EffectConfig, MusicParams, BlendMode } from './effect-interface.ts';
 import {
   samplePaletteColor, rgba, semitoneOffset, MAJOR_OFFSETS, MINOR_OFFSETS,
-  SPIRAL_MIDI_LO, SPIRAL_MIDI_HI, SPIRAL_MIDI_RANGE, SPIRAL_RADIUS_SCALE, spiralPos,
-  TWO_PI, fastExp
+  SPIRAL_MIDI_LO, SPIRAL_MIDI_HI, SPIRAL_MIDI_RANGE, SPIRAL_RADIUS_SCALE, spiralPos, ringPos,
+  TWO_PI, HALF_PI, fastExp
 } from './effect-utils.ts';
 import { gsap } from '../animation.ts';
 
@@ -72,21 +72,23 @@ export class NoteSpiralEffect implements VisualEffect {
   private cachedSpineKey = -1;
   private cachedSpineRotation = -999;
   private cachedSpineMode: 'major' | 'minor' = 'major';
+  private cachedSpineLayout: 'spiral' | 'ring' = 'spiral';
 
-  // Pre-computed positions (cached, updated only when key/rotation changes)
+  // Pre-computed positions (cached, updated only when key/rotation/layout changes)
   private notePositions: { x: number; y: number; r: number; scale: number }[] = [];
   private cachedPosKey = -1;
   private cachedPosRotation = -999;
   private cachedPosCx = 0;
   private cachedPosCy = 0;
   private cachedPosMaxR = 0;
+  private cachedPosLayout: 'spiral' | 'ring' = 'spiral';
 
   // Config
   private intensity = 1.0;
   private trailMax = 24;
   private darkBackdrop = true;
-  private glowOutlines = true;
   private spiralTightness = 1.25;  // power curve: lower = more bass space, higher = tighter
+  private layoutMode: 'spiral' | 'ring' = 'spiral';
   private currentTension = 0;  // for tension-driven visuals
   private beatDuration = 0.5;  // for beat-synced effects
   private bpm = 120;
@@ -161,9 +163,14 @@ export class NoteSpiralEffect implements VisualEffect {
     this.backdropDirty = true;
   }
 
-  // Map MIDI note to spiral position - delegates to shared spiralPos utility
+  // Map MIDI note to position - dispatches based on layout mode
   private notePos(midi: number, cx: number, cy: number, maxR: number): { x: number; y: number; r: number; scale: number } {
-    const pos = spiralPos(midi, midi % 12, this.key, this.keyRotation, cx, cy, maxR, this.spiralTightness);
+    const pc = midi % 12;
+    if (this.layoutMode === 'ring') {
+      const pos = ringPos(midi, pc, this.key, this.keyRotation, cx, cy, maxR);
+      return { x: pos.x, y: pos.y, r: pos.radius, scale: pos.scale };
+    }
+    const pos = spiralPos(midi, pc, this.key, this.keyRotation, cx, cy, maxR, this.spiralTightness);
     return { x: pos.x, y: pos.y, r: pos.radius, scale: pos.scale };
   }
 
@@ -174,6 +181,7 @@ export class NoteSpiralEffect implements VisualEffect {
 
     // Skip if nothing changed
     if (this.cachedPosKey === this.key &&
+        this.cachedPosLayout === this.layoutMode &&
         Math.abs(this.cachedPosRotation - this.keyRotation) < rotationThreshold &&
         Math.abs(this.cachedPosCx - cx) < positionThreshold &&
         Math.abs(this.cachedPosCy - cy) < positionThreshold &&
@@ -185,6 +193,7 @@ export class NoteSpiralEffect implements VisualEffect {
     // Cache inputs
     this.cachedPosKey = this.key;
     this.cachedPosRotation = this.keyRotation;
+    this.cachedPosLayout = this.layoutMode;
     this.cachedPosCx = cx;
     this.cachedPosCy = cy;
     this.cachedPosMaxR = maxR;
@@ -201,6 +210,7 @@ export class NoteSpiralEffect implements VisualEffect {
     const rotationThreshold = 0.02; // ~1 degree
     const needsUpdate = this.cachedSpineKey !== this.key ||
                         this.cachedSpineMode !== this.keyMode ||
+                        this.cachedSpineLayout !== this.layoutMode ||
                         Math.abs(this.cachedSpineRotation - this.keyRotation) > rotationThreshold;
 
     if (!needsUpdate) return;
@@ -208,6 +218,7 @@ export class NoteSpiralEffect implements VisualEffect {
     this.cachedSpineKey = this.key;
     this.cachedSpineRotation = this.keyRotation;
     this.cachedSpineMode = this.keyMode;
+    this.cachedSpineLayout = this.layoutMode;
 
     const sctx = this.spineCtx;
     sctx.clearRect(0, 0, this.width, this.height);
@@ -215,52 +226,81 @@ export class NoteSpiralEffect implements VisualEffect {
 
     const diatonicOffsets = this.keyMode === 'minor' ? MINOR_OFFSETS : MAJOR_OFFSETS;
 
-    // Draw smooth curves between consecutive notes
-    for (let i = 0; i < this.notePositions.length - 1; i++) {
-      const midi = MIDI_LO + i;
-      const pc = midi % 12;
-      const nextPc = (midi + 1) % 12;
+    if (this.layoutMode === 'ring') {
+      // Ring mode: draw concentric circles for each octave
+      const cx = this.width / 2;
+      const cy = this.height / 2;
+      const maxR = Math.min(this.width, this.height) / 2 * SPIRAL_RADIUS_SCALE;
+      const octaveRange = Math.ceil(MIDI_RANGE / 12);
 
-      // Get colors for gradient
-      const c0 = samplePaletteColor(pc, 0.65);
-      const c1 = samplePaletteColor(nextPc, 0.65);
+      for (let oct = 0; oct <= octaveRange; oct++) {
+        const octaveT = oct / octaveRange;
+        const radius = maxR * (0.15 + 0.85 * octaveT);
 
-      // Check if in key for line weight/alpha
-      const semi = semitoneOffset(pc, this.key);
-      const nextSemi = semitoneOffset(nextPc, this.key);
-      const inKey = diatonicOffsets.has(semi) || diatonicOffsets.has(nextSemi);
-      const baseAlpha = inKey ? 0.4 : 0.15;
-      const lw = inKey ? 2.0 : 1.0;
+        // Determine if this octave contains the tonic
+        const octaveStartMidi = MIDI_LO + oct * 12;
+        const octaveEndMidi = octaveStartMidi + 11;
+        const tonicInOctave = octaveStartMidi <= (this.key + 12 * 4) && (this.key + 12 * 4) <= octaveEndMidi;
 
-      const p0 = this.notePositions[i];
-      const p1 = this.notePositions[i + 1];
+        const baseAlpha = tonicInOctave ? 0.5 : 0.25;
+        const lw = tonicInOctave ? 3.0 : 1.5;
 
-      // Calculate tangent directions for smooth curves
-      const prev = this.notePositions[Math.max(0, i - 1)];
-      const next = this.notePositions[Math.min(this.notePositions.length - 1, i + 2)];
+        // Subtle grey for ring guides
+        sctx.beginPath();
+        sctx.arc(cx, cy, radius, 0, TWO_PI);
+        sctx.strokeStyle = rgba(180, 180, 180, baseAlpha);
+        sctx.lineWidth = lw;
+        sctx.stroke();
+      }
 
-      const tangentStrength = 0.18;
-      const t0x = (p1.x - prev.x) * tangentStrength;
-      const t0y = (p1.y - prev.y) * tangentStrength;
-      const t1x = (next.x - p0.x) * tangentStrength;
-      const t1y = (next.y - p0.y) * tangentStrength;
+    } else {
+      // Spiral mode: draw smooth curves between consecutive notes
+      for (let i = 0; i < this.notePositions.length - 1; i++) {
+        const midi = MIDI_LO + i;
+        const pc = midi % 12;
+        const nextPc = (midi + 1) % 12;
 
-      const cp1x = p0.x + t0x;
-      const cp1y = p0.y + t0y;
-      const cp2x = p1.x - t1x;
-      const cp2y = p1.y - t1y;
+        // Get colors for gradient
+        const c0 = samplePaletteColor(pc, 0.65);
+        const c1 = samplePaletteColor(nextPc, 0.65);
 
-      // Create gradient from note color to next note color
-      const grad = sctx.createLinearGradient(p0.x, p0.y, p1.x, p1.y);
-      grad.addColorStop(0, rgba(c0[0], c0[1], c0[2], baseAlpha));
-      grad.addColorStop(1, rgba(c1[0], c1[1], c1[2], baseAlpha));
+        // Check if in key for line weight/alpha
+        const semi = semitoneOffset(pc, this.key);
+        const nextSemi = semitoneOffset(nextPc, this.key);
+        const inKey = diatonicOffsets.has(semi) || diatonicOffsets.has(nextSemi);
+        const baseAlpha = inKey ? 0.4 : 0.15;
+        const lw = inKey ? 3.0 : 1.5;
 
-      sctx.beginPath();
-      sctx.moveTo(p0.x, p0.y);
-      sctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p1.x, p1.y);
-      sctx.strokeStyle = grad;
-      sctx.lineWidth = lw;
-      sctx.stroke();
+        const p0 = this.notePositions[i];
+        const p1 = this.notePositions[i + 1];
+
+        // Calculate tangent directions for smooth curves
+        const prev = this.notePositions[Math.max(0, i - 1)];
+        const next = this.notePositions[Math.min(this.notePositions.length - 1, i + 2)];
+
+        const tangentStrength = 0.18;
+        const t0x = (p1.x - prev.x) * tangentStrength;
+        const t0y = (p1.y - prev.y) * tangentStrength;
+        const t1x = (next.x - p0.x) * tangentStrength;
+        const t1y = (next.y - p0.y) * tangentStrength;
+
+        const cp1x = p0.x + t0x;
+        const cp1y = p0.y + t0y;
+        const cp2x = p1.x - t1x;
+        const cp2y = p1.y - t1y;
+
+        // Create gradient from note color to next note color
+        const grad = sctx.createLinearGradient(p0.x, p0.y, p1.x, p1.y);
+        grad.addColorStop(0, rgba(c0[0], c0[1], c0[2], baseAlpha));
+        grad.addColorStop(1, rgba(c1[0], c1[1], c1[2], baseAlpha));
+
+        sctx.beginPath();
+        sctx.moveTo(p0.x, p0.y);
+        sctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p1.x, p1.y);
+        sctx.strokeStyle = grad;
+        sctx.lineWidth = lw;
+        sctx.stroke();
+      }
     }
   }
 
@@ -632,11 +672,13 @@ export class NoteSpiralEffect implements VisualEffect {
       const pc = midi % 12;
       const semitones = semitoneOffset(pc, this.key);
       const inKey = diatonicOffsets.has(semitones);
-
-      // Early skip for completely invisible nodes
-      if (node.brightness < 0.001 && node.beamIntensity < 0.01) continue;
-
       const timeSinceHit = this.time - node.lastHitTime;
+
+      // Fade window: dots visible for up to 32 beats after being hit
+      const maxVisibleTime = this.beatDuration * 32;
+
+      // Early skip for completely invisible nodes (no brightness and outside fade window)
+      if (node.brightness < 0.001 && node.beamIntensity < 0.01 && timeSinceHit > maxVisibleTime) continue;
 
       // Light factor: 1.0 at top, 0.8 at bottom (gentle gradient)
       const lightT = Math.max(0, Math.min(1, (pos.y - lightTop) / lightRange));
@@ -743,7 +785,7 @@ export class NoteSpiralEffect implements VisualEffect {
                 // Bass: smaller, thicker, darker | Melody: larger, thinner, brighter
                 const ringR = beamLen * (0.3 + pitchT * 0.4);  // 0.3 to 0.7
                 const ringThickness = (12 - pitchT * 7) * pos.scale;  // 12 to 5
-                const ringAlpha = beamAlpha * (0.85 + pitchT * 0.1);  // 0.85 to 0.95
+                const ringAlpha = beamAlpha * (1.2 + pitchT * 0.3);  // 1.2 to 1.5 (brighter rings)
 
                 // Darken bass colors
                 const darkFactor = 0.5 + pitchT * 0.5;  // 0.5 to 1.0
@@ -1030,21 +1072,19 @@ export class NoteSpiralEffect implements VisualEffect {
 
       // Dot: diatonic notes brighter, chromatic visible
       // Scale dot by depth (higher notes = larger = closer)
-      const baseAlpha = inKey ? 0.40 : 0.18;
+      // Fade out dots that haven't been played recently (musical time-based)
+      const fadeStartBeats = 8;   // start fading after 8 beats
+      const fadeDurationBeats = 24;  // fully faded 24 beats later (32 total)
+      const fadeStart = this.beatDuration * fadeStartBeats;
+      const fadeDuration = this.beatDuration * fadeDurationBeats;
+      const fadeT = Math.max(0, (timeSinceHit - fadeStart) / fadeDuration);
+      const fadeFactor = Math.max(0, 1 - fadeT);
+      const baseAlpha = (inKey ? 0.40 : 0.18) * fadeFactor;
       const dotAlpha = baseAlpha + alpha * 0.6;
       if (dotAlpha < 0.005) continue;
 
       const baseDotR = inKey ? (4.0 + alpha * 4) : (2.5 + alpha * 3);
       const dotR = baseDotR * pos.scale;
-
-      // Soft glow outline around dot (scaled by depth)
-      if (this.glowOutlines && dotAlpha > 0.12) {
-        ctx.beginPath();
-        ctx.arc(pos.x, pos.y, dotR + 3 * pos.scale, 0, TWO_PI);
-        ctx.strokeStyle = rgba(255, 255, 255, dotAlpha * 0.35 * this.intensity);
-        ctx.lineWidth = 2.5 * pos.scale;
-        ctx.stroke();
-      }
 
       // Use pre-computed attack/sustain colors (glowR, glowG, glowB)
       ctx.beginPath();
@@ -1105,6 +1145,13 @@ export class NoteSpiralEffect implements VisualEffect {
   getConfig(): EffectConfig[] {
     return [
       {
+        key: 'layoutMode',
+        label: 'Layout',
+        type: 'buttons',
+        value: this.layoutMode,
+        options: ['spiral', 'ring'],
+      },
+      {
         key: 'activeShapes',
         label: 'Ornaments',
         type: 'multi-toggle',
@@ -1116,16 +1163,21 @@ export class NoteSpiralEffect implements VisualEffect {
 
   getDefaults(): Record<string, number | string | boolean> {
     return {
+      layoutMode: 'spiral',
       setShapes: 'firefly',
       spiralTightness: 1.25,
       intensity: 1.0,
       trailMax: 24,
       darkBackdrop: true,
-      glowOutlines: true,
     };
   }
 
   setConfigValue(key: string, value: number | string | boolean): void {
+    if (key === 'layoutMode') {
+      this.layoutMode = value as 'spiral' | 'ring';
+      this.cachedSpineKey = -1;   // invalidate spine cache
+      this.cachedPosKey = -1;     // invalidate position cache
+    }
     if (key === 'activeShapes') {
       // Toggle the shape on/off
       const shape = value as string;
@@ -1146,6 +1198,5 @@ export class NoteSpiralEffect implements VisualEffect {
     if (key === 'intensity') this.intensity = value as number;
     if (key === 'trailMax') this.trailMax = value as number;
     if (key === 'darkBackdrop') this.darkBackdrop = value as boolean;
-    if (key === 'glowOutlines') this.glowOutlines = value as boolean;
   }
 }

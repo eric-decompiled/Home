@@ -247,14 +247,14 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
     'note-spiral': { setShapes: '' },
   },
   warp: {
-    'note-spiral': { setShapes: 'ring,trails' },
-    'kaleidoscope': { foldCount: 6.002246 },
+    'note-spiral': { setShapes: 'ring,trails', layoutMode: 'ring' },
+    'kaleidoscope': { foldCount: 7 },
     'melody-clock': { showNotes: false },
     'bass-clock': { showNumerals: false },
   },
   fractal: {
     'fractal': { preset: 'phoenix-journey' },
-    'kaleidoscope': { foldCount: 6 },
+    'kaleidoscope': { foldCount: 7 },
     'flowfield': { trailsUI: 6, lineWidth: 4 },
     'bass-clock': { showNumerals: false },
     'melody-clock': { showNotes: false },
@@ -264,7 +264,7 @@ export const PRESET_CONFIGS: Record<string, EffectConfigs> = {
     'melody-clock': { showNotes: false },
   },
   StarAurora: {
-    'kaleidoscope': { foldCount: 6 },
+    'kaleidoscope': { foldCount: 7 },
     'bass-clock': { showNumerals: false },
     'melody-clock': { showNotes: false },
   },

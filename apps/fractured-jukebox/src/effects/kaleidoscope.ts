@@ -75,8 +75,9 @@ export class KaleidoscopeEffect implements VisualEffect {
     // Chord degree → fold count (curated per-degree)
     if (music.chordDegree !== this.lastChordDegree && music.chordDegree >= 0) {
       this.lastChordDegree = music.chordDegree;
-      // I:6, ii:7, III:6, IV:8, V:6, vi:7, vii°:9
-      const foldMap = [6, 7, 6, 8, 6, 7, 9];
+      // I:7, ii:8, III:6, IV:7, V:8, vi:7, vii°:9
+      // Wider range (6-9) but big jumps only on rare chord transitions
+      const foldMap = [7, 8, 6, 7, 8, 7, 9];
       const targetFolds = foldMap[music.chordDegree] ?? 6;
       const beatDur = music.beatDuration || 0.5;
       gsap.to(this, {

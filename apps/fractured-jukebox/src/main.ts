@@ -484,7 +484,7 @@ app.innerHTML = `
           <span></span><span></span><span></span>
         </button>
         <div class="preset-buttons desktop-only">
-          <button class="toggle-btn" id="layers-toggle">Menu</button>
+          <button class="toggle-btn" id="layers-toggle">Custom</button>
           <button class="toggle-btn preset-btn" id="preset-stars" title="Starfield + Note Star + Bass Fire">Stars</button>
           <button class="toggle-btn preset-btn" id="preset-clock" title="Starfield + Note Spiral + Bass Clock">Clock</button>
           <button class="toggle-btn preset-btn" id="preset-warp" title="Chladni + Note Spiral + Kaleidoscope">Warp</button>
@@ -2403,10 +2403,20 @@ function buildConfigSection(container: HTMLDivElement, slot: LayerSlot): void {
     } else if (cfg.type === 'buttons') {
       const btnWrap = document.createElement('div');
       btnWrap.className = 'config-buttons';
+      // Icon mappings for specific options
+      const iconMap: Record<string, string> = {
+        'spiral': '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c1.4 0 2.7-.3 3.9-.8-.4-.6-.6-1.3-.6-2 0-.5.1-1 .3-1.4-1.1.5-2.3.7-3.6.7-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8c0 .7-.1 1.4-.3 2 .5-.2 1-.3 1.5-.3.6 0 1.1.1 1.6.3.1-.6.2-1.3.2-2 0-5.5-4.5-10-10-10zm0 4c-3.3 0-6 2.7-6 6s2.7 6 6 6 6-2.7 6-6-2.7-6-6-6zm0 2c2.2 0 4 1.8 4 4s-1.8 4-4 4-4-1.8-4-4 1.8-4 4-4zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>',
+        'ring': '<svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="2"/></svg>',
+      };
       for (const opt of cfg.options ?? []) {
         const btn = document.createElement('button');
         btn.className = 'config-btn' + (opt === cfg.value ? ' active' : '');
-        btn.textContent = opt;
+        if (iconMap[opt]) {
+          btn.innerHTML = iconMap[opt];
+          btn.title = opt;
+        } else {
+          btn.textContent = opt;
+        }
         btn.addEventListener('click', () => {
           effect.setConfigValue(cfg.key, opt);
           btnWrap.querySelectorAll('.config-btn').forEach(b => b.classList.remove('active'));

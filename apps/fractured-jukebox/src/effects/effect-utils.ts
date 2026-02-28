@@ -357,3 +357,42 @@ export function spiralPos(
     scale,
   };
 }
+
+/**
+ * Calculate position on a ring layout for a given MIDI note.
+ * Each octave forms a concentric circle. Bass octaves at center, treble at rim.
+ * Notes arranged by pitch class around each ring (12 positions per ring).
+ * Tonic always at 12 o'clock position.
+ */
+export function ringPos(
+  midi: number,
+  pitchClass: number,
+  key: number,
+  keyRotation: number,
+  cx: number,
+  cy: number,
+  maxR: number
+): SpiralPos {
+  // Octave determines which ring (0-6 for typical piano range)
+  const octave = Math.floor((midi - SPIRAL_MIDI_LO) / 12);
+  const octaveRange = Math.ceil(SPIRAL_MIDI_RANGE / 12);
+
+  // Radius: linear per octave (bass center, treble outside)
+  const octaveT = octave / octaveRange;
+  const radius = maxR * (0.15 + 0.85 * octaveT);
+
+  // Angle: pitch class position, tonic at 12 o'clock
+  const fromTonic = (pitchClass - key + 12) % 12;
+  const angle = (fromTonic / 12) * TWO_PI - HALF_PI + keyRotation;
+
+  // Subtle depth scaling based on octave
+  const scale = 1.0 + octaveT * 0.1;
+
+  return {
+    x: cx + Math.cos(angle) * radius,
+    y: cy + Math.sin(angle) * radius,
+    radius,
+    angle,
+    scale,
+  };
+}
