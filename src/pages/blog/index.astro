@@ -1,35 +1,48 @@
 ---
-import BaseLayout from '../../layouts/BaseLayout.astro';
-import BlogCard from '../../components/BlogCard.astro';
-import { getCollection } from 'astro:content';
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import BlogCard from "../../components/BlogCard.astro";
+import { getCollection } from "astro:content";
 
-const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+const allPosts = await getCollection("blog", ({ data }) => !data.draft);
 const sortedPosts = allPosts.sort(
-  (a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf()
+    (a, b) => b.data.publishDate.valueOf() - a.data.publishDate.valueOf(),
 );
+
+function getReadingTime(body: string): number {
+    const words = body.trim().split(/\s+/).length;
+    return Math.ceil(words / 200);
+}
 ---
 
-<BaseLayout title="Blog" description="Articles about DSP, audio programming, and web audio.">
-  <div class="app-header">
-    <h1>Blog</h1>
-    <p class="subtitle">Articles about DSP, audio programming, and web audio</p>
-  </div>
+<BaseLayout
+    title="Blog"
+    description="Reports, articles and thoughts on software"
+>
+    <div class="app-header">
+        <h1>Blog</h1>
+        <p class="subtitle">Reports, articles and thoughts on software.</p>
+    </div>
 
-  <section class="section">
-    {sortedPosts.length > 0 ? (
-      <div class="blog-grid">
-        {sortedPosts.map(post => (
-          <BlogCard
-            title={post.data.title}
-            description={post.data.description}
-            publishDate={post.data.publishDate}
-            slug={post.slug}
-            tags={post.data.tags}
-          />
-        ))}
-      </div>
-    ) : (
-      <p style="color: var(--text-secondary);">No posts yet. Check back soon!</p>
-    )}
-  </section>
+    <section class="section">
+        {
+            sortedPosts.length > 0 ? (
+                <div class="blog-grid">
+                    {sortedPosts.map((post) => (
+                        <BlogCard
+                            title={post.data.title}
+                            description={post.data.description}
+                            publishDate={post.data.publishDate}
+                            slug={post.slug}
+                            tags={post.data.tags}
+                            readingTime={getReadingTime(post.body)}
+                        />
+                    ))}
+                </div>
+            ) : (
+                <p style="color: var(--text-secondary);">
+                    No posts yet. Check back soon!
+                </p>
+            )
+        }
+    </section>
 </BaseLayout>

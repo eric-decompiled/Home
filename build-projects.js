@@ -18,6 +18,7 @@ const projects = [
   'resonator',
   'karplus-strong',
   'intervals',
+  'pi-calc',
 ];
 
 // Base path for deployment (set via environment variable or default to /)

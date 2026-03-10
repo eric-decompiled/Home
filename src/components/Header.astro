@@ -18,6 +18,7 @@ const isActive = (path: string) => {
   <nav class="nav-links">
     <a href={base} class:list={[{ active: currentPath === base || currentPath === `${base}/` }]}>Home</a>
     <a href={`${base}apps/`} class:list={[{ active: currentPath.includes('/apps') }]}>Apps</a>
+    <a href={`${base}blog/`} class:list={[{ active: currentPath.includes('/blog') }]}>Blog</a>
     <div class="theme-controls mobile-only">
       <span class="theme-icon">🌙</span>
       <button class="theme-toggle" title="Toggle light/dark mode"></button>

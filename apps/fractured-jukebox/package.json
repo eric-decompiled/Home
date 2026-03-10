@@ -16,6 +16,7 @@
     "@types/node": "^25.2.3",
     "puppeteer": "^24.37.3",
     "qr-creator": "^1.0.0",
+    "rollup-plugin-visualizer": "^7.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.0.2",
     "vite": "^4.3.2"

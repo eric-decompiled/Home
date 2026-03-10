@@ -1145,18 +1145,18 @@ export class NoteSpiralEffect implements VisualEffect {
   getConfig(): EffectConfig[] {
     return [
       {
-        key: 'layoutMode',
-        label: 'Layout',
-        type: 'buttons',
-        value: this.layoutMode,
-        options: ['spiral', 'ring'],
-      },
-      {
         key: 'activeShapes',
         label: 'Ornaments',
         type: 'multi-toggle',
         value: Array.from(this.activeShapes).join(','),
         options: ['ring', 'trails', 'spark', 'firefly'],
+      },
+      {
+        key: 'layoutMode',
+        label: 'Note Layout',
+        type: 'buttons',
+        value: this.layoutMode,
+        options: ['spiral', 'ring'],
       },
     ];
   }

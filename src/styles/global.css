@@ -10,7 +10,7 @@
   --bg-tertiary: #1a2942;
   --accent-primary: #16c79a;
   --accent-secondary: #ff6b6b;
-  --text-primary: #e0e0e0;
+  --text-primary: #d8dce4;
   --text-secondary: #8892b0;
   --border-color: #0f3460;
   --transition: 0.5s ease;
@@ -322,17 +322,22 @@ body.light-mode .project-card:hover {
   border-radius: 12px;
   padding: 2rem;
   border: 1px solid var(--border-color);
+  font-family: Charter, 'Bitstream Charter', 'Sitka Text', Cambria, serif;
+  font-size: 1.1rem;
+  line-height: 1.75;
 }
 
 .blog-post .content h2 {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: var(--accent-primary);
-  margin-top: 2rem;
+  margin-top: 2.5rem;
   margin-bottom: 1rem;
 }
 
 .blog-post .content h3 {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: var(--accent-secondary);
-  margin-top: 1.5rem;
+  margin-top: 2rem;
   margin-bottom: 0.75rem;
 }
 

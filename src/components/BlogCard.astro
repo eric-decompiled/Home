@@ -5,9 +5,10 @@ interface Props {
   publishDate: Date;
   slug: string;
   tags?: string[];
+  readingTime?: number;
 }
 
-const { title, description, publishDate, slug, tags = [] } = Astro.props;
+const { title, description, publishDate, slug, tags = [], readingTime } = Astro.props;
 const base = import.meta.env.BASE_URL;
 
 const formattedDate = publishDate.toLocaleDateString('en-US', {
@@ -19,7 +20,7 @@ const formattedDate = publishDate.toLocaleDateString('en-US', {
 
 <a href={`${base}blog/${slug}/`} class="blog-card">
   <h3>{title}</h3>
-  <p class="date">{formattedDate}</p>
+  <p class="date">{formattedDate}{readingTime && ` · ${readingTime} min read`}</p>
   {description && <p>{description}</p>}
   {tags.length > 0 && (
     <div class="tags">
