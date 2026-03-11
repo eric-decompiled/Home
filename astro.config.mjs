@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import fs from 'fs';
 import path from 'path';
+import rehypeExternalLinks from 'rehype-external-links';
 
 const subProjects = ['fractured-jukebox', 'lissajous', 'sound-synth', 'resonator', 'karplus-strong', 'intervals'];
 
@@ -58,6 +59,11 @@ export default defineConfig({
   trailingSlash: 'always',
   build: {
     assets: '_astro'
+  },
+  markdown: {
+    rehypePlugins: [
+      [rehypeExternalLinks, { target: '_blank', rel: ['noopener', 'noreferrer'] }]
+    ]
   },
   integrations: [serveSubProjectsIntegration()]
 });
