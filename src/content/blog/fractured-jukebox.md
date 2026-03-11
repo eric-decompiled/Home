@@ -15,9 +15,9 @@ I am a big fan of static sites, especially for hobby projects. I find there's el
 
 I brought in two libraries to handle MIDI, [@tonejs/midi](https://github.com/Tonejs/Midi) and [spessasynth_lib](https://github.com/spessasus/spessasynth_lib) for the MIDI player. For a while I used [GSAP](https://gsap.com/) to smooth out some animations, but I realized I could ask Claude to write the few [tweening](https://en.wikipedia.org/wiki/Inbetweening) functions as a utility. It was really nice to remove a dependency in a few minutes just by asking. 
 
-I used [vite](https://vite.dev/), having my phone connected to the hot reload server and seeing it get updated after asking Claude. Vite is so good compared to the web tooling from 2016, which is when I started coding.
+I used [vite](https://vite.dev/), having my phone connected to the hot reload server and seeing it get updated after asking Claude never ceases to amaze me. Vite is so good compared to the web tooling from 2016, which is when I started coding seriously.
 
-The process was to ask Claude to implement something, do some quality assurance and move onto the next idea. LLMs are good at writing code, but they seem to have limited aesthetic sense beyond cliches and have poor UX sense. Which makes sense to me, but it also shifts the limiting skill sets from before.
+The process was to ask Claude to implement something, do some quality assurance and move onto the next idea. LLMs are good at writing code, but they seem to have limited aesthetic sense beyond cliches and have poor UX sense. Which makes sense to me, visual contrast doesn't matter to DOM selectors, but it also seems like an area where skilled people will continue to be needed.
 
 ## Research
 
@@ -79,17 +79,15 @@ This was the same strategy described on [OpenAI's blog](https://openai.com/index
 
 To me it seems like the context window is the scarce resource when using LLMs, which conflicts with their tendency for verbosity. Now that people don't have to modify the computer code directly as often, there might be benefit to using a denser style or language compared to what people want to write and read. 
 
-After working on a feature I would get the model to update CLAUDE.md, then type `/clear`. Although I would forget, I think it's best to avoid auto-compaction and to frequently update the domain understanding instead. Auto-compact works fine, but important context needs to be written to durable media before it's forgotten and clear runs a lot faster.
+After working on a feature I would get the model to update CLAUDE.md, then type `/clear`. Although I would forget, I think it's best to avoid auto-compaction and to frequently update the domain understanding instead. Auto-compact works fine, but important context needs to be written to durable media before it's forgotten anyway plus `/clear` runs a lot faster compared to `/compact`.
 
-Periodically managing a resource along with the [PeonPing](https://www.peonping.com/) plugin makes me feel the Real-Time-Strategy game experience from my youth is finally paying off. The plugin quotes lines from games like Warcraft and Starcraft when Claude starts or completes tasks or needs permission for something. I find it fun and useful.
+Periodically managing a resource along with the [PeonPing](https://www.peonping.com/) plugin makes me feel the Real-Time-Strategy game experience from my youth is finally paying off. The plugin quotes lines from games like Warcraft and StarCraft when Claude starts or completes tasks or needs permission for something. I find it both fun and useful.
 
 ### Shifting Skill Sets
 
 Usability, design and quality assurance seem to be areas neglected by most devs. Those functions are normally split across roles in companies, which probably plays a role in this. These areas also seem to be the areas in which humans will maintain an advantage in and provide complementary strengths for the LLM. 
 
-Most of the time building was spent on aesthetic tuning and feature curation. Many effects that were tried didn't make it into the app. It's very nice to be able to verbalize a vague idea and see something on the screen without getting distracted by programming syntax and the rigour of thought it demands. 
-
-I find it freeing to try out something quickly and not be burdened by the sunk cost of an hour of coding when having to backtrack.
+Most of the time building was spent on aesthetic tuning and feature curation. Many effects that were tried didn't make it into the app. It's very nice to be able to verbalize a vague idea and see something on the screen without getting distracted by programming syntax. I find it freeing to try out something quickly and not be burdened by the sunk cost of an hour of coding when having to backtrack.
 
 ## Conclusion
 
