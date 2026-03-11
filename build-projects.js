@@ -62,6 +62,17 @@ async function buildProjects() {
     await fs.ensureDir(appsDir);
     await fs.emptyDir(destDir);
     await fs.copy(projectDist, destDir);
+
+    // Fix favicon path to use root favicon for consistent branding
+    const indexPath = path.join(destDir, 'index.html');
+    if (await fs.pathExists(indexPath)) {
+      let html = await fs.readFile(indexPath, 'utf8');
+      html = html.replace(
+        new RegExp(`href="${basePath}/apps/${outputSlug}/favicon\\.png"`, 'g'),
+        'href="/favicon.png"'
+      );
+      await fs.writeFile(indexPath, html);
+    }
   }
 
   console.log('\nAll projects built successfully!');
